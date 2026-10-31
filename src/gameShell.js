@@ -259,14 +259,16 @@ const FloorMedal = ({ mark, icon, done, diff, size, title }) => (
 // lit but not picked; the P1 card says what opens them.
 // EVERY BOX IS THE FIGHTER DRESSED (Blake, 2026-10-24: the boxes should have "the randomized dressed
 // look" too): the same random shirt and pants the P1 card wears (renderDressed — App.js gameDressed
-// rolls them once per look per page), so a box and the card always agree. Locked boxes are that
-// dressed fighter's silhouette.
+// rolls them once per look per page), so a box and the card always agree. A LOCKED fighter is NOT
+// dressed (Blake, 2026-10-31, "Locked ones as saved"): its box and P1 silhouette are the look as he
+// saved it (renderArt), so a rolled pair of Jungle Fatigue Pants never puts cargo-pocket bumps on
+// Bob The Alien's outline.
 // A short last row is finished with COMING SOON boxes (selectGridFill): Bob as he would look LOCKED
 // (Blake, 2026-10-24, of the first try, a hollow outline of his whole body: "I mean outline of what
 // Bob would look like if he was locked") — his dressed head as the same dark silhouette, but no
 // padlock, since nothing opens it. They are not fighters — the arrows and the mouse never land on one.
 // Back sits beside START, under Easy (Blake: "nestled between Easy and start").
-function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, abilitiesOf, floors, difficulty, onStart, back, click, vp }) {
+function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, difficulty, onStart, back, click, vp }) {
   const roster = React.useMemo(() => {
     const s = starterRoster(assets, record);
     if (s.length) return s;
@@ -317,7 +319,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
           <div key={a.id + (i === at && locks[i] ? ":" + shake : "")} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "") + (locks[i] ? " shut" : "") + (i === at && locks[i] && shake ? " no" : "")} style={{ width: box, height: Math.round(box * 1.12) }}
             onMouseEnter={() => { if (step === "fighter") setAt(i); }}
             onClick={() => { setAt(i); if (locks[i]) { refuse(); setStep("fighter"); return; } click(); setStep("diff"); }}>
-            <div className="gFighterArt" style={{ width: artBox, height: artBox }}>{renderDressed(a, artBox, FIGHTER_PORTRAIT_FRAC)}</div>
+            <div className="gFighterArt" style={{ width: artBox, height: artBox }}>{(locks[i] ? renderArt : renderDressed)(a, artBox, FIGHTER_PORTRAIT_FRAC)}</div>
             {locks[i] && <div className="gFighterLock"><Padlock size={Math.round(box * 0.34)} /></div>}
             <div className="gFighterName" style={{ fontSize: Math.max(11, Math.round(box * 0.12)) }}><span>{a.name}</span></div>
             {i === at && <div className="gP1Tag">P1</div>}
@@ -333,7 +335,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
       </div>
       <div className="gSelFoot">
         <div className="gP1Card" style={{ width: Math.round(p1 * 0.82), height: p1 }}>
-          {cur && <div className={"gP1Art" + (curLock ? " shut" : "")} style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{renderDressed(cur, Math.round(p1 * 0.82))}</div>}
+          {cur && <div className={"gP1Art" + (curLock ? " shut" : "")} style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{(curLock ? renderArt : renderDressed)(cur, Math.round(p1 * 0.82))}</div>}
           {curLock && <div className="gP1Lock"><Padlock size={Math.round(p1 * 0.22)} /></div>}
           <div className="gP1Name" style={{ fontSize: p1NamePx }}><BobLogo text={p1Name} /></div>
           {curLock && <div className="gP1Need" style={{ bottom: "calc(6% + " + Math.round(p1NamePx * 1.15) + "px)" }}><span>{curLock.need}</span>{curLock.of ? <b>{curLock.have.toLocaleString("en-US")} / {curLock.of.toLocaleString("en-US")}</b> : null}</div>}
@@ -637,7 +639,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {sceneUp && <div className={"gScreen gStage" + (view === "menu" ? "" : " dim")}><SceneBackdrop key={scene ? scene.id : "none"} scene={scene} vp={vp} /></div>}
       {view === "title" && <TitleHandoff ready={ready} onDone={toMenu} />}
       {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} />}
-      {view === "select" && <CharacterSelect assets={assets} record={record} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} abilitiesOf={abilitiesOf} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
+      {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} abilitiesOf={abilitiesOf} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} onUpload={onUpload} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}

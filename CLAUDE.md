@@ -543,7 +543,7 @@ plus traps it does not cover:
 - **New Game → character select, Smash style**: a box per look filed under **Starter**
   (`starterLooks`, Bob first), the box shows the HEAD only ("neck up"), the P1 card the whole body;
   BOTH are **dressed in the same random shirt + pants** drawn for its body (`gameDressed`, kept per
-  page; the boxes too since 2026-10-24; a look already wearing a shirt, like Super Bob, keeps it and only its pants roll) — display only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
+  page; the boxes too since 2026-10-24; a look already wearing a shirt, like Super Bob, keeps it and only its pants roll; a LOCKED fighter is never dressed, its box and P1 silhouette are the look as saved, 2026-10-31) — display only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
   spaces ignored so "VietBob" = "Viet Bob"): Bobby = Trailor Park floor done, Bobert = 50 items found
   (Items-tab ids in `record.found`), Roberta = Trailor Park done AS Rob (`record.floorsWith`), Rob =
   Trailor Park on Hard, Viet Bob = Vietnam on Hard, Bob Li = the conversation NAMED "Bob Li" opened in
