@@ -553,7 +553,7 @@ plus traps it does not cover:
   counted from 2026-10-31 on), Agent Bob = 1,000 kills (`record.kills`). Locked boxes show as a silhouette under
   a padlock, can be lit but not picked; the P1 card names what opens them. **Order** (`starterRoster`):
   every open fighter first (Bob, then A-Z), then the locked ones A-Z; an unlock moves a fighter up into
-  its alphabetical place. `selectGridCols` is always 5 to a row (Blake, 2026-10-31; boxes are sized by row count, so a long roster shrinks them on a short window). The P1 card's dead space on the right lists the look's ABILITIES (`lookAbilityNames`, names only; hidden under 1280px wide); a LOCKED silhouette runs through the `#gSilhouette` blur+threshold filter so the stepped legs read smooth,
+  its alphabetical place. `selectGridCols` is always 5 to a row (Blake, 2026-10-31; boxes are sized by row count, so a long roster shrinks them on a short window). The P1 card's dead space on the right lists the look's ABILITIES (`lookAbilityNames`, names only; hidden under 1280px wide),
   fighter portraits frame `FIGHTER_PORTRAIT_FRAC` (0.36) inside the inner `box - 8` window centred on the
   body (not worn gear, and `textPieceBox` crops `kind:"text"` bounds to the centred glyphs so a wide text
   wrapper on a hat/undies never shoves a fighter or life head off-centre), and **Coming Soon** boxes

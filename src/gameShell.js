@@ -306,7 +306,6 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
   const stats = cur ? starterStats(cur) : [];
   const medals = cur ? lookFloorMedals(record, cur.name, floors) : [];
   const abilities = cur && abilitiesOf ? abilitiesOf(cur) : [];
-  const silBlur = Math.max(2, Math.round(p1 * 0.009)); // the locked silhouette's smoothing, in px of the art box
   const statPx = Math.round(Math.max(16, Math.min(30, p1 * 0.072)));
   const medalPx = Math.round(Math.max(36, Math.min(68, p1 * 0.17)));
   const headPx = 18;
@@ -334,7 +333,6 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
       </div>
       <div className="gSelFoot">
         <div className="gP1Card" style={{ width: Math.round(p1 * 0.82), height: p1 }}>
-          {curLock && <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true"><filter id="gSilhouette" x="-5%" y="-5%" width="110%" height="110%" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" /><feGaussianBlur stdDeviation={silBlur} /><feComponentTransfer><feFuncA type="linear" slope="16" intercept="-7.5" /></feComponentTransfer></filter></svg>}
           {cur && <div className={"gP1Art" + (curLock ? " shut" : "")} style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{renderDressed(cur, Math.round(p1 * 0.82))}</div>}
           {curLock && <div className="gP1Lock"><Padlock size={Math.round(p1 * 0.22)} /></div>}
           <div className="gP1Name" style={{ fontSize: p1NamePx }}><BobLogo text={p1Name} /></div>
@@ -757,7 +755,7 @@ export const GAME_CSS = `
 @keyframes gNo{20%,60%{transform:translate(-5px,-4px)}40%,80%{transform:translate(5px,-4px)}}
 .gFighterLock,.gP1Lock{position:absolute;left:0;right:0;display:flex;justify-content:center;pointer-events:none;color:var(--gEdge);filter:drop-shadow(0 3px 0 rgba(0,0,0,.5))}
 .gFighterLock{top:28%}
-.gP1Art.shut>div{filter:brightness(0) opacity(.6);filter:url(#gSilhouette) opacity(.6)}
+.gP1Art.shut>div{filter:brightness(0) opacity(.6)}
 .gP1Lock{top:30%;transform:skewX(4deg)}
 .gP1Need{position:absolute;left:0;right:0;padding:0 9%;display:flex;flex-direction:column;align-items:center;text-align:center;gap:.15em;line-height:1.15;font-size:clamp(12px,.95vw,16px);letter-spacing:.06em;text-transform:uppercase;color:var(--gGold);text-shadow:0 2px 0 rgba(0,0,0,.5);transform:skewX(4deg)}
 .gP1Need b{color:#fff;font-weight:inherit}
