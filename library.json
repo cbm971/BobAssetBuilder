@@ -2678226,13 +2678226,16 @@
        "text": "Enjoy the show.",
        "to": "",
        "act": "",
-       "tone": "",
-       "shopTag": ""
+       "tone": "good",
+       "shopTag": "",
+       "points": 50
       }
      ]
     }
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793488830933,
+   "once": true,
+   "editedFrom": 1793442347590
   },
   {
    "id": "dlgfan2",
@@ -2678638,7 +2678641,7 @@
        "to": "",
        "act": "shop",
        "tone": "good",
-       "shopTag": "Concert"
+       "shopTag": "Hippy"
       },
       {
        "id": "cdlgmrch2",
@@ -2678651,7 +2678654,8 @@
      ]
     }
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793488800942,
+   "editedFrom": 1793442347590
   },
   {
    "id": "dlgord1",
