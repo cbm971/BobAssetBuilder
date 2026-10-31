@@ -2679635,14 +2679635,17 @@
        "to": "",
        "act": "heal",
        "tone": "good",
-       "shopTag": ""
+       "shopTag": "",
+       "points": 50
       }
      ]
     }
    },
    "sound": "5542xx2",
    "soundVol": 0.85,
-   "savedAt": 1792752830363
+   "savedAt": 1793488925212,
+   "once": true,
+   "editedFrom": 1792752830363
   },
   {
    "id": "dlgvceg",
