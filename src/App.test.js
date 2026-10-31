@@ -772,6 +772,10 @@ import {
 import {
   assetAlpha,
   fadeGroup,
+  OUTLINE_STROKE_PX,
+  shapeOutlinePoints,
+  shapeOutsideClip,
+  pieceFillSeeThrough,
   TRANSLUCENCY_MAX,
   TRANSLUCENCY_STEP,
   activeBuffSum,
@@ -15566,5 +15570,36 @@ describe("🦸 Flying creatures (flies: true, flapCreatureWings, Eagle enemy)", 
     const sideWingsDown = flappedSide.filter(isCreatureWingPiece);
     const wingTopDown = Math.min(...sideWingsDown.map((w) => w.y));
     expect(wingTopDown).toBe(100);
+  });
+});
+
+// 🖍 2026-10-31, Blake: "make it so transparency does not effect outlines. Also try to clean up
+// outlines on complex shapes a little bit." His Star Shades lens (rkshade) is a 40% see-through star
+// with an outline; the outline was a solid black star under the lens, faded with it.
+describe("🖍 outlines stay solid under a see-through fill", () => {
+  const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+  test("a polygon outline is one traced line, not eight stacked drop-shadows", () => {
+    expect(shapeOutlinePoints({ kind: "tri" })).toMatch(/^[\d.]+,[\d.]+( [\d.]+,[\d.]+){2,}$/);
+    expect(shapeOutlinePoints({ kind: "rect" })).toBe(null);                // a box keeps its box-shadow ring
+    const star = { kind: "star" };
+    expect(shapeOutlinePoints(star)).toBe(shapeOutlinePoints({ kind: "star" })); // cached per shape
+    expect(src).not.toContain("drop-shadow(${ringPx");
+    expect(OUTLINE_STROKE_PX / 2).toBe(2);                                    // 2px outside, like a square's ring
+  });
+  test("the outside clip is everything but the shape", () => {
+    const cp = shapeOutsideClip({ kind: "poly", points: [[0, 0], [1, 0], [0.5, 1]] });
+    expect(cp).toBe("polygon(evenodd, -5000% -5000%, 5100% -5000%, 5100% 5100%, -5000% 5100%, -5000% -5000%, 0% 0%, 100% 0%, 50% 100%, 0% 0%, -5000% -5000%)");
+    expect(shapeOutsideClip({ kind: "circle" })).toBe(null);
+  });
+  test("a fill is see-through when 👻 Translucent or ✨ Fade lets the background show", () => {
+    expect(pieceFillSeeThrough({ kind: "star" })).toBe(false);
+    expect(pieceFillSeeThrough({ kind: "star", fx: { opacity: 1 } })).toBe(false);
+    expect(pieceFillSeeThrough({ kind: "star", translucency: 0.4 })).toBe(true);
+    expect(pieceFillSeeThrough({ kind: "star", fx: { opacity: 0.9 } })).toBe(true);
+  });
+  test("the 👻 fade wraps the fill alone, never the outline", () => {
+    expect(src).not.toContain('fadeGroup("t", pa, <>{outline}{body}</>)');
+    expect(src).not.toContain('fadeGroup("t", pa, art)');
+    expect(src.split('fadeGroup("t", pa, body)').length - 1).toBe(3);      // Static, MirrorGhost, Block
   });
 });

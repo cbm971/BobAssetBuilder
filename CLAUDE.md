@@ -242,9 +242,9 @@ what the part really was.
 piece (tail, neck, branch) is one 〰️ Curve-tool stroke (`curveBandPoints`: start, a point on the
 curve, end, two thicknesses), not a hand-rolled polygon. If you need a shape or control the editor
 lacks, add it to the editor first (he invited that), creation-only like Line / Fill / Curve.
-Never set `outline` on a Curve or Fill piece: on a clip-path shape it is eight chained drop-shadows,
-about 4px thick at any zoom (a square's or circle's is a 2px ring), and none of his own curved
-pieces use it.
+Never set `outline` on a Curve or Fill piece: none of his own curved pieces use it. (Since
+2026-10-31 a polygon shape's outline is one traced SVG line, `shapeOutlinePoints`, 2px outside the
+edge like a square's ring; before that it was eight chained drop-shadows, lumpy and ~4px.)
 **A weapon looks like his weapons: a few STOCK shapes turned into place, no outline** (Blake on the
 🪃 Boomerang, 2026-10-25: a smooth Curve over a dark copy of itself was "an ugly un symetrical
 boomerang. Also it kind of looks cheated"). Survey his own first: Rock, Pokeball, Katana, Bobs Bat
@@ -285,10 +285,14 @@ plus traps it does not cover:
   cutters on that body's iris.
 - "Behind legs" on pants puts the piece under the legs only, not under the body. Hats compose
   under the arms (`hatsUnderArms`).
-- A translucent piece can carry an outline only as a rect, circle, roundrect or stadium. Any other
-  shape draws its outline as a solid silhouette under the fill.
+- **Transparency never fades an outline** (2026-10-31, Blake: "make it so transparency does not effect
+  outlines", on his Star Shades lens `rkshade`). 👻 Translucent fades the fill alone (the fadeGroup
+  wraps only the body in Static / Block / MirrorGhost), and under a see-through fill (👻 or ✨ Fade,
+  `pieceFillSeeThrough`) a polygon outline is clipped to the outside (`shapeOutsideClip`), so no
+  outline shows through the glass. The whole-asset fade (nothing selected) still fades the finished
+  picture as one, outlines included.
 - **ONE 👻 Translucent slider, and it fades what is SELECTED** (its title says which): a block →
-  `piece.translucency` (`pieceAlpha`, outline and fill fade together); a selected group → every block
+  `piece.translucency` (`pieceAlpha`, the fill only; its outline stays solid); a selected group → every block
   in it (`updSelAll`); nothing selected → the whole asset. Never add a second see-through slider: with
   two (one per block, one per asset) Blake reached for the asset one with ONE block selected and it
   faded his whole pill, three reports running. With 🪣 Change this color everywhere ON it fades every

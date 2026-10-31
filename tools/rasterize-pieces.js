@@ -133,11 +133,12 @@ function render(pieces, opts) {
     const layerOf = (q) => q._src || q._slot || "__body";
     const cutBy = p.noCut ? [] : cutters.filter((c) => c.idx > e.idx && layerOf(c.p) === layerOf(p));
     const fx = p.fx || {};
-    // × the piece's own 👻 Translucent (App.js pieceAlpha). Outline and fill take the same alpha here,
-    // and the outline is only drawn where the fill is not, which is the app's fade-as-one-shape.
+    // × the piece's own 👻 Translucent (App.js pieceAlpha) — on the FILL only. The outline is drawn
+    // only where the fill is not, at its own outline Fade, as the app's ring-only outline is (2026-10-31).
     const bright = fx.bright === undefined ? 1 : fx.bright, alpha = (fx.opacity === undefined ? 1 : fx.opacity) * assetAlpha(p);
     const fill = hex(p.color).map((c) => Math.max(0, Math.min(255, c * bright)));
     const oc = p.outline ? hex(p.outlineColor || "#000") : null;
+    const olAlpha = p.outlineFx && typeof p.outlineFx.opacity === "number" ? p.outlineFx.opacity : 1;
     // bounding box in output pixels (generous: the rotated box's diagonal)
     const [cx, cy] = turnedCentre(p), rad = Math.hypot(p.w, p.h) / 2 + 3;
     const bx0 = e.m ? W - cx - rad : cx - rad, bx1 = e.m ? W - cx + rad : cx + rad;
@@ -145,15 +146,15 @@ function render(pieces, opts) {
     const y0 = Math.max(0, Math.floor((cy - rad - crop[1]) * zoom)), y1 = Math.min(oh - 1, Math.ceil((cy + rad - crop[1]) * zoom));
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const px = crop[0] + (x + 0.5) / zoom, py = crop[1] + (y + 0.5) / zoom;
-      let col = null;
+      let col = null, a = alpha;
       if (hit(p, px, py, 0, e.m)) col = fill;
-      else if (oc && hit(p, px, py, 1.4, e.m)) col = oc;
+      else if (oc && hit(p, px, py, 1.4, e.m)) { col = oc; a = olAlpha; }
       if (!col) continue;
       let cut = false;
       for (const c of cutBy) if (hit(c.p, px, py, 0, c.m)) { cut = true; break; }
       if (cut) continue;
       const i = (y * ow + x) * 3;
-      img[i] = img[i] * (1 - alpha) + col[0] * alpha; img[i + 1] = img[i + 1] * (1 - alpha) + col[1] * alpha; img[i + 2] = img[i + 2] * (1 - alpha) + col[2] * alpha;
+      img[i] = img[i] * (1 - a) + col[0] * a; img[i + 1] = img[i + 1] * (1 - a) + col[1] * a; img[i + 2] = img[i + 2] * (1 - a) + col[2] * a;
     }
   }
   // The canvas started as flat background, so fading the finished picture as one is a blend of

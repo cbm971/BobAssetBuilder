@@ -10879,10 +10879,11 @@ export const assetAlpha = (a) => translucentAlpha(a && a.translucency);
 // the whole asset (assetAlpha above). Two sliders, one per level, was a trap: he reached for the
 // whole-asset one with a block selected and it faded his whole pill. Same 0–90% scale. It is
 // NOT the existing ✨ Fade: Fade fades only the fill, and an outlined triangle or poly then shows
-// its solid outline silhouette straight through it (the outline is drawn as a solid shape under the
-// fill). This fades the fill AND its outline together as one picture (Static / Block / MirrorGhost
-// wrap the pair in a fadeGroup), so a translucent shape keeps its edge and actually reads as glass.
-// Fade is left exactly as it was: 1,602 pieces in his saves use it.
+// its solid outline silhouette straight through it (the outline was drawn as a solid shape under the
+// fill). Until 2026-10-31 this faded the fill AND its outline together; then Blake: "make it so
+// transparency does not effect outlines". Now only the fill fades (Static / Block / MirrorGhost wrap
+// the fill alone in a fadeGroup) and the outline is a solid ring round it (shapeOutlinePoints), so a
+// translucent lens keeps a hard black edge. The same ring-only outline fixed Fade's dark silhouette.
 export const pieceAlpha = (p) => translucentAlpha(p && p.translucency);
 // One box the size of the art's own frame (the same 0–100% every piece positions against), with the
 // opacity on it, so its children composite together first and fade as one. pointer-events:none so
@@ -10934,6 +10935,40 @@ export const shapeClipPath = (pieceOrKind) => {
   if (cp === undefined) { cp = "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")"; CLIP_PATH_CACHE.set(pts, cp); }
   return cp;
 };
+// 🖍 THE OUTLINE OF A POLYGON SHAPE (triangle, star, trapezoid, a Fill) is one SVG line traced round
+// it (2026-10-31, Blake: "make it so transparency does not effect outlines. Also try to clean up
+// outlines on complex shapes a little bit"). It used to be a solid silhouette in the outline colour
+// under the fill, grown by eight chained drop-shadows: lumpy at every point of a star, 3-4px against
+// a square's 2px ring, and the solid silhouette showed straight through a see-through fill. Now the
+// line is OUTLINE_STROKE_PX wide, centred on the edge, round at the corners, the same width at any
+// zoom (non-scaling stroke), so 2px of it shows outside the edge like a square's ring. Under an
+// opaque fill its inner half is hidden; under a see-through fill (👻 Translucent, ✨ Fade) it is
+// clipped to the outside (shapeOutsideClip), so only the ring shows and the fill reads as glass.
+export const OUTLINE_STROKE_PX = 4;
+const OUTLINE_PTS_CACHE = new WeakMap(), OUTSIDE_CLIP_CACHE = new WeakMap();
+export const shapeOutlinePoints = (p) => {
+  const pts = shapePolyPoints(p);
+  if (!pts) return null;
+  let s = OUTLINE_PTS_CACHE.get(pts);
+  if (s === undefined) { s = pts.map(([x, y]) => (x * 100) + "," + (y * 100)).join(" "); OUTLINE_PTS_CACHE.set(pts, s); }
+  return s;
+};
+// Everything but the shape: a box far bigger than any ring, then the shape, joined by a bridge walked
+// out and back (evenodd, the cutterHoleClips trick). A CSS clip, not an SVG <clipPath>, because an id
+// would be shared by every copy of the shape on the page and a hidden copy can break the reference.
+export const shapeOutsideClip = (p) => {
+  const pts = shapePolyPoints(p);
+  if (!pts) return null;
+  let cp = OUTSIDE_CLIP_CACHE.get(pts);
+  if (cp === undefined) {
+    const at = ([x, y]) => (x * 100) + "% " + (y * 100) + "%";
+    cp = "polygon(evenodd, -5000% -5000%, 5100% -5000%, 5100% 5100%, -5000% 5100%, -5000% -5000%, " + pts.map(at).join(", ") + ", " + at(pts[0]) + ", -5000% -5000%)";
+    OUTSIDE_CLIP_CACHE.set(pts, cp);
+  }
+  return cp;
+};
+// Whether a piece's fill lets what is under it show — then its outline must be ring-only.
+export const pieceFillSeeThrough = (p) => pieceAlpha(p) < 1 || fxNum(p && p.fx && p.fx.opacity, 1) < 1;
 
 /* ---- Snap to edges ------------------------------------------------------- */
 // The "🧲 Snap to edges" mode. While a block is being dragged, if one of its own edges comes to
@@ -21457,12 +21492,10 @@ export default function AssetStudio({ game = false } = {}) {
     return s;
   };
   // Outer wrapper for the outline layer: position/transform/opacity + the outline's own filter
-  // (glow, brightness, and — for clip-path shapes — the ring of small drop-shadow offsets that
-  // fakes a uniform outline). No clip-path here, for the same reason as shapeStyle above: a
-  // clip-path on the SAME element as a filter clips away anything that filter renders outside the
-  // box — which was silently killing the entire outline ring (not just its glow/brightness), on
-  // every non-rect/circle shape. Text pieces have no separate fill child (see outlineFillStyle) —
-  // their own stroke IS the outline, rendered directly inside this wrapper.
+  // (glow, brightness). No clip-path here, for the same reason as shapeStyle above: a clip-path on
+  // the SAME element as a filter clips away anything that filter renders outside the box. Text
+  // pieces have no separate fill child (see OutlineLayer) — their own stroke IS the outline,
+  // rendered directly inside this wrapper.
   const outlineStyle = (p, off, mirrored, faded) => {
     const ox = off ? off.x : 0, oy = off ? off.y : 0;
     const s = { position: "absolute", left: ((p.x + ox) / W * 100) + "%", top: ((p.y + oy) / H * 100) + "%", width: (p.w / W * 100) + "%", height: (p.h / H * 100) + "%", boxSizing: "border-box", pointerEvents: "none" };
@@ -21478,37 +21511,25 @@ export default function AssetStudio({ game = false } = {}) {
     const filterParts = [];
     if (ofx.glow > 0) filterParts.push(`drop-shadow(0 0 ${ofx.glow}px ${ofx.glowColor || "#ffd76b"})`);
     if (ofx.bright !== undefined && ofx.bright !== 1) filterParts.push(`brightness(${ofx.bright})`);
-    if (p.kind !== "text") {
-      const oc = p.outlineColor || "#000";
-      const cp = shapeClipPath(p);
-      if (cp) {
-        // box-shadow renders outside the element's border-box, but clip-path clips the entire
-        // rendered box — shadow included — so it silently never showed on any clip-path shape.
-        // drop-shadow instead follows the actual post-clip silhouette (of outlineFillStyle's fill
-        // sibling, which sits right below this wrapper) — one drop-shadow only casts in a single
-        // direction though, so 8 tiny same-color offsets in a ring approximate a uniform outline.
-        // Each offset is `calc(Npx * var(--olk, 1))`: --olk is unset (so 1) everywhere but the
-        // scaled planes that set it (groundRingVars).
-        const d = OUTLINE_RING_PX;
-        const dirs = [[d, 0], [-d, 0], [0, d], [0, -d], [d, d], [d, -d], [-d, d], [-d, -d]];
-        const ringPx = (n) => n === 0 ? "0px" : `calc(${n}px * var(--olk, 1))`;
-        filterParts.push(...dirs.map(([dx, dy]) => `drop-shadow(${ringPx(dx)} ${ringPx(dy)} 0 ${oc})`));
-      }
-    }
     if (filterParts.length) s.filter = filterParts.join(" ");
     return s;
   };
-  // Inner outline fill (everything but text — see outlineStyle above): a clip-path shape gets a
-  // solid silhouette in the outline color for the ring drop-shadows above to key their alpha off
-  // of; rect/circle instead just uses a plain box-shadow ring (fine there since there's no
-  // clip-path on this element to fight with).
-  const outlineFillStyle = (p) => {
-    const s = { width: "100%", height: "100%", boxSizing: "border-box" };
+  // Inner outline (everything but text). A rect/circle/roundrect/stadium is a box-shadow ring, which
+  // is drawn only OUTSIDE the box, so a see-through fill already shows no outline under it. A polygon
+  // shape is a traced SVG line (see shapeOutlinePoints), ring-only when its fill is see-through.
+  // --olk is unset (so 1) everywhere but the scaled planes that set it (groundRingVars).
+  const outlineInner = (p, seeThrough) => {
     const oc = p.outlineColor || "#000";
-    const cp = shapeClipPath(p);
-    if (cp) { s.clipPath = cp; s.background = oc; }
-    else { if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; else if (p.kind === "stadium") s.borderRadius = STADIUM_CSS_RADIUS; s.boxShadow = "0 0 0 calc(2px * var(--olk, 1)) " + oc; }
-    return s;
+    const pts = shapeOutlinePoints(p);
+    if (pts) {
+      const svg = { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", overflow: "visible" };
+      if (seeThrough) svg.clipPath = shapeOutsideClip(p);
+      return <svg style={svg} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points={pts} fill="none" stroke={oc} strokeLinejoin="round" vectorEffect="non-scaling-stroke" style={{ strokeWidth: `calc(${OUTLINE_STROKE_PX}px * var(--olk, 1))` }} /></svg>;
+    }
+    const s = { width: "100%", height: "100%", boxSizing: "border-box" };
+    if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; else if (p.kind === "stadium") s.borderRadius = STADIUM_CSS_RADIUS;
+    s.boxShadow = "0 0 0 calc(2px * var(--olk, 1)) " + oc;
+    return <div style={s} />;
   };
   // The cutter hole used to be a CSS mask-image built here (cutterMaskCss, until 2026-09-20). It is
   // an evenodd clip on each cut piece now — cutterHoleClips, next to pieceOriginPoint — because the
@@ -21576,13 +21597,14 @@ export default function AssetStudio({ game = false } = {}) {
     return <div style={{ ...box, clipPath: holes[0] }}>{inner}</div>;
   };
   // Shared by Static/MirrorGhost/Block: renders the outline layer as outer(outlineStyle) +
-  // inner(outlineFillStyle), except text, which has no separate fill child (see outlineStyle).
+  // outlineInner, except text, which has no separate fill child (see outlineStyle).
   // `holes` are the cutter clips Static computed for the piece (cutterHoleClips); the ring sits in
   // the same box under the same transform, so the same clips cut the same holes through it.
+  // The outline is never inside the piece's 👻 fade: a see-through block keeps a solid edge.
   const OutlineLayer = (p, off, mirrored, faded, holes) => {
     if (!pieceShowsOutline(p)) return null;
     const s = outlineStyle(p, off, mirrored, faded);
-    return cutBox(s, holes, p.kind === "text" ? textInner(p, true) : <div style={outlineFillStyle(p)} />);
+    return cutBox(s, holes, p.kind === "text" ? textInner(p, true) : outlineInner(p, faded || pieceFillSeeThrough(p)));
   };
   // Editor selection must trace the painted silhouette, not the piece's rectangular layout box.
   // That box is especially misleading for a half-triangle: half of the old blue rectangle was
@@ -21618,10 +21640,9 @@ export default function AssetStudio({ game = false } = {}) {
     const fill = shapeFillStyle(p);
     if (onPiecePointerDown) { fill.pointerEvents = "auto"; fill.cursor = "pointer"; }
     const outline = OutlineLayer(p, off, flip, faded, holes), body = cutBox(s, holes, <div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div>);
-    // 👻 A translucent shape: its outline and fill composite first, then fade as one (pieceAlpha).
+    // 👻 A translucent shape: only its fill fades (pieceAlpha); the outline stays solid.
     const pa = pieceAlpha(p);
-    if (pa < 1) return <React.Fragment key={key}>{fadeGroup("t", pa, <>{outline}{body}</>)}</React.Fragment>;
-    return <React.Fragment key={key}>{outline}{body}</React.Fragment>;
+    return <React.Fragment key={key}>{outline}{pa < 1 ? fadeGroup("t", pa, body) : body}</React.Fragment>;
   };
   // Renders a PROP asset's pixel art scaled to fill its placement box, at animation frame
   // `frameIdx`. The prop's pieces are positioned by percentage of the 200×260 design canvas (that's
@@ -21704,9 +21725,10 @@ export default function AssetStudio({ game = false } = {}) {
       fillS.opacity = 0.55;
     }
     const selectionColor = groupIds.includes(p.id) ? "#ffb84f" : p.id === selId ? "#4f7cf6" : null;
-    const art = <>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={fillS}>{pieceInner(mirrored)}</div></div></>, pa = pieceAlpha(p);
-    // The selection dash stays OUTSIDE the 👻 fade, so a 90% see-through block is still easy to find.
-    return <React.Fragment key={key}>{pa < 1 ? fadeGroup("t", pa, art) : art}{selectionColor && SelectionOutline(mirrored, true, selectionColor)}</React.Fragment>;
+    const body = <div style={s}><div style={fillS}>{pieceInner(mirrored)}</div></div>, pa = pieceAlpha(p);
+    // Only the fill is inside the 👻 fade: the outline stays solid, and the selection dash stays
+    // outside it too, so a 90% see-through block is still easy to find.
+    return <React.Fragment key={key}>{OutlineLayer(mirrored, null, true, false)}{pa < 1 ? fadeGroup("t", pa, body) : body}{selectionColor && SelectionOutline(mirrored, true, selectionColor)}</React.Fragment>;
   };
   // A cutter piece paints nothing of its own in shapeFillStyle (its hole is a container-level
   // mask applied at final-render sites — see cutterMaskCss) — but while EDITING it still needs to
@@ -21724,9 +21746,9 @@ export default function AssetStudio({ game = false } = {}) {
     fillS.cursor = "grab";
     if (p.isCutter) { fillS.background = "repeating-conic-gradient(#5b6478 0% 25%, #232838 0% 50%) 0 0/10px 10px"; fillS.border = "2px dashed #cfd6e6"; }
     const selectionColor = groupIds.includes(p.id) ? "#ffb84f" : p.id === selId ? "#4f7cf6" : null;
-    const art = <>{OutlineLayer(p, null, false, false)}<div style={s}><div style={fillS} onPointerDown={(e) => grabPiece(e, p)}>{pieceInner(p)}</div></div></>, pa = pieceAlpha(p);
-    // 👻 outline + fill fade together; the selection dash stays outside the fade (see MirrorGhost).
-    return <React.Fragment key={p.id}>{pa < 1 ? fadeGroup("t", pa, art) : art}{selectionColor && SelectionOutline(p, false, selectionColor)}</React.Fragment>;
+    const body = <div style={s}><div style={fillS} onPointerDown={(e) => grabPiece(e, p)}>{pieceInner(p)}</div></div>, pa = pieceAlpha(p);
+    // 👻 only the fill fades; the outline and the selection dash stay solid (see MirrorGhost).
+    return <React.Fragment key={p.id}>{OutlineLayer(p, null, false, false)}{pa < 1 ? fadeGroup("t", pa, body) : body}{selectionColor && SelectionOutline(p, false, selectionColor)}</React.Fragment>;
   };
   const pctBox = (q) => ({ left: (q.x / W * 100) + "%", top: (q.y / H * 100) + "%", width: (q.w / W * 100) + "%", height: (q.h / H * 100) + "%" });
 
@@ -30147,7 +30169,7 @@ export default function AssetStudio({ game = false } = {}) {
               Range Pill selected. There were two sliders by then, one in the block's card and this
               one for the whole asset further down, and this is the one he reached for — it faded
               the entire pill, because it ignored the selection. Never two sliders again. This one:
-                · a block selected → that block (pieceAlpha; outline and fill fade together)
+                · a block selected → that block (pieceAlpha; only the fill, its outline stays solid)
                 · a GROUP selected → every block in it ("if a group was selected the group should
                   become translucent"), through updSelAll
                 · nothing selected → the whole asset (assetAlpha), drawn as one picture
