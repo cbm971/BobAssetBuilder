@@ -335,7 +335,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
           {cur && <div className={"gP1Art" + (curLock ? " shut" : "")} style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{renderDressed(cur, Math.round(p1 * 0.82))}</div>}
           {curLock && <div className="gP1Lock"><Padlock size={Math.round(p1 * 0.22)} /></div>}
           <div className="gP1Name" style={{ fontSize: p1NamePx }}><BobLogo text={p1Name} /></div>
-          {curLock && <div className="gP1Need" style={{ bottom: "calc(6% + " + Math.round(p1NamePx * 1.15) + "px)" }}><span>{curLock.need}</span>{curLock.of ? <b>{curLock.have} / {curLock.of}</b> : null}</div>}
+          {curLock && <div className="gP1Need" style={{ bottom: "calc(6% + " + Math.round(p1NamePx * 1.15) + "px)" }}><span>{curLock.need}</span>{curLock.of ? <b>{curLock.have.toLocaleString("en-US")} / {curLock.of.toLocaleString("en-US")}</b> : null}</div>}
           <div className="gP1Badge">P1</div>
         </div>
         {cur && (

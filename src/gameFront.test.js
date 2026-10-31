@@ -140,10 +140,13 @@ describe("unlocks", () => {
   test("found and defeated grow once per id; kills count every time", () => {
     let r = newGameRecord();
     r = recordFound(r, "a");
-    expect(recordFound(r, "a")).toBe(r); // unchanged: the caller skips the write
-    r = recordDefeated(recordDefeated(r, "dog"), "dog");
+    expect(recordFound(r, "a").found).toBe(r.found); // nothing new found...
+    expect(recordFound(r, "a").picked).toBe(2); // ...but it was picked up again
+    expect(recordFound(r, "")).toBe(r);
+    r = recordDefeated(recordDefeated(r, "dog"), "dog", true);
     expect(r.defeated).toEqual(["dog"]);
     expect(r.kills).toBe(2);
+    expect(r.rangedKills).toBe(1);
     r = recordFloorDone(r, "Trailor Park", 5000);
     r = recordFloorDone(r, "Trailor Park", 3000);
     expect(r.floors).toEqual(["Trailor Park"]);
@@ -184,6 +187,10 @@ describe("the character select (2026-10-18)", () => {
     expect(selectGridCols(10)).toBe(5);
     expect(selectGridCols(11)).toBe(6);
     expect(selectGridCols(12)).toBe(6);
+    expect(selectGridCols(13)).toBe(7); // two rows, not a zoomed-out third
+    expect(selectGridCols(14)).toBe(7);
+    expect(selectGridCols(16)).toBe(8);
+    expect(selectGridCols(17)).toBe(6);
     expect(selectGridCols(1)).toBe(2);
     expect(selectGridCols(40)).toBe(6);
     expect(FIGHTER_PORTRAIT_FRAC).toBeGreaterThan(0.3);
@@ -331,13 +338,35 @@ describe("locked starters", () => {
     r = { ...r, found: [...r.found, "i199"] };
     expect(starterLock(look("Robert"), r, assets)).toBeNull();
   });
+  test("Super Bob opens at 500 items collected, repeats counting", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 499; i++) r = recordFound(r, "i" + (i % 5));
+    expect(starterLock(look("Super Bob"), r, assets)).toEqual({ need: "Collect 500 Items", have: 499, of: 500 });
+    r = recordFound(r, "i0");
+    expect(starterLock(look("Super Bob"), r, assets)).toBeNull();
+  });
+  test("Bob The Alien opens at 500 enemies defeated with ranged weapons; melee kills do not count", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 499; i++) r = recordDefeated(r, "dog", true);
+    for (let i = 0; i < 50; i++) r = recordDefeated(r, "dog", false);
+    expect(starterLock(look("BOB THE ALIEN"), r, assets)).toEqual({ need: "Defeat 500 Enemies With Ranged Weapons", have: 499, of: 500 });
+    r = recordDefeated(r, "dog", true);
+    expect(starterLock(look("Bob The Alien"), r, assets)).toBeNull();
+  });
+  test("Agent Bob opens at 1,000 enemies defeated, however", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 999; i++) r = recordDefeated(r, "dog", i % 2 === 0);
+    expect(starterLock(look("Agent Bob"), r, assets)).toEqual({ need: "Defeat 1,000 Enemies", have: 999, of: 1000 });
+    r = recordDefeated(r, "dog");
+    expect(starterLock(look("Agent Bob"), r, assets)).toBeNull();
+  });
   test("Roberta opens only on Trailor Park finished AS Rob", () => {
     let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob");
     expect(starterLock(look("Roberta"), r, assets).need).toBe("Complete Trailor Park as Rob");
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();

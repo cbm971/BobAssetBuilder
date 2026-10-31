@@ -15772,7 +15772,7 @@ export default function AssetStudio({ game = false } = {}) {
             const hpNow = enemyHP.current[by] === undefined ? unitMaxHP(aea, aep, allyHpBonus) : enemyHP.current[by], loss = dmg;
             if (hpNow > 0) {
               enemyHP.current[by] = Math.max(0, hpNow - loss);
-              aep.lastHitByFx = wearer === "player" ? null : (effects || []); // a kill your jacket sent back is YOUR kill (the score)
+              aep.lastHitByFx = wearer === "player" ? null : (effects || []); aep.lastHitRanged = false; // a kill your jacket sent back is YOUR kill (the score)
             }
           }
         }
@@ -16233,7 +16233,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (shrugsHit(k, ea.effects, dmg, "player", b.x + b.w / 2, b.y)) continue; // 🐞 / 🪞
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
-            ep.lastHitByFx = null; // the last blow was yours
+            ep.lastHitByFx = null; ep.lastHitRanged = false; // the last blow was yours
             if (enemyHP.current[k] > 0 && tailSwing.push > 0) ep.knock = { left: tailSwing.push * CW, dir: faceBeforeKeys };
             if (puffX == null) puffX = b.x + b.w / 2;
             crit = crit || isCrit;
@@ -16817,7 +16817,7 @@ export default function AssetStudio({ game = false } = {}) {
             const shrugged = shrugsHit(k, ea.effects, dmg, "player", under.x + under.w / 2, under.y); // 🐞 / 🪞 — you still bounce off the head below
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - (shrugged ? 0 : dmg));
             if (ep && !shrugged) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
-            if (ep && !shrugged) ep.lastHitByFx = null; // the last blow was yours
+            if (ep && !shrugged) { ep.lastHitByFx = null; ep.lastHitRanged = false; } // the last blow was yours
             flash((isCrit ? "💥 Critical! " : "👢 ") + "Stomped " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
           }
           // ...and off the head you go, hurt or not: you landed on it. No Agility hold boost on top —
@@ -18541,7 +18541,7 @@ export default function AssetStudio({ game = false } = {}) {
           if (shrugsHit(k, ea.effects, sDmg, k, bx.x + bx.w / 2, bx.y)) return; // 🐞 its own blast: luck, never a reflect
           enemyHP.current[k] = Math.max(0, enemyHP.current[k] - sDmg);
           ep.invuln = PLAYER_INVULN_FRAMES;
-          ep.lastHitByFx = pr.shooterFx || null;
+          ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
           if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) afflictBody(ep, pr);
         };
         if (pr.foe) {
@@ -18574,7 +18574,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
-              ep.lastHitByFx = pr.shooterFx || null;
+              ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
               if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) afflictBody(ep, pr);
             }
           }
@@ -18596,7 +18596,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
-              ep.lastHitByFx = pr.shooterFx || null;
+              ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
               if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) afflictBody(ep, pr);
               hits++;
             }
@@ -18802,7 +18802,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor));
                     if (shrugsHit(k, ea.effects, dmg, "player", eHitLeft + epw / 2, hitTop)) { p.swingHits[k] = true; continue; } // 🐞 / 🪞 struck, for nothing: still one hit per body per stroke
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
-                    if (ep) ep.lastHitByFx = null; // the last blow was yours
+                    if (ep) { ep.lastHitByFx = null; ep.lastHitRanged = false; } // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon) afflictBody(ep, playtestWeapon);
                     // Mark THIS body as struck and carry on: the rest of the arc may still be
@@ -18858,7 +18858,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (shrugsHit(k, ea.effects, dmg, "player", b.x + b.w / 2, b.y)) { p.stomp.hits[k] = true; continue; } // 🐞 / 🪞
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
-            if (ep) ep.lastHitByFx = null; // the last blow was yours
+            if (ep) { ep.lastHitByFx = null; ep.lastHitRanged = false; } // the last blow was yours
             p.stomp.hits[k] = true;
             if (!notes.length) puffX = b.x + b.w / 2;
             crit = crit || isCrit;
@@ -19025,7 +19025,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (shrugsHit(s.k, s.ea.effects, uDmg, g.throwerKey || (g.foe ? null : "player"), unitCenterX(s.ea, s.ep, CW), s.ep ? s.ep.y : g.y)) continue; // 🐞 / 🪞
             enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - uDmg);
             if (s.ep) s.ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
-            if (s.ep) s.ep.lastHitByFx = g.throwerFx || null;
+            if (s.ep) { s.ep.lastHitByFx = g.throwerFx || null; s.ep.lastHitRanged = true; }
             impactNote += " · 🪨 hit " + s.ea.name + " for " + uDmg
               + (enemyHP.current[s.k] <= 0 ? " — defeated!" : " (" + enemyHP.current[s.k] + " HP left)");
           }
@@ -19281,7 +19281,7 @@ export default function AssetStudio({ game = false } = {}) {
                 const aDmg = fireResistedHit(incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects); // 🚒
                 if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg); // 🔫 bullet: starts no i-frames
-                ep.lastHitByFx = pr.shooterFx || null;
+                ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 if (enemyHP.current[k] > 0) afflictBody(ep, pr);
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
@@ -19355,7 +19355,7 @@ export default function AssetStudio({ game = false } = {}) {
               // you is by yours (the foe branch above) — see incomingUnitDamage for why.
               const base = playerRangedDamage(pr.damage);
               const isCrit = Math.random() < critChance(pr.critInt ?? intelligence); // a friendly unit's round crits off ITS Intelligence
-              if (ep) ep.lastHitByFx = pr.shooterFx || null;
+              if (ep) { ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true; }
               if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
               const dmg = fireResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects); // 🚒
               if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
@@ -19410,7 +19410,7 @@ export default function AssetStudio({ game = false } = {}) {
         // hostile body whose last blow was yours (null; a unit's blow stores its effects, at least []).
         // ...and noted for the game's Unlocks by the placement's own look or animal (spawnEnemyIdAt:
         // a 🎲 tag placement has no enemyId, its roll does; ea may be a re-composed copy).
-        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") { scoreRef.current.total += SCORE_KILL; gameNoteRef.current("defeated", spawnEnemyIdAt(k, lv.enemies[k], enemyGearRolls.current)); }
+        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") { scoreRef.current.total += SCORE_KILL; gameNoteRef.current("defeated", spawnEnemyIdAt(k, lv.enemies[k], enemyGearRolls.current), !!ep.lastHitRanged); }
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
         // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
@@ -24541,10 +24541,10 @@ export default function AssetStudio({ game = false } = {}) {
   };
   // Unlocks hears of a pickup, a purchase (showPickup / buyFromShop), a kill (the loot pass) and a
   // conversation opening (openTalk, by the dialogue's NAME — meeting "Bob Li" opens Bob Li).
-  gameNoteRef.current = (kind, id) => {
+  gameNoteRef.current = (kind, id, ranged) => {
     if (!game || !id) return;
     const r = gameRecordRef.current;
-    const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id) : kind === "met" ? recordMet(r, id) : r;
+    const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id, ranged) : kind === "met" ? recordMet(r, id) : r;
     if (n !== r) putGameRecord(n);
   };
   // What the player is carrying now, as a save at `loc` (gameFront.js makeGameSave).
@@ -24848,7 +24848,11 @@ export default function AssetStudio({ game = false } = {}) {
       return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     };
     const eq = { ...(c.equipment || {}) };
-    for (const slot of ["shirt", "pants"]) { const it = (hit && hit.rolled[slot]) || roll(slot); if (it) eq[slot] = it; }
+    for (const slot of ["shirt", "pants"]) {
+      if (slot === "shirt" && eq.shirt) continue; // already wearing one (Super Bob's Super Shirt): the card keeps it
+      const it = (hit && hit.rolled[slot]) || roll(slot);
+      if (it) eq[slot] = it;
+    }
     const out = assembleLook(c.body, c.skin || null, c.weapon || null, eq, { id: look.id + "|dressed", name: look.name, type: "character" });
     gameDressCache.current.set(look.id, { src: look, out, rolled: { shirt: eq.shirt, pants: eq.pants } });
     return out;

@@ -106,7 +106,9 @@ export const pickStartLook = (assets) => {
 };
 // The Smash grid: as square as the roster allows, never wider than 6 boxes (7 starters = 4 + 3),
 // widening up to 6 before adding a third row (11 or 12 starters = 6 + 5/6, not 5 + 5 + 1).
-export const selectGridCols = (n) => Math.max(1, Math.min(6, Math.max(Math.ceil(n / 2), Math.ceil(Math.sqrt(Math.max(1, n)) * 1.4))));
+// Thirteen to sixteen stay TWO rows, 7 or 8 wide (Blake, 2026-10-31: the thirteenth and fourteenth
+// starters made a third row and the whole select zoomed out; the boxes are sized by the row count).
+export const selectGridCols = (n) => (n > 12 && n <= 16 ? Math.ceil(n / 2) : Math.max(1, Math.min(6, Math.max(Math.ceil(n / 2), Math.ceil(Math.sqrt(Math.max(1, n)) * 1.4)))));
 // How much of a fighter's height fills a Character Select portrait box (`gameArt` `frac`), and how
 // much fills a Coming Soon silhouette box (Blake, 2026-10-31: zoomed out a touch from 0.3 so a
 // growing roster does not crowd the faces, and Coming Soon zoomed out further so Bob's head-and-
@@ -332,7 +334,9 @@ export const normalizeGameOptions = (o) => {
 // `met` is every conversation that has opened in a game, by the DIALOGUE's name (lower case) — Bob
 // Li unlocks on meeting Bob Li (Blake, 2026-10-24). The dialogue's name, not the speaker's: the NPC
 // who says it is called Chun Bobette so no look but the starter is named "Bob Li".
-export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, games: 0 });
+// `picked` is every pickup, repeats and all (Super Bob opens at 500 collected); `kills` is every hostile
+// defeated and `rangedKills` the ones whose last blow was a shot or a throw (Agent Bob 1,000, Bob The Alien 500).
+export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, picked: 0, games: 0 });
 export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
 export const normalizeGameRecord = (r) => {
   const b = newGameRecord();
@@ -347,15 +351,16 @@ export const normalizeGameRecord = (r) => {
     if (f && v && typeof v === "object") for (const who of Object.keys(v)) { const k = Math.round(Number(v[who])); if (who && k >= 1 && k <= DIFFICULTIES.length) o[who] = k; }
     if (Object.keys(o).length) fd[f] = o;
   }
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), games: n(r.games) };
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), picked: n(r.picked), games: n(r.games) };
 };
-// Returns the SAME object when nothing changed, so a caller can skip the write.
-export const recordFound = (rec, id) => (!id || rec.found.includes(id) ? rec : { ...rec, found: [...rec.found, id] });
+// Returns the SAME object when nothing changed, so a caller can skip the write. A pickup of something
+// already found changes nothing but the count of pickups.
+export const recordFound = (rec, id) => (!id ? rec : { ...rec, picked: (rec.picked || 0) + 1, found: rec.found.includes(id) ? rec.found : [...rec.found, id] });
 export const recordMet = (rec, dialogueName) => {
   const k = normName(dialogueName), had = rec.met || [];
   return !k || had.includes(k) ? rec : { ...rec, met: [...had, k] };
 };
-export const recordDefeated = (rec, id) => (!id ? rec : { ...rec, kills: rec.kills + 1, defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
+export const recordDefeated = (rec, id, ranged) => (!id ? rec : { ...rec, kills: rec.kills + 1, rangedKills: (rec.rangedKills || 0) + (ranged ? 1 : 0), defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
 export const recordFloorDone = (rec, floor, score, lookName, diffId) => {
   const who = normName(lookName), had = (rec.floorsWith && rec.floorsWith[floor]) || [];
   const floorsWith = !floor || !who || had.includes(who) ? rec.floorsWith || {} : { ...(rec.floorsWith || {}), [floor]: [...had, who] };
@@ -433,6 +438,9 @@ export const STARTER_LOCKS = [
   { name: "bob li", met: "Bob Li" }, // Blake (2026-10-24): open once the "Bob Li" conversation has been met in a game (record.met)
   { name: "robbie", items: 100 }, // Blake (2026-10-25): lock Robbie behind 100 items found (same rule as Bobert's 50)
   { name: "robert", items: 200 }, // Blake (2026-10-31): lock Robert behind 200 items found
+  { name: "super bob", picks: 500 }, // Blake (2026-10-31): "until you have collected 500 items" — every pickup counts, repeats included
+  { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
+  { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");
@@ -460,6 +468,9 @@ export const starterLock = (look, rec, assets) => {
   if (!lock) return null;
   const r = normalizeGameRecord(rec);
   if (lock.met) return r.met.some((m) => lockKey(m) === lockKey(lock.met)) ? null : { need: "Meet " + lock.met };
+  if (lock.picks) return r.picked >= lock.picks ? null : { need: "Collect " + lock.picks + " Items", have: r.picked, of: lock.picks };
+  if (lock.ranged) return r.rangedKills >= lock.ranged ? null : { need: "Defeat " + lock.ranged + " Enemies With Ranged Weapons", have: r.rangedKills, of: lock.ranged };
+  if (lock.kills) return r.kills >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies", have: r.kills, of: lock.kills };
   if (lock.items) {
     const have = itemsFoundCount(r, assets);
     return have >= lock.items ? null : { need: "Unlock " + lock.items + " Items", have, of: lock.items };

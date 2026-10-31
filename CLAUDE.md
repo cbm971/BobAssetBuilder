@@ -543,15 +543,17 @@ plus traps it does not cover:
 - **New Game → character select, Smash style**: a box per look filed under **Starter**
   (`starterLooks`, Bob first), the box shows the HEAD only ("neck up"), the P1 card the whole body;
   BOTH are **dressed in the same random shirt + pants** drawn for its body (`gameDressed`, kept per
-  page; the boxes too since 2026-10-24) — display only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
+  page; the boxes too since 2026-10-24; a look already wearing a shirt, like Super Bob, keeps it and only its pants roll) — display only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
   spaces ignored so "VietBob" = "Viet Bob"): Bobby = Trailor Park floor done, Bobert = 50 items found
   (Items-tab ids in `record.found`), Roberta = Trailor Park done AS Rob (`record.floorsWith`), Rob =
   Trailor Park on Hard, Viet Bob = Vietnam on Hard, Bob Li = the conversation NAMED "Bob Li" opened in
   a game (`record.met`, dialogue names, written by openTalk; the NPC is Chun Bobette so no other look
-  is named Bob Li), Robbie = 100 items found (same count as Bobert), Robert = 200 items found. Locked boxes show as a silhouette under
+  is named Bob Li), Robbie = 100 items found (same count as Bobert), Robert = 200 items found, Super Bob = 500 items COLLECTED (`record.picked`, every pickup, repeats included),
+  Bob The Alien = 500 kills whose last blow was a shot or throw (`record.rangedKills`, from `ep.lastHitRanged`;
+  counted from 2026-10-31 on), Agent Bob = 1,000 kills (`record.kills`). Locked boxes show as a silhouette under
   a padlock, can be lit but not picked; the P1 card names what opens them. **Order** (`starterRoster`):
   every open fighter first (Bob, then A-Z), then the locked ones A-Z; an unlock moves a fighter up into
-  its alphabetical place. `selectGridCols` widens up to 6 before adding a third row (11–12 starters = 6×2),
+  its alphabetical place. `selectGridCols` widens up to 6 before adding a third row (11–12 starters = 6×2), and 13–16 stay two rows 7–8 wide (a third row shrank every box, 2026-10-31),
   fighter portraits frame `FIGHTER_PORTRAIT_FRAC` (0.36) inside the inner `box - 8` window centred on the
   body (not worn gear, and `textPieceBox` crops `kind:"text"` bounds to the centred glyphs so a wide text
   wrapper on a hat/undies never shoves a fighter or life head off-centre), and **Coming Soon** boxes
