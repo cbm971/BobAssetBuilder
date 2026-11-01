@@ -1858539,6 +1858539,36 @@
     "36,145": {
      "c": "#544d45",
      "tex": "tha30x2"
+    },
+    "20,76": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,77": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,78": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,79": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,80": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,81": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -1877222,8 +1877252,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793542901084,
-   "editedFrom": 1793458555331
+   "savedAt": 1793564552213,
+   "editedFrom": 1793542901084
   },
   {
    "id": "3zyuyzu",
@@ -2273292,6 +2273322,36 @@
     "35,145": {
      "c": "#544d45",
      "tex": "tha30x2"
+    },
+    "20,58": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,59": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,60": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,61": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,63": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2291253,8 +2291313,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792344842346
+   "savedAt": 1793564537677,
+   "editedFrom": 1793458555331
   },
   {
    "id": "p7bbbh1",
@@ -2387440,6 +2387500,36 @@
     "35,159": {
      "c": "#544d45",
      "tex": "tha30x2"
+    },
+    "20,96": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,97": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,98": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,99": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,100": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,101": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2405447,8 +2405537,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793543099339,
-   "editedFrom": 1793543091580
+   "savedAt": 1793564525623,
+   "editedFrom": 1793543099339
   },
   {
    "id": "snssw0i",
