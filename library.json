@@ -2537977,6 +2537977,27 @@
      "slope": -1,
      "run": 3,
      "step": 2
+    },
+    "34,145": {
+     "c": "#3b2e1c",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "hideInPlay": true
+    },
+    "32,147": {
+     "c": "#3b2e1c",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "hideInPlay": true
+    },
+    "30,149": {
+     "c": "#3b2e1c",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "hideInPlay": true
     }
    },
    "bg": {
@@ -2551064,8 +2551085,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793566211091,
-   "editedFrom": 1793560166614
+   "savedAt": 1793571672446,
+   "editedFrom": 1793566211091
   },
   {
    "id": "trpm18a",
