@@ -2092585,6 +2092585,21 @@
       "canvasScale": false,
       "z": 91
      }
+    ],
+    "30,29": [
+     {
+      "kind": "prop",
+      "propId": "vwb3tl6",
+      "solid": false,
+      "size": 12,
+      "inFront": false,
+      "rot": 359,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 92
+     }
     ]
    },
    "climb": {
@@ -2092885,8 +2092900,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792344796427
+   "savedAt": 1793533308175,
+   "editedFrom": 1793458555331
   },
   {
    "id": "gww324w",
