@@ -2732859,7 +2732859,97 @@
      "tex": "8aejkny"
     },
     "24,96": "#2a2017",
-    "24,97": "#2a2017"
+    "24,97": "#2a2017",
+    "34,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    }
    },
    "bg": {
     "23,50": "#386aff",
@@ -2753610,7 +2753700,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790762791498
+   "savedAt": 1793564590144,
+   "editedFrom": 1790762791498
   },
   {
    "id": "zgsg9mr",
