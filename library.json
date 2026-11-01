@@ -721871,7 +721871,7 @@
    "guideId": "default",
    "size": 16,
    "solidDefault": false,
-   "category": "Pick Up",
+   "category": "Civilian",
    "angles": {
     "front": [
      {
@@ -728247,7 +728247,7 @@
    "wreckSmokePropId": "uvsmok1",
    "boomPropId": "expl0d3",
    "hpHalved": true,
-   "savedAt": 1793565120012
+   "savedAt": 1793565180005
   },
   {
    "id": "frmscro",
