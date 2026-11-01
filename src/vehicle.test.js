@@ -1,7 +1,7 @@
 // VEHICLES (2026-10-31): the rules in vehicle.js, against fixtures built here — never his cars.
 import {
-  VEHICLE_STATES, vehicleStateOf, vehicleTakeHit, VEHICLE_FUSE_FRAMES, VEHICLE_WEAK_MULT, vehicleSideFacing,
-  wheelHubs, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, vehicleStatePieces,
+  VEHICLE_STATES, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, VEHICLE_FUSE_FRAMES, VEHICLE_WEAK_MULT, vehicleSideFacing,
+  wheelHubs, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, hoodFireBox, vehicleStatePieces,
   autoVehicleDamage, isGlassColor,
   vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, vehicleCrashDamage,
   carBearsDown, vehicleDodgeKind, vehicleDodgeChance,
@@ -43,7 +43,18 @@ describe("vehicle states and damage", () => {
     expect(vehicleTakeHit(car, 5, "hit", "rear").dent).toBeFalsy();
     expect(vehicleTakeHit(car, 5, "hit", "rear", true).dent).toBe("rear");
     expect(vehicleTakeHit(car, 45, "hit", "rear").dent).toBe("rear");
-    expect(vehicleTakeHit({ ...car, dent: "rear" }, 5, "hit", "front", true).dent).toBe("front");
+    expect(vehicleTakeHit({ ...car, dent: "rear" }, 5, "hit", "front", true).dent).toBe("both");
+    expect(vehicleTakeHit({ ...car, dent: "rear" }, 5, "hit", "rear", true).dent).toBe("rear");
+    expect(vehicleTakeHit({ ...car, dent: "both" }, 5, "hit", "front", true).dent).toBe("both");
+  });
+  test("both ends at once: the nose's half from Front damage, the tail's from Rear damage (Blake 2026-11-01)", () => {
+    expect(vehicleHalvesOf(car)).toEqual({ front: "front", rear: "front" });
+    expect(vehicleHalvesOf({ ...car, dent: "front" })).toEqual({ front: "frontDamage", rear: "front" });
+    expect(vehicleHalvesOf({ ...car, dent: "rear" })).toEqual({ front: "front", rear: "rearDamage" });
+    expect(vehicleHalvesOf({ ...car, dent: "both" })).toEqual({ front: "frontDamage", rear: "rearDamage" });
+    expect(vehicleHalvesOf({ ...car, dent: "both", fuse: 10 })).toEqual({ front: "burning", rear: "burning" });
+    expect(vehicleHalvesOf({ ...car, dead: true })).toEqual({ front: "destroyed", rear: "destroyed" });
+    expect(vehicleStateOf({ ...car, dent: "both" })).toBe("frontDamage");
   });
   test("a quarter of its HP lights the five-second fuse, once", () => {
     const hot = vehicleTakeHit(car, 76, "hit");
@@ -104,14 +115,24 @@ describe("damage art from Stock", () => {
       }
     }
   };
-  test("front damage crumples the end the car faces and leaves the rear alone", () => {
+  test("front damage pushes in the end the car faces, in his clean shapes, and leaves the rear alone", () => {
     const fd = autoVehicleDamage(CAR, "frontDamage", false, ids);
     reachable(fd);
     const body = fd.find((p) => p.color === "#c43c3c" && p.y >= 119 && p.w > 100);
-    expect(body.kind).toBe("poly");
-    expect(body.x).toBeGreaterThan(20);            // the nose pushed in
+    expect(body.kind).toBe("rect");                // a rect stays a rect: no zig-zag
+    expect(body.x).toBeCloseTo(16 + 164 * 0.05 + (20 - 16) / 2, 5); // the nose pushed in one crush-width
     expect(body.x + body.w).toBeCloseTo(180, 5);   // the tail where it was
-    expect(fd.find((p) => p.color === "#3b3735")).toBeTruthy(); // the headlight out
+    const roof = fd.find((p) => p.color === "#c43c3c" && p.y < 100);
+    expect(roof.x).toBe(60);                       // nothing further back than the crush moves (his cab)
+    const lamp = fd.find((p) => p.color === "#daa520");
+    expect(lamp.fx.bright).toBe(0.55);             // his broken headlight: dimmed,
+    expect(lamp.h).toBeGreaterThan(lamp.w);        // squashed tall,
+    expect(fd[fd.length - 1].kind).toBe("tri");    // with a dark wedge of crack drawn over everything
+    expect(fd.find((p) => p.color === "#9aa0a6").rot).toBe(346); // the bumper hanging
+    expect(fd[0].kind).toBe("curlytri");           // the hood buckled, behind everything
+    expect(fd.filter((p) => (p.rot === 30)).length).toBe(1); // and its lid sprung
+    expect(fd.find((p) => p.id && isGlassColor(p.color)).kind).toBe("poly");
+    expect(fd.filter((p) => p.color === "#1d1b1b" && !p.wheel).length).toBe(0); // no crease lines, no cracks across the glass
     expect(fd.filter((p) => p.wheel).length).toBe(CAR.filter((p) => p.wheel).length);
     expect(new Set(fd.map((p) => p.id)).size).toBe(fd.length);
     expect(fd.some((p) => CAR.some((q) => q.id === p.id))).toBe(false); // new ids: copying a state never aliases Stock's pieces
@@ -127,6 +148,19 @@ describe("damage art from Stock", () => {
     const fire = hoodFirePoint(burning);
     expect(fire).toBeTruthy();
     expect(fire.x).toBeLessThan(100); // over the front half
+  });
+  test("the hood fire stands on the hood, not the roof, and is not most of the car tall", () => {
+    const fb = hoodFireBox(autoVehicleDamage(CAR, "burning", false, ids));
+    expect(fb.x).toBeGreaterThan(20); expect(fb.x).toBeLessThan(60); // between the nose and the windscreen
+    expect(fb.bottom).toBeGreaterThan(120); expect(fb.bottom).toBeLessThan(126); // sunk a little into the hood top (y 120)
+    expect(fb.h).toBeLessThanOrEqual(80 * 0.25 + 1e-9);
+  });
+  test("Imminent explosion starts from the Front damage he drew", () => {
+    const his = [...CAR.slice(0, 3), { id: "dent", kind: "rect", x: 24, y: 118, w: 10, h: 4, color: "#123456" }, ...CAR.slice(4)];
+    const b = autoVehicleDamage(CAR, "burning", false, ids, { frontDamage: his });
+    expect(b.some((p) => p.color === "#123456")).toBe(true);
+    expect(b.some((p) => p.color === "#ffe7a0")).toBe(false); // his look has no headlight, so neither does this
+    expect(b.filter((p) => p.isHoodFire).length).toBe(1);
   });
   test("destroyed is charred and sits on flat tyres; no state outgrows Stock", () => {
     const d = autoVehicleDamage(CAR, "destroyed", false, ids);

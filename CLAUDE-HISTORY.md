@@ -5695,3 +5695,37 @@ seat should he not?"
   legs. His Tractor's seat pan is flagged in all five looks (same id, newer savedAt, both library
   files). Measured on a size-10 Tractor: Bob sat on the pan over the rear fender. A parked Tractor
   with you in it was beaten to a wreck by M16's units in about half a minute.
+### Damage halves, his damage style, the hood fire, the Army Jeep (2026-11-01)
+
+Blake: "front damage should only effect the part of the vehichle tro the right of the center line
+while rear damage to the left that way we can have both", "can you edit your damage to be less just
+spiky lines?", "can you make a willys jeep style vehichle?", "I edited Army truck front damage a
+little myself. Try to mimick that", and "On the big truck the hood fire was akward and too big".
+
+- **Two halves.** `vehicleHalvesOf` gives each end its look; a second hit at the other end makes the
+  dent "both" (`vehicleTakeHit`). `vehCarEl` draws two copies of the art clipped at the centre line
+  (x 100 of the 200 canvas), the nose half on the side the art faces. Measured on his Army Truck in a
+  playtest: the split fell at 240 of its 480 px, and front, rear and both each drew as named.
+- **His edit is the style.** His Front damage on the Army Truck is clean rects: the hood block pushed
+  in about 9.5 units, the hood lid strip tilted to 150°, the bumper 5x26 at 162°, the headlight
+  squashed to 5.5x12 in #daa520 at 0.55 brightness with a dark triangle crack drawn last, and a
+  curly-triangle buckle in the body colour drawn first. `crumpleEnd` does that to any car: within 2c
+  of the end (c = 5% of the width) every piece moves in by c, so nothing further back moves. Wheels,
+  wells holding a hub and the chassis rail stay put. A low end gets the buckle and a lid. His Front
+  damage on the truck was kept as he drew it; the other six cars' damage looks (all mine) were redrawn.
+  Rules found by eye on the contact sheets: the bus's black stripes and the wagon's cream trim are not
+  the rail; a lamp is no longer than 3x its height; only GREY strips are bumpers; the buckle takes the
+  colour of a surface at least 8% of the car's height.
+- **Hood fire.** `hoodFireMarker` finds the hood (from the nose back to where the top rises more than
+  12% of the height: the windscreen) and puts the 🔥 40% of the way along it, between 15% and 25% of
+  the car's height. The play view draws it from `hoodFireBox` (centre, bottom, height).
+- **Army Jeep** (wlysjp1, category vehicles): 31 flat pieces in his Army Truck's palette, open tub
+  with the side cut-out, 🪑 seat, steering wheel, folded-up windscreen frame, spare on the back, star
+  on the hood, size 12, 140 HP, Defense 12. At size 10 it stood 4.1 cells and sitting Bob needs 4.2,
+  so the game called it a toy: 12 is the smallest size that seats you. Driven in a playtest: Bob sat
+  on its seat, it moved off, both dents and the hood fire drew where they should.
+- **"The bus in vehichle testing grounds looks to have disapeared".** Nothing was lost. His Vehichle
+  Testing Grounds (r9yhtdk) has one save, at 04:26, with no objects in it, and no later write of it
+  exists in his browser store (every version), his Saves folder, its History or the online save. All
+  7 of his cars were in every copy. The level editor keeps no draft of unsaved work, so a bus and a
+  wall placed and not saved are gone after a reload or a crash (the ⇋ crash fixed in ef8ef39 was one).

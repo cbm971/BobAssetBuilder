@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -21222,7 +21222,8 @@ export default function AssetStudio({ game = false } = {}) {
     const looks = angle === "front" ? VEHICLE_STATES.filter((st) => st !== "front" && !(a.angles[st] || []).length) : [angle];
     if (!looks.length) return a;
     const angles = { ...a.angles };
-    for (const st of looks) angles[st] = autoVehicleDamage(stock, st, !!a.facesRight, uid);
+    // `angles` as it fills: Imminent explosion and Destroyed start from the Front damage it has (his own drawing, or the one just made).
+    for (const st of looks) angles[st] = autoVehicleDamage(stock, st, !!a.facesRight, uid, angles);
     return { ...a, angles };
   });
   // 📋 Copy block to… another pose (copyPiecesToPose), then go there with the copies selected, ready
@@ -22193,17 +22194,32 @@ export default function AssetStudio({ game = false } = {}) {
     return <div key={key} style={{ position: "absolute", left: x - fw / 2, top: y - hgt, width: fw, height: hgt, pointerEvents: "none" }}>{propArtInner(fa, fw, hgt, fi, key, fb)}</div>;
   };
   const vehCarEl = (car, off, mine, nk) => {
-    const pa = car.pa, st = vehicleStateOf(car), turn = vehicleTurnPose(car.turnT || 0);
+    const pa = car.pa, st = vehicleStateOf(car), halves = vehicleHalvesOf(car), turn = vehicleTurnPose(car.turnT || 0);
     const face = turn.old ? -car.face : car.face;
     const artFlip = (face > 0) !== !!pa.facesRight;
     const box = car.box, sc = Math.min(car.w / box.w, car.h / box.h);
     const step = spinStepOf(car.spin || 0), key = "veh" + nk + "|" + car.id;
-    const sig = st + "|" + step + "|" + (mine ? 1 : 0) + "|" + (artFlip ? 1 : 0);
+    const sig = halves.front + "/" + halves.rear + "|" + step + "|" + (mine ? 1 : 0) + "|" + (artFlip ? 1 : 0);
     let hit = vehArtCache.current.get(key);
     if (!hit || hit.sig !== sig || hit.pa !== pa || hit.w !== car.w || hit.h !== car.h || hit.texLib !== texLib) {
-      let pieces = spinWheelPieces(vehicleStatePieces(pa, st), step);
-      if (mine) pieces = pieces.map((pc) => (pc.driverWindow ? { ...pc, isCutter: true } : pc));
-      hit = { sig, pa, w: car.w, h: car.h, texLib, el: propArtInner({ ...pa, frames: [{ front: pieces }], angles: null }, car.w, car.h, 0, key, box, undefined, artFlip) };
+      const art = (look, k) => {
+        let pieces = spinWheelPieces(vehicleStatePieces(pa, look), step);
+        if (mine) pieces = pieces.map((pc) => (pc.driverWindow ? { ...pc, isCutter: true } : pc));
+        return propArtInner({ ...pa, frames: [{ front: pieces }], angles: null }, car.w, car.h, 0, k, box, undefined, artFlip);
+      };
+      let el;
+      if (halves.front === halves.rear) el = art(halves.front, key);
+      else {
+        // Dented at one end or both (vehicleHalvesOf): two halves meeting on the editor's dashed centre
+        // line, canvas x = W/2, the nose's half in its look and the tail's in its own. Clipped in the
+        // art's own frame, under the mirror below, so the nose's half follows the nose round.
+        const sx = (W / 2 - box.minX) * sc, noseRight = !!pa.facesRight;
+        const right = "polygon(" + sx + "px -100%, 300% -100%, 300% 200%, " + sx + "px 200%)";
+        const left = "polygon(-200% -100%, " + (sx + 0.5) + "px -100%, " + (sx + 0.5) + "px 200%, -200% 200%)";
+        const half = (look, clip, k) => <div key={k} style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, clipPath: clip }}>{art(look, key + k)}</div>;
+        el = [half(halves.rear, noseRight ? left : right, "r"), half(halves.front, noseRight ? right : left, "f")];
+      }
+      hit = { sig, pa, w: car.w, h: car.h, texLib, el };
       vehArtCache.current.set(key, hit);
     }
     let headUnder = null, headOver = null;
@@ -22223,9 +22239,12 @@ export default function AssetStudio({ game = false } = {}) {
     }
     let fx = null;
     if (st === "burning") {
-      const fp = hoodFirePoint((pa.frames && pa.frames[0] && pa.frames[0].burning) || []);
-      const hx = fp ? (fp.x - box.minX) * sc : car.w * (pa.facesRight ? 0.82 : 0.18), hy = fp ? (fp.y - box.minY) * sc : car.h * 0.35;
-      fx = vehPropAt(pa.hoodFirePropId, hx, hy, Math.max(LV_CELL * 2, car.h * 0.6), key + "f", sym("fx.fire", null, Math.max(LV_CELL * 2, car.h * 0.6)));
+      // The fire is the marker's box (hoodFireBox): standing on its bottom, as tall as it is. It was
+      // 0.6 of the car's height, which on his Army Truck was most of a cab (Blake: "akward and too big").
+      const fb = hoodFireBox((pa.frames && pa.frames[0] && pa.frames[0].burning) || []);
+      const hx = fb ? (fb.x - box.minX) * sc : car.w * (pa.facesRight ? 0.82 : 0.18), hy = fb ? (fb.bottom - box.minY) * sc : car.h * 0.35;
+      const fh = fb ? Math.max(LV_CELL, fb.h * sc) : Math.max(LV_CELL * 1.5, car.h * 0.3);
+      fx = vehPropAt(pa.hoodFirePropId, hx, hy, fh, key + "f", sym("fx.fire", null, fh));
     } else if (st === "destroyed") {
       const sh = Math.max(LV_CELL * 1.5, car.h * 0.45);
       fx = pa.wreckSmokePropId ? vehPropAt(pa.wreckSmokePropId, car.w / 2, car.h * 0.4, sh * 1.6, key + "s", null)
@@ -22235,7 +22254,7 @@ export default function AssetStudio({ game = false } = {}) {
     // Mid-turn: rotateY by the step, signed by the way the OLD nose pointed (-car.face), which sends the
     // nose into the screen; perspective about 2 car widths away so the near end reads bigger.
     const turnCss = turn.deg ? "perspective(" + Math.round(car.w * 2) + "px) rotateY(" + (-car.face * turn.deg) + "deg) " : "";
-    return <div key={key} className="vehLive" data-vehicle={car.id} data-vehicle-state={st} style={{ position: "absolute", left: off.x + car.x, top: off.y + car.y, width: car.w, height: car.h, zIndex: z, pointerEvents: "none", transformOrigin: "50% 100%", transform: car.tilt ? "rotate(" + car.tilt.toFixed(2) + "deg)" : undefined }}>
+    return <div key={key} className="vehLive" data-vehicle={car.id} data-vehicle-state={st} data-vehicle-dent={car.dent || ""} style={{ position: "absolute", left: off.x + car.x, top: off.y + car.y, width: car.w, height: car.h, zIndex: z, pointerEvents: "none", transformOrigin: "50% 100%", transform: car.tilt ? "rotate(" + car.tilt.toFixed(2) + "deg)" : undefined }}>
       <div style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, transform: (turnCss + (artFlip ? "scaleX(-1)" : "")) || undefined }}>
         {headUnder}{hit.el}{headOver}{fx}
       </div>
@@ -30748,7 +30767,7 @@ export default function AssetStudio({ game = false } = {}) {
               ))}
               {/* The four damaged looks drawn FROM Stock (autoVehicleDamage). On Stock it fills the looks
                   that are still empty; on a damaged look it redraws that one. Undo takes either back. */}
-              <button className="ltbtn" onClick={vehicleLooksFromStock}>💥 {angle === "front" ? "Make the damaged looks" : "Redraw " + poseName(angle) + " from Stock"}</button>
+              <button className="ltbtn" onClick={vehicleLooksFromStock}>💥 {angle === "front" ? "Make the damaged looks" : "Redraw " + poseName(angle) + (angle === "burning" || angle === "destroyed" ? " from Front damage" : " from Stock")}</button>
               <div className="ct2">📂 Folder</div>
               <input className="catItemInput" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder={PROP_UNCAT} maxLength={28} />
               {vehCatSuggest.length > 0 && <div className="catchips">{vehCatSuggest.map((c) => <button key={c} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}

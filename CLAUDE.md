@@ -845,6 +845,8 @@ plus traps it does not cover:
   cutter, and your own Side head is drawn under it, cut off at the gun arm's shoulder. With no
   window, a 🪑 `driverSeat` piece is where you sit: your Side drawing from the hips up
   (`vehRider`, cut where `identifyLimbs` puts the legs), at your own size, over the car.
+  A car whose two ends differ is two clipped copies of its art split at the editor's centre line
+  (`vehicleHalvesOf`); the 🔥 is drawn from the marker's own box (`hoodFireBox`).
 
 ## Blake's decisions — do not undo these
 
@@ -968,6 +970,17 @@ plus traps it does not cover:
   totaled. A unit that sees yours coming jumps it, or steps back behind it in its Front pose, or
   forward in front of it in its Back pose; units hit a car only while it is slow
   (`VEH_MELEE_MAX_SPEED`), and the car keeps your i-frames.
+- **A dented car is two halves (2026-11-01, Blake: "front damage should only effect the part of the
+  vehichle tro the right of the center line while rear damage to the left that way we can have
+  both").** The nose half (right of the editor's centre line when the car faces right) is drawn from
+  Front damage and the tail half from Rear damage, so a car hit at both ends shows both; Imminent
+  explosion and Destroyed are whole looks. Generated damage copies HIS Army Truck edit, never spiky
+  lines ("less just spiky lines"): the last 5% of the width is pushed in (`crumpleEnd`), the lamp
+  squashed and dimmed to #daa520 with a dark crack, the bumper tilted, a body-colour curly-triangle
+  buckle and a lid strip at 150°/30°; wheels, wells, the cab and the glass stay Stock. Imminent
+  explosion and Destroyed are built from the car's Front damage, his when he drew it. The hood fire
+  sits on the hood ahead of the windscreen, at most a quarter of the car's height (it was 0.6 of it:
+  "on the big truck the hood fire was akward and too big").
 
 ## Working style
 
