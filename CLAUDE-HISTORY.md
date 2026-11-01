@@ -5627,3 +5627,42 @@ looking dirt to grass etc textures."
 - The ground seams: each patch of laterite/loam/earth is bounded by straight run-1 diagonals, the
   crossed cells ramps of one ground over a block of the other, as he paints them by hand on M10/M11
   (a ramp over a block walks as the block, fd5c29e).
+
+## 🚗 Vehicles (2026-10-31)
+
+Blake: "I would like to make vehicles functional. Items tagged wheel should rotate around a pivot.
+When the player enters a vehicle you should see the players head sort of sticking out the window
+like real life. When a player enters a vehichle it should now be on the player layer." Cars get their
+own creator, their own HP and Defense, "super weak to fire an explosion damage", four looks (then a
+fifth: "immenent explosion … the front + rear crash plus the fire prop from the hood kinda like in
+gta", for 5 seconds, then an explosion that "deals a ton of damage to the player"), momentum physics
+with "no control in mid air", units that jump or step aside and attack a slow car, and three sounds.
+
+- **His 7 cars were migrated in place** (same id, newer savedAt, both library files): Mustang, Beetle,
+  Pickup, Woody Wagon, School Bus, Tractor and Army Truck (its folder stays Army). Each got its wheel
+  and window flags, its HP and Defense, and the four damaged looks drawn FROM his Stock pieces by
+  `autoVehicleDamage` (the struck end pushed in, dead lights, a cracked windscreen, creases in his
+  edge colour; Destroyed charred on flat tyres). Plain hubcaps got lug nuts so a turning wheel reads.
+  His Stock pieces are byte-identical apart from the two flags. Every damaged look can be redrawn in
+  the editor: "Redraw <look> from Stock", or by hand.
+- **A placed car is drawn exactly as he placed it until something happens to it.** Waking a car only
+  when you get in (or a blast or grenade fire reaches it) keeps every level byte-identical in play
+  until then, and keeps the cost of 13 placed cars at nothing.
+- **Measured in Trailor Park M7, his Mustang, god mode, muted:** E got in (the "Press E to drive"
+  prompt sat over the car), the sprite went and the head showed in the window facing the car's way.
+  His M7 Mustang is a Front-layer car overlapping a ledge, with its wheels 60 px below the platform,
+  so getting in drops it 326 px to the street; it landed with a dent. Gas took it from 0 to about
+  7 px/frame in 0.7 s; a wall met at 10 px/frame cost 31 HP through its Defense; a ram cost the car 2.
+  Two street units saw it coming and stepped back behind it (drawn at z 5005 for 451 frames); a
+  forced jump held 132 frames. Their dodge chance is ~59% at their low Intelligence, so some rounds
+  they are run over. At a quarter of its HP the fuse ran its 300 frames, the car went up, you were
+  thrown out, and the wreck sat behind the bodies at z 4990.
+- **The car had no i-frames on the first drive.** A melee swing landed on every frame it overlapped,
+  and two of his Trailer bruisers took the parked Mustang from 150 HP to 56 in under a second. The
+  car now keeps the player's rule: `PLAYER_INVULN_FRAMES` after a blow or a shot (a Double Shot's
+  twin included), which made it one hit of 6 every ~50 frames while parked among them.
+- **Not checked in the running game at ship time:** the step-forward dodge (Back pose), the turn-round
+  squash, the wheels turning on screen, the three sounds (tests run muted), hills, and his other six
+  cars. Known limits: a car never leaves its level; under size 8 a car is a toy (M5's size-1 Beetle,
+  M13's size-4 Tractor); the Tractor has no window, so you sit up out of it; your own bullets pass a
+  parked car (a blast or fire wakes it).

@@ -39,6 +39,13 @@ export const SOUND_EVENTS = [
   { key: "pickup", label: "Pickup", icon: "✨" },
   { key: "door", label: "Door", icon: "🚪" },
   { key: "menuClick", label: "Menu click", icon: "🖱️" },
+  // 🚗 CARS (2026-10-31, Blake: "We only need 1 generic car audio flag. and one for crashing and one
+  // for totaled (Explosion sound)"). Car engine is not a moment but a LOOP (engineLoop below), held
+  // while you are at the wheel and pitched by the speed; Car crash is a car running into something
+  // hard enough to dent it, or landing hard; Car totaled is the bang when one goes up.
+  { key: "car", label: "Car engine", icon: "🚗" },
+  { key: "carCrash", label: "Car crash", icon: "💥" },
+  { key: "carTotaled", label: "Car totaled", icon: "🔥" },
 ];
 export const SOUND_EVENT_KEYS = SOUND_EVENTS.map((e) => e.key);
 
@@ -602,7 +609,53 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     return true;
   };
 
+  // THE CAR ENGINE VOICE (engineLoop): one of its own like the talk loop, outside the copy cap — it is
+  // one engine running, not a moment that stacks. Let go with a short fade, so it never clicks off.
+  const engineVoice = { src: null, g: null, id: null };
+  const stopEngine = () => {
+    const { src, g } = engineVoice;
+    engineVoice.src = null; engineVoice.g = null; engineVoice.id = null;
+    if (!src) return;
+    try {
+      const t0 = ctx.currentTime;
+      g.gain.cancelScheduledValues(t0); g.gain.setValueAtTime(g.gain.value, t0); g.gain.linearRampToValueAtTime(0, t0 + 0.08);
+      src.stop(t0 + 0.1);
+    } catch { try { src.stop(); } catch { /* already stopped */ } }
+  };
+
   const engine = {
+    // 🚗 THE CAR ENGINE: the board's Car engine sound looped while `on`, louder and higher the faster
+    // the car goes (`speed01`, 0 at rest to 1 at the engine's top speed), placed at x/y like a moment
+    // for the off-screen fade. Called once a frame from the play loop; engineLoop(false) lets it go.
+    engineLoop: (on, speed01 = 0, x, y) => {
+      if (!on) { if (engineVoice.src) stopEngine(); return false; }
+      const id = resolveSound({ basic: "car", board, has: engine.has });
+      if (!id) { if (engineVoice.src) stopEngine(); return false; }
+      const s = sounds.get(id), c = ctx;
+      if (!s || !s.clip || !c || c.state !== "running") return false;
+      const buf = buffers.get(s.clip);
+      if (!buf) { decode(s.clip); return false; }
+      const sp = Math.max(0, Math.min(1, speed01 || 0));
+      const gain = soundGainAt(x, y, view) * soundVolume(s) * resolveSoundVol({ basic: "car", board, has: engine.has }) * (0.6 + 0.4 * sp);
+      if (engineVoice.src && engineVoice.id !== id) stopEngine();
+      if (!engineVoice.src) {
+        try {
+          const skip = Math.min(starts.get(s.clip) || 0, Math.max(0, buf.duration - 0.01));
+          const src = c.createBufferSource();
+          src.buffer = buf; src.loop = true; src.loopStart = skip; src.loopEnd = buf.duration;
+          const g = c.createGain();
+          g.gain.setValueAtTime(0, c.currentTime);
+          src.connect(g); g.connect(master);
+          applyMute();
+          src.onended = () => { try { g.disconnect(); } catch { /* gone */ } };
+          src.start(0, skip);
+          engineVoice.src = src; engineVoice.g = g; engineVoice.id = id;
+          note({ at: now(), id, clip: s.clip, gain, heard: true, engine: true, skip });
+        } catch { return false; }
+      }
+      try { const t0 = c.currentTime; engineVoice.g.gain.setTargetAtTime(gain, t0, 0.05); engineVoice.src.playbackRate.setTargetAtTime(0.8 + 0.8 * sp, t0, 0.08); } catch { /* gone */ }
+      return true;
+    },
     // The library: every sound record (the board is picked out of the same list).
     setLibrary: (records, boardRec) => {
       sounds.clear();
@@ -673,7 +726,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     setMusicOn: (on) => { music.on = !!on; engine.syncMusic(); },
     // The game's menus are up (title over, no run going): their music plays (see musicTrackFor).
     setMenuMusic: (on) => { music.menu = !!on; engine.syncMusic(); },
-    setPlaying: (playing) => { music.playing = !!playing; if (!playing) stopTalk(); syncAwake(); engine.syncMusic(); },
+    setPlaying: (playing) => { music.playing = !!playing; if (!playing) { stopTalk(); stopEngine(); } syncAwake(); engine.syncMusic(); },
     // A LINE OF DIALOGUE BEING SAID: loop sound `id` for `secs` (talkSeconds), replacing whatever
     // line was talking. talk(null) stops it. A sound not decoded yet starts when it is, provided
     // the same line is still up — a talk loop a beat late is fine, unlike a jump.

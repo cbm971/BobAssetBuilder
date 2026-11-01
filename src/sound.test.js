@@ -99,7 +99,7 @@ describe("which sound plays: the asset's own, else the basic one, else silence",
   });
 
   test("the basic-sound registry: every moment he asked for, each one a row", () => {
-    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "playerHurt", "playerDeath", "enemyHurt", "enemyDeath", "pickup", "door", "menuClick"]);
+    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "playerHurt", "playerDeath", "enemyHurt", "enemyDeath", "pickup", "door", "menuClick", "car", "carCrash", "carTotaled"]);
     for (const e of SOUND_EVENTS) { expect(typeof e.label).toBe("string"); expect(e.label.length).toBeGreaterThan(0); }
   });
 });

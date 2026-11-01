@@ -829,6 +829,16 @@ plus traps it does not cover:
   Man are `character`s (people), so Capture refuses them by design — only Enemy-creator assets are catchable.
 - A helper that two blocks of the play loop both call belongs at loop level. A `const` in one block
   is invisible to its sibling, and that once crashed the game on a parry.
+- **Vehicles: the rules are `src/vehicle.js`** (pure, `vehicle.test.js`); the loop's 🚗 blocks wire
+  them to the level. A placed car is drawn by the ordinary prop passes, untouched, until you get in
+  or a blast or a grenade's fire reaches it. Then it is a LIVE car in `vehLive` (keyed by the
+  level's runKey or id, cleared when play starts), drawn by `vehCarEl` and skipped by all three
+  placement passes (`vehIsLive`). A drivable car (size ≥ `VEHICLE_MIN_DRIVE_SIZE`, 8) is never a
+  solid object. At the wheel your body gets empty intent, your box is seated on the car every frame
+  (`vehSeat`), and every hit on "player" meets the car instead (`hitBodyOf`, `applyHitTo`, the
+  foe-shot test). Wheels are pieces flagged 🛞 `wheel`, turned about their tyre (`spinWheelPieces`,
+  snapped to 15° so the art rebuilds rarely). On your car the 🪟 `driverWindow` piece becomes a
+  cutter, and your own Side head is drawn under it, cut off at the gun arm's shoulder.
 
 ## Blake's decisions — do not undo these
 
@@ -938,6 +948,17 @@ plus traps it does not cover:
   placement.
 - Units walk only to targets on their own storey (`unitSharesLevel`), and allies guard the area
   around YOU, on a leash.
+- **🚗 Vehicles (2026-10-31)** are their own asset type ("Prop / Item / Vehicle"), placed like a prop.
+  Five looks, in this order: Stock, Front damage, Rear damage, Imminent explosion (both ends plus the
+  🔥 hood-fire marker), Destroyed (the smouldering wreck). A car has its own HP and Defense; fire and
+  blasts land 4x and ignore Defense (`VEHICLE_WEAK_MULT`). At a quarter of its HP the 5 s fuse lights
+  and nothing stops it; the bang is `detonate` (Defense, 🪖 and god mode count), 30 damage, and you
+  are thrown out first. Driving is momentum: no control in the air, hills speed it up or slow it,
+  faster than a fast walker but not by much, and the level's edges are walls ("they largely get
+  stuck not too far in"). One Car engine sound (a loop pitched by speed), plus Car crash and Car
+  totaled. A unit that sees yours coming jumps it, or steps back behind it in its Front pose, or
+  forward in front of it in its Back pose; units hit a car only while it is slow
+  (`VEH_MELEE_MAX_SPEED`), and the car keeps your i-frames.
 
 ## Working style
 
@@ -975,4 +996,5 @@ Grep it for the function or feature name. In order, it covers:
   clips, and the test rigs (fake host store, a test keeper with a local bare repo, headless Edge);
 - the 👢 Stomp clothing ability (`headStomp`), with how it was driven in a real build;
 - the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.
-- and, last, the game front end: why it is one app at two addresses, the title before the bundle, where saves live.
+- the game front end: why it is one app at two addresses, the title before the bundle, where saves live;
+- and, last, the 🚗 vehicles: his 7 cars migrated, what was measured driving one, and the car's i-frames.

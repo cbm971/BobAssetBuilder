@@ -97,6 +97,7 @@
   { "k": "🌿", "l": "Prop", "g": "Assets", "d": "gi:three-leaves" },
   { "k": "🌳", "l": "Tree", "g": "Assets", "d": "gi:oak" },
   { "k": "🧪", "l": "Item", "g": "Assets", "d": "gi:round-potion" },
+  { "k": "🚗", "l": "Vehicle", "g": "Assets", "d": "gi:city-car" },
   { "k": "🎒", "l": "Equipment", "g": "Assets", "d": "gi:backpack" },
   { "k": "📦", "l": "Uncategorized", "g": "Assets", "d": "gi:cardboard-box-closed" },
   { "k": "🎬", "l": "Animation", "g": "Assets", "d": "gi:clapperboard" },
@@ -176,6 +177,7 @@
   { "k": "⚪", "l": "No colour", "g": "Art editor", "d": "mdi:circle-outline" },
   { "k": "🔒", "l": "Locked", "g": "Art editor", "d": "mdi:lock" },
   { "k": "🎞", "l": "Frame", "g": "Art editor", "d": "mdi:filmstrip" },
+  { "k": "🛞", "l": "Wheel", "g": "Art editor", "d": "gi:car-wheel" },
   { "k": "🏷", "l": "Categories", "g": "Art editor", "d": "mdi:tag" },
   { "k": "❓", "l": "Unknown", "g": "Art editor", "d": "mdi:help" },
 

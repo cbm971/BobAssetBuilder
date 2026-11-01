@@ -14789,7 +14789,7 @@ describe("🐞 Lucky, 🪞 Reflect and 🚒 Fire Resistance", () => {
   test("every hit site asks shrugsHit before it takes HP off, on the player and on units", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     const calls = (src.match(/shrugsHit\(/g) || []).length; // the definition reads "shrugsHit = (", so it is not counted
-    expect(calls).toBe(16);
+    expect(calls).toBe(17); // +1: a 🚗 car knocking a body flying (vehRam)
   });
 });
 

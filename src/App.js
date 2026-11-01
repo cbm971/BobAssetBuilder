@@ -12,6 +12,10 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // after startRun is where it meets the run engine.
 import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
+// VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
+// drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
+// playtest loop are where those meet the level, the keys and the units.
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, VEHICLE_MIN_DRIVE_SIZE, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, VEH_TURN_FRAMES, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -2284,8 +2288,12 @@ const TYPES = {
   weapon: { label: "Weapon", icon: "⚔️", blurb: "Snaps onto the hand point." },
   enemy: { label: "Enemy", icon: "👹", blurb: "A monster body — shapes only, no clothes/skin. Flag a piece 💪 Arm to let it swing/wield a weapon like Bob." },
   projectile: { label: "Projectile", icon: "🔮", blurb: "A bullet/arrow/bolt — build it once, then load it onto any Ranged weapon. Gets its own hitbox." },
-  prop: { label: "Object / Prop", icon: "🌿", blurb: "A piece of scenery — draw it once (pixel art, optionally animated), then place it in a level at any size. Great for a real fire drawn over the fire-hazard symbol." },
+  prop: { label: "Prop", icon: "🌿", blurb: "A piece of scenery — draw it once (pixel art, optionally animated), then place it in a level at any size. Great for a real fire drawn over the fire-hazard symbol." },
   item: { label: "Item", icon: "🧪", blurb: "A single-use pickup — draw it once, then it heals or temporarily boosts a stat when taken. Drops from a pedestal, Binding-of-Isaac style." },
+  // A VEHICLE (2026-10-31) is drawn like a Prop and placed like one ({ kind: "prop", propId } — every car
+  // already in a level is a car), but it can be driven, and it has a body's numbers and four damaged
+  // looks besides Stock. Its rules are src/vehicle.js.
+  vehicle: { label: "Vehicle", icon: "🚗", blurb: "Something to drive — drawn once like a Prop, with its own HP and Defense, a damaged look for each end, an Imminent explosion and a Destroyed wreck." },
 };
 // A weapon's wtype is "melee" or "ranged" going forward. Old saves may still say "projectile"
 // (what "ranged" used to be called, back when the projectile itself was built INSIDE the
@@ -2476,6 +2484,7 @@ export const weaponAbilityKeys = (a) => Object.keys(WEAPON_ABILITIES).filter((k)
 export const editablePoses = (type, wtype) =>
   type === "weapon" ? (isRanged(wtype) ? ["back", "side", "up", "crouch"] : ["back", "side", "crouch"])
   : type === "projectile" || type === "item" ? ["front"]
+  : type === "vehicle" ? VEHICLE_STATES
   : type === "enemy" ? ["side", "up", "crouch", "attack", "death"]
   : ANGLES;
 export const DEFAULT_THROW_WEIGHT = 3;      // 1 (light, flies far) .. 10 (heavy, drops short)
@@ -5217,11 +5226,13 @@ export const propCatKey = (c) => (c || "").trim().toLowerCase();
 // Every asset of `type` in `assets`, bucketed: [{ key, label, props }]. Named groups sort A→Z
 // and "Unknown" always lands last, so untagged ones never push the tidy ones down. Assets inside
 // a group sort by name — past a couple of dozen, library order stops being findable. (`props` is
-// the bucket's name whatever the type: the shelf and the Level Creator already read it.)
+// the bucket's name whatever the type: the shelf and the Level Creator already read it.) `type` may
+// be a list, for the pickers that offer more than one kind in one set of folders.
 export const groupByCategory = (assets, type) => {
   const map = new Map();
+  const types = Array.isArray(type) ? type : [type];
   for (const a of assets || []) {
-    if (!a || a.type !== type) continue;
+    if (!a || !types.includes(a.type)) continue;
     const label = propCat(a), key = propCatKey(label);
     if (!map.has(key)) map.set(key, { key, label, props: [] });
     map.get(key).props.push(a);
@@ -5234,6 +5245,12 @@ export const groupByCategory = (assets, type) => {
 };
 export const groupProps = (assets) => groupByCategory(assets, "prop");
 export const groupLooks = (assets) => groupByCategory(assets, "character");
+// Vehicles have their own Load folder, but everything that PLACES a prop — the Level Creator's
+// Object picker, an animation's prop layer, the Object art shelf — places a car too (a car is
+// placed as a prop), so those read the two kinds together, folder by folder.
+export const groupVehicles = (assets) => groupByCategory(assets, "vehicle");
+export const groupPlaceables = (assets) => groupByCategory(assets, ["prop", "vehicle"]);
+export const placeIcon = (a) => (a && a.type === "vehicle" ? "🚗" : "🌿");
 // THE CHARACTER PICKERS' FOLDERS — the Level Creator's 👹 Enemy picker and the Playtest player
 // picker. Both listed every look as optgroup headings inside ONE dropdown, which past twenty-odd
 // characters is still "just one big list". They now work the way the 🌿 Object picker does: a
@@ -5305,8 +5322,9 @@ const LOAD_CATEGORIES = [
   { key: "equipment", label: "Clothes & Armor", icon: "👕", match: (a) => a.type === "equipment", fitTracked: true },
   { key: "weapon", label: "Weapons", icon: "⚔️", match: (a) => a.type === "weapon", fitTracked: true },
   { key: "projectile", label: "Projectiles", icon: "🔮", match: (a) => a.type === "projectile", fitTracked: false },
-  { key: "prop", label: "Objects / Props", icon: "🌿", match: (a) => a.type === "prop", fitTracked: false },
+  { key: "prop", label: "Props", icon: "🌿", match: (a) => a.type === "prop", fitTracked: false },
   { key: "item", label: "Items", icon: "🧪", match: (a) => a.type === "item", fitTracked: false },
+  { key: "vehicle", label: "Vehicles", icon: "🚗", match: (a) => a.type === "vehicle", fitTracked: false },
   { key: "enemy", label: "Enemies", icon: "👹", match: (a) => a.type === "enemy", fitTracked: false },
   { key: "character", label: "Dressed Looks", icon: "🧩", match: (a) => a.type === "character", fitTracked: false },
 ];
@@ -6341,6 +6359,10 @@ export function newAsset(type, slot, wtype) {
   // live `angles` (what the piece editor edits when frameIdx 0 is selected). animFps drives the
   // cycle speed in Playtest. Only the Front pose is ever used (props don't rotate/face).
   if (type === "prop") { a.size = 2; a.frames = [blankAngles()]; a.angles = a.frames[0]; a.animFps = 6; a.solidDefault = false; a.category = ""; }
+  // A vehicle: one canvas like a prop, one frame, and in that frame five looks — Stock is `front` (the
+  // footprint is measured from it, so a dented car never changes size in a level), then the four in
+  // VEHICLE_STATES. An empty one draws Stock. HP and Defense are the car's own, like an enemy's.
+  if (type === "vehicle") { a.size = 16; a.frames = [{ ...blankAngles(), frontDamage: [], rearDamage: [], burning: [], destroyed: [] }]; a.angles = a.frames[0]; a.solidDefault = false; a.category = ""; a.hp = VEHICLE_DEFAULT_HP; a.defense = VEHICLE_DEFAULT_DEFENSE; a.facesRight = false; a.hoodFirePropId = null; a.wreckSmokePropId = null; a.boomPropId = null; }
   // A single-use item: one Front canvas (drawn like a projectile), an effect, and category tags so
   // a pedestal can roll it. No poses/frames/rig — it only ever shows on a pedestal and in menus.
   if (type === "item") { a.effect = DEFAULT_ITEM_EFFECT(); a.categories = ["", "", ""]; }
@@ -6363,7 +6385,7 @@ const guideAsset = { angles: DEFAULT_BODY, hand: DEFAULT_HAND, shoulder: DEFAULT
 //
 // normalizeAssetJson repairs what it safely can, infers what it can't, and throws an error whose
 // MESSAGE says what's actually wrong. It never invents art: a pose with no blocks stays empty.
-export const KNOWN_ASSET_TYPES = ["body", "skin", "weapon", "enemy", "equipment", "projectile", "prop", "item", "character", "anim"];
+export const KNOWN_ASSET_TYPES = ["body", "skin", "weapon", "enemy", "equipment", "projectile", "prop", "item", "vehicle", "character", "anim"];
 export const inferAssetType = (raw) => {
   if (raw.type && KNOWN_ASSET_TYPES.includes(raw.type)) return raw.type;
   if (Array.isArray(raw.layers) && Array.isArray(raw.states)) return "anim";
@@ -6409,7 +6431,7 @@ export const normalizeAssetJson = (raw) => {
   const a = { ...raw, type };
   // Poses can live under .angles, or (for weapons/enemies saved mid-state) under .states.
   a.angles = normalizeAngles(a.angles && Object.keys(a.angles).length ? a.angles : (a.states && (a.states.rest || a.states.normal)));
-  if (type === "prop" && Array.isArray(a.frames) && a.frames.length) {
+  if ((type === "prop" || type === "vehicle") && Array.isArray(a.frames) && a.frames.length) {
     a.frames = a.frames.map((f) => normalizeAngles(f));
     a.angles = a.frames[0];
   }
@@ -6446,7 +6468,8 @@ export const normalizeAssetJson = (raw) => {
   }
   if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
   if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0; // hand-written JSON rarely carries a price; 0 = free, never undefined
-  if (type === "prop" && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
+  if ((type === "prop" || type === "vehicle") && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
+  if (type === "vehicle") { if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (!Number.isFinite(a.hp)) a.hp = VEHICLE_DEFAULT_HP; if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; if (a.size === undefined) a.size = 16; }
   if (!a.id) a.id = uid();
   if (typeof a.name !== "string" || !a.name.trim()) a.name = (type === "equipment" ? SLOTS[a.slot].label : (TYPES[type] ? TYPES[type].label : type));
   if (!a.guideId) a.guideId = "default";
@@ -11516,9 +11539,13 @@ export const editorReachIssues = (asset) => {
   };
   for (const root of ["angles", "states", "frames", "variants"]) if (asset[root]) walk(asset[root], root);
   if (asset.translucency !== undefined && !(onEditorStep(asset.translucency, TRANSLUCENCY_STEP) && asset.translucency >= 0 && asset.translucency <= TRANSLUCENCY_MAX + 1e-9)) out.push("translucent " + asset.translucency + " is not a slider stop");
-  if (asset.type === "prop") {
+  if (asset.type === "prop" || asset.type === "vehicle") {
     if (!PROP_DEFAULT_SIZES.includes(asset.size)) out.push("size " + asset.size + " is not one the size picker offers");
     if (asset.animFps !== undefined && !(onEditorStep(asset.animFps, 1) && asset.animFps >= 1 && asset.animFps <= 20)) out.push("anim speed " + asset.animFps + " is not a slider stop");
+  }
+  if (asset.type === "vehicle") {
+    if (!(onEditorStep(asset.hp, 1) && asset.hp >= 1)) out.push("HP " + asset.hp + " is not a whole number");
+    if (!(onEditorStep(asset.defense, 1) && asset.defense >= 0)) out.push("Defense " + asset.defense + " is not a whole number");
   }
   if (asset.type === "enemy") {
     if (asset.scale !== undefined && !(onEditorStep(asset.scale, 0.1) && asset.scale >= 0.5 && asset.scale <= 4)) out.push("Size " + asset.scale + "× is not a slider stop");
@@ -13255,6 +13282,15 @@ export const TOPDOWN_DEPTH_STEPS = 48;
 // used to land on top of you. One rung under the player (5000), above pedestals (4000) and in the
 // same gap the plane depth band uses. On a shared 🚶 plane the depth sort above still decides.
 export const TALKER_BEHIND_Z = 4999;
+// 🚗 A CAR ON THE PLAYER'S RUNG. The one you are driving is over every living body (5010): you are
+// in it, and anyone it reaches is either out of its way or under its wheels. One you have got out
+// of sits just under the bodies (4990), so you and the units walk in front of it. A unit getting
+// out of the way of yours steps BEHIND it (VEH_DODGE_BG_Z, its Front pose) or IN FRONT of it
+// (VEH_DODGE_FG_Z, its Back), so it reads as having stepped off the road.
+export const VEH_DRIVEN_Z = 5010;
+export const VEH_PARKED_Z = 4990;
+export const VEH_DODGE_BG_Z = 5005;
+export const VEH_DODGE_FG_Z = 5040;
 export const topdownDepthZ = (playerFeet, unitFeet, cell) => {
   if (playerFeet == null || unitFeet == null) return null;
   const steps = Math.min(TOPDOWN_DEPTH_STEPS, Math.floor(Math.abs(unitFeet - playerFeet) / (cell / 4)));
@@ -14152,6 +14188,14 @@ export default function AssetStudio({ game = false } = {}) {
   const [runSeedText, setRunSeedText] = useState("");       // the seed box next to 🏁 Play run; blank rolls a new one and the box then shows what was rolled
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
+  // 🚗 THE CARS THAT HAVE COME ALIVE this play session, per level (its run node key, or its id). A car
+  // placed in a level is drawn by the ordinary prop passes, exactly as he placed it, until you get in
+  // or something damages it; from then on it is one of these — vehicleStep's car (x, y, w, h, vx, …)
+  // plus its HP, dent, fuse and wreck — and the live-car pass draws it instead. Cleared when play
+  // starts, like roomState, so a wreck never outlives the session.
+  const vehLive = useRef({});
+  const vehArtCache = useRef(new Map());                    // live car id -> its drawn art and what it was drawn from (the look, the wheel spin step, the box)
+  const vehHeadCache = useRef(null);                        // the driver's head: the player's Side blocks it was cut from, and the head's box
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
   // 🎯 OBJECTIVES, across the whole run session (not a per-level roomState bucket — an objective
   // tracks progress ACROSS rooms, not any one room's own state): activeObjective holds the list up
@@ -14167,6 +14211,7 @@ export default function AssetStudio({ game = false } = {}) {
   const [equipGen, setEquipGen] = useState(0);            // bumped when pedestal equipment changes, so the playtest loop re-keys and the merged stats/effects take effect live
   const [pedPrompt, setPedPrompt] = useState(null);       // { key, name, type, slot } | { key, empty, summary } | null — pedestal the player is standing on, for the "Press E" HUD                       // cellKey -> the item this pedestal rolled this Playtest session (stable; pre-rolled at Playtest start, Binding-of-Isaac style)
   const [doorPrompt, setDoorPrompt] = useState(null);     // { enter: bool, tag, n } | null — door the player is standing on, for the "Press E to enter/exit" HUD
+  const [carPrompt, setCarPrompt] = useState(null);       // { x, y } | null — the car you are standing at, for the "Press E to drive" HUD
   // 💬 TALKING. talkPrompt is the "Press E to talk" callout; talk is the conversation actually on
   // screen. talkRef shadows it for the physics loop, which runs inside a rAF closure and cannot
   // see React state changes — the loop reads the ref to know it must hold everything still.
@@ -15788,13 +15833,171 @@ export default function AssetStudio({ game = false } = {}) {
       booms.current.push({ x, y, propId: null, slot: fate === "lucky" ? "fx.lucky" : "fx.reflect", size: 2, life: 0, maxLife: 30 });
       return true;
     };
+    // 🚗 A CAR YOU CAN DRIVE IS NEVER A SOLID OBJECT: it moves, and its old footprint would stay a wall
+    // where it was parked (and the first thing the car itself drove into). A small one is a toy on a
+    // shelf (VEHICLE_MIN_DRIVE_SIZE) and keeps whatever Solid says.
+    const vehDrivable = (o) => !!o && o.kind === "prop" && (o.size || 1) >= VEHICLE_MIN_DRIVE_SIZE && (findA(o.propId) || {}).type === "vehicle";
     // Precompute solid object footprints (a sized emoji can cover more than its anchor cell).
     // "In front of player" objects are a purely visual overlay (that's the whole point of the
     // 3-state model: Behind / In front / Same-layer-solid) — they must NEVER block movement,
     // no matter what the Solid checkbox says, or you'd be stopped by something that's rendering
     // on top of you, which defeats the entire reason to flag it "in front" in the first place.
-    const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); solidFx.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
+    const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid && !vehDrivable(o)) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); solidFx.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
     const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.rows && c >= o.c && c < o.c + o.cols);
+    // 🚗 VEHICLES (2026-10-31) — the rules are src/vehicle.js; this is where they meet this level.
+    //
+    // A car placed here stays exactly what the prop passes draw (his spot, size, flip, tilt and layer)
+    // until something happens to it: you get in, or a blast or a grenade's fire reaches it. Then it
+    // COMES ALIVE (vehWake): a car of its own in vehLive, which the live-car pass draws and the
+    // placement passes skip, and from there on the car's own numbers say where it is. A car only ever
+    // runs inside its own level — the level's edges are walls to it (vehWorld) — so it is never on
+    // the far side of a seam the live level has handed off.
+    const vehLvKey = lv.runKey || lv.id || "level";
+    const vehCars = vehLive.current[vehLvKey] || (vehLive.current[vehLvKey] = {});
+    let vehDriven = null;      // the car you are in this frame, or null
+    let lastCarSig = "";       // the car you stand at ("" none), so its prompt only hits React state when it CHANGES
+    // Where a placed car's art is, in level px, with the art box it is drawn to. An old square
+    // placement (no fitArt) draws the whole 200x260 canvas contained in its square, so there the car
+    // is the art inside that square, measured the same way, and it comes alive exactly where it was.
+    const vehSpotRect = (sp) => {
+      const [r, c] = sp.k.split(",").map(Number);
+      const left = objNudgedLeft(sp.o, c, CW), top = objNudgedTop(sp.o, r, CH);
+      const fp = levelObjectFootprint(sp.o, sp.pa);
+      if (fp.box) return { x: left, y: top, w: fp.cols * CW, h: fp.rows * CH, box: fp.box };
+      const box = propVisibleArtBox(sp.pa), sz = fp.cols * CW, kk = Math.min(sz / W, sz / H);
+      return { x: left + (sz - W * kk) / 2 + box.minX * kk, y: top + (sz - H * kk) / 2 + box.minY * kk, w: box.w * kk, h: box.h * kk, box };
+    };
+    const vehSpots = [];
+    for (const { k, si, o, ord } of levelObjectsInDrawOrder(lv.fx || {})) if (vehDrivable(o)) { const sp = { id: k + "_" + si, k, si, o, ord, pa: findA(o.propId) }; sp.R = vehSpotRect(sp); vehSpots.push(sp); }
+    const vehWake = (sp) => {
+      if (vehCars[sp.id]) return vehCars[sp.id];
+      const R = sp.R, pa = sp.pa;
+      // The placement's tilt (its ↺/↻) is the car's pitch from now on, turned about the BOTTOM MIDDLE
+      // where a live car is drawn from (the wheels' line); the box moves so that point stays put.
+      const rot = (((sp.o.rot || 0) % 360) + 360) % 360, tilt = rot > 180 ? rot - 360 : rot, t = (tilt * Math.PI) / 180;
+      const bx = R.x + R.w / 2 - (Math.sin(t) * R.h) / 2, by = R.y + R.h / 2 + (Math.cos(t) * R.h) / 2;
+      const flip = !!sp.o.flip, face = !!pa.facesRight !== flip ? 1 : -1;
+      const fr = wheelContactFracs(vehicleStatePieces(pa, "front"), R.box);
+      const wl = flip ? 1 - fr.r : fr.l, wr = flip ? 1 - fr.l : fr.r;
+      const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round(pa.hp || VEHICLE_DEFAULT_HP));
+      const car = { id: sp.id, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, dent: null, fuse: 0, dead: false, driven: false };
+      vehCars[sp.id] = car;
+      return car;
+    };
+    // THE CAR'S GROUND — vehicleStep's world, asked one column at a time (see its contract in
+    // src/vehicle.js). Solid is what the player stands on (a block, a solid object) and the floor of
+    // the level; a ramp is its surface (slopeSurfaceAt, so a ramp painted over a block is paint, as
+    // it is for you). A hill's own backing near the wheels is the hill, not a wall — the player's rule.
+    const vehSolid = (r, c) => c >= 0 && c < lv.cols && (r >= lv.rows || (r >= 0 && (fgSolid(lv.fg[cellKey(r, c)]) || fxBlocks(r, c))));
+    const vehWorld = {
+      floorAt: (x, fromY, upSlope, upStep, down) => {
+        if (x < 0 || x >= lv.cols * CW) return { y: null, steep: false };
+        const c = Math.floor(x / CW);
+        // A wheel that ended a frame inside a block (a long fall at the clamped dt) is lifted onto it.
+        const rIn = Math.floor((fromY - 0.5) / CH);
+        if (vehSolid(rIn, c)) { let r = rIn; while (r > 0 && vehSolid(r - 1, c)) r--; if (fromY - r * CH <= CH * 1.5) return { y: r * CH, steep: false }; }
+        const hi = fromY + down, lo = fromY - Math.max(upSlope, upStep);
+        let best = null, ramp = false, steep = false;
+        for (let r = Math.floor(lo / CH) - 1; r <= Math.floor(hi / CH); r++) {
+          const sf = r >= 0 && r < lv.rows ? slopeSurfaceAt(lv, x, r, r, CW, CH) : null;
+          if (sf) {
+            if (sf.y >= fromY - upSlope - 0.01 && sf.y <= hi) { if (best == null || sf.y < best) best = sf.y; ramp = true; }
+            else if (sf.y < fromY - upSlope && sf.y > fromY - upSlope - CH) steep = true;
+          }
+          if (vehSolid(r, c) && !vehSolid(r - 1, c)) { const y = r * CH; if (y >= fromY - upStep - 0.01 && y <= hi && (best == null || y < best)) best = y; }
+        }
+        return { y: best, steep: steep && !ramp };
+      },
+      wallAt: (x, fromY, upStep, wallH) => {
+        if (x < 0 || x >= lv.cols * CW) return true;
+        const c = Math.floor(x / CW);
+        const r1 = Math.floor((fromY - upStep - 0.5) / CH);
+        for (let r = Math.max(0, Math.floor((fromY - wallH) / CH)); r <= r1; r++) {
+          if (r >= lv.rows || !vehSolid(r, c)) continue;
+          if (r * CH >= fromY - CH * 2.5 && isHillFormationCell(lv, r, c)) continue;
+          return true;
+        }
+        return false;
+      },
+    };
+    // A HIT ON A CAR (vehicleTakeHit): fire and a blast land four times over and through any armour,
+    // a plain blow through its Defense on the curve a body's armour is on (applyDefense). `fromX` is
+    // where it came from, for which end dents; a "crash" (the car running into something) always does.
+    const vehHurt = (car, raw, kind, fromX, ignoreArmor) => {
+      if (!car || car.dead || !(raw > 0)) return;
+      const weak = kind === "fire" || kind === "blast";
+      const dmg = weak || ignoreArmor ? raw : Math.max(1, Math.round(applyDefense(raw, car.defense)));
+      const side = fromX == null ? null : vehicleSideFacing(car.face, car.x + car.w / 2, fromX);
+      Object.assign(car, vehicleTakeHit(car, dmg, kind, side, kind === "crash"));
+    };
+    // A blast reaches every car in its radius, parked or not, on any layer — a car behind the street
+    // is still in the street's explosion. Called once per explosion (detonate, the first of a pair).
+    const vehBlast = (ix, iy, radPx, dmg) => {
+      for (const sp of vehSpots) {
+        const car = vehCars[sp.id];
+        if (car && car.dead) continue;
+        const R = car || sp.R;
+        if (blastHitsBox(ix, iy, R.x, R.y, R.w, R.h, radPx)) vehHurt(vehWake(sp), dmg, "blast", ix);
+      }
+    };
+    // Where the driver sits: your box stood on the car's bottom, at its middle, facing its way. Held
+    // there twice a frame (before anything looks at you, and after your own physics, which had no keys
+    // to act on); untouchable while you are in it — a hit meets the car (applyHitTo, the foe shots).
+    const vehSeat = (p, car) => {
+      const pw0 = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, ph0 = CH * PLAYER_H_CELLS;
+      p.x = car.x + car.w / 2 - pw0 / 2; p.y = car.y + car.h - ph0;
+      p.vx = 0; p.vy = 0; p.onGround = true; p.climbing = false; p.climbKind = null; p.topdown = false; p.crouch = false; p.face = car.face;
+      p.knock = null; p.walking = false; p.invuln = Math.max(p.invuln || 0, 2);
+    };
+    // The driver's window, in level px (the Stock drawing's 🪟 block, mirrored with the car): where
+    // you get out, and where the prompt hangs. Null for a car with none flagged.
+    const vehWindowX = (car) => {
+      const win = vehicleStatePieces(car.pa, "front").find((pc) => pc.driverWindow);
+      if (!win || !car.box) return car.x + car.w / 2;
+      const sc = car.w / car.box.w, mid = (win.x + win.w / 2 - car.box.minX) * sc;
+      return (car.face > 0) !== !!car.pa.facesRight ? car.x + car.w - mid : car.x + mid;
+    };
+    // Out: on your feet at the driver's door, facing the car's way, your i-frames gone.
+    const vehEject = (p, car, pw, ph) => {
+      p.vehicle = null; car.driven = true;
+      p.x = Math.max(0, Math.min(lv.cols * CW - pw, vehWindowX(car) - pw / 2));
+      p.y = car.y + car.h - ph; p.vx = 0; p.vy = 0; p.onGround = false; p.face = car.face; p.invuln = 0;
+    };
+    // The car you could get into from where you stand: your middle over it, your box touching it.
+    const vehSpotAt = (x, y, pw, ph) => {
+      const cx = x + pw / 2;
+      for (const sp of vehSpots) {
+        const car = vehCars[sp.id];
+        if (car && car.dead) continue;
+        const R = car || sp.R;
+        if (cx >= R.x && cx <= R.x + R.w && boxesOverlap(x, y, pw, ph, R.x, R.y, R.w, R.h)) return sp;
+      }
+      return null;
+    };
+    // A CAR AT SPEED KNOCKS A BODY FLYING (vehicleRamDamage, through the body's own armour), and the
+    // body dents the car's end (a crash). Not one that has stepped out of the way (ep.carDodge), nor
+    // a talker your hits pass through. Yours is your hit: it provokes, and a 🪞 reflect comes back at you.
+    const vehRam = (car, speed, byPlayer) => {
+      for (const k of Object.keys(lv.enemies || {})) {
+        const ep = enemyPos.current[k]; if (!ep || ep.carDodge || unitHitImmune(ep) || unitTalkImmune(ep)) continue;
+        const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
+        if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+        if (enemyHP.current[k] <= 0) continue;
+        const b = unitBodyBox(ea, ep, CW);
+        if (!boxesOverlap(car.x, car.y, car.w, car.h, b.x, b.y, b.w, b.h)) continue;
+        const dir = Math.sign(car.vx) || car.face;
+        const dmg = incomingUnitDamage(vehicleRamDamage(speed), ea, ep, car.x + car.w / 2, b.x + b.w / 2, false);
+        if (!shrugsHit(k, ea.effects, dmg, byPlayer ? "player" : null, b.x + b.w / 2, b.y)) {
+          enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+          ep.invuln = PLAYER_INVULN_FRAMES;
+          if (byPlayer) { ep.lastHitByFx = null; ep.lastHitRanged = false; }
+          if (enemyHP.current[k] > 0) ep.knock = { left: Math.min(4, 1 + speed / 4) * CW, dir };
+          flash("🚗 Hit " + (ea.name || "them") + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+        }
+        vehHurt(car, vehicleRamSelfDamage(speed), "crash", b.x + b.w / 2);
+        car.vx *= 0.85;
+      }
+    };
     // Off this level's grid a cell is asked of the world (solidAtW, below): nothing there in a plain
     // Playtest or past a closed edge, the neighbour's own cell across an open seam. Side seams are open
     // their whole height now (seamGateLeaving), so a body straddling the edge must meet the walls and
@@ -15811,7 +16014,7 @@ export default function AssetStudio({ game = false } = {}) {
     const worldParts = runWorldParts(lv, seams, CW);
     for (const P of worldParts) {
       if (P.lv === lv) { P.fxBlocks = fxBlocks; continue; }
-      const sf = []; for (const k of Object.keys(P.lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (P.lv.fx[k] || [])) if (o.solid) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); sf.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
+      const sf = []; for (const k of Object.keys(P.lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (P.lv.fx[k] || [])) if (o.solid && !vehDrivable(o)) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); sf.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
       P.fxBlocks = (r, c) => sf.some((o) => r >= o.r && r < o.r + o.rows && c >= o.c && c < o.c + o.cols);
     }
     const solidAtW = (r, c) => { const P = worldPartOfCell(worldParts, r, c); if (!P) return false; const lr = r - P.dr, lc = c - P.dc; return fgSolid(P.lv.fg[cellKey(lr, lc)]) || P.fxBlocks(lr, lc); };
@@ -15999,6 +16202,7 @@ export default function AssetStudio({ game = false } = {}) {
       // again says so, and a spent "One time only" one does not.
       // THE GAME'S PAUSE MENU (Esc) stops it on the same line: nothing moves, no timer runs and the
       // score clock (below) does not count, exactly as while reading a conversation.
+      if (talkRef.current || shopRef.current || gamePauseRef.current || cutRef.current) bobAudio.engineLoop(false); // 🔊 a paused world's car is not running
       if (talkRef.current || shopRef.current || gamePauseRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
       // 🎲 HOLD R (rerollRun): read off the RAW keys and before the cutscene return below, so it works
       // while a stun has your intent zeroed or the wake-up animation is playing — a run you do not
@@ -16032,8 +16236,39 @@ export default function AssetStudio({ game = false } = {}) {
       // 🦶 A stomp PLANTS you for its 0.4s (see STOMP_DAMAGE): no walking off, jumping, ducking or
       // turning round mid-stamp — the foot comes down where the knee went up, on the thing that was
       // under it. Aim and trigger are untouched; only the keys that would move or turn the body.
+      // 🚗 AT THE WHEEL your keys drive the car (the VEHICLES step just below) and nothing else: the
+      // body gets the frozen player's empty intent, so it neither walks, jumps, shoots, throws nor
+      // opens a door from the driver's seat. A car that has gone up has no driver.
+      vehDriven = p.vehicle ? vehCars[p.vehicle] || null : null;
+      if (vehDriven && vehDriven.dead) vehDriven = null;
+      if (p.vehicle && !vehDriven) p.vehicle = null;
       const stompPlanted = !!(p.stomp && p.onGround);
-      const K = mergeInputIntent(frozen ? {} : stompPlanted ? { ...RK, left: false, right: false, jump: false, crouch: false, down: false } : RK, wpnIsRanged); // aimLeft/aimRight stay: they are half of the 45° hold (a stomp must not drop you to straight up); the turn they cause is held back below
+      const K = mergeInputIntent(frozen || vehDriven ? {} : stompPlanted ? { ...RK, left: false, right: false, jump: false, crouch: false, down: false } : RK, wpnIsRanged); // aimLeft/aimRight stay: they are half of the 45° hold (a stomp must not drop you to straight up); the turn they cause is held back below
+      // 🚗 VEHICLES, ONE FRAME. Every car you have been in rolls (vehicleStep): yours on your keys — the
+      // way it faces is the gas, the other way the brake, and the brake held at a stop turns it round —
+      // and one nobody is in on nothing at all, so a car left on a hill rolls down it. What a car runs
+      // into dents and hurts it (vehicleCrashDamage), and so does a hard landing; a body it meets at
+      // speed is knocked flying (vehRam). The wheels turn by how far it rolled (wheelTurnDeg), drawn
+      // in the art's own frame, so a mirrored car's wheels still roll the way it goes.
+      for (const id in vehCars) {
+        const car = vehCars[id];
+        if (car.invuln > 0) car.invuln -= dtMul; // its i-frames after a blow or a shot, ticking down as yours do
+        if (car.dead || !car.driven) continue;
+        const mine = car === vehDriven;
+        const ctl = mine && !frozen ? { gas: car.face > 0 ? !!RK.right : !!RK.left, brake: car.face > 0 ? !!RK.left : !!RK.right } : { gas: false, brake: false };
+        const ev = vehicleStep(car, ctl, vehWorld, dtMul);
+        if (ev.dist) car.spin = (car.spin + wheelTurnDeg(ev.dist, car.wheelR) * ((car.face > 0) !== !!car.pa.facesRight ? -1 : 1) + 360) % 360;
+        if (ev.crash) {
+          const dmg = vehicleCrashDamage(ev.crash.speed);
+          const endX = (ev.crash.end === "front") === (car.face > 0) ? car.x + car.w : car.x;
+          if (dmg > 0) { vehHurt(car, dmg, "crash", endX); sndEvent("carCrash", endX, car.y + car.h / 2); }
+        }
+        if (ev.landed != null) { const ld = vehicleLandingDamage(ev.landed); if (ld > 0) { vehHurt(car, ld, "crash", null); sndEvent("carCrash", car.x + car.w / 2, car.y + car.h); } }
+        const speed = Math.abs(car.vx);
+        if (speed >= VEH_RAM_MIN_SPEED && lv.enemies) vehRam(car, speed, mine || car.byPlayer);
+        if (mine) car.byPlayer = true;
+      }
+      if (vehDriven) vehSeat(p, vehDriven);
       // Temporary stat boosts from consumed items: expire by wall-clock, then layer what's still
       // active onto the player's base stats. Every stat read below (speed/agility/strength/int)
       // goes through pstats, so a boost fades on its own the moment its timer runs out — no re-key.
@@ -16853,7 +17088,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (pFireImmune) p.ignite = 0; // 🧯 nothing sets you alight
       const pDps = pFireImmune ? 0 : (hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p)) * pFireMult; // 🔥 plus a hit that set you alight, less any 🚒 resistance
       tickIgnite(p, dtMul);
-      if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0)) {
+      if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && !vehDriven) { // 🚗 a fire under your car burns the car (the VEHICLES fire pass)
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
         if (p.burnPool >= 1) {
           const loss = Math.floor(p.burnPool); p.burnPool -= loss;
@@ -16867,7 +17102,7 @@ export default function AssetStudio({ game = false } = {}) {
       // 🐱 get-up). Fire Immunity has nothing to say about it. See chillBody.
       const pIceDps = chillDpsOf(p);
       tickChill(p, dtMul);
-      if (pIceDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && playerHP.current > 0) {
+      if (pIceDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && playerHP.current > 0 && !vehDriven) {
         p.chillPool = (p.chillPool || 0) + pIceDps * (dtMul / 60);
         if (p.chillPool >= 1) {
           const loss = Math.floor(p.chillPool); p.chillPool -= loss;
@@ -17014,7 +17249,7 @@ export default function AssetStudio({ game = false } = {}) {
           // follows you around and would otherwise spend the whole level face-down.
           // A tackle deals no damage, but it is still something you DO to somebody, and putting a
           // man you have not spoken to on his back for four seconds is not "the hit passed through".
-          if (tackleSecs != null && !ep.friendly && !unitTalkImmune(ep) && !playerFrozen(p)) {
+          if (tackleSecs != null && !ep.friendly && !unitTalkImmune(ep) && !playerFrozen(p) && !vehDriven) {
             if ((ep.downCd || 0) > 0) ep.downCd = Math.max(0, ep.downCd - dtMul);
             const tBoxLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
             const tBoxTop = ep.y + unitHitTop(ea, eShape, oldEph), tBoxH = eShape.heightFrac * oldEph;
@@ -17031,7 +17266,28 @@ export default function AssetStudio({ game = false } = {}) {
           if (ep.down > 0) { ep.down -= dtMul; if (ep.down <= 0) { ep.down = 0; ep.downCd = TACKLE_GETUP_GRACE_FRAMES; } }
           // ...and the fifth of a second a 🦎 tail swing is SHOVING it back (ep.knock) counts too: a
           // body being thrown two cells does not walk, turn round or strike on the way.
-          const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0 || !!(ep.knock && ep.knock.left > 0); // hit by a stun weapon, tackled flat, or mid-shove — frozen: the dodge/face/move/attack gates below all skip it while this lasts
+          // 🚗 OUT OF THE CAR'S WAY. Blake: "Enemies who see a car should jump, become front facing in
+          // the back ground or back facing in the front layer when the car passes by to seem like they
+          // avoided it." A body that SEES yours coming (carBearsDown: ahead of the bumper, level with
+          // it, looking at it) rolls once per car whether it gets clear (vehicleDodgeChance, better for a
+          // sharp one), then jumps it — high enough to clear its roof — or steps back behind it in its
+          // Front pose, or forward in front of it in its Back pose (vehicleDodgeKind: what it has drawn
+          // and whether it is on its feet). A stepped-aside body stands still until the car is past and
+          // the car goes by it (vehRam skips ep.carDodge). One looking the other way is the one you hit.
+          if (ep.carDodge && (ep.carDodge.t -= dtMul) <= 0) ep.carDodge = null;
+          if (vehDriven && !ep.carDodge && !((ep.stun || 0) > 0) && !((ep.down || 0) > 0) && !ep.climbing && !unitTalkImmune(ep)) {
+            const ub = unitBodyBox(ea, ep, CW), sees = carBearsDown(vehDriven, ub, ep.face, CW);
+            if (sees && ep.carSeen !== vehDriven.id) { ep.carSeen = vehDriven.id; ep.carWill = Math.random() < vehicleDodgeChance(ea.stats?.intelligence); }
+            if (!sees && ep.carSeen && !boxesOverlap(vehDriven.x - CW * 4, vehDriven.y, vehDriven.w + CW * 8, vehDriven.h, ub.x, ub.y, ub.w, ub.h)) ep.carSeen = null;
+            if (sees && ep.carWill) {
+              const kind = vehicleDodgeKind({ onGround: ep.onGround && !ep.crouch, hasBack: enemyPoseKey(ea, "back") === "back" });
+              const speed = Math.max(1, Math.abs(vehDriven.vx)), gap = Math.abs((vehDriven.x + vehDriven.w / 2) - (ub.x + ub.w / 2));
+              ep.carDodge = { kind, t: Math.min(150, Math.max(24, (gap + vehDriven.w / 2 + ub.w) / speed + 12)) };
+              ep.carWill = false;
+              if (kind === "jump") { sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -Math.max(enemyJumpVelocity(ea.stats?.agility, CH), Math.sqrt(2 * VEH_GRAVITY * (vehDriven.h + CH * 0.5))); ep.onGround = false; ep.jumpHoldT = 0; }
+            }
+          }
+          const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0 || !!(ep.knock && ep.knock.left > 0) || !!(ep.carDodge && ep.carDodge.kind !== "jump"); // hit by a stun weapon, tackled flat, or mid-shove — frozen: the dodge/face/move/attack gates below all skip it while this lasts
           if ((ep.stun || 0) > 0) ep.stun -= dtMul;
           if ((ep.lifeGrace || 0) > 0) ep.lifeGrace -= dtMul; // the 🐱 Extra Life window — every damage site asks unitHitImmune(ep) while it runs
           if ((ep.invuln || 0) > 0) ep.invuln -= dtMul; // ...and its i-frames after a hit, ticking down exactly as the player's p.invuln does
@@ -17214,7 +17470,7 @@ export default function AssetStudio({ game = false } = {}) {
           const myFeetY = ep.y + newEph;
           const feetOf = (c) => (c.key ? c.ep.y + (c.ep.crouch ? enemyCrouchH(c.ea, CW) : enemyStandH(c.ea, CW)) : p.y + ph);
           const onMyLevel = (c) => !!c && (eCreatureFlies ? enemyChasesVertically(myFeetY, feetOf(c), !!(ep.provoked && hostile)) : ((ep.topdown && (c.key ? c.ep.topdown : p.topdown)) || unitSharesLevel(myFeetY, feetOf(c), standEph)));
-          let targetKind = null, targetKey = null, targetCX = p.x + pw / 2, targetW = pw, targetEp = null, targetEa = null;
+          let targetKind = null, targetKey = null, targetCX = p.x + pw / 2, targetW = vehDriven ? vehDriven.w : pw, targetEp = null, targetEa = null;
           if (friendly) {
             // Nearest hostile NEAR YOU, unless it has strayed past the leash — see allyGuards /
             // allyRegrouping. Anything else and it tags along. A foe on another level than the ally
@@ -17234,7 +17490,7 @@ export default function AssetStudio({ game = false } = {}) {
             // them, it just does not WALK to somebody on another floor (targetOnLevel, below).
             const near = nearestUnitCX(eCenterXNow, onLevel.length ? onLevel : cands);
             if (near && near.key) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
-            else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = pw; }
+            else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = vehDriven ? vehDriven.w : pw; } // 🚗 at the wheel you are as wide as your car
           }
           // Whether the target it ended up with is one it can walk to. A follower tagging along is
           // not chasing anybody, so the level does not enter into it.
@@ -17836,6 +18092,7 @@ export default function AssetStudio({ game = false } = {}) {
           // function of the body rather than of `targetKind` because a weapon swing sweeps EVERY
           // opposing body in its arc (see the swing test below), not just the one it picked to chase.
           const hitBodyOf = (kind, bEp, bEa) => {
+            if (kind === "player" && vehDriven) return { left: vehDriven.x, top: vehDriven.y, w: vehDriven.w, h: vehDriven.h, feetY: vehDriven.y + vehDriven.h, aimCY: vehDriven.y + vehDriven.h * 0.5 }; // 🚗 your car is what there is to hit
             if (kind === "player") return { left: p.x, top: p.y, w: pw, h: ph, feetY: p.y + ph, aimCY: p.y + ph * 0.5 };
             const tShape = sideBodyShape(bEa);
             const tRenderW = enemyRenderW(bEa, CW), tpw2 = tRenderW * tShape.fraction;
@@ -17870,6 +18127,12 @@ export default function AssetStudio({ game = false } = {}) {
           const applyHitTo = (kind, key, bEp, bEa, rawDmg0, bodyBlow) => {
             const hitEw = bodyBlow ? null : ew;
             if (kind === "player") {
+              // 🚗 At the wheel a blow lands on the car, and only on a slow one (VEH_MELEE_MAX_SPEED):
+              // Blake, "meelee when the car is going slow". A swing at a car going past meets nothing.
+              // The car keeps your i-frames rule (PLAYER_INVULN_FRAMES after a hit, nothing lands meanwhile):
+              // without it a swing landed on every frame it overlapped, and two of his Trailer bruisers
+              // took a parked Mustang from 150 HP to 56 in under a second.
+              if (vehDriven) { if (Math.abs(vehDriven.vx) > VEH_MELEE_MAX_SPEED || vehDriven.invuln > 0) return false; vehHurt(vehDriven, rawDmg0, "hit", atkCX, !!(hitEw && hitEw.ignoreArmor)); vehDriven.invuln = PLAYER_INVULN_FRAMES; return true; }
               if (p.invuln > 0) return false;
               // Guard up (Q/V with a melee weapon): a blow onto your front is turned aside for
               // nothing. Only this melee path consults it — an enemy's SHOT resolves in the
@@ -18523,7 +18786,9 @@ export default function AssetStudio({ game = false } = {}) {
         if (!pr.explode) return;
         const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
         if (pr.snd) bobAudio.moment({ asset: pr.snd, slot: "hit", x: ix, y: iy, minGain: EXPLOSION_MIN_GAIN }); // 🔊 an explosive round going off is its weapon's Hit, heard even off screen (EXPLOSION_MIN_GAIN)
-        booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
+        // `noBoom`: the second half of a pair that already drew its burst and reached the cars (a car's own explosion, below).
+        if (!pr.noBoom) booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
+        if (!pr.noBoom) vehBlast(ix, iy, radPx, pr.damage ?? 5); // 🚗 every car in it, four times over (vehicleTakeHit)
         const baseDmg = pr.damage ?? 5;
         // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
         // body, not the wider render box. Shared by all three branches below so the player, your
@@ -18615,7 +18880,7 @@ export default function AssetStudio({ game = false } = {}) {
           // SAME box-and-invuln test the foe branch above runs on you, just with nobody else's shot.
           // Run AFTER the generic flash above so a self-hit's own message is the one left on screen.
           if (pr.shooterKey) selfBlastUnit(pr.shooterKey);
-          else if (p.invuln <= 0 && !pBlastImmune) { // 🪖
+          else if (!pr.noSelf && p.invuln <= 0 && !pBlastImmune) { // 🪖 · `noSelf`: a blast nobody threw (a car going up) asks about you in its foe half instead
             const pcx = p.x + pw / 2;
             if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
               const sCrit = Math.random() < critChance(pr.critInt ?? pstats.intelligence);
@@ -19246,7 +19511,18 @@ export default function AssetStudio({ game = false } = {}) {
           if (pr.foe) {
             // Fired BY an enemy: tested against the player, never against other enemies (no
             // friendly fire), and it can't be dodged by the shooter's own crouch/jump logic.
-            if (prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y && pierceFreshHit(pr, "player")) {
+            // 🚗 At the wheel it is the CAR it meets, and your box (taller than most cars) is not there
+            // to be hit at all. A flame round is fire to a car: four times over.
+            if (vehDriven && boxesOverlap(prLeft, prTop, boxW, boxH, vehDriven.x, vehDriven.y, vehDriven.w, vehDriven.h) && pierceFreshHit(pr, "car")) {
+              if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+              if (!(vehDriven.invuln > 0) || (pr.pair && vehDriven.invulnPair === pr.pair)) { // your i-frames rule, a ⏩ Double Shot's twin included
+                if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y);
+                vehHurt(vehDriven, pr.damage ?? 5, shotIsFlame(pr) ? "fire" : "hit", pr.x, !!pr.ignoreArmor);
+                vehDriven.invuln = PLAYER_INVULN_FRAMES; vehDriven.invulnPair = pr.pair || null;
+              }
+              if (!pr.pierce) return false;
+            }
+            if (!vehDriven && prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y && pierceFreshHit(pr, "player")) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
               if (pFireImmune && shotIsFlame(pr)) { if (!pr.pierce) return false; } // 🧯 the flames wash over you
               else if (p.invuln <= 0 || (pr.pair && p.invulnPair === pr.pair)) { // ⏩ a Double Shot's twin is the same shot, not a second hit to wait out
@@ -19385,6 +19661,33 @@ export default function AssetStudio({ game = false } = {}) {
 
       if (booms.current.length) { for (const b of booms.current) b.life += dtMul; booms.current = booms.current.filter((b) => b.life <= b.maxLife); }
 
+      // 🚗 FIRE, THE FUSE AND THE BANG. A car that has come alive burns in the level's fire like a body
+      // does, four times over (vehicleTakeHit), and one down to a quarter of its HP has caught: the
+      // Imminent explosion look, the hood fire, and VEHICLE_FUSE_FRAMES (five seconds) that nothing
+      // stops. Then it goes up through detonate, the blast a rocket makes, so Defense, 🪖 and god mode
+      // all count: once for the hostiles, then once for you and your side — you are thrown out of the
+      // driver's seat with your i-frames gone first, and VEHICLE_BOOM_DAMAGE is more than a whole
+      // default player — and what is left is the Destroyed wreck, smouldering. A car still parked only
+      // catches from a grenade's fire (thrownFireKeys), so a level built with a burning barrel beside a
+      // car does not blow the car up the moment it loads.
+      for (const sp of vehSpots) {
+        const car = vehCars[sp.id];
+        if (!car) { const d = hazardDpsAt(lv, sp.R.x, sp.R.y, sp.R.w, sp.R.h, CW, CH, (key) => thrownFireKeys.current.has(key) && hazardAlive(key)); if (d > 0) vehHurt(vehWake(sp), (d * dtMul) / 60, "fire", null); continue; }
+        if (car.dead) continue;
+        const fd = hazardDpsAt(lv, car.x, car.y, car.w, car.h, CW, CH, hazardAlive);
+        if (fd > 0) vehHurt(car, (fd * dtMul) / 60, "fire", null);
+        if (!(car.fuse > 0)) continue;
+        car.fuse -= dtMul;
+        if (car.fuse > 0) continue;
+        car.fuse = 0; car.dead = true; car.hp = 0; car.vx = 0;
+        const bx = car.x + car.w / 2, by = car.y + car.h * 0.55;
+        if (car === vehDriven) { vehEject(p, car, pw, ph); vehDriven = null; }
+        bobAudio.moment({ basic: "carTotaled", x: bx, y: by, minGain: EXPLOSION_MIN_GAIN });
+        const boom = { explode: true, explodeRadius: VEHICLE_BOOM_RADIUS, damage: VEHICLE_BOOM_DAMAGE, explodePropId: car.pa.boomPropId || null, explodeSize: VEHICLE_BOOM_SIZE, explodeLife: 0.8 };
+        detonate({ ...boom, foe: false, noSelf: true }, bx, by);
+        detonate({ ...boom, foe: true, noBoom: true }, bx, by);
+      }
+
       // 🐱 EXTRA LIVES ON A UNIT — one central pass, for the very reason the loot roll below is
       // one: eight places can kill a unit (fire, your swing, your shot, a splash, a thrown impact,
       // a brawl hit, a foe's bullet into your ally, a grenade on your side), and a rule written at
@@ -19446,9 +19749,10 @@ export default function AssetStudio({ game = false } = {}) {
       }
 
       let curPedKey = null, curDropKey = null, curDoorKey = null;
-      const doorHit = doorOverlapping(lv, p.x, p.y, pw, ph, CW, CH);
-      const pedHit = doorHit ? null : pedestalOverlapping(lv, p.x, p.y, pw, ph, CW, CH); // a cell is a door OR a pedestal, never both
-      const dropHit = (doorHit || pedHit) ? null : enemyDropOverlapping(enemyDrops.current, p.x, p.y, pw, ph, CW);
+      // 🚗 From the driver's seat there is no door, pedestal, loot or person at your feet to offer you.
+      const doorHit = vehDriven ? null : doorOverlapping(lv, p.x, p.y, pw, ph, CW, CH);
+      const pedHit = doorHit || vehDriven ? null : pedestalOverlapping(lv, p.x, p.y, pw, ph, CW, CH); // a cell is a door OR a pedestal, never both
+      const dropHit = (doorHit || pedHit || vehDriven) ? null : enemyDropOverlapping(enemyDrops.current, p.x, p.y, pw, ph, CW);
       if (doorHit) {
         curDoorKey = doorHit.key;
         if (curDoorKey !== lastDoorKey) {
@@ -19485,7 +19789,7 @@ export default function AssetStudio({ game = false } = {}) {
       //
       // A sign beats an NPC because you are standing ON a sign and merely NEXT TO a person.
       let curTalk = null;
-      if (!curDoorKey && !curPedKey && !curDropKey && !p.transitioning) {
+      if (!curDoorKey && !curPedKey && !curDropKey && !p.transitioning && !vehDriven) {
         // A sign whose "One time only" talk is spent is not there any more, as far as E is
         // concerned — skipped rather than matched and refused, so a person standing beside it can
         // still be talked to.
@@ -19533,7 +19837,7 @@ export default function AssetStudio({ game = false } = {}) {
       // where its actor starts (ANIM_REACH_CELLS) hands you to it. Last in the E chain, after doors,
       // pedestals, loot and people, and once played never again.
       let reachCut = null;
-      const eFree = !curDoorKey && !curPedKey && !curDropKey && !curTalk && !p.transitioning;
+      const eFree = !curDoorKey && !curPedKey && !curDropKey && !curTalk && !p.transitioning && !vehDriven;
       if (lv.markers) {
         const nowS = performance.now() / 1000;
         for (const mk in lv.markers) {
@@ -19678,6 +19982,19 @@ export default function AssetStudio({ game = false } = {}) {
       // uses two hundred lines up. Without it, closing a one-line sign with E still held would
       // re-open it on the very next frame and the sign would be impossible to walk away from.
       p.wasInteract = (talkRef.current || shopRef.current) ? true : !!K.interact;
+      // 🚗 E GETS YOU IN AND OUT. Last in the E chain, after doors, pedestals, loot, people and a
+      // walk-up animation, so a car parked over any of those never takes their E. Read off the RAW key
+      // with an edge of its own (the driver has no intent, see K), and the E that got you out is spent
+      // for the chain above on the next frame (wasInteract).
+      let carHere = null;
+      if (!vehDriven && eFree && !reachCut && !frozen && !talkRef.current && !shopRef.current) carHere = vehSpotAt(p.x, p.y, pw, ph);
+      if (RK.interact && !p.carWasE && !frozen && !p.transitioning) {
+        if (vehDriven) { vehEject(p, vehDriven, pw, ph); vehDriven = null; p.wasInteract = true; }
+        else if (carHere) { const car = vehWake(carHere); car.driven = true; p.vehicle = car.id; vehDriven = car; vehSeat(p, car); carHere = null; }
+      }
+      p.carWasE = !!RK.interact;
+      const carSig = carHere ? carHere.id : "";
+      if (carSig !== lastCarSig) { lastCarSig = carSig; const R = carHere ? vehCars[carHere.id] || carHere.R : null; setCarPrompt(R ? { x: R.x + R.w / 2, y: R.y } : null); }
 
       // Which connected Front sheet (if any) the player is currently tucked behind — asked of the
       // UNPADDED hitbox, because "am I inside this building" is a question about overlap, not about
@@ -19758,6 +20075,8 @@ export default function AssetStudio({ game = false } = {}) {
       // right after a handoff are the ones the crossing still has to keep smooth.
       if (runNodeLive && --warmWait <= 0) { warmWait = RUN_WARM_EVERY_FRAMES; warmRunAhead(runNow, runNodeLive); }
 
+      if (vehDriven) vehSeat(p, vehDriven); // 🚗 your own physics had no keys, but it had gravity
+      bobAudio.engineLoop(!!vehDriven, vehDriven ? Math.abs(vehDriven.vx) / VEH_ENGINE_TOP : 0, vehDriven ? vehDriven.x + vehDriven.w / 2 : 0, vehDriven ? vehDriven.y + vehDriven.h / 2 : 0); // 🔊 the one Car engine sound, pitched by speed
       soundFrame(p, pw, ph, dtMul, nowT); // hurt, death and landing, for you and every unit (see sndSeen)
       updateCamera(p, pw, ph, dtMul);
       commitFrame();
@@ -20815,6 +21134,18 @@ export default function AssetStudio({ game = false } = {}) {
       flash("Copied block with its effects.");
     }
   };
+  // A pose's name on a tab or in a message. A vehicle's poses are its looks, and its `front` is Stock.
+  const poseName = (ag) => (asset && asset.type === "vehicle" && VEHICLE_STATE_LABEL[ag]) || ALABEL[ag] || ag;
+  const vehicleLooksFromStock = () => setAsset((a) => {
+    if (!a || a.type !== "vehicle") return a;
+    const stock = a.angles.front || [];
+    if (!stock.length) return a;
+    const looks = angle === "front" ? VEHICLE_STATES.filter((st) => st !== "front" && !(a.angles[st] || []).length) : [angle];
+    if (!looks.length) return a;
+    const angles = { ...a.angles };
+    for (const st of looks) angles[st] = autoVehicleDamage(stock, st, !!a.facesRight, uid);
+    return { ...a, angles };
+  });
   // 📋 Copy block to… another pose (copyPiecesToPose), then go there with the copies selected, ready
   // to drag or cut. The ids are made out here so the updater hands back the same ones on a re-run.
   const copyToPose = (to) => {
@@ -20833,7 +21164,7 @@ export default function AssetStudio({ game = false } = {}) {
     setAngle(to); setSelId(fresh[Math.max(0, order.findIndex((p) => p.id === selId))]);
     if (poseCopySrc === to) setPoseCopySrc(null);
     closeCopyTo(); setCopyBlockOpen(false);
-    flash(fresh.length > 1 ? "Copied group into " + ALABEL[to] + " — " + fresh.length + " blocks." : "Copied block into " + ALABEL[to] + ".");
+    flash(fresh.length > 1 ? "Copied group into " + poseName(to) + " — " + fresh.length + " blocks." : "Copied block into " + poseName(to) + ".");
   };
   const remove = () => {
     if (!sel) return;
@@ -20885,7 +21216,7 @@ export default function AssetStudio({ game = false } = {}) {
     const n = copyToPicked.length;
     if (!n) return;
     copyAngle(copyToPicked);
-    flash("Copied " + ALABEL[angle] + " onto " + n + " pose" + (n > 1 ? "s" : "") + " ✓");
+    flash("Copied " + poseName(angle) + " onto " + n + " pose" + (n > 1 ? "s" : "") + " ✓");
     closeCopyTo();
   };
   // The Abilities picker. Lives here rather than inline in the ranged panel because MELEE weapons
@@ -20990,13 +21321,13 @@ export default function AssetStudio({ game = false } = {}) {
       <button className={"copyang" + (copyToOpen ? " on" : "")} onClick={() => { if (copyToOpen) closeCopyTo(); else { setCopyToPicked([]); setCopyToOpen(true); } }}>⧉ copy to other poses {copyToOpen ? "▴" : "▾"}</button>
       {copyToOpen && (
         <div className="copytomenu">
-          <div className="ct">Copy {ALABEL[angle]} onto…</div>
+          <div className="ct">Copy {poseName(angle)} onto…</div>
           {copyTargets.map((ag) => {
             const n = (asset.angles[ag] || []).length;
             return (
               <label key={ag} className="chk">
                 <input type="checkbox" checked={copyToPicked.includes(ag)} onChange={() => setCopyToPicked((s) => s.includes(ag) ? s.filter((x) => x !== ag) : [...s, ag])} />
-                {ALABEL[ag]}
+                {poseName(ag)}
                 <span className="hint2">{n ? " — replaces " + n + " block" + (n > 1 ? "s" : "") : " — empty"}</span>
               </label>
             );
@@ -21017,7 +21348,7 @@ export default function AssetStudio({ game = false } = {}) {
     const clone = { ...p, id: uid() }; delete clone._m;
     setAsset((a) => ({ ...a, angles: { ...a.angles, [angle]: [...(a.angles[angle] || []), clone] } }));
     setSelId(clone.id);
-    flash("Pulled into " + ALABEL[angle] + " — drag it into place.");
+    flash("Pulled into " + poseName(angle) + " — drag it into place.");
   };
   // Level-mode branch sets layer/tool directly rather than via selectTool(): selectTool has an
   // "already-active-tool click resets to Foreground" shortcut meant for manual toolbar clicks,
@@ -21713,6 +22044,102 @@ export default function AssetStudio({ game = false } = {}) {
     }
     return objInner(o, widthPx);
   };
+  // 🚗 A CAR THAT HAS COME ALIVE (vehLive) is drawn from its own numbers, not from its placement: its
+  // box where it has rolled to, pitched by its tilt about the middle of its wheels' line, mirrored
+  // by the way it faces now, in the look it is in (vehicleStateOf: Stock, a dented end, Imminent
+  // explosion, the wreck), with its 🛞 wheels turned by how far it has rolled. The art is built once
+  // per look x wheel step x driver, like a placed prop's (see renderObj), so a car standing still or
+  // at a steady speed costs a frame nothing. Turning round, it narrows to an edge and opens out the
+  // other way (turnT), the way a sprite turns in a side-on game.
+  //
+  // At the wheel, your head is in its 🪟 window. Blake: "you should see the players head sort of
+  // sticking out the window like real life." It is your OWN Side drawing — what you are wearing on
+  // your head included — from the shoulders up, cut off at the shoulder line of your gun arm, sized
+  // to the window, and drawn UNDER the car with the window cut out of the car, so the door and the
+  // roof frame it. A car with no window flagged (a tractor) has you sitting up out of it instead.
+  const vehNk = (L) => (L && (L.runKey || L.id)) || "level";   // the loop's vehLvKey, for a level
+  const vehIsLive = (nk, k, si) => { const cars = vehLive.current[nk]; return !!(cars && cars[k + "_" + si]); };
+  const vehHead = () => {
+    const blocks = livePlayerBlocks("side");
+    if (!blocks || !blocks.length) return null;
+    const c = vehHeadCache.current;
+    if (c && c.blocks === blocks) return c.head;
+    const rig = armRig(armOf(blocks)), neckY = rig ? rig.shoulder.y : DEFAULT_SHOULDER.side.y;
+    const keep = [];
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity;
+    for (const pc of blocks) {
+      if (pc.isHitbox || pc.isMuzzle || pc._isWeapon || pc.role === "weaponArm" || pc.limb === "arm") continue;
+      const b = pieceDrawnBounds(pc);
+      if (b.y >= neckY) continue;
+      keep.push(pc);
+      if (!pc.isCutter) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); }
+    }
+    const head = keep.length && x1 > x0 && neckY > y0 ? { pieces: keep, x0, y0, x1, y1: neckY } : null;
+    vehHeadCache.current = { blocks, head };
+    return head;
+  };
+  // Your head on a 200x260 plane at scale `sc`, its neck at (cx, neck) in the car's own frame, clipped
+  // at the shoulder line (a few px of slack round the rest, for the outlines).
+  const vehHeadEl = (hd, cx, neck, sc, mirror) => {
+    const mid = (hd.x0 + hd.x1) / 2, sl = 3;
+    return <div key="vhead" style={{ position: "absolute", left: cx - mid * sc, top: neck - hd.y1 * sc, width: W * sc, height: H * sc, pointerEvents: "none", clipPath: "inset(" + Math.max(0, hd.y0 * sc - sl) + "px " + Math.max(0, (W - hd.x1) * sc - sl) + "px " + (H - hd.y1) * sc + "px " + Math.max(0, hd.x0 * sc - sl) + "px)", transform: mirror ? "scaleX(-1)" : undefined, transformOrigin: mid * sc + "px 0" }}>
+      {renderPieceRuns({ pieces: hd.pieces, cacheKey: "vehhead", keyPrefix: "vh", alphaOf: spriteAlphaOf(mergeEquip(findA(playerId), equipped.current, equippedBodyIdFor(findA(playerId))), null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
+    </div>;
+  };
+  // A prop drawn standing on (x, y) in the car's frame, `hgt` px tall: the hood fire, the wreck's smoke.
+  const vehPropAt = (id, x, y, hgt, key, fallback) => {
+    const fa = id ? findA(id) : null;
+    if (!fa) return <div key={key} style={{ position: "absolute", left: x - hgt / 2, top: y - hgt, width: hgt, height: hgt, display: "flex", alignItems: "flex-end", justifyContent: "center", pointerEvents: "none" }}>{fallback}</div>;
+    const fb = propVisibleArtBox(fa), fw = hgt * (fb.w / Math.max(1, fb.h));
+    const nf = (fa.frames && fa.frames.length) || 1, fi = nf > 1 ? Math.floor((pframe / 60) * (fa.animFps || 6)) % nf : 0;
+    return <div key={key} style={{ position: "absolute", left: x - fw / 2, top: y - hgt, width: fw, height: hgt, pointerEvents: "none" }}>{propArtInner(fa, fw, hgt, fi, key, fb)}</div>;
+  };
+  const vehCarEl = (car, off, mine, nk) => {
+    const pa = car.pa, st = vehicleStateOf(car), half = VEH_TURN_FRAMES / 2;
+    const tt = car.turnT || 0, face = tt > half ? -car.face : car.face;
+    const sq = tt > 0 ? Math.max(0.1, Math.abs(tt - half) / half) : 1;
+    const artFlip = (face > 0) !== !!pa.facesRight;
+    const box = car.box, sc = Math.min(car.w / box.w, car.h / box.h);
+    const step = spinStepOf(car.spin || 0), key = "veh" + nk + "|" + car.id;
+    const sig = st + "|" + step + "|" + (mine ? 1 : 0) + "|" + (artFlip ? 1 : 0);
+    let hit = vehArtCache.current.get(key);
+    if (!hit || hit.sig !== sig || hit.pa !== pa || hit.w !== car.w || hit.h !== car.h || hit.texLib !== texLib) {
+      let pieces = spinWheelPieces(vehicleStatePieces(pa, st), step);
+      if (mine) pieces = pieces.map((pc) => (pc.driverWindow ? { ...pc, isCutter: true } : pc));
+      hit = { sig, pa, w: car.w, h: car.h, texLib, el: propArtInner({ ...pa, frames: [{ front: pieces }], angles: null }, car.w, car.h, 0, key, box, undefined, artFlip) };
+      vehArtCache.current.set(key, hit);
+    }
+    let headUnder = null, headOver = null;
+    if (mine) {
+      const hd = vehHead();
+      if (hd) {
+        const win = vehicleStatePieces(pa, st).find((pc) => pc.driverWindow) || vehicleStatePieces(pa, "front").find((pc) => pc.driverWindow);
+        const ns = (LV_CELL * PLAYER_H_CELLS) / H, hb = hd.y1 - hd.y0;
+        const mirror = !!pa.facesRight !== playerArtFacesRight(findA(playerId));
+        if (win) {
+          const wx = (win.x - box.minX) * sc, wy = (win.y - box.minY) * sc, ww = win.w * sc, wh = win.h * sc;
+          headUnder = vehHeadEl(hd, wx + ww / 2, wy + wh * 1.08, Math.min(wh * 0.95, hb * ns) / hb, mirror);
+        } else headOver = vehHeadEl(hd, car.w / 2, car.h * 0.3, ns, mirror);
+      }
+    }
+    let fx = null;
+    if (st === "burning") {
+      const fp = hoodFirePoint((pa.frames && pa.frames[0] && pa.frames[0].burning) || []);
+      const hx = fp ? (fp.x - box.minX) * sc : car.w * (pa.facesRight ? 0.82 : 0.18), hy = fp ? (fp.y - box.minY) * sc : car.h * 0.35;
+      fx = vehPropAt(pa.hoodFirePropId, hx, hy, Math.max(LV_CELL * 2, car.h * 0.6), key + "f", sym("fx.fire", null, Math.max(LV_CELL * 2, car.h * 0.6)));
+    } else if (st === "destroyed") {
+      const sh = Math.max(LV_CELL * 1.5, car.h * 0.45);
+      fx = pa.wreckSmokePropId ? vehPropAt(pa.wreckSmokePropId, car.w / 2, car.h * 0.4, sh * 1.6, key + "s", null)
+        : <div key="smoulder" style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, opacity: 0.55, pointerEvents: "none" }}>{vehPropAt(null, car.w * 0.32, car.h * 0.45, sh, "s1", sym("fx.fire", null, sh))}{vehPropAt(null, car.w * 0.66, car.h * 0.5, sh * 0.75, "s2", sym("fx.fire", null, sh * 0.75))}</div>;
+    }
+    const z = !car.driven ? levelObjectZIndex(car.o, car.ord || 0) : mine ? VEH_DRIVEN_Z : VEH_PARKED_Z;
+    const flipX = (artFlip ? -1 : 1) * sq;
+    return <div key={key} className="vehLive" data-vehicle={car.id} data-vehicle-state={st} style={{ position: "absolute", left: off.x + car.x, top: off.y + car.y, width: car.w, height: car.h, zIndex: z, pointerEvents: "none", transformOrigin: "50% 100%", transform: car.tilt ? "rotate(" + car.tilt.toFixed(2) + "deg)" : undefined }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, transform: flipX !== 1 ? "scaleX(" + flipX.toFixed(3) + ")" : undefined }}>
+        {headUnder}{hit.el}{headOver}{fx}
+      </div>
+    </div>;
+  };
   // Renders a piece's mirrored twin. When the original is selected — single or as part of a
   // group — the twin gets the same dashed highlight so it's visually obvious the two sides are
   // linked (e.g. arms, legs).
@@ -21804,7 +22231,7 @@ export default function AssetStudio({ game = false } = {}) {
   // Prop: flush the frame currently being edited (a.angles) back into a.frames[propFrame], and
   // point a.angles at frame 0 as the canonical "base look". Same idea as syncWeapon/syncEnemy
   // flushing their live state before save.
-  const syncProp = (a) => { if (!a || a.type !== "prop") return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0], category: (a.category || "").trim() }; };
+  const syncProp = (a) => { if (!a || (a.type !== "prop" && a.type !== "vehicle")) return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0], category: (a.category || "").trim() }; };
   const data = () => JSON.stringify(syncProp(syncFit(syncEnemy(syncWeapon(syncEffectAnim(asset))))), null, 2);
   const openSheet = () => { setText(data()); setSheetFolder(null); setSheet(true); };
   // The header's 💾 Save & Open OPENS the sheet and writes nothing; the sheet's own 💾 Save is the save.
@@ -21999,6 +22426,7 @@ export default function AssetStudio({ game = false } = {}) {
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
     if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0;
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
+    if (a.type === "vehicle") { if (a.size === undefined) a.size = 16; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; if (!Number.isFinite(a.hp)) a.hp = VEHICLE_DEFAULT_HP; if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
     if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); if (a.flies === undefined) a.flies = false; for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
@@ -24097,6 +24525,9 @@ export default function AssetStudio({ game = false } = {}) {
   const floorSuggest = useMemo(() => [...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((a, b) => NUMERIC_COLLATOR.compare(a, b)), [levelLib]);
   const propGroupsAll = useMemo(() => groupProps(allAssets), [allAssets]);
   const propCatSuggest = useMemo(() => propGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label), [propGroupsAll]);
+  const vehicleGroupsAll = useMemo(() => groupVehicles(allAssets), [allAssets]);
+  const vehCatSuggest = useMemo(() => vehicleGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label), [vehicleGroupsAll]);
+  const placeGroupsAll = useMemo(() => groupPlaceables(allAssets), [allAssets]);
   // Dressed looks file the same way. `lookOptions` is the one way every <select> lists them: an
   // <optgroup> per category once there is more than one, a flat run of <option>s until then — so
   // a wardrobe that is all "Unknown" reads exactly as it did before categories existed.
@@ -24142,7 +24573,7 @@ export default function AssetStudio({ game = false } = {}) {
   // none is chosen. `pickedPropStamp` resolves against that SAME list rather than the whole library,
   // so narrowing the category can never leave Place armed on something that is no longer on screen —
   // and widening it back brings the pick straight back, because the id itself is never cleared.
-  const propShelfList = propStampCat ? ((propGroupsAll.find((g) => g.key === propStampCat) || { props: [] }).props) : propGroupsAll.flatMap((g) => g.props);
+  const propShelfList = propStampCat ? ((placeGroupsAll.find((g) => g.key === propStampCat) || { props: [] }).props) : placeGroupsAll.flatMap((g) => g.props);
   const pickedPropStamp = propShelfList.find((a) => a.id === propStampPick) || null;
   const pickedPropFrames = pickedPropStamp ? (pickedPropStamp.frames || []).length : 0;
   const catSuggest = useMemo(() => [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => itemTagList(a).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => NUMERIC_COLLATOR.compare(a, b)), [allAssets]);
@@ -24281,7 +24712,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -25150,7 +25581,7 @@ export default function AssetStudio({ game = false } = {}) {
             <button className="tile" style={{ "--tc": "#ffb37a" }} onClick={() => setChooser(true)}><span className="ti">🧍</span><span className="tl">Skin / Body</span></button>
             <button className="tile" style={{ "--tc": "#ff6b6b" }} onClick={() => setWtypeChoice(true)}><span className="ti">{TYPES.weapon.icon}</span><span className="tl">{TYPES.weapon.label}</span></button>
             <button className="tile" style={{ "--tc": "#c08cff" }} onClick={() => start("enemy")}><span className="ti">{TYPES.enemy.icon}</span><span className="tl">{TYPES.enemy.label}</span></button>
-            <button className="tile" style={{ "--tc": "#6fdc8c" }} onClick={() => setPropItemChoice(true)}><span className="ti">🌿</span><span className="tl">Object / Prop / Item</span></button>
+            <button className="tile" style={{ "--tc": "#6fdc8c" }} onClick={() => setPropItemChoice(true)}><span className="ti">🌿</span><span className="tl">Prop / Item / Vehicle</span></button>
             {/* loadTextures for the same reason the creators do it: a patterned garment has to
                 have its pattern in hand here too, or a flannel jacket dresses on as flat colour. */}
             <button className="tile dress" style={{ "--tc": "#7aa8ff" }} onClick={() => { loadTextures(); setScreen("assemble"); }}><span className="ti">🧩</span><span className="tl">Dress Bob</span></button>
@@ -25242,7 +25673,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // Objects and Dressed Looks drill down by sub-category the same way Clothes & Armor
                 // drills down by slot. Only worth a step when there is more than one group — with
                 // everything under "Unknown" it would just be a page you always click through.
-                const propGroups = cat.key === "prop" ? propGroupsAll : cat.key === "character" ? lookGroupsAll : [];
+                const propGroups = cat.key === "prop" ? propGroupsAll : cat.key === "vehicle" ? vehicleGroupsAll : cat.key === "character" ? lookGroupsAll : [];
                 const byCat = propGroups.length > 1;
                 const subSel = byCat ? propGroups.find((g) => g.key === loadSub) : null;
                 if (bySlot && !loadSub) {
@@ -25354,10 +25785,11 @@ export default function AssetStudio({ game = false } = {}) {
         {propItemChoice && (
           <div className="modal" onClick={() => setPropItemChoice(false)}>
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
-              <div className="dt">Object or Item?</div>
+              <div className="dt">Prop, Item or Vehicle?</div>
               <div className="tiles">
                 <button className="tile" style={{ "--tc": "#6fdc8c" }} onClick={() => { setPropItemChoice(false); start("prop"); }}><span className="ti">{TYPES.prop.icon}</span><span className="tl">{TYPES.prop.label}</span></button>
                 <button className="tile" style={{ "--tc": "#62b0ff" }} onClick={() => { setPropItemChoice(false); start("item"); }}><span className="ti">{TYPES.item.icon}</span><span className="tl">{TYPES.item.label}</span></button>
+                <button className="tile" style={{ "--tc": "#ff8f5a" }} onClick={() => { setPropItemChoice(false); start("vehicle"); }}><span className="ti">{TYPES.vehicle.icon}</span><span className="tl">{TYPES.vehicle.label}</span></button>
               </div>
             </div>
           </div>
@@ -25894,7 +26326,7 @@ export default function AssetStudio({ game = false } = {}) {
               </div>
               <select className="big" value="" onChange={(e) => { const pa = findA(e.target.value); if (!pa) return; const l = { id: uid(), kind: "prop", name: pa.name, propId: pa.id, size: pa.size || 3 }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>
                 <option value="">＋ Prop layer…</option>
-                {propGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}</option>)}</optgroup>)}
+                {placeGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>{placeIcon(a)} {a.name}</option>)}</optgroup>)}
               </select>
               <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "cloth", name: "Blanket", len: 6, bed: Math.max(0, d.h - 2) }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🛏 Blanket</button>
               <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "rope", name: "Rope", from: "", hookX: 0.5, hookY: 1 }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🪢 Rope</button>
@@ -25909,7 +26341,7 @@ export default function AssetStudio({ game = false } = {}) {
                   <div className="animRowF">
                     <select value={sel.propId} onChange={(e) => put(animSetLayer(d, sel.id, { propId: e.target.value }))}>
                       {!findA(sel.propId) && <option value={sel.propId}>❓ missing prop</option>}
-                      {propGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}</option>)}</optgroup>)}
+                      {placeGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>{placeIcon(a)} {a.name}</option>)}</optgroup>)}
                     </select>
                   </div>
                   {sliderRow("Size", sel.size || 3, 0.5, ANIM_PROP_SIZE_MAX, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { size: v })))}
@@ -26909,7 +27341,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // Sub-category first, then the Object. A group that no longer exists (renamed,
                   // or its last prop deleted) falls back to showing everything rather than an
                   // empty picker, so narrowing can never strand Blake with no Objects at all.
-                  const groups = propGroupsAll;
+                  const groups = placeGroupsAll;
                   const catSel = groups.find((g) => g.key === lPropCat) || null;
                   const shownGroups = catSel ? [catSel] : groups;
                   return groups.length ? (<>
@@ -26933,7 +27365,7 @@ export default function AssetStudio({ game = false } = {}) {
                       <option value="">— pick an Object —</option>
                       {shownGroups.map((g) => (
                         <optgroup key={g.key} label={g.label}>
-                          {g.props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+                          {g.props.map((a) => <option key={a.id} value={a.id}>{placeIcon(a)} {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
                         </optgroup>
                       ))}
                     </select>
@@ -27181,7 +27613,7 @@ export default function AssetStudio({ game = false } = {}) {
                 {!play && lTool === "move" && areaSel && areaSel.levelId === lv.id && (() => { const dr = (areaDragView && areaDragView.dr) || 0, dc = (areaDragView && areaDragView.dc) || 0; return <div className="areaSel" style={{ left: (areaSel.c0 + dc) * LV_CELL, top: (areaSel.r0 + dr) * LV_CELL, width: (areaSel.c1 - areaSel.c0 + 1) * LV_CELL, height: (areaSel.r1 - areaSel.r0 + 1) * LV_CELL }} />; })()}
                 {!play && areaDragView && areaDragView.band && <div className="areaSel band" style={{ left: areaDragView.band.c0 * LV_CELL, top: areaDragView.band.r0 * LV_CELL, width: (areaDragView.band.c1 - areaDragView.band.c0 + 1) * LV_CELL, height: (areaDragView.band.r1 - areaDragView.band.r0 + 1) * LV_CELL }} />}
                 {lvFxLayer}
-                {!runObjects && lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
+                {!runObjects && lvPropMeta.map(({ o, si, r, c, k, ord }) => { if (play && vehIsLive(vehNk(level), k, si)) return null; const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {/* RUN — ONE LIST OF OBJECTS (2026-09-26). A run used to draw its objects in four
                     passes: the live level's emoji, its props, its in-front objects, and a fourth
                     pass for every neighbour's objects near the seam. So at a handoff every object
@@ -27207,6 +27639,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const haz = live ? hazLife.current : ((roomState.current[nk] || {}).haz || {});
                     return items.map(({ k, r, c, si, o, ord }) => {
                       if (play && o._thrown && !hazardStillBurning(haz, k)) return null;
+                      if (play && vehIsLive(nk, k, si)) return null; // 🚗 a car that has come alive is drawn by the live-car pass, wherever it has rolled
                       const layout = levelObjectPixelLayout(o);
                       const left = off.x + objNudgedLeft(o, c, LV_CELL), top = off.y + objNudgedTop(o, r, LV_CELL);
                       if (offScreen(left, top, layout.width, layout.height)) return null;
@@ -27355,9 +27788,26 @@ export default function AssetStudio({ game = false } = {}) {
                   }
                   return out;
                 })()}
+                {/* 🚗 THE CARS THAT HAVE COME ALIVE (vehCarEl), the live level's and, in a run, each
+                    neighbour's at its seam offset — so a wreck you left behind is still a wreck when
+                    you look back across the seam, not his parked car again. */}
+                {play && level && (() => {
+                  const here = vehNk(level), p = player.current, out = [];
+                  const nodes = runObjects ? runObjects.map(({ nk, off }) => ({ nk, off })) : [{ nk: here, off: { x: 0, y: 0 } }];
+                  for (const { nk, off } of nodes) {
+                    const cars = vehLive.current[nk]; if (!cars) continue;
+                    for (const id in cars) {
+                      const car = cars[id];
+                      if (offScreen(off.x + car.x - car.w, off.y + car.y - car.w, car.w * 3, car.h + car.w * 2)) continue;
+                      out.push(vehCarEl(car, off, nk === here && p.vehicle === id, nk));
+                    }
+                  }
+                  return out;
+                })()}
                 {play && (() => {
                   const p = player.current;
                   if (cutRef.current) return null; // 🎬 a cutscene has you: the actor on its stage is you
+                  if (p.vehicle) return null; // 🚗 at the wheel you are the head in its window (vehCarEl)
                   const bodyShape = sideBodyShape(playerAsset);
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const renderW = LV_CELL * PLAYER_RENDER_W_CELLS; // wider, aspect-correct — keeps the body undistorted
@@ -27830,6 +28280,7 @@ export default function AssetStudio({ game = false } = {}) {
                     // on a grenade whose Burns-for was correctly set to 2.5 seconds.
                     // Only _thrown props are affected; a hand-placed prop is never on a timer.
                     if (play && o._thrown && !hazardStillBurning(hazLife.current, k)) return null;
+                    if (play && vehIsLive(vehNk(level), k, si)) return null; // 🚗
                     const left = objNudgedLeft(o, c, LV_CELL), top = objNudgedTop(o, r, LV_CELL);
                     const layout = levelObjectPixelLayout(o);
                     if (offScreen(left, top, layout.width, layout.height)) return null;
@@ -28016,10 +28467,11 @@ export default function AssetStudio({ game = false } = {}) {
                   // drawing cannot walk. The 💬 badge (eTalkWaiting) still goes once you have talked.
                   const eTalker = !!(ep && talkDialogueId(U.lv.enemies[k]) && !eUseAtkPose && !ducking);
                   const eTalkWaiting = eTalker && !ep.talked && unitSide(ea, ep) !== "hostile";
-                  const eFrontPose = (eTalkWaiting || (eTalker && ep.talked && unitSide(ea, ep) === "neutral")) && enemyPoseKey(ea, "front") === "front";
+                  const eCarDodge = ep && ep.carDodge && ep.carDodge.kind !== "jump" ? ep.carDodge.kind : null; // 🚗 stepped back ("bg") or forward ("fg") out of your car's way
+                  const eFrontPose = (eTalkWaiting || (eTalker && ep.talked && unitSide(ea, ep) === "neutral") || (eCarDodge === "bg" && !eUseAtkPose)) && enemyPoseKey(ea, "front") === "front";
                   // 🪜 A unit CLIMBING shows the player's climbing pose (playerPoseKey): its Back on a
                   // ladder or a ledge, Side hanging from bars. Art with no Back drawn falls back as ever.
-                  const eClimbBack = !!(ep && ep.climbing && ep.climbing !== "bars" && !eUseAtkPose && !eFrontPose) && enemyPoseKey(ea, "back") === "back";
+                  const eClimbBack = !!(ep && ((ep.climbing && ep.climbing !== "bars") || eCarDodge === "fg") && !eUseAtkPose && !eFrontPose) && enemyPoseKey(ea, "back") === "back";
                   const ePoseKey = eUseAtkPose ? "attack" : eFrontPose ? "front" : eClimbBack ? "back" : enemyPoseKey(ea, ducking ? "crouch" : "side");
                   // A ground line on the pose being drawn wins; failing that the Side line, because
                   // every other pose is pinned to Side's baseline anyway; failing that eFootAnchor,
@@ -28364,7 +28816,7 @@ export default function AssetStudio({ game = false } = {}) {
                       {/* The sprite below blinks through its i-frames after a hit (ep.invuln) with the
                           player's own 0.5-opacity blink, so a round that does nothing to it has a
                           visible reason — the same cue your own blink gives. See unitHitImmune. */}
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying && !creatureFlies(ea) ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: [allyGlowCss(ep), bodyStatusFilter(ep)].filter(Boolean).join(" ") } : bodyStatusFilter(ep) ? { filter: bodyStatusFilter(ep) } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying && !creatureFlies(ea) ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(eCarDodge ? { zIndex: eCarDodge === "fg" ? VEH_DODGE_FG_Z : VEH_DODGE_BG_Z } : tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: [allyGlowCss(ep), bodyStatusFilter(ep)].filter(Boolean).join(" ") } : bodyStatusFilter(ep) ? { filter: bodyStatusFilter(ep) } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {eArtHit ? eArtHit.el : storeUnitArt(uKey, eArtSig, ea, ew, eSpawn, eRenderW, eph, eAnchor, eBlocks, (() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
@@ -28396,6 +28848,7 @@ export default function AssetStudio({ game = false } = {}) {
                     : "🚪 Press E to leave";
                   return <div key="doorprompt" className="doorPromptFloat" style={{ left: c * LV_CELL + LV_CELL / 2, top: r * LV_CELL - 6 }}>{txt}</div>;
                 })()}
+                {play && carPrompt && <div key="carprompt" className="doorPromptFloat" style={{ left: carPrompt.x, top: carPrompt.y - 6 }}>🚗 Press E to drive</div>}
                 {/* 💬 "PRESS E TO TALK", and it is deliberately loud. Signs are invisible in play
                     (you paint your own board over the cell) so this is the only thing that says
                     one is there at all, and the first pass drew it at the door prompt's 12px in a
@@ -29175,7 +29628,7 @@ export default function AssetStudio({ game = false } = {}) {
   }
 
   /* ---- editor ---------------------------------------------------------- */
-  const showGuide = asset.type !== "body" && asset.type !== "enemy" && asset.type !== "projectile" && asset.type !== "prop" && asset.type !== "item";
+  const showGuide = asset.type !== "body" && asset.type !== "enemy" && asset.type !== "projectile" && asset.type !== "prop" && asset.type !== "item" && asset.type !== "vehicle";
   const guideBodyAsset = (asset.guideId && asset.guideId !== "default" && library.find((a) => a.id === asset.guideId)) || guideAsset;
   const slotLabel = asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "Equipment") : (TYPES[asset.type]?.label || asset.type);
   // Bodies always have arm rig math; enemies only once they've opted into 💪 Has arms — an
@@ -29429,7 +29882,7 @@ export default function AssetStudio({ game = false } = {}) {
               surfaces for poses that can never appear were pure wasted work. */}
           {editablePoses(asset.type, asset.wtype).map((a) => {
             const hasLimbs = (asset.type === "body" || asset.type === "enemy") && (asset.angles[a] || []).some((p) => p.limb === "leg" || (p.limb === "arm" && p.role !== "weaponArm"));
-            return <button key={a} className={angle === a ? "on" : ""} onClick={() => { setAngle(a); setSelId(null); if (poseCopySrc === a) setPoseCopySrc(null); closeCopyTo(); }} title={hasLimbs ? "Has an arm/leg flagged for animation" : ""}>{ALABEL[a]}{hasLimbs ? " 🦴" : ""}</button>;
+            return <button key={a} className={angle === a ? "on" : ""} onClick={() => { setAngle(a); setSelId(null); if (poseCopySrc === a) setPoseCopySrc(null); closeCopyTo(); }} title={hasLimbs ? "Has an arm/leg flagged for animation" : ""}>{poseName(a)}{hasLimbs ? " 🦴" : ""}</button>;
           })}
           {(asset.type === "body" || asset.type === "enemy") ? (
             <span className="posecopy">
@@ -29482,11 +29935,11 @@ export default function AssetStudio({ game = false } = {}) {
               reusable visual elements stays findable in folders instead of one flat list of names.
               Sits under 📦 Stored rather than in the Load browser because this is not opening
               another asset: nothing about the prop changes, and nothing about it is loaded. */}
-          {propGroupsAll.length > 0 && <div className="stampShelf propShelf">
+          {placeGroupsAll.length > 0 && <div className="stampShelf propShelf">
             <span>🌿 Object art</span>
             <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => setPropStampCat(e.target.value)}>
-              <option value="">📂 All ({propGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
-              {propGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
+              <option value="">📂 All ({placeGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
+              {placeGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
             </select>
             <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { setPropStampPick(e.target.value); setPropStampFrame(0); }}>
               <option value="">Choose an object…</option>
@@ -30051,6 +30504,12 @@ export default function AssetStudio({ game = false } = {}) {
               {asset.type === "weapon" && !sel.isHitbox && <label className="chk"><input type="checkbox" checked={!!sel.behindArm} onChange={(e) => updSelAll({ behindArm: e.target.checked })} /> Behind the arm</label>}
               {asset.type === "skin" && <label className="chk"><input type="checkbox" checked={!!sel.hideIfHat} onChange={(e) => updSelAll({ hideIfHat: e.target.checked })} /> Hide if hat</label>}
               {!effEdit && asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot) && <label className="chk"><input type="checkbox" checked={!!sel.overArms} onChange={(e) => updSelAll({ overArms: e.target.checked })} /> Over arms only </label>}
+              {/* A VEHICLE'S BLOCKS (2026-10-31). 🛞 spins about the middle of the biggest wheel block it sits
+                  in (wheelHubs), so a tyre, its hubcap and its lug nuts are all flagged and turn as one;
+                  🪟 is where the driver's head shows; 🔥 marks where the fire sits in Imminent explosion. */}
+              {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.wheel} onChange={(e) => updSelAll({ wheel: e.target.checked || undefined })} /> 🛞 Wheel</label>}
+              {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.driverWindow} onChange={(e) => updSelAll({ driverWindow: e.target.checked || undefined })} /> 🪟 Driver window</label>}
+              {!effEdit && asset.type === "vehicle" && angle === "burning" && <label className="chk"><input type="checkbox" checked={!!sel.isHoodFire} onChange={(e) => updSelAll({ isHoodFire: e.target.checked || undefined })} /> 🔥 Hood fire</label>}
               {(sel.role === "weaponArm" || sel.limb === "arm") && (<>
                 <div className="ct2">Shoulder side 🫱</div>
                 <div className="limbtabs">
@@ -30083,7 +30542,7 @@ export default function AssetStudio({ game = false } = {}) {
               <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 {groupSel ? "Copy group" : "Copy block"}</button>{(!sel.locked || groupSel) && <button className="danger" onClick={remove}>{groupSel ? "Delete group" : "Delete"}</button>}
                 {!effEdit && asset.type !== "prop" && copyTargets.length > 0 && (<>
                   <button className={"copypose" + (copyBlockOpen ? " on" : "")} onClick={() => setCopyBlockOpen((o) => !o)}>📋 {groupSel ? "Copy group" : "Copy block"} to… {copyBlockOpen ? "▴" : "▾"}</button>
-                  {copyBlockOpen && <div className="copyposes">{copyTargets.map((ag) => <button key={ag} onClick={() => copyToPose(ag)}>{ALABEL[ag]}</button>)}</div>}
+                  {copyBlockOpen && <div className="copyposes">{copyTargets.map((ag) => <button key={ag} onClick={() => copyToPose(ag)}>{poseName(ag)}</button>)}</div>}
                 </>)}</div>
             </div>
           ) : null}
@@ -30169,6 +30628,29 @@ export default function AssetStudio({ game = false } = {}) {
             </div>
           )}
 
+          {asset.type === "vehicle" && (
+            <div className="card">
+              <div className="ct">🚗 Vehicle settings</div>
+              <div className="ct2">Default size</div>
+              <div className="seg sizeseg">{PROP_DEFAULT_SIZES.map((n) => <button key={n} className={(asset.size ?? 16) === n ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, size: n }))}>{n}×</button>)}</div>
+              <label className="slider">{sym("stat.hp", null, 14)} HP<input type="number" min="1" step="1" value={asset.hp ?? VEHICLE_DEFAULT_HP} onChange={(e) => setAsset((a) => ({ ...a, hp: Math.max(1, Math.round(+e.target.value) || 1) }))} style={{ width: 60 }} /></label>
+              <label className="slider">{sym("stat.def", null, 14)} Defense<input type="number" min="0" step="1" value={asset.defense ?? VEHICLE_DEFAULT_DEFENSE} onChange={(e) => setAsset((a) => ({ ...a, defense: Math.max(0, Math.round(+e.target.value) || 0) }))} style={{ width: 60 }} /></label>
+              <label className="chk"><input type="checkbox" checked={!!asset.facesRight} onChange={(e) => setAsset((a) => ({ ...a, facesRight: e.target.checked }))} /> ➡ Front is on the right</label>
+              {[["hoodFirePropId", "🔥 Hood fire"], ["wreckSmokePropId", "💨 Wreck smoke"], ["boomPropId", "💥 Explosion"]].map(([k, l]) => (
+                <label key={k} className="slider">{l}<select className="projSel" value={asset[k] || ""} onChange={(e) => setAsset((a) => ({ ...a, [k]: e.target.value || null }))}>
+                  <option value="">—</option>
+                  {propGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((p) => <option key={p.id} value={p.id}>🌿 {p.name}</option>)}</optgroup>)}
+                </select></label>
+              ))}
+              {/* The four damaged looks drawn FROM Stock (autoVehicleDamage). On Stock it fills the looks
+                  that are still empty; on a damaged look it redraws that one. Undo takes either back. */}
+              <button className="wcopy" onClick={vehicleLooksFromStock}>💥 {angle === "front" ? "Make the damaged looks" : "Redraw " + poseName(angle) + " from Stock"}</button>
+              <div className="ct2">📂 Folder</div>
+              <input className="catItemInput" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder={PROP_UNCAT} maxLength={28} />
+              {vehCatSuggest.length > 0 && <div className="catchips">{vehCatSuggest.map((c) => <button key={c} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}
+            </div>
+          )}
+
           {asset.type === "projectile" && (
             <div className="card">
               <div className="ct">Size</div>
@@ -30246,10 +30728,10 @@ export default function AssetStudio({ game = false } = {}) {
             {/* An Object's FOLDER, beside its name — the same `category` the Object settings card
                 edits. Saving is the moment you decide where a thing goes; the only place to set it
                 used to be a card further down the editor, so a new prop was saved into "Unknown". */}
-            {asset.type === "prop" && (
+            {(asset.type === "prop" || asset.type === "vehicle") && (
               <div className="grp"><span className="gl">📂 Folder</span>
                 <input className="namefield" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder="e.g. Interior" maxLength={28} />
-                {propCatSuggest.length > 0 && <div className="catchips" style={{ marginTop: 6 }}>{propCatSuggest.map((c) => <button key={c} className={propCatKey(c) === propCatKey(asset.category) ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}
+                {(asset.type === "vehicle" ? vehCatSuggest : propCatSuggest).length > 0 && <div className="catchips" style={{ marginTop: 6 }}>{(asset.type === "vehicle" ? vehCatSuggest : propCatSuggest).map((c) => <button key={c} className={propCatKey(c) === propCatKey(asset.category) ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}
               </div>
             )}
             <div className="grp"><span className="gl">Keep your work</span>
@@ -30266,7 +30748,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // props were one long scroll. Blake: "when i go to object/prop then save and open it
                 // does not use the folders." Folders first, then that folder's Objects A→Z, exactly
                 // like Load; with one folder (or none named) there is nothing to pick, so it lists.
-                const folders = asset.type === "prop" ? groupByCategory(sameCategory, "prop") : [];
+                const folders = asset.type === "prop" || asset.type === "vehicle" ? groupByCategory(sameCategory, asset.type) : [];
                 const inFolder = folders.length > 1 ? folders.find((g) => g.key === sheetFolder) || null : null;
                 const folderIcon = (g) => (g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂");
                 if (folders.length > 1 && !inFolder) return (
