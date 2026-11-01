@@ -1258604,8 +1258604,8 @@
    "guideId": "default",
    "size": 16,
    "solidDefault": false,
-   "savedAt": 1793561221609,
-   "category": "vehicles",
+   "savedAt": 1793571052848,
+   "category": "Sports",
    "frames": [
     {
      "front": [
@@ -1259555,12 +1259555,29 @@
      "crouch": [],
      "frontDamage": [
       {
+       "id": "dhlz60cs",
+       "kind": "rect",
+       "x": 121,
+       "y": 123.5,
+       "w": 52,
+       "h": 2.2,
+       "color": "#a83529",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 164
+      },
+      {
        "id": "dhlz60cr",
        "kind": "curlytri",
-       "x": 169.2,
-       "y": 123.9,
-       "w": 15.6,
-       "h": 6.1,
+       "x": 137,
+       "y": 123.5,
+       "w": 38.5,
+       "h": 6,
        "color": "#c0392b",
        "mirror": false,
        "fx": {
@@ -1259575,8 +1259592,8 @@
        "kind": "poly",
        "x": 4,
        "y": 108,
-       "w": 185,
-       "h": 50,
+       "w": 174,
+       "h": 49.5,
        "color": "#c0392b",
        "mirror": false,
        "fx": {
@@ -1259656,23 +1259673,6 @@
         ]
        ],
        "rot": 0
-      },
-      {
-       "id": "dhlz60cs",
-       "kind": "rect",
-       "x": 172,
-       "y": 128.2,
-       "w": 16,
-       "h": 2.2,
-       "color": "#a83529",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "rot": 150
       },
       {
        "id": "dhlz60bv",
@@ -1260427,8 +1260427,8 @@
       {
        "id": "dhlz60ck",
        "kind": "stadium",
-       "x": 183,
-       "y": 146,
+       "x": 175,
+       "y": 149.5,
        "w": 7,
        "h": 6,
        "color": "#8a929c",
@@ -1260461,8 +1260461,8 @@
       {
        "id": "dhlz60cm",
        "kind": "circle",
-       "x": 182.5,
-       "y": 130,
+       "x": 170.5,
+       "y": 129,
        "w": 6,
        "h": 12,
        "color": "#2b2b2b",
@@ -1260478,8 +1260478,8 @@
       {
        "id": "dhlz60cn",
        "kind": "circle",
-       "x": 183.5,
-       "y": 129.3,
+       "x": 171.5,
+       "y": 129.5,
        "w": 4.5,
        "h": 13.5,
        "color": "#daa520",
@@ -1260529,8 +1260529,8 @@
       {
        "id": "dhlz60cq",
        "kind": "tri",
-       "x": 183.9,
-       "y": 135.5,
+       "x": 173,
+       "y": 131,
        "w": 2.5,
        "h": 9,
        "color": "#2b2b2b",
@@ -1260547,10 +1260547,10 @@
       {
        "id": "dhlz60dp",
        "kind": "curlytri",
-       "x": 15.2,
-       "y": 121,
-       "w": 15.6,
-       "h": 6.1,
+       "x": 13,
+       "y": 123,
+       "w": 29,
+       "h": 3,
        "color": "#c0392b",
        "mirror": false,
        "fx": {
@@ -1260646,23 +1260646,6 @@
         ]
        ],
        "rot": 0
-      },
-      {
-       "id": "dhlz60dq",
-       "kind": "rect",
-       "x": 12,
-       "y": 125,
-       "w": 16,
-       "h": 2.2,
-       "color": "#a83529",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "rot": 30
       },
       {
        "id": "dhlz60cu",
@@ -1261434,7 +1261417,7 @@
       {
        "id": "dhlz60dk",
        "kind": "stadium",
-       "x": 10,
+       "x": 10.5,
        "y": 146,
        "w": 7,
        "h": 6,
@@ -1261446,7 +1261429,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 0
+       "rot": 28
       },
       {
        "id": "dhlz60dl",
@@ -1264524,12 +1264507,29 @@
     "crouch": [],
     "frontDamage": [
      {
+      "id": "dhlz60cs",
+      "kind": "rect",
+      "x": 121,
+      "y": 123.5,
+      "w": 52,
+      "h": 2.2,
+      "color": "#a83529",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 164
+     },
+     {
       "id": "dhlz60cr",
       "kind": "curlytri",
-      "x": 169.2,
-      "y": 123.9,
-      "w": 15.6,
-      "h": 6.1,
+      "x": 137,
+      "y": 123.5,
+      "w": 38.5,
+      "h": 6,
       "color": "#c0392b",
       "mirror": false,
       "fx": {
@@ -1264544,8 +1264544,8 @@
       "kind": "poly",
       "x": 4,
       "y": 108,
-      "w": 185,
-      "h": 50,
+      "w": 174,
+      "h": 49.5,
       "color": "#c0392b",
       "mirror": false,
       "fx": {
@@ -1264625,23 +1264625,6 @@
        ]
       ],
       "rot": 0
-     },
-     {
-      "id": "dhlz60cs",
-      "kind": "rect",
-      "x": 172,
-      "y": 128.2,
-      "w": 16,
-      "h": 2.2,
-      "color": "#a83529",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "rot": 150
      },
      {
       "id": "dhlz60bv",
@@ -1265396,8 +1265379,8 @@
      {
       "id": "dhlz60ck",
       "kind": "stadium",
-      "x": 183,
-      "y": 146,
+      "x": 175,
+      "y": 149.5,
       "w": 7,
       "h": 6,
       "color": "#8a929c",
@@ -1265430,8 +1265413,8 @@
      {
       "id": "dhlz60cm",
       "kind": "circle",
-      "x": 182.5,
-      "y": 130,
+      "x": 170.5,
+      "y": 129,
       "w": 6,
       "h": 12,
       "color": "#2b2b2b",
@@ -1265447,8 +1265430,8 @@
      {
       "id": "dhlz60cn",
       "kind": "circle",
-      "x": 183.5,
-      "y": 129.3,
+      "x": 171.5,
+      "y": 129.5,
       "w": 4.5,
       "h": 13.5,
       "color": "#daa520",
@@ -1265498,8 +1265481,8 @@
      {
       "id": "dhlz60cq",
       "kind": "tri",
-      "x": 183.9,
-      "y": 135.5,
+      "x": 173,
+      "y": 131,
       "w": 2.5,
       "h": 9,
       "color": "#2b2b2b",
@@ -1265516,10 +1265499,10 @@
      {
       "id": "dhlz60dp",
       "kind": "curlytri",
-      "x": 15.2,
-      "y": 121,
-      "w": 15.6,
-      "h": 6.1,
+      "x": 13,
+      "y": 123,
+      "w": 29,
+      "h": 3,
       "color": "#c0392b",
       "mirror": false,
       "fx": {
@@ -1265615,23 +1265598,6 @@
        ]
       ],
       "rot": 0
-     },
-     {
-      "id": "dhlz60dq",
-      "kind": "rect",
-      "x": 12,
-      "y": 125,
-      "w": 16,
-      "h": 2.2,
-      "color": "#a83529",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "rot": 30
      },
      {
       "id": "dhlz60cu",
@@ -1266403,7 +1266369,7 @@
      {
       "id": "dhlz60dk",
       "kind": "stadium",
-      "x": 10,
+      "x": 10.5,
       "y": 146,
       "w": 7,
       "h": 6,
@@ -1266415,7 +1266381,7 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 0
+      "rot": 28
      },
      {
       "id": "dhlz60dl",
@@ -1268544,14 +1268510,15 @@
      }
     ]
    },
-   "editedFrom": 1793541815677,
-   "hp": 150,
+   "editedFrom": 1793561221609,
+   "hp": 75,
    "defense": 10,
    "facesRight": true,
    "hoodFirePropId": "swiwj1p",
    "wreckSmokePropId": "uvsmok1",
    "boomPropId": "expl0d3",
-   "speed": 1.25
+   "speed": 1.2,
+   "hpHalved": true
   },
   {
    "id": "mvbackd",
