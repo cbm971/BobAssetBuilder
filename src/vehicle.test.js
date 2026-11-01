@@ -36,9 +36,9 @@ describe("vehicle states and damage", () => {
     expect(vehicleStateOf({ ...car, dent: "rear", fuse: 10 })).toBe("burning");
     expect(vehicleStateOf({ ...car, fuse: 10, dead: true })).toBe("destroyed");
   });
-  test("fire and blasts land four times over; a crash dents the end that hit", () => {
+  test("fire lands four times over, a blast twelve; a crash dents the end that hit", () => {
     expect(vehicleTakeHit(car, 5, "fire").hp).toBe(100 - 5 * VEHICLE_WEAK_MULT);
-    expect(vehicleTakeHit(car, 5, "blast").hp).toBe(80);
+    expect(vehicleTakeHit(car, 5, "blast").hp).toBe(40);
     expect(vehicleTakeHit(car, 5, "hit").hp).toBe(95);
     expect(vehicleTakeHit(car, 5, "hit", "rear").dent).toBeFalsy();
     expect(vehicleTakeHit(car, 5, "hit", "rear", true).dent).toBe("rear");

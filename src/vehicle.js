@@ -25,6 +25,9 @@
 export const VEHICLE_STATES = ["front", "frontDamage", "rearDamage", "burning", "destroyed"];
 export const VEHICLE_STATE_LABEL = { front: "Stock", frontDamage: "Front damage", rearDamage: "Rear damage", burning: "Imminent explosion", destroyed: "Destroyed" };
 export const VEHICLE_DEFAULT_HP = 150;
+// Blake (2026-11-01): "Vehicle health should be half as strong as it is currently". Every car comes
+// alive with half the HP its record holds, so his authored numbers keep their ratios.
+export const VEHICLE_HP_SCALE = 0.5;
 export const VEHICLE_DEFAULT_DEFENSE = 10;
 // A CAR IS FOR SITTING IN (2026-11-01, Blake: "a sitting player should fit right?"). Whether you can
 // get in is not a size number but the car's own height as placed, against yours sitting down: Bob
@@ -34,18 +37,19 @@ export const VEH_SEAT_FRAC = 0.6;
 export const vehicleSeatsPlayer = (carH, playerH) => carH >= playerH * VEH_SEAT_FRAC - 0.5;
 
 // ── Damage ──────────────────────────────────────────────────────────────────────────────────
-// "Super weak to fire and explosion damage": both land four times over, and armour does nothing
-// against them. Everything else (a bullet, a bat) is cut by the car's Defense on the same curve a
+// "Super weak to fire and explosion damage": fire lands four times over, a blast twelve (Blake
+// 2026-11-01: "explosions should do way more damage"), and armour does nothing against either. Everything else (a bullet, a bat) is cut by the car's Defense on the same curve a
 // body's is (applyDefense in App.js).
 export const VEHICLE_WEAK_MULT = 4;
+export const VEHICLE_BLAST_MULT = 12;
 // At a quarter of its HP the car catches: the Imminent explosion look, the hood on fire, and a
 // fuse that nothing stops. Five seconds, then it goes up.
 export const VEHICLE_BURN_FRAC = 0.25;
 export const VEHICLE_FUSE_FRAMES = 300;
-// The explosion. Blake: "The explosion deals a ton of damage to the player". 30 is more than a
-// whole default player (25 HP), before armour; it goes through the same blast code a rocket does,
+// The explosion. Blake: "The explosion deals a ton of damage to the player"; 2026-11-01 "way more",
+// 30 -> 60. That is more than two whole default players (25 HP), before armour; it goes through the same blast code a rocket does,
 // so Defense, the 🪖 blast immunity and god mode all still apply.
-export const VEHICLE_BOOM_DAMAGE = 30;
+export const VEHICLE_BOOM_DAMAGE = 60;
 export const VEHICLE_BOOM_RADIUS = 5;   // cells
 export const VEHICLE_BOOM_SIZE = 8;     // cells, the drawn burst
 // Below this fraction of its HP an attacked car shows the dents on the side that was hit.
@@ -79,7 +83,7 @@ export const vehicleHalvesOf = (v) => {
 // Returns the new state; the car is never mutated.
 export const vehicleTakeHit = (v, dmg, kind, side, crash) => {
   if (!v || v.dead) return v;
-  const mult = kind === "fire" || kind === "blast" ? VEHICLE_WEAK_MULT : 1;
+  const mult = kind === "blast" ? VEHICLE_BLAST_MULT : kind === "fire" ? VEHICLE_WEAK_MULT : 1;
   const hp = Math.max(0, v.hp - Math.max(0, dmg) * mult);
   const out = { ...v, hp };
   if (side && (crash || hp <= v.maxHp * VEHICLE_DENT_FRAC)) out.dent = !v.dent || v.dent === side ? side : "both";

@@ -199,20 +199,20 @@ describe("the character select (2026-10-18)", () => {
   });
 });
 
-describe("difficulty (Blake: Easy 4 lives, Medium 2, Hard 1)", () => {
+describe("difficulty (Blake: Easy 3 lives, Medium 2, Hard 1)", () => {
   test("the lives", () => {
-    expect(DIFFICULTIES.map((d) => [d.id, d.lives])).toEqual([["easy", 4], ["medium", 2], ["hard", 1]]);
+    expect(DIFFICULTIES.map((d) => [d.id, d.lives])).toEqual([["easy", 3], ["medium", 2], ["hard", 1]]);
     expect(difficultyOf("nope").id).toBe("medium");
   });
-  test("Hard ends the run on the first death, Medium on the second, Easy on the fourth", () => {
+  test("Hard ends the run on the first death, Medium on the second, Easy on the third", () => {
     expect(deathEndsRun("hard", 0)).toBe(true);
     expect(deathEndsRun("medium", 0)).toBe(false);
     expect(deathEndsRun("medium", 1)).toBe(true);
-    expect([0, 1, 2, 3].map((n) => deathEndsRun("easy", n))).toEqual([false, false, false, true]);
+    expect([0, 1, 2].map((n) => deathEndsRun("easy", n))).toEqual([false, false, true]);
   });
   test("lives left counts the one being played", () => {
     expect(runLivesLeft("hard", 0)).toBe(1);
-    expect(runLivesLeft("easy", 1)).toBe(3);
+    expect(runLivesLeft("easy", 1)).toBe(2);
     expect(runLivesLeft("medium", 5)).toBe(0);
   });
   test("a save keeps the difficulty and the deaths; an old save without them is Medium with none lost", () => {

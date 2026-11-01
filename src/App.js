@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_HP_SCALE, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -15823,7 +15823,7 @@ export default function AssetStudio({ game = false } = {}) {
         flash("🐱 Extra life! Down for a moment, then back on " + EXTRA_LIFE_HP + " HP right where you fell — " + livesLeftNote(left - 1));
         return true;
       }
-      // THE GAME's difficulty (Easy 4 lives, Medium 2, Hard 1): this death costs one of them, and
+      // THE GAME's difficulty (Easy 3 lives, Medium 2, Hard 1): this death costs one of them, and
       // the last one ends the run — gameDeathRef freezes the loop and brings up Game Over, so there
       // is no walk back to the start to make. Outside the game it is always false.
       if (gameDeathRef.current()) return false;
@@ -15914,7 +15914,7 @@ export default function AssetStudio({ game = false } = {}) {
       const flip = !!sp.o.flip, face = !!pa.facesRight !== flip ? 1 : -1;
       const fr = wheelContactFracs(vehicleStatePieces(pa, "front"), R.box);
       const wl = flip ? 1 - fr.r : fr.l, wr = flip ? 1 - fr.l : fr.r;
-      const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round(pa.hp || VEHICLE_DEFAULT_HP));
+      const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round((pa.hp || VEHICLE_DEFAULT_HP) * VEHICLE_HP_SCALE));
       const car = { id: sp.uid, uid: sp.uid, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, dent: null, fuse: 0, dead: false, driven: false };
       vehCars[sp.uid] = car; vehWoken.current.add(sp.uid);
       return car;
@@ -15976,7 +15976,7 @@ export default function AssetStudio({ game = false } = {}) {
         return sf ? sf.y : r * CH;
       },
     };
-    // A HIT ON A CAR (vehicleTakeHit): fire and a blast land four times over and through any armour,
+    // A HIT ON A CAR (vehicleTakeHit): fire (x4) and a blast (x12) land many times over and through any armour,
     // a plain blow through its Defense on the curve a body's armour is on (applyDefense). `fromX` is
     // where it came from, for which end dents; a "crash" (the car running into something) always does.
     const vehHurt = (car, raw, kind, fromX, ignoreArmor) => {

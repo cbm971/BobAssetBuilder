@@ -127,7 +127,7 @@ export const gridStep = (n, cols, at, dx, dy) => {
 };
 
 // ---------- difficulty ----------
-// Blake (2026-10-18): Easy gives 4 lives, Medium 2, Hard 1, and running out ends the run on the
+// Blake (2026-10-18): Easy gives 4 lives, Medium 2, Hard 1 (2026-11-01: Easy down to 3), and running out ends the run on the
 // Game Over / Retry screen. A life is a whole try: losing one is the ordinary death (back to the
 // gate you came in by, full HP). It is counted per RUN in `deaths`, saved with the checkpoint, so
 // quitting to the menu and loading cannot buy them back. 🐱 Extra Lives (the item) are separate and
@@ -137,7 +137,7 @@ export const gridStep = (n, cols, at, dx, dy) => {
 // (HUD and the difficulty boxes), never the 🐱 Extra Life symbol. Sharing that symbol is what made
 // the run's lives read as the ability. An ability's lives keep the cat, on their own row above.
 export const DIFFICULTIES = [
-  { id: "easy", label: "Easy", lives: 4 },
+  { id: "easy", label: "Easy", lives: 3 },
   { id: "medium", label: "Medium", lives: 2 },
   { id: "hard", label: "Hard", lives: 1 },
 ];
