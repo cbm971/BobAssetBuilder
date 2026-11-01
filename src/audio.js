@@ -46,7 +46,14 @@ export const SOUND_EVENTS = [
   { key: "car", label: "Car engine", icon: "🚗" },
   { key: "carCrash", label: "Car crash", icon: "💥" },
   { key: "carTotaled", label: "Car totaled", icon: "🔥" },
+  // CAR RADIO (2026-11-01, Blake: "vehichles should have a radio sound thats always on"): a second LOOP,
+  // held the whole time you are in a car at one steady level, under the engine.
+  { key: "carRadio", label: "Car radio", icon: "🎵" },
 ];
+// The engine's level, 0..1, from the pedal and the speed: an idle murmur off the throttle (a little
+// more the faster it is still rolling), full on it.
+export const CAR_ENGINE_IDLE_GAIN = 0.35;
+export const carEngineGain = (gas, speed01 = 0) => (gas ? 1 : CAR_ENGINE_IDLE_GAIN + 0.15 * Math.max(0, Math.min(1, speed01 || 0)));
 export const SOUND_EVENT_KEYS = SOUND_EVENTS.map((e) => e.key);
 
 // ── The moments an ASSET can carry its own sound for, by what the asset is. `basic` is the
@@ -609,36 +616,32 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     return true;
   };
 
-  // THE CAR ENGINE VOICE (engineLoop): one of its own like the talk loop, outside the copy cap — it is
-  // one engine running, not a moment that stacks. Let go with a short fade, so it never clicks off.
-  const engineVoice = { src: null, g: null, id: null };
-  const stopEngine = () => {
-    const { src, g } = engineVoice;
-    engineVoice.src = null; engineVoice.g = null; engineVoice.id = null;
-    if (!src) return;
-    try {
-      const t0 = ctx.currentTime;
-      g.gain.cancelScheduledValues(t0); g.gain.setValueAtTime(g.gain.value, t0); g.gain.linearRampToValueAtTime(0, t0 + 0.08);
-      src.stop(t0 + 0.1);
-    } catch { try { src.stop(); } catch { /* already stopped */ } }
-  };
-
-  const engine = {
-    // 🚗 THE CAR ENGINE: the board's Car engine sound looped while `on`, louder and higher the faster
-    // the car goes (`speed01`, 0 at rest to 1 at the engine's top speed), placed at x/y like a moment
-    // for the off-screen fade. Called once a frame from the play loop; engineLoop(false) lets it go.
-    engineLoop: (on, speed01 = 0, x, y) => {
-      if (!on) { if (engineVoice.src) stopEngine(); return false; }
-      const id = resolveSound({ basic: "car", board, has: engine.has });
-      if (!id) { if (engineVoice.src) stopEngine(); return false; }
+  // A HELD LOOP (the car's engine, its radio): one voice of its own like the talk loop, outside the
+  // copy cap — it is one thing running, not a moment that stacks. `hold(basic, gainMul, rate, x, y)`
+  // once a frame keeps the board's sound for `basic` looping, gliding to the new level and pitch;
+  // `stop()` lets it go with a short fade, so it never clicks off.
+  const heldLoop = (tag) => {
+    const v = { src: null, g: null, id: null };
+    const stop = () => {
+      const { src, g } = v;
+      v.src = null; v.g = null; v.id = null;
+      if (!src) return;
+      try {
+        const t0 = ctx.currentTime;
+        g.gain.cancelScheduledValues(t0); g.gain.setValueAtTime(g.gain.value, t0); g.gain.linearRampToValueAtTime(0, t0 + 0.08);
+        src.stop(t0 + 0.1);
+      } catch { try { src.stop(); } catch { /* already stopped */ } }
+    };
+    const hold = (basic, gainMul, rate, x, y, glide = 0.05) => {
+      const id = resolveSound({ basic, board, has: engine.has });
+      if (!id) { if (v.src) stop(); return false; }
       const s = sounds.get(id), c = ctx;
       if (!s || !s.clip || !c || c.state !== "running") return false;
       const buf = buffers.get(s.clip);
       if (!buf) { decode(s.clip); return false; }
-      const sp = Math.max(0, Math.min(1, speed01 || 0));
-      const gain = soundGainAt(x, y, view) * soundVolume(s) * resolveSoundVol({ basic: "car", board, has: engine.has }) * (0.6 + 0.4 * sp);
-      if (engineVoice.src && engineVoice.id !== id) stopEngine();
-      if (!engineVoice.src) {
+      const gain = soundGainAt(x, y, view) * soundVolume(s) * resolveSoundVol({ basic, board, has: engine.has }) * gainMul;
+      if (v.src && v.id !== id) stop();
+      if (!v.src) {
         try {
           const skip = Math.min(starts.get(s.clip) || 0, Math.max(0, buf.duration - 0.01));
           const src = c.createBufferSource();
@@ -649,12 +652,32 @@ export const createAudioEngine = ({ loadClip } = {}) => {
           applyMute();
           src.onended = () => { try { g.disconnect(); } catch { /* gone */ } };
           src.start(0, skip);
-          engineVoice.src = src; engineVoice.g = g; engineVoice.id = id;
-          note({ at: now(), id, clip: s.clip, gain, heard: true, engine: true, skip });
+          v.src = src; v.g = g; v.id = id;
+          note({ at: now(), id, clip: s.clip, gain, heard: true, [tag]: true, skip });
         } catch { return false; }
       }
-      try { const t0 = c.currentTime; engineVoice.g.gain.setTargetAtTime(gain, t0, 0.05); engineVoice.src.playbackRate.setTargetAtTime(0.8 + 0.8 * sp, t0, 0.08); } catch { /* gone */ }
+      try { const t0 = c.currentTime; v.g.gain.setTargetAtTime(gain, t0, glide); v.src.playbackRate.setTargetAtTime(rate, t0, 0.08); } catch { /* gone */ }
       return true;
+    };
+    return { v, stop, hold };
+  };
+  const engineVoice = heldLoop("engine"), radioVoice = heldLoop("radio");
+  const stopEngine = () => { engineVoice.stop(); radioVoice.stop(); };
+
+  const engine = {
+    // 🚗 THE CAR ENGINE: the board's Car engine sound looped while `on`, placed at x/y like a moment
+    // for the off-screen fade. Called once a frame from the play loop; engineLoop(false) lets it go.
+    // LOUDER ON THE THROTTLE (2026-11-01, Blake: "engine sounds should get louder when on throttle"):
+    // `gas` is the pedal held, and the engine swells to full with it and falls back to an idle
+    // murmur off it (carEngineGain), whatever the speed; the pitch still climbs with the speed
+    // (`speed01`, 0 at rest to 1 at the engine's top speed).
+    // THE CAR RADIO plays beside it the whole time you are in the car, at its own steady level —
+    // no pedal or speed in it (Blake: "a radio sound thats always on").
+    engineLoop: (on, speed01 = 0, x, y, gas = false) => {
+      if (!on) { if (engineVoice.v.src || radioVoice.v.src) stopEngine(); return false; }
+      const sp = Math.max(0, Math.min(1, speed01 || 0));
+      radioVoice.hold("carRadio", 1, 1, x, y);
+      return engineVoice.hold("car", carEngineGain(gas, sp), 0.8 + 0.8 * sp, x, y, gas ? 0.06 : 0.18);
     },
     // The library: every sound record (the board is picked out of the same list).
     setLibrary: (records, boardRec) => {

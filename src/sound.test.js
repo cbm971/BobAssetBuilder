@@ -8,7 +8,7 @@ import {
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
   soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
-  musicTrackFor, stretchChannels, PICKUP_LEGENDARY_STRETCH, testMuteOn,
+  musicTrackFor, stretchChannels, PICKUP_LEGENDARY_STRETCH, testMuteOn, carEngineGain, CAR_ENGINE_IDLE_GAIN,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -99,8 +99,19 @@ describe("which sound plays: the asset's own, else the basic one, else silence",
   });
 
   test("the basic-sound registry: every moment he asked for, each one a row", () => {
-    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "playerHurt", "playerDeath", "enemyHurt", "enemyDeath", "pickup", "door", "menuClick", "car", "carCrash", "carTotaled"]);
+    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "playerHurt", "playerDeath", "enemyHurt", "enemyDeath", "pickup", "door", "menuClick", "car", "carCrash", "carTotaled", "carRadio"]);
     for (const e of SOUND_EVENTS) { expect(typeof e.label).toBe("string"); expect(e.label.length).toBeGreaterThan(0); }
+  });
+});
+
+/* "engine sounds should get louder when on throttle" (Blake, 2026-11-01). */
+describe("the car engine swells on the throttle", () => {
+  test("full on the pedal, an idle murmur off it, whatever the speed", () => {
+    expect(carEngineGain(true, 0)).toBe(1);
+    expect(carEngineGain(true, 1)).toBe(1);
+    expect(carEngineGain(false, 0)).toBe(CAR_ENGINE_IDLE_GAIN);
+    expect(carEngineGain(false, 1)).toBeLessThan(0.6);
+    expect(carEngineGain(false, 1)).toBeGreaterThan(carEngineGain(false, 0));
   });
 });
 

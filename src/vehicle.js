@@ -572,6 +572,32 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   return ev;
 };
 
+// ── Passengers ──────────────────────────────────────────────────────────────────────────────
+// Blake, 2026-11-01: "add the option to add passenger seats so your human NPC followers can try to
+// get in vehichles with you ... most very slightly staggered behind the driver but with the army
+// jeep i may make one in the bed in case you have 2 followers". A passenger's place is a piece he
+// flags the way the driver's is: 🪟 `passengerWindow` (their head shows in it, the window cut out
+// while somebody sits there, like the driver's) or 🪑 `passengerSeat` (an open seat or a truck bed:
+// they sit on the top of the piece, from the hips up). Both are drawn just behind the car's own
+// pieces, so a door or a bed's side hides what it should, and behind the driver.
+// A window he drew as a see-through cutter (his Beetle's are) is a window all the same.
+export const isPassengerSpot = (p) => !!(p && (p.passengerWindow || p.passengerSeat));
+// The passenger places of a piece list, the one nearest the driver first: the first follower to
+// reach the car takes the seat beside you, the second the one behind it (the bed).
+export const vehiclePassengerSpots = (pieces) => {
+  const list = (pieces || []).map((p, i) => ({ p, i })).filter(({ p }) => isPassengerSpot(p));
+  const drv = (pieces || []).find((p) => p && p.driverWindow) || (pieces || []).find((p) => p && p.driverSeat);
+  const dx = drv ? drv.x + drv.w / 2 : null;
+  const gap = (p) => (dx == null ? 0 : Math.abs(p.x + p.w / 2 - dx));
+  return list.sort((a, b) => gap(a.p) - gap(b.p) || a.i - b.i).map(({ p }) => p);
+};
+// A follower gets in when it is beside the car (its middle within the car's length), its feet near
+// the car's bottom, and the car going no faster than this (px/frame): nobody jumps into a moving car.
+export const VEH_BOARD_MAX_SPEED = 2;
+export const VEH_BOARD_FEET_PX = 45;
+export const followerCanBoard = (car, cx, feetY) =>
+  !!car && Math.abs(car.vx || 0) <= VEH_BOARD_MAX_SPEED && cx >= car.x && cx <= car.x + car.w && Math.abs(feetY - (car.y + car.h)) <= VEH_BOARD_FEET_PX;
+
 // ── Units and the car ───────────────────────────────────────────────────────────────────────
 // Blake: "Enemies who see a car should jump, become front facing in the back ground or back facing
 // in the front layer when the car passes by to seem like they avoided it. They should also launch

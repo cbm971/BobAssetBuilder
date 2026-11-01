@@ -847,6 +847,15 @@ plus traps it does not cover:
   (`vehRider`, cut where `identifyLimbs` puts the legs), at your own size, over the car.
   A car whose two ends differ is two clipped copies of its art split at the editor's centre line
   (`vehicleHalvesOf`); the 🔥 is drawn from the marker's own box (`hoodFireBox`).
+  Passengers: pieces flagged 🪟 `passengerWindow` / 🪑 `passengerSeat` (a cutter window counts) are
+  places for your human allies (`vehiclePassengerSpots`, nearest the driver first). While you drive,
+  each free place goes to the nearest ally that is not a creature; it drops its fight, follows you,
+  and gets in when `followerCanBoard`. A rider lives on `ep.ride = { car: uid, seat }` (the ep moves
+  with the unit at a handoff, its key does not), is pinned to its place with i-frames, skipped by
+  the unit sprite pass and `aliveOpposite`, and drawn inside `vehCarEl` (`car.riders`, rebuilt every
+  frame) behind the car and behind you. Out of your car for any reason, it steps out at its place.
+  Audio: the Car engine loop is loud on the throttle and murmurs off it (`carEngineGain`); the Car
+  radio basic sound loops at one level the whole time you are at the wheel (`heldLoop` in audio.js).
 
 ## Blake's decisions — do not undo these
 

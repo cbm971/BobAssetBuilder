@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -16018,6 +16018,14 @@ export default function AssetStudio({ game = false } = {}) {
       const sc = car.w / car.box.w, mid = (win.x + win.w / 2 - car.box.minX) * sc;
       return (car.face > 0) !== !!car.pa.facesRight ? car.x + car.w - mid : car.x + mid;
     };
+    // 🧍 A CAR'S PASSENGER PLACES (vehiclePassengerSpots: his 🪟 Passenger window / 🪑 Passenger seat
+    // pieces in Stock, the one nearest the driver first), each as the level x a rider sits at, mirrored
+    // with the car the way vehWindowX is.
+    const vehPassengerXs = (car) => {
+      if (!car.box) return [];
+      const sc = car.w / car.box.w, flip = (car.face > 0) !== !!car.pa.facesRight;
+      return vehiclePassengerSpots(vehicleStatePieces(car.pa, "front")).map((pc) => { const mid = (pc.x + pc.w / 2 - car.box.minX) * sc; return flip ? car.x + car.w - mid : car.x + mid; });
+    };
     // Out: on your feet at the driver's door, facing the car's way, your i-frames gone. Anywhere in the
     // world you could stand (inWorld: a car stopped across a seam lets you out on the far side, and the
     // handoff takes you there); off it, back inside this level.
@@ -16045,7 +16053,7 @@ export default function AssetStudio({ game = false } = {}) {
     // a talker your hits pass through. Yours is your hit: it provokes, and a 🪞 reflect comes back at you.
     const vehRam = (car, speed, byPlayer) => {
       for (const k of Object.keys(lv.enemies || {})) {
-        const ep = enemyPos.current[k]; if (!ep || ep.carDodge || unitHitImmune(ep) || unitTalkImmune(ep)) continue;
+        const ep = enemyPos.current[k]; if (!ep || ep.ride || ep.carDodge || unitHitImmune(ep) || unitTalkImmune(ep)) continue;
         const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
         if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
         if (enemyHP.current[k] <= 0) continue;
@@ -16322,6 +16330,7 @@ export default function AssetStudio({ game = false } = {}) {
         if (car.dead || !car.driven) continue;
         const mine = car === vehDriven;
         const ctl = mine && !frozen ? { gas: car.face > 0 ? !!RK.right : !!RK.left, brake: car.face > 0 ? !!RK.left : !!RK.right } : { gas: false, brake: false };
+        car.gas = ctl.gas;
         const ev = vehicleStep(car, ctl, vehWorld, dtMul);
         if (ev.dist) car.spin = (car.spin + wheelTurnDeg(ev.dist, car.wheelR) * ((car.face > 0) !== !!car.pa.facesRight ? -1 : 1) + 360) % 360;
         if (ev.crash) {
@@ -17214,6 +17223,29 @@ export default function AssetStudio({ game = false } = {}) {
           const b0 = allyMaxHPBonus(ea0.effects); if (!b0) continue;
           const s0 = unitSide(ea0, ep0); if (s0 === "hostile" || s0 === "friendly") sideAllyHp[s0] += b0;
         }
+        // 🧍 YOUR FOLLOWERS GET IN WITH YOU (2026-11-01, Blake: "passenger seats so your human NPC
+        // followers can try to get in vehichles with you"). While you are at the wheel, each free
+        // passenger place (nearest the driver first) goes to the nearest of your allies that is a
+        // person (an animal does not ride) and is not in yet; that ally drops whatever it is doing
+        // and comes to the car (it follows you, and you are the car), and gets in once it is beside
+        // it with the car (near enough) stopped — followerCanBoard. A rider is held on its seat and
+        // drawn in the car (vehCarEl); when you get out, or the car goes up, they get out too.
+        const rideSeats = vehDriven ? vehPassengerXs(vehDriven) : [];
+        const rideWant = {};
+        if (vehDriven) {
+          vehDriven.riders = [];
+          const taken = new Set(), want = [], carCX = vehDriven.x + vehDriven.w / 2;
+          for (const k0 of Object.keys(lv.enemies)) {
+            const ep0 = enemyPos.current[k0]; if (!ep0 || !ep0.friendly) continue;
+            if (enemyHP.current[k0] !== undefined && enemyHP.current[k0] <= 0) continue;
+            if (ep0.ride && ep0.ride.car === vehDriven.uid && ep0.ride.seat < rideSeats.length) { taken.add(ep0.ride.seat); continue; }
+            const ea0 = unitAssetAt(k0, lv.enemies[k0]); if (!ea0 || isCreatureUnit(ea0)) continue;
+            want.push({ k: k0, d: Math.abs(ep0.x + enemyRenderW(ea0, CW) * sideBodyShape(ea0).centerFrac - carCX) });
+          }
+          want.sort((a, b) => a.d - b.d);
+          let wi = 0;
+          for (let si = 0; si < rideSeats.length && wi < want.length; si++) if (!taken.has(si)) rideWant[want[wi++].k] = si;
+        }
         for (const k of Object.keys(lv.enemies)) {
           if (enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) {
             // A DEFEATED BODY STILL FALLS. This whole per-enemy block used to be skipped the
@@ -17230,6 +17262,7 @@ export default function AssetStudio({ game = false } = {}) {
             // restedDead and stop simulating, so a settled body costs nothing per frame.
             const dep = enemyPos.current[k];
             const dea = unitAssetAt(k, lv.enemies[k]);
+            if (dep && dep.ride) dep.ride = null; // killed in the car: the body falls out of it
             // Killed mid-duck: stand the body back up to full height about its FEET before it lies
             // down. A corpse in its crouch-height box was drawn squashed (the deformed sleeve — see
             // the corpse render), and everything that boxes a corpse — capture, resurrect, loot —
@@ -17276,6 +17309,33 @@ export default function AssetStudio({ game = false } = {}) {
             enemyPos.current[k] = { uid: ++unitUidSeq, x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false, peaceful: spawnStartsPeaceful(spawn), turned: null, lastHp: null, stepEase: 0 };
           }
           const ep = enemyPos.current[k];
+          // 🧍 IN YOUR CAR: held on its seat, standing on the car's bottom at its place like you are at
+          // the wheel (vehSeat), facing the car's way, untouchable while it rides (a hit meets the car)
+          // and doing nothing else this frame. Your car gone (you got out, it went up, you crossed into
+          // a level without it): out at its place, on its feet.
+          if (ep.ride) {
+            const car = vehDriven && vehDriven.uid === ep.ride.car ? vehDriven : null;
+            const sx = car ? rideSeats[ep.ride.seat] : null;
+            if (sx != null) {
+              ep.x = sx - eShape.centerFrac * eRenderW; ep.y = car.y + car.h - standEph;
+              ep.vx = 0; ep.vy = 0; ep.onGround = true; ep.face = car.face; ep.crouch = false; ep.walking = false;
+              ep.climbing = null; ep.flying = false; ep.knock = null; ep.charge = 0; ep.invuln = Math.max(ep.invuln || 0, 4);
+              car.riders.push({ seat: ep.ride.seat, ea, uid: ep.uid });
+              continue;
+            }
+            const was = vehCars[ep.ride.car], seatWas = ep.ride.seat;
+            ep.ride = null;
+            if (was && !was.dead) { const xs = vehPassengerXs(was); const ox = xs[seatWas] ?? (xs.length ? xs[0] : was.x + was.w / 2); ep.x = ox - eShape.centerFrac * eRenderW; ep.y = was.y + was.h - standEph; }
+            ep.vx = 0; ep.vy = 0; ep.onGround = false; ep.crouch = false; ep.invuln = 0;
+          } else if (rideWant[k] != null && !ep.climbing && !(ep.down > 0) && !(ep.stun > 0)
+            && followerCanBoard(vehDriven, ep.x + eShape.centerFrac * eRenderW, ep.y + (ep.crouch ? crouchEph : standEph))) {
+            ep.ride = { car: vehDriven.uid, seat: rideWant[k] };
+            const sx = rideSeats[rideWant[k]];
+            ep.x = sx - eShape.centerFrac * eRenderW; ep.y = vehDriven.y + vehDriven.h - standEph;
+            ep.vx = 0; ep.vy = 0; ep.onGround = true; ep.face = vehDriven.face; ep.crouch = false; ep.walking = false; ep.invuln = Math.max(ep.invuln || 0, 4);
+            vehDriven.riders.push({ seat: rideWant[k], ea, uid: ep.uid });
+            continue;
+          }
           // HIT A PEACEFUL NPC AND IT FIGHTS BACK. Checked once here, off its HP falling, rather
           // than at each of the eight places that can hurt a unit (melee, shot, splash, fire,
           // thrown impact, landing burn, a brawl, a friendly's bullet) — one reader cannot fall
@@ -17518,7 +17578,7 @@ export default function AssetStudio({ game = false } = {}) {
             const out = [];
             for (const k2 of Object.keys(lv.enemies)) {
               if (k2 === k) continue;
-              const ep2 = enemyPos.current[k2]; if (!ep2) continue;
+              const ep2 = enemyPos.current[k2]; if (!ep2 || ep2.ride) continue; // 🧍 one riding in your car is in the car, not a target
               const ea2 = unitAssetAt(k2, lv.enemies[k2]); if (!ea2) continue;
               if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // corpse
               const s2 = unitSide(ea2, ep2);
@@ -17544,7 +17604,7 @@ export default function AssetStudio({ game = false } = {}) {
             // such foes about it tags along with you instead.
             const pCX = p.x + pw / 2, pFeet = p.y + ph;
             ep.regroup = allyRegrouping(pCX - eCenterXNow, ep.regroup, CW);
-            const guarded = ep.regroup ? [] : aliveOpposite(false).filter((f) => allyGuards(f.cx - pCX, f.ep.y + (f.ep.crouch ? enemyCrouchH(f.ea, CW) : enemyStandH(f.ea, CW)) - pFeet, CW));
+            const guarded = ep.regroup || rideWant[k] != null ? [] : aliveOpposite(false).filter((f) => allyGuards(f.cx - pCX, f.ep.y + (f.ep.crouch ? enemyCrouchH(f.ea, CW) : enemyStandH(f.ea, CW)) - pFeet, CW));
             const near = nearestUnitCX(eCenterXNow, guarded.filter(onMyLevel)); // nearest hostile it can walk to
             if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; } // nothing near you, or too far behind → tag along
@@ -20163,7 +20223,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (runNodeLive && --warmWait <= 0) { warmWait = RUN_WARM_EVERY_FRAMES; warmRunAhead(runNow, runNodeLive); }
 
       if (vehDriven) vehSeat(p, vehDriven); // 🚗 your own physics had no keys, but it had gravity
-      bobAudio.engineLoop(!!vehDriven, vehDriven ? Math.abs(vehDriven.vx) / VEH_ENGINE_TOP : 0, vehDriven ? vehDriven.x + vehDriven.w / 2 : 0, vehDriven ? vehDriven.y + vehDriven.h / 2 : 0); // 🔊 the one Car engine sound, pitched by speed
+      bobAudio.engineLoop(!!vehDriven, vehDriven ? Math.abs(vehDriven.vx) / VEH_ENGINE_TOP : 0, vehDriven ? vehDriven.x + vehDriven.w / 2 : 0, vehDriven ? vehDriven.y + vehDriven.h / 2 : 0, !!(vehDriven && vehDriven.gas)); // 🔊 the one Car engine sound, pitched by speed, loud on the throttle; the radio beside it
       soundFrame(p, pw, ph, dtMul, nowT); // hurt, death and landing, for you and every unit (see sndSeen)
       updateCamera(p, pw, ph, dtMul);
       commitFrame();
@@ -22159,11 +22219,7 @@ export default function AssetStudio({ game = false } = {}) {
   // The driver, cut from your Side blocks: `seated` false is the head (cut at the gun arm's shoulder,
   // the arms left out), true the body from the hips up (cut where the legs start, identifyLimbs; the
   // arms kept). `mx` is the x it is centred on: the head's middle, or the hips.
-  const vehRider = (seated) => {
-    const blocks = livePlayerBlocks("side");
-    if (!blocks || !blocks.length) return null;
-    const slot = seated ? "seat" : "head", c = vehHeadCache.current && vehHeadCache.current[slot];
-    if (c && c.blocks === blocks) return c.cut;
+  const vehCutRider = (blocks, seated) => {
     let cutY, hipX = null;
     if (seated) {
       const { legIds } = identifyLimbs(blocks);
@@ -22181,16 +22237,31 @@ export default function AssetStudio({ game = false } = {}) {
       keep.push(pc);
       if (!pc.isCutter) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); }
     }
-    const cut = keep.length && x1 > x0 && cutY > y0 ? { pieces: keep, x0, y0, x1, y1: cutY, mx: hipX ?? (x0 + x1) / 2 } : null;
+    return keep.length && x1 > x0 && cutY > y0 ? { pieces: keep, x0, y0, x1, y1: cutY, mx: hipX ?? (x0 + x1) / 2 } : null;
+  };
+  const vehRider = (seated) => {
+    const blocks = livePlayerBlocks("side");
+    if (!blocks || !blocks.length) return null;
+    const slot = seated ? "seat" : "head", c = vehHeadCache.current && vehHeadCache.current[slot];
+    if (c && c.blocks === blocks) return c.cut;
+    const cut = vehCutRider(blocks, seated);
     vehHeadCache.current = { ...(vehHeadCache.current || {}), [slot]: { blocks, cut } };
+    return cut;
+  };
+  // 🧍 A passenger, the same cut from THEIR Side drawing (a follower riding with you).
+  const vehUnitRider = (ea, seated) => {
+    const slot = "u" + (seated ? "s|" : "h|") + ea.id, c = vehHeadCache.current && vehHeadCache.current[slot];
+    if (c && c.blocks === ea) return c.cut;
+    const cut = vehCutRider(hatsUnderArms(bake(ea, enemyPoseKey(ea, "side"))), seated);
+    vehHeadCache.current = { ...(vehHeadCache.current || {}), [slot]: { blocks: ea, cut } };
     return cut;
   };
   // The driver on a 200x260 plane at scale `sc`, the bottom of the cut (the neck, or the seat) at
   // (cx, neck) in the car's own frame, clipped there (a few px of slack round the rest, for the outlines).
-  const vehHeadEl = (hd, cx, neck, sc, mirror) => {
+  const vehHeadEl = (hd, cx, neck, sc, mirror, key = "vhead", alphaOf = null, cacheKey = "vehhead") => {
     const mid = hd.mx, sl = 3;
-    return <div key="vhead" style={{ position: "absolute", left: cx - mid * sc, top: neck - hd.y1 * sc, width: W * sc, height: H * sc, pointerEvents: "none", clipPath: "inset(" + Math.max(0, hd.y0 * sc - sl) + "px " + Math.max(0, (W - hd.x1) * sc - sl) + "px " + (H - hd.y1) * sc + "px " + Math.max(0, hd.x0 * sc - sl) + "px)", transform: mirror ? "scaleX(-1)" : undefined, transformOrigin: mid * sc + "px 0" }}>
-      {renderPieceRuns({ pieces: hd.pieces, cacheKey: "vehhead", keyPrefix: "vh", alphaOf: spriteAlphaOf(mergeEquip(findA(playerId), equipped.current, equippedBodyIdFor(findA(playerId))), null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
+    return <div key={key} style={{ position: "absolute", left: cx - mid * sc, top: neck - hd.y1 * sc, width: W * sc, height: H * sc, pointerEvents: "none", clipPath: "inset(" + Math.max(0, hd.y0 * sc - sl) + "px " + Math.max(0, (W - hd.x1) * sc - sl) + "px " + (H - hd.y1) * sc + "px " + Math.max(0, hd.x0 * sc - sl) + "px)", transform: mirror ? "scaleX(-1)" : undefined, transformOrigin: mid * sc + "px 0" }}>
+      {renderPieceRuns({ pieces: hd.pieces, cacheKey, keyPrefix: key, alphaOf: alphaOf || spriteAlphaOf(mergeEquip(findA(playerId), equipped.current, equippedBodyIdFor(findA(playerId))), null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
     </div>;
   };
   // A prop drawn standing on (x, y) in the car's frame, `hgt` px tall: the hood fire, the wreck's smoke.
@@ -22207,12 +22278,17 @@ export default function AssetStudio({ game = false } = {}) {
     const artFlip = (face > 0) !== !!pa.facesRight;
     const box = car.box, sc = Math.min(car.w / box.w, car.h / box.h);
     const step = spinStepOf(car.spin || 0), key = "veh" + nk + "|" + car.id;
-    const sig = halves.front + "/" + halves.rear + "|" + step + "|" + (mine ? 1 : 0) + "|" + (artFlip ? 1 : 0);
+    // 🧍 Who rides with you (car.riders, set by the loop): an occupied 🪟 Passenger window is cut out
+    // like yours, so their head shows through it.
+    const riders = mine && car.riders && car.riders.length ? [...car.riders].sort((a, b) => b.seat - a.seat) : null;
+    const rideSet = riders ? new Set(riders.map((r) => r.seat)) : null;
+    const sig = halves.front + "/" + halves.rear + "|" + step + "|" + (mine ? 1 : 0) + "|" + (artFlip ? 1 : 0) + "|" + (riders ? [...rideSet].sort().join(",") : "");
     let hit = vehArtCache.current.get(key);
     if (!hit || hit.sig !== sig || hit.pa !== pa || hit.w !== car.w || hit.h !== car.h || hit.texLib !== texLib) {
       const art = (look, k) => {
         let pieces = spinWheelPieces(vehicleStatePieces(pa, look), step);
         if (mine) pieces = pieces.map((pc) => (pc.driverWindow ? { ...pc, isCutter: true } : pc));
+        if (rideSet) { const spots = vehiclePassengerSpots(pieces); pieces = pieces.map((pc) => { const i = spots.indexOf(pc); return i >= 0 && rideSet.has(i) && pc.passengerWindow ? { ...pc, isCutter: true } : pc; }); }
         return propArtInner({ ...pa, frames: [{ front: pieces }], angles: null }, car.w, car.h, 0, k, box, undefined, artFlip);
       };
       let el;
@@ -22248,6 +22324,22 @@ export default function AssetStudio({ game = false } = {}) {
         else headOver = vehHeadEl(hd, car.w / 2, car.h * 0.3, ns, mirror);
       }
     }
+    // 🧍 The passengers, behind the car's own pieces and behind you: in a 🪟 Passenger window a head,
+    // at their own size, placed the way yours is in your window; on a 🪑 Passenger seat (a truck's bed)
+    // from the hips up, sitting on the top of the piece.
+    let ridersEl = null;
+    if (riders) {
+      const spots = vehiclePassengerSpots(vehicleStatePieces(pa, "front"));
+      ridersEl = riders.map((r) => {
+        const spot = spots[r.seat]; if (!spot || !r.ea) return null;
+        const win = !!spot.passengerWindow, hd = vehUnitRider(r.ea, !win);
+        if (!hd) return null;
+        const us = enemyStandH(r.ea, LV_CELL) / H, mirror = !!pa.facesRight !== enemyArtFacesRight(r.ea);
+        const sx = (spot.x - box.minX) * sc, sy = (spot.y - box.minY) * sc, sw = spot.w * sc, sh = spot.h * sc;
+        const neck = win ? Math.max(sy + sh * 1.08, sy + sh * 0.06 + (hd.y1 - hd.y0) * us) : sy;
+        return vehHeadEl(hd, sx + sw / 2, neck, us, mirror, "vride" + r.seat, spriteAlphaOf(r.ea, null), "vehride" + r.seat + "|" + r.ea.id);
+      });
+    }
     let fx = null;
     if (st === "burning") {
       // The fire is the marker's box (hoodFireBox): standing on its bottom, as tall as it is. It was
@@ -22267,7 +22359,7 @@ export default function AssetStudio({ game = false } = {}) {
     const turnCss = turn.deg ? "perspective(" + Math.round(car.w * 2) + "px) rotateY(" + (-car.face * turn.deg) + "deg) " : "";
     return <div key={key} className="vehLive" data-vehicle={car.id} data-vehicle-state={st} data-vehicle-dent={car.dent || ""} style={{ position: "absolute", left: off.x + car.x, top: off.y + car.y, width: car.w, height: car.h, zIndex: z, pointerEvents: "none", transformOrigin: "50% 100%", transform: car.tilt ? "rotate(" + car.tilt.toFixed(2) + "deg)" : undefined }}>
       <div style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, transform: (turnCss + (artFlip ? "scaleX(-1)" : "")) || undefined }}>
-        {headUnder}{hit.el}{headOver}{fx}
+        {ridersEl}{headUnder}{hit.el}{headOver}{fx}
       </div>
     </div>;
   };
@@ -28476,6 +28568,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // survives the handoff that re-files it under a new "r,c" (moveRunUnit); its key
                   // until then (the first frame of a level, before the loop has seeded it).
                   const uKey = ep && ep.uid ? "u" + ep.uid : "enp" + U.ns + k;
+                  if (!isDead && ep && ep.ride) return null; // 🧍 riding in your car: drawn in it (vehCarEl)
                   if (offScreen(eLeft - LV_CELL * 2, eTop - LV_CELL * 2, eRenderW + LV_CELL * 4, eph + LV_CELL * 4)) return null; // off the screen: no sprite this frame (its AI still runs — see cullView)
                   const hitboxOffset = eShape.centerFrac * eRenderW - epw / 2; // hitbox-left relative to the wider render box — constant regardless of live position
                   const eFootAnchor = Math.max(0, 1 - eShape.topFrac - eShape.heightFrac) * eph; // empty canvas below the drawn feet: shift the art down by it so the visible feet rest on the ground instead of hovering by that gap (scales with the enemy, so big/tall enemies do not float)
@@ -30642,6 +30735,8 @@ export default function AssetStudio({ game = false } = {}) {
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.wheel} onChange={(e) => updSelAll({ wheel: e.target.checked || undefined })} /> 🛞 Wheel</label>}
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.driverWindow} onChange={(e) => updSelAll({ driverWindow: e.target.checked || undefined })} /> 🪟 Driver window</label>}
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.driverSeat} onChange={(e) => updSelAll({ driverSeat: e.target.checked || undefined })} /> 🪑 Driver seat</label>}
+              {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.passengerWindow} onChange={(e) => updSelAll({ passengerWindow: e.target.checked || undefined })} /> 🪟 Passenger window</label>}
+              {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.passengerSeat} onChange={(e) => updSelAll({ passengerSeat: e.target.checked || undefined })} /> 🪑 Passenger seat</label>}
               {!effEdit && asset.type === "vehicle" && angle === "burning" && <label className="chk"><input type="checkbox" checked={!!sel.isHoodFire} onChange={(e) => updSelAll({ isHoodFire: e.target.checked || undefined })} /> 🔥 Hood fire</label>}
               {(sel.role === "weaponArm" || sel.limb === "arm") && (<>
                 <div className="ct2">Shoulder side 🫱</div>
