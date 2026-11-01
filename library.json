@@ -2398676,20 +2398676,6 @@
       "z": 81
      }
     ],
-    "18,10": [
-     {
-      "kind": "prop",
-      "propId": "mstng65",
-      "solid": false,
-      "size": 16,
-      "inFront": true,
-      "rot": 355,
-      "flip": true,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 2
-     }
-    ],
     "25,78": [
      {
       "kind": "prop",
@@ -2399043,8 +2399029,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792345031905
+   "savedAt": 1793542975670,
+   "editedFrom": 1793458555331
   },
   {
    "id": "snssw0i",
