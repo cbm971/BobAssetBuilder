@@ -5,7 +5,7 @@ import {
   autoVehicleDamage, isGlassColor,
   vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, vehicleCrashDamage,
   carBearsDown, vehicleDodgeKind, vehicleDodgeChance,
-} from "./vehicle";
+  VEH_SEAT_FRAC, vehicleSeatsPlayer } from "./vehicle";
 
 const CAR = [
   { id: "body", kind: "rect", x: 20, y: 120, w: 160, h: 40, color: "#c43c3c" },
@@ -267,5 +267,15 @@ describe("units and the car", () => {
     expect(vehicleDodgeKind({ onGround: true, hasBack: true }, 0.99)).toBe("fg");
     expect(vehicleDodgeChance(10)).toBeGreaterThan(vehicleDodgeChance(1));
     expect(vehicleDodgeChance(100)).toBeLessThan(1);
+  });
+});
+
+describe("who fits in a car", () => {
+  test("a car as tall as you sitting down seats you; a toy on a shelf does not", () => {
+    const you = 210; // PLAYER_H_CELLS cells of LV_CELL px
+    expect(vehicleSeatsPlayer(you * VEH_SEAT_FRAC, you)).toBe(true);
+    expect(vehicleSeatsPlayer(154, you)).toBe(true);  // his Mustang at 16
+    expect(vehicleSeatsPlayer(80, you)).toBe(false);  // his Tractor at 4 (M13)
+    expect(vehicleSeatsPlayer(13, you)).toBe(false);  // his Beetle at 1 (M5)
   });
 });

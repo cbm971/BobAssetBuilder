@@ -831,14 +831,20 @@ plus traps it does not cover:
   is invisible to its sibling, and that once crashed the game on a parry.
 - **Vehicles: the rules are `src/vehicle.js`** (pure, `vehicle.test.js`); the loop's 🚗 blocks wire
   them to the level. A placed car is drawn by the ordinary prop passes, untouched, until you get in
-  or a blast or a grenade's fire reaches it. Then it is a LIVE car in `vehLive` (keyed by the
-  level's runKey or id, cleared when play starts), drawn by `vehCarEl` and skipped by all three
-  placement passes (`vehIsLive`). A drivable car (size ≥ `VEHICLE_MIN_DRIVE_SIZE`, 8) is never a
-  solid object. At the wheel your body gets empty intent, your box is seated on the car every frame
+  or a blast or a grenade's fire reaches it. Then it is a LIVE car in `vehLive` (one bucket per
+  level, by runKey or id, cleared when play starts), drawn by `vehCarEl`. A car is keyed RUN-WIDE by
+  its uid (the level it was placed in, then the placement), because it can be driven out of its
+  level: `seamHandoff` moves every live car standing in the level being entered into that level's
+  bucket, re-based, and `vehWoken` (not the bucket) is what the three placement passes ask
+  (`vehIsLive`), so its placement back home stays empty. Its ground (`vehWorld`) asks
+  `worldParts`, as units do. A drivable car (`vehicleSeatsPlayer`: its placed art at least
+  `VEH_SEAT_FRAC` of your height) is never a solid object. At the wheel your body gets empty intent, your box is seated on the car every frame
   (`vehSeat`), and every hit on "player" meets the car instead (`hitBodyOf`, `applyHitTo`, the
   foe-shot test). Wheels are pieces flagged 🛞 `wheel`, turned about their tyre (`spinWheelPieces`,
   snapped to 15° so the art rebuilds rarely). On your car the 🪟 `driverWindow` piece becomes a
-  cutter, and your own Side head is drawn under it, cut off at the gun arm's shoulder.
+  cutter, and your own Side head is drawn under it, cut off at the gun arm's shoulder. With no
+  window, a 🪑 `driverSeat` piece is where you sit: your Side drawing from the hips up
+  (`vehRider`, cut where `identifyLimbs` puts the legs), at your own size, over the car.
 
 ## Blake's decisions — do not undo these
 
@@ -954,8 +960,11 @@ plus traps it does not cover:
   blasts land 4x and ignore Defense (`VEHICLE_WEAK_MULT`). At a quarter of its HP the 5 s fuse lights
   and nothing stops it; the bang is `detonate` (Defense, 🪖 and god mode count), 30 damage, and you
   are thrown out first. Driving is momentum: no control in the air, hills speed it up or slow it,
-  faster than a fast walker but not by much, and the level's edges are walls ("they largely get
-  stuck not too far in"). One Car engine sound (a loop pitched by speed), plus Car crash and Car
+  faster than a fast walker but not by much, and what is painted stops it ("they largely get stuck
+  not too far in"). A level's edge never does where you could walk on: a car drives across a seam
+  into the next level with you (2026-11-01, "Unnacceptible."), and only an edge with no level behind
+  it is a wall. You get in only if you fit sitting down (a car at least 0.6 of your height as placed);
+  an open car (a tractor) has a 🪑 seat, and you sit on it. One Car engine sound (a loop pitched by speed), plus Car crash and Car
   totaled. A unit that sees yours coming jumps it, or steps back behind it in its Front pose, or
   forward in front of it in its Back pose; units hit a car only while it is slow
   (`VEH_MELEE_MAX_SPEED`), and the car keeps your i-frames.
@@ -997,4 +1006,5 @@ Grep it for the function or feature name. In order, it covers:
 - the 👢 Stomp clothing ability (`headStomp`), with how it was driven in a real build;
 - the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.
 - the game front end: why it is one app at two addresses, the title before the bundle, where saves live;
-- and, last, the 🚗 vehicles: his 7 cars migrated, what was measured driving one, and the car's i-frames.
+- and, last, the 🚗 vehicles: his 7 cars migrated, what was measured driving one, and the car's i-frames;
+  then cars across seams, "a sitting player should fit", and Bob on the tractor seat.

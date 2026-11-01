@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, VEHICLE_MIN_DRIVE_SIZE, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, VEH_TURN_FRAMES, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, VEH_TURN_FRAMES, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -14194,8 +14194,12 @@ export default function AssetStudio({ game = false } = {}) {
   // plus its HP, dent, fuse and wreck — and the live-car pass draws it instead. Cleared when play
   // starts, like roomState, so a wreck never outlives the session.
   const vehLive = useRef({});
+  // ...and every placement that has come alive, run-wide, by its uid (the level it was placed in, then
+  // its placement): a car can be driven out of its level, so "this placement is a live car now" is no
+  // longer "it is in this level's books". Its placement is never drawn again, wherever the car went.
+  const vehWoken = useRef(new Set());
   const vehArtCache = useRef(new Map());                    // live car id -> its drawn art and what it was drawn from (the look, the wheel spin step, the box)
-  const vehHeadCache = useRef(null);                        // the driver's head: the player's Side blocks it was cut from, and the head's box
+  const vehHeadCache = useRef(null);                        // the driver as drawn in the car, per cut ("head" in a window, "seat" on an open car's seat): the player's Side blocks it was cut from, and the cut's box
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
   // 🎯 OBJECTIVES, across the whole run session (not a per-level roomState bucket — an objective
   // tracks progress ACROSS rooms, not any one room's own state): activeObjective holds the list up
@@ -15491,6 +15495,18 @@ export default function AssetStudio({ game = false } = {}) {
       for (const pr of projectiles.current) { pr.x += rx; pr.y += ry; if (pr.startX !== undefined) { pr.startX += rx; pr.startY += ry; pr.groundY += ry; } }
       for (const g of thrown.current) { g.x += rx; g.y += ry; }
       for (const b of booms.current) { b.x += rx; b.y += ry; }
+      // 🚗 THE CARS COME TOO. The car you are in, and every live car standing in the level you are
+      // entering (one parked across the seam, one that rolled over it), go into that level's books,
+      // re-based to its pixels, so the loop that takes over steps and draws them where they are. A car
+      // is keyed run-wide (its uid), so it is the same car in any level's books, and its placement back
+      // home stays empty (vehWoken).
+      { const nk = nb.level.runKey || nb.level.id || "level", into = vehLive.current[nk] || (vehLive.current[nk] = {});
+        for (const id of Object.keys(vehCars)) {
+          const car = vehCars[id], mx = car.x + car.w / 2 + rx, by = car.y + car.h + ry;
+          if (p.vehicle !== id && !(mx >= 0 && mx < nb.level.cols * CW && by > 0 && by <= nb.level.rows * CH + 1)) continue;
+          car.x += rx; car.y += ry; car.yL += ry; car.yR += ry;
+          delete vehCars[id]; into[id] = car;
+        } }
       carryKeys.current = keys.current;
       seamCarry.current = { dt: dtMul }; // truthy = "this re-run is a seam swap"; dt = the length of the step the new loop takes first (see lastT)
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
@@ -15514,7 +15530,7 @@ export default function AssetStudio({ game = false } = {}) {
       // React renders, commits and (a sync commit) runs the effect re-run before this returns, so the
       // swap is painted on this frame and the new loop's first frame is the very next one.
       flushSync(() => {
-        setDoorPrompt(null); setPedPrompt(null);
+        setDoorPrompt(null); setPedPrompt(null); setCarPrompt(null);
         setRunHud(runHudFor(runNow, nb));
         setLevel(nb.level);
       });
@@ -15834,9 +15850,11 @@ export default function AssetStudio({ game = false } = {}) {
       return true;
     };
     // 🚗 A CAR YOU CAN DRIVE IS NEVER A SOLID OBJECT: it moves, and its old footprint would stay a wall
-    // where it was parked (and the first thing the car itself drove into). A small one is a toy on a
-    // shelf (VEHICLE_MIN_DRIVE_SIZE) and keeps whatever Solid says.
-    const vehDrivable = (o) => !!o && o.kind === "prop" && (o.size || 1) >= VEHICLE_MIN_DRIVE_SIZE && (findA(o.propId) || {}).type === "vehicle";
+    // where it was parked (and the first thing the car itself drove into). One you cannot sit in — its
+    // art as placed (vehArtH, the height vehSpotRect gives it) shorter than you are sitting down
+    // (vehicleSeatsPlayer) — is a toy on a shelf and keeps whatever Solid says.
+    const vehArtH = (o, pa) => { const fp = levelObjectFootprint(o, pa); if (fp.box) return fp.rows * CH; const box = propVisibleArtBox(pa), sz = fp.cols * CW; return box.h * Math.min(sz / W, sz / H); };
+    const vehDrivable = (o) => { if (!o || o.kind !== "prop") return false; const pa = findA(o.propId); return !!pa && pa.type === "vehicle" && vehicleSeatsPlayer(vehArtH(o, pa), CH * PLAYER_H_CELLS); };
     // Precompute solid object footprints (a sized emoji can cover more than its anchor cell).
     // "In front of player" objects are a purely visual overlay (that's the whole point of the
     // 3-state model: Behind / In front / Same-layer-solid) — they must NEVER block movement,
@@ -15849,9 +15867,11 @@ export default function AssetStudio({ game = false } = {}) {
     // A car placed here stays exactly what the prop passes draw (his spot, size, flip, tilt and layer)
     // until something happens to it: you get in, or a blast or a grenade's fire reaches it. Then it
     // COMES ALIVE (vehWake): a car of its own in vehLive, which the live-car pass draws and the
-    // placement passes skip, and from there on the car's own numbers say where it is. A car only ever
-    // runs inside its own level — the level's edges are walls to it (vehWorld) — so it is never on
-    // the far side of a seam the live level has handed off.
+    // placement passes skip, and from there on the car's own numbers say where it is. A car drives the
+    // world you walk (2026-11-01, Blake on "the edges stop them": "Unnacceptible."): vehWorld asks every
+    // level across the open seams, so a level's edge is no wall to a car where it is none to you, and at
+    // the handoff the car goes into the next level's books with you (seamHandoff). It is keyed run-wide
+    // (uid: the level it was placed in, then the placement), so it is the same car two levels from home.
     const vehLvKey = lv.runKey || lv.id || "level";
     const vehCars = vehLive.current[vehLvKey] || (vehLive.current[vehLvKey] = {});
     let vehDriven = null;      // the car you are in this frame, or null
@@ -15868,9 +15888,9 @@ export default function AssetStudio({ game = false } = {}) {
       return { x: left + (sz - W * kk) / 2 + box.minX * kk, y: top + (sz - H * kk) / 2 + box.minY * kk, w: box.w * kk, h: box.h * kk, box };
     };
     const vehSpots = [];
-    for (const { k, si, o, ord } of levelObjectsInDrawOrder(lv.fx || {})) if (vehDrivable(o)) { const sp = { id: k + "_" + si, k, si, o, ord, pa: findA(o.propId) }; sp.R = vehSpotRect(sp); vehSpots.push(sp); }
+    for (const { k, si, o, ord } of levelObjectsInDrawOrder(lv.fx || {})) if (vehDrivable(o)) { const sp = { id: k + "_" + si, uid: vehLvKey + "|" + k + "_" + si, k, si, o, ord, pa: findA(o.propId) }; sp.R = vehSpotRect(sp); vehSpots.push(sp); }
     const vehWake = (sp) => {
-      if (vehCars[sp.id]) return vehCars[sp.id];
+      if (vehCars[sp.uid]) return vehCars[sp.uid]; // a live car (or a spot of one) is its own uid's car
       const R = sp.R, pa = sp.pa;
       // The placement's tilt (its ↺/↻) is the car's pitch from now on, turned about the BOTTOM MIDDLE
       // where a live car is drawn from (the wheels' line); the box moves so that point stays put.
@@ -15880,26 +15900,40 @@ export default function AssetStudio({ game = false } = {}) {
       const fr = wheelContactFracs(vehicleStatePieces(pa, "front"), R.box);
       const wl = flip ? 1 - fr.r : fr.l, wr = flip ? 1 - fr.l : fr.r;
       const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round(pa.hp || VEHICLE_DEFAULT_HP));
-      const car = { id: sp.id, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, dent: null, fuse: 0, dead: false, driven: false };
-      vehCars[sp.id] = car;
+      const car = { id: sp.uid, uid: sp.uid, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, dent: null, fuse: 0, dead: false, driven: false };
+      vehCars[sp.uid] = car; vehWoken.current.add(sp.uid);
       return car;
     };
     // THE CAR'S GROUND — vehicleStep's world, asked one column at a time (see its contract in
-    // src/vehicle.js). Solid is what the player stands on (a block, a solid object) and the floor of
-    // the level; a ramp is its surface (slopeSurfaceAt, so a ramp painted over a block is paint, as
-    // it is for you). A hill's own backing near the wheels is the hill, not a wall — the player's rule.
-    const vehSolid = (r, c) => c >= 0 && c < lv.cols && (r >= lv.rows || (r >= 0 && (fgSolid(lv.fg[cellKey(r, c)]) || fxBlocks(r, c))));
+    // src/vehicle.js). Solid is what the player stands on (a block, a solid object) in whichever level
+    // of the world the cell is in (worldParts, the one the units walk), so a car runs on over an open
+    // seam onto the neighbour's street as you walk onto it. Off every level, below or beside the world
+    // is rock and above it is sky — so a plain Playtest's edges, and an edge with no level behind it,
+    // stay the walls they are to you. The sewer under this level is the one place you go only at a
+    // gate, and so does a car: this level's floor opens only over its open bottom gate
+    // (seamGateLeaving). A ramp is its surface (slopeSurfaceAt, so a ramp painted over a block is
+    // paint, as it is for you). A hill's own backing near the wheels is the hill, not a wall — the
+    // player's rule. worldParts is set up below; these are only asked from inside a frame.
+    const vehSolid = (r, c) => {
+      const P = worldPartOfCell(worldParts, r, c);
+      if (!P) return !worldParts.some((Q) => c >= Q.dc && c < Q.dc + Q.lv.cols && r < Q.dr);
+      const lr = r - P.dr, lc = c - P.dc;
+      if (P.side === "S" && lr === 0 && !seamGateLeaving(lv, seams, "S", (c + 0.5) * CW, lv.rows * CH, LV_CELL)) return true;
+      return fgSolid(P.lv.fg[cellKey(lr, lc)]) || P.fxBlocks(lr, lc);
+    };
+    const vehSlopeAt = (x, r, c) => { const P = worldPartOfCell(worldParts, r, c); if (!P) return null; const sf = slopeSurfaceAt(P.lv, x - P.dc * CW, r - P.dr, r - P.dr, CW, CH); return sf ? { y: sf.y + P.dr * CH } : null; };
+    const vehHillCell = (r, c) => { const P = worldPartOfCell(worldParts, r, c); return !!P && isHillFormationCell(P.lv, r - P.dr, c - P.dc); };
     const vehWorld = {
       floorAt: (x, fromY, upSlope, upStep, down) => {
-        if (x < 0 || x >= lv.cols * CW) return { y: null, steep: false };
         const c = Math.floor(x / CW);
-        // A wheel that ended a frame inside a block (a long fall at the clamped dt) is lifted onto it.
+        // A wheel that ended a frame inside a block (a long fall at the clamped dt) is lifted onto it
+        // — at most a cell and a half, so two cells up is as far as it is worth looking.
         const rIn = Math.floor((fromY - 0.5) / CH);
-        if (vehSolid(rIn, c)) { let r = rIn; while (r > 0 && vehSolid(r - 1, c)) r--; if (fromY - r * CH <= CH * 1.5) return { y: r * CH, steep: false }; }
+        if (vehSolid(rIn, c)) { let r = rIn; for (let i = 0; i < 2 && vehSolid(r - 1, c); i++) r--; if (fromY - r * CH <= CH * 1.5) return { y: r * CH, steep: false }; }
         const hi = fromY + down, lo = fromY - Math.max(upSlope, upStep);
         let best = null, ramp = false, steep = false;
         for (let r = Math.floor(lo / CH) - 1; r <= Math.floor(hi / CH); r++) {
-          const sf = r >= 0 && r < lv.rows ? slopeSurfaceAt(lv, x, r, r, CW, CH) : null;
+          const sf = vehSlopeAt(x, r, c);
           if (sf) {
             if (sf.y >= fromY - upSlope - 0.01 && sf.y <= hi) { if (best == null || sf.y < best) best = sf.y; ramp = true; }
             else if (sf.y < fromY - upSlope && sf.y > fromY - upSlope - CH) steep = true;
@@ -15909,12 +15943,11 @@ export default function AssetStudio({ game = false } = {}) {
         return { y: best, steep: steep && !ramp };
       },
       wallAt: (x, fromY, upStep, wallH) => {
-        if (x < 0 || x >= lv.cols * CW) return true;
         const c = Math.floor(x / CW);
         const r1 = Math.floor((fromY - upStep - 0.5) / CH);
-        for (let r = Math.max(0, Math.floor((fromY - wallH) / CH)); r <= r1; r++) {
-          if (r >= lv.rows || !vehSolid(r, c)) continue;
-          if (r * CH >= fromY - CH * 2.5 && isHillFormationCell(lv, r, c)) continue;
+        for (let r = Math.floor((fromY - wallH) / CH); r <= r1; r++) {
+          if (!vehSolid(r, c)) continue;
+          if (r * CH >= fromY - CH * 2.5 && vehHillCell(r, c)) continue;
           return true;
         }
         return false;
@@ -15930,15 +15963,20 @@ export default function AssetStudio({ game = false } = {}) {
       const side = fromX == null ? null : vehicleSideFacing(car.face, car.x + car.w / 2, fromX);
       Object.assign(car, vehicleTakeHit(car, dmg, kind, side, kind === "crash"));
     };
+    // EVERY CAR THIS LEVEL HOLDS, one at a time to `fn(car, spot)` until it says stop: the live ones
+    // in its books (come alive here, or driven in from a neighbour), then the placements here not yet
+    // alive. A placement that came alive and was driven off is not here any more (vehWoken). Cars
+    // first, so a placement woken during the walk is not met twice.
+    const vehEach = (fn) => { for (const id in vehCars) if (fn(vehCars[id], null)) return true; for (const sp of vehSpots) if (!vehWoken.current.has(sp.uid) && fn(null, sp)) return true; return false; };
     // A blast reaches every car in its radius, parked or not, on any layer — a car behind the street
     // is still in the street's explosion. Called once per explosion (detonate, the first of a pair).
     const vehBlast = (ix, iy, radPx, dmg) => {
-      for (const sp of vehSpots) {
-        const car = vehCars[sp.id];
-        if (car && car.dead) continue;
+      vehEach((car, sp) => {
+        if (car && car.dead) return false;
         const R = car || sp.R;
-        if (blastHitsBox(ix, iy, R.x, R.y, R.w, R.h, radPx)) vehHurt(vehWake(sp), dmg, "blast", ix);
-      }
+        if (blastHitsBox(ix, iy, R.x, R.y, R.w, R.h, radPx)) vehHurt(car || vehWake(sp), dmg, "blast", ix);
+        return false;
+      });
     };
     // Where the driver sits: your box stood on the car's bottom, at its middle, facing its way. Held
     // there twice a frame (before anything looks at you, and after your own physics, which had no keys
@@ -15949,30 +15987,35 @@ export default function AssetStudio({ game = false } = {}) {
       p.vx = 0; p.vy = 0; p.onGround = true; p.climbing = false; p.climbKind = null; p.topdown = false; p.crouch = false; p.face = car.face;
       p.knock = null; p.walking = false; p.invuln = Math.max(p.invuln || 0, 2);
     };
-    // The driver's window, in level px (the Stock drawing's 🪟 block, mirrored with the car): where
-    // you get out, and where the prompt hangs. Null for a car with none flagged.
+    // The driver's window, in level px (the Stock drawing's 🪟 block, or an open car's 🪑 seat,
+    // mirrored with the car): where you get out. The car's middle for a car with neither flagged.
     const vehWindowX = (car) => {
-      const win = vehicleStatePieces(car.pa, "front").find((pc) => pc.driverWindow);
+      const stock = vehicleStatePieces(car.pa, "front"), win = stock.find((pc) => pc.driverWindow) || stock.find((pc) => pc.driverSeat);
       if (!win || !car.box) return car.x + car.w / 2;
       const sc = car.w / car.box.w, mid = (win.x + win.w / 2 - car.box.minX) * sc;
       return (car.face > 0) !== !!car.pa.facesRight ? car.x + car.w - mid : car.x + mid;
     };
-    // Out: on your feet at the driver's door, facing the car's way, your i-frames gone.
+    // Out: on your feet at the driver's door, facing the car's way, your i-frames gone. Anywhere in the
+    // world you could stand (inWorld: a car stopped across a seam lets you out on the far side, and the
+    // handoff takes you there); off it, back inside this level.
     const vehEject = (p, car, pw, ph) => {
       p.vehicle = null; car.driven = true;
-      p.x = Math.max(0, Math.min(lv.cols * CW - pw, vehWindowX(car) - pw / 2));
-      p.y = car.y + car.h - ph; p.vx = 0; p.vy = 0; p.onGround = false; p.face = car.face; p.invuln = 0;
+      const ex = vehWindowX(car) - pw / 2, ey = car.y + car.h - ph;
+      p.x = inWorld(ex + pw / 2, ey + ph / 2) ? ex : Math.max(0, Math.min(lv.cols * CW - pw, ex));
+      p.y = ey; p.vx = 0; p.vy = 0; p.onGround = false; p.face = car.face; p.invuln = 0;
     };
-    // The car you could get into from where you stand: your middle over it, your box touching it.
+    // The car you could get into from where you stand: your middle over it, your box touching it — the
+    // live car, or the placement not yet alive (vehWake takes either).
     const vehSpotAt = (x, y, pw, ph) => {
       const cx = x + pw / 2;
-      for (const sp of vehSpots) {
-        const car = vehCars[sp.id];
-        if (car && car.dead) continue;
+      let at = null;
+      vehEach((car, sp) => {
+        if (car && car.dead) return false;
         const R = car || sp.R;
-        if (cx >= R.x && cx <= R.x + R.w && boxesOverlap(x, y, pw, ph, R.x, R.y, R.w, R.h)) return sp;
-      }
-      return null;
+        if (cx >= R.x && cx <= R.x + R.w && boxesOverlap(x, y, pw, ph, R.x, R.y, R.w, R.h)) { at = car || sp; return true; }
+        return false;
+      });
+      return at;
     };
     // A CAR AT SPEED KNOCKS A BODY FLYING (vehicleRamDamage, through the body's own armour), and the
     // body dents the car's end (a crash). Not one that has stepped out of the way (ep.carDodge), nor
@@ -19670,9 +19713,8 @@ export default function AssetStudio({ game = false } = {}) {
       // default player — and what is left is the Destroyed wreck, smouldering. A car still parked only
       // catches from a grenade's fire (thrownFireKeys), so a level built with a burning barrel beside a
       // car does not blow the car up the moment it loads.
-      for (const sp of vehSpots) {
-        const car = vehCars[sp.id];
-        if (!car) { const d = hazardDpsAt(lv, sp.R.x, sp.R.y, sp.R.w, sp.R.h, CW, CH, (key) => thrownFireKeys.current.has(key) && hazardAlive(key)); if (d > 0) vehHurt(vehWake(sp), (d * dtMul) / 60, "fire", null); continue; }
+      for (const id in vehCars) {
+        const car = vehCars[id];
         if (car.dead) continue;
         const fd = hazardDpsAt(lv, car.x, car.y, car.w, car.h, CW, CH, hazardAlive);
         if (fd > 0) vehHurt(car, (fd * dtMul) / 60, "fire", null);
@@ -19686,6 +19728,13 @@ export default function AssetStudio({ game = false } = {}) {
         const boom = { explode: true, explodeRadius: VEHICLE_BOOM_RADIUS, damage: VEHICLE_BOOM_DAMAGE, explodePropId: car.pa.boomPropId || null, explodeSize: VEHICLE_BOOM_SIZE, explodeLife: 0.8 };
         detonate({ ...boom, foe: false, noSelf: true }, bx, by);
         detonate({ ...boom, foe: true, noBoom: true }, bx, by);
+      }
+      // ...then the placements here not yet alive — after the live cars, so one a grenade's fire wakes
+      // this frame is not burned twice in it.
+      for (const sp of vehSpots) {
+        if (vehWoken.current.has(sp.uid)) continue;
+        const d = hazardDpsAt(lv, sp.R.x, sp.R.y, sp.R.w, sp.R.h, CW, CH, (key) => thrownFireKeys.current.has(key) && hazardAlive(key));
+        if (d > 0) vehHurt(vehWake(sp), (d * dtMul) / 60, "fire", null);
       }
 
       // 🐱 EXTRA LIVES ON A UNIT — one central pass, for the very reason the loot roll below is
@@ -19993,8 +20042,8 @@ export default function AssetStudio({ game = false } = {}) {
         else if (carHere) { const car = vehWake(carHere); car.driven = true; p.vehicle = car.id; vehDriven = car; vehSeat(p, car); carHere = null; }
       }
       p.carWasE = !!RK.interact;
-      const carSig = carHere ? carHere.id : "";
-      if (carSig !== lastCarSig) { lastCarSig = carSig; const R = carHere ? vehCars[carHere.id] || carHere.R : null; setCarPrompt(R ? { x: R.x + R.w / 2, y: R.y } : null); }
+      const carSig = carHere ? carHere.uid : "";
+      if (carSig !== lastCarSig) { lastCarSig = carSig; const R = carHere ? carHere.R || carHere : null; setCarPrompt(R ? { x: R.x + R.w / 2, y: R.y } : null); }
 
       // Which connected Front sheet (if any) the player is currently tucked behind — asked of the
       // UNPADDED hitbox, because "am I inside this building" is a question about overlap, not about
@@ -22056,32 +22105,46 @@ export default function AssetStudio({ game = false } = {}) {
   // sticking out the window like real life." It is your OWN Side drawing — what you are wearing on
   // your head included — from the shoulders up, cut off at the shoulder line of your gun arm, sized
   // to the window, and drawn UNDER the car with the window cut out of the car, so the door and the
-  // roof frame it. A car with no window flagged (a tractor) has you sitting up out of it instead.
+  // roof frame it. An open car (a tractor: no 🪟 window, a 🪑 driverSeat) has you SITTING ON ITS SEAT
+  // (2026-11-01, Blake: "Bob should sit on the tractor seat should he not?"): your own Side drawing
+  // from the hips up — arms and all, the gun put away — at your own size, drawn over the car with
+  // your seat on the top of the seat block; the legs are what the seat and the bodywork hide. A car
+  // with neither has you sitting up out of its middle.
   const vehNk = (L) => (L && (L.runKey || L.id)) || "level";   // the loop's vehLvKey, for a level
-  const vehIsLive = (nk, k, si) => { const cars = vehLive.current[nk]; return !!(cars && cars[k + "_" + si]); };
-  const vehHead = () => {
+  const vehIsLive = (nk, k, si) => vehWoken.current.has(nk + "|" + k + "_" + si);
+  // The driver, cut from your Side blocks: `seated` false is the head (cut at the gun arm's shoulder,
+  // the arms left out), true the body from the hips up (cut where the legs start, identifyLimbs; the
+  // arms kept). `mx` is the x it is centred on: the head's middle, or the hips.
+  const vehRider = (seated) => {
     const blocks = livePlayerBlocks("side");
     if (!blocks || !blocks.length) return null;
-    const c = vehHeadCache.current;
-    if (c && c.blocks === blocks) return c.head;
-    const rig = armRig(armOf(blocks)), neckY = rig ? rig.shoulder.y : DEFAULT_SHOULDER.side.y;
+    const slot = seated ? "seat" : "head", c = vehHeadCache.current && vehHeadCache.current[slot];
+    if (c && c.blocks === blocks) return c.cut;
+    let cutY, hipX = null;
+    if (seated) {
+      const { legIds } = identifyLimbs(blocks);
+      const legs = blocks.filter((pc) => legIds.has(pc.id) && !pc._isShoe).map(pieceDrawnBounds);
+      cutY = legs.length ? Math.min(...legs.map((b) => b.y)) : H * 0.55;
+      if (legs.length) hipX = (Math.min(...legs.map((b) => b.x)) + Math.max(...legs.map((b) => b.x + b.w))) / 2;
+    } else { const rig = armRig(armOf(blocks)); cutY = rig ? rig.shoulder.y : DEFAULT_SHOULDER.side.y; }
     const keep = [];
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity;
     for (const pc of blocks) {
-      if (pc.isHitbox || pc.isMuzzle || pc._isWeapon || pc.role === "weaponArm" || pc.limb === "arm") continue;
+      if (pc.isHitbox || pc.isMuzzle || pc._isWeapon) continue;
+      if (!seated && (pc.role === "weaponArm" || pc.limb === "arm")) continue;
       const b = pieceDrawnBounds(pc);
-      if (b.y >= neckY) continue;
+      if (b.y >= cutY) continue;
       keep.push(pc);
       if (!pc.isCutter) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); }
     }
-    const head = keep.length && x1 > x0 && neckY > y0 ? { pieces: keep, x0, y0, x1, y1: neckY } : null;
-    vehHeadCache.current = { blocks, head };
-    return head;
+    const cut = keep.length && x1 > x0 && cutY > y0 ? { pieces: keep, x0, y0, x1, y1: cutY, mx: hipX ?? (x0 + x1) / 2 } : null;
+    vehHeadCache.current = { ...(vehHeadCache.current || {}), [slot]: { blocks, cut } };
+    return cut;
   };
-  // Your head on a 200x260 plane at scale `sc`, its neck at (cx, neck) in the car's own frame, clipped
-  // at the shoulder line (a few px of slack round the rest, for the outlines).
+  // The driver on a 200x260 plane at scale `sc`, the bottom of the cut (the neck, or the seat) at
+  // (cx, neck) in the car's own frame, clipped there (a few px of slack round the rest, for the outlines).
   const vehHeadEl = (hd, cx, neck, sc, mirror) => {
-    const mid = (hd.x0 + hd.x1) / 2, sl = 3;
+    const mid = hd.mx, sl = 3;
     return <div key="vhead" style={{ position: "absolute", left: cx - mid * sc, top: neck - hd.y1 * sc, width: W * sc, height: H * sc, pointerEvents: "none", clipPath: "inset(" + Math.max(0, hd.y0 * sc - sl) + "px " + Math.max(0, (W - hd.x1) * sc - sl) + "px " + (H - hd.y1) * sc + "px " + Math.max(0, hd.x0 * sc - sl) + "px)", transform: mirror ? "scaleX(-1)" : undefined, transformOrigin: mid * sc + "px 0" }}>
       {renderPieceRuns({ pieces: hd.pieces, cacheKey: "vehhead", keyPrefix: "vh", alphaOf: spriteAlphaOf(mergeEquip(findA(playerId), equipped.current, equippedBodyIdFor(findA(playerId))), null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
     </div>;
@@ -22111,15 +22174,17 @@ export default function AssetStudio({ game = false } = {}) {
     }
     let headUnder = null, headOver = null;
     if (mine) {
-      const hd = vehHead();
+      const flagged = (f) => vehicleStatePieces(pa, st).find((pc) => pc[f]) || vehicleStatePieces(pa, "front").find((pc) => pc[f]);
+      const win = flagged("driverWindow"), seat = win ? null : flagged("driverSeat");
+      const hd = vehRider(!!seat);
       if (hd) {
-        const win = vehicleStatePieces(pa, st).find((pc) => pc.driverWindow) || vehicleStatePieces(pa, "front").find((pc) => pc.driverWindow);
         const ns = (LV_CELL * PLAYER_H_CELLS) / H, hb = hd.y1 - hd.y0;
         const mirror = !!pa.facesRight !== playerArtFacesRight(findA(playerId));
         if (win) {
           const wx = (win.x - box.minX) * sc, wy = (win.y - box.minY) * sc, ww = win.w * sc, wh = win.h * sc;
           headUnder = vehHeadEl(hd, wx + ww / 2, wy + wh * 1.08, Math.min(wh * 0.95, hb * ns) / hb, mirror);
-        } else headOver = vehHeadEl(hd, car.w / 2, car.h * 0.3, ns, mirror);
+        } else if (seat) headOver = vehHeadEl(hd, (seat.x + seat.w / 2 - box.minX) * sc, (seat.y - box.minY) * sc, ns, mirror);
+        else headOver = vehHeadEl(hd, car.w / 2, car.h * 0.3, ns, mirror);
       }
     }
     let fx = null;
@@ -24712,7 +24777,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -30506,9 +30571,11 @@ export default function AssetStudio({ game = false } = {}) {
               {!effEdit && asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot) && <label className="chk"><input type="checkbox" checked={!!sel.overArms} onChange={(e) => updSelAll({ overArms: e.target.checked })} /> Over arms only </label>}
               {/* A VEHICLE'S BLOCKS (2026-10-31). 🛞 spins about the middle of the biggest wheel block it sits
                   in (wheelHubs), so a tyre, its hubcap and its lug nuts are all flagged and turn as one;
-                  🪟 is where the driver's head shows; 🔥 marks where the fire sits in Imminent explosion. */}
+                  🪟 is where the driver's head shows; 🪑 is an open car's seat, where the driver sits when
+                  there is no window; 🔥 marks where the fire sits in Imminent explosion. */}
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.wheel} onChange={(e) => updSelAll({ wheel: e.target.checked || undefined })} /> 🛞 Wheel</label>}
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.driverWindow} onChange={(e) => updSelAll({ driverWindow: e.target.checked || undefined })} /> 🪟 Driver window</label>}
+              {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.driverSeat} onChange={(e) => updSelAll({ driverSeat: e.target.checked || undefined })} /> 🪑 Driver seat</label>}
               {!effEdit && asset.type === "vehicle" && angle === "burning" && <label className="chk"><input type="checkbox" checked={!!sel.isHoodFire} onChange={(e) => updSelAll({ isHoodFire: e.target.checked || undefined })} /> 🔥 Hood fire</label>}
               {(sel.role === "weaponArm" || sel.limb === "arm") && (<>
                 <div className="ct2">Shoulder side 🫱</div>

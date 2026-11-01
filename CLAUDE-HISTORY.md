@@ -5665,4 +5665,33 @@ with "no control in mid air", units that jump or step aside and attack a slow ca
   squash, the wheels turning on screen, the three sounds (tests run muted), hills, and his other six
   cars. Known limits: a car never leaves its level; under size 8 a car is a toy (M5's size-1 Beetle,
   M13's size-4 Tractor); the Tractor has no window, so you sit up out of it; your own bullets pass a
-  parked car (a blast or fire wakes it).
+  parked car (a blast or fire wakes it). The first three were answered the next day, below.
+
+### Cars cross seams; who fits; the tractor seat (2026-11-01)
+
+Blake, on the known limits: "'Cars can't leave their level; the edges stop them.' Unnacceptible."
+Then, on the size-8 rule: "a sitting player should fit right?", and "Bob should sit on the tractor
+seat should he not?"
+
+- **A car drives the world you walk.** Its ground asks every level across the open seams
+  (`worldParts`, which the units already used), so a car runs on across a seam wherever you could
+  walk across. At the handoff the car you are in, and any live car standing in the level being
+  entered, move into that level's books, re-based. A car is keyed run-wide (the level it was placed
+  in, then the placement), so it is the same car two levels from home, and a set of woken placements
+  keeps its old spot empty. Plain Playtest edges, and edges with no level behind them, are still
+  walls. The sewer is still entered only through its open gate. Measured on run 459584, muted, god
+  mode: his size-12 Beetle drove east out of S1, through M16 and into M8 (two seams, keeping its
+  dents). His M7 Mustang drove west into M8. A plain Playtest of M13 stopped his Pickup at x 0 with
+  a front dent, as before.
+- **Size 8 was a number I made up; the rule is now "you fit sitting down."** Bob from the top of his
+  head to his seat measured 127 of his 210 px, so a car whose art stands at least 0.6 of your height
+  as placed seats you (`vehicleSeatsPlayer`). 11 of his 13 placed cars (all of those at size 12 or
+  more) seat you. The size-1 Beetle in M5 and the size-4 Tractor in M13 are still toys. The smallest size each car seats
+  you at (the placement's own size number): Tractor 7, Army Truck 9, Beetle 10, Pickup 12, Station
+  Wagon 12, Mustang 14, School Bus 14. His levels were left as they are.
+- **🪑 Driver seat** is a new flag on a vehicle's blocks, beside 🛞 and 🪟. With no window, you sit on
+  the seat: your own Side drawing from the hips up (where the legs start), arms kept and gun put
+  away, at your own size, over the car, facing its front. The seat and the bodywork stand in for your
+  legs. His Tractor's seat pan is flagged in all five looks (same id, newer savedAt, both library
+  files). Measured on a size-10 Tractor: Bob sat on the pan over the rear fender. A parked Tractor
+  with you in it was beaten to a wreck by M16's units in about half a minute.

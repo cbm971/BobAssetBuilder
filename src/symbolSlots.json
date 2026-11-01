@@ -178,6 +178,7 @@
   { "k": "🔒", "l": "Locked", "g": "Art editor", "d": "mdi:lock" },
   { "k": "🎞", "l": "Frame", "g": "Art editor", "d": "mdi:filmstrip" },
   { "k": "🛞", "l": "Wheel", "g": "Art editor", "d": "gi:car-wheel" },
+  { "k": "🪑", "l": "Driver seat", "g": "Art editor", "d": "gi:car-seat" },
   { "k": "🏷", "l": "Categories", "g": "Art editor", "d": "mdi:tag" },
   { "k": "❓", "l": "Unknown", "g": "Art editor", "d": "mdi:help" },
 

@@ -417470,7 +417470,8 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "driverSeat": true
       },
       {
        "id": "jwstkig",
@@ -419388,7 +419389,8 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "driverSeat": true
       },
       {
        "id": "3dvcukf",
@@ -420912,7 +420914,8 @@
          0,
          1
         ]
-       ]
+       ],
+       "driverSeat": true
       },
       {
        "id": "vrbh5ui",
@@ -422923,7 +422926,8 @@
          0,
          1
         ]
-       ]
+       ],
+       "driverSeat": true
       },
       {
        "id": "po1s4ps",
@@ -424945,7 +424949,8 @@
          0,
          1
         ]
-       ]
+       ],
+       "driverSeat": true
       },
       {
        "id": "s8ldk26",
@@ -426107,7 +426112,7 @@
      ]
     }
    ],
-   "savedAt": 1793494167841,
+   "savedAt": 1793525316533,
    "editedFrom": 1792356096570,
    "hp": 220,
    "defense": 14,

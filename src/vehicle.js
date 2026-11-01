@@ -16,7 +16,8 @@
  * frame whose poses are the five states: frames[0].front is Stock (and is what the footprint is
  * measured from, so a dented car never changes size in a level), then frontDamage, rearDamage,
  * burning and destroyed. A state left empty draws Stock. Pieces may carry `wheel` (spins about the
- * middle of the biggest wheel piece it sits in), `driverWindow` (where the driver's head shows) and
+ * middle of the biggest wheel piece it sits in), `driverWindow` (where the driver's head shows),
+ * `driverSeat` (an open car's seat, where the driver sits when there is no window) and
  * `isHoodFire` (a marker in the burning pose: where the fire prop sits; never drawn in play).
  * Placements stay `{ kind: "prop", propId }`, so every car already placed in a level is a car.
  */
@@ -25,9 +26,12 @@ export const VEHICLE_STATES = ["front", "frontDamage", "rearDamage", "burning", 
 export const VEHICLE_STATE_LABEL = { front: "Stock", frontDamage: "Front damage", rearDamage: "Rear damage", burning: "Imminent explosion", destroyed: "Destroyed" };
 export const VEHICLE_DEFAULT_HP = 150;
 export const VEHICLE_DEFAULT_DEFENSE = 10;
-// A placement smaller than this many cells is a toy on a shelf (his Beetle at size 1 on M5, the
-// Tractor at 4 on M13): it stays scenery, nothing gets in it.
-export const VEHICLE_MIN_DRIVE_SIZE = 8;
+// A CAR IS FOR SITTING IN (2026-11-01, Blake: "a sitting player should fit right?"). Whether you can
+// get in is not a size number but the car's own height as placed, against yours sitting down: Bob
+// from the top of his head to his seat is 0.6 of his standing height. A car shorter than that is a
+// toy on a shelf (his size-1 Beetle on M5, the size-4 Tractor on M13): scenery, nothing gets in it.
+export const VEH_SEAT_FRAC = 0.6;
+export const vehicleSeatsPlayer = (carH, playerH) => carH >= playerH * VEH_SEAT_FRAC - 0.5;
 
 // ── Damage ──────────────────────────────────────────────────────────────────────────────────
 // "Super weak to fire and explosion damage": both land four times over, and armour does nothing
