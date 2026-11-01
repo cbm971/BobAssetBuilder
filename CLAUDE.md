@@ -843,7 +843,7 @@ plus traps it does not cover:
   bucket, re-based, and `vehWoken` (not the bucket) is what the three placement passes ask
   (`vehIsLive`), so its placement back home stays empty. Its ground (`vehWorld`) asks
   `worldParts`, as units do. A drivable car (`vehicleSeatsPlayer`: its placed art at least
-  `VEH_SEAT_FRAC` of your height) is never a solid object. At the wheel your body gets empty intent, your box is seated on the car every frame
+  `VEH_SEAT_FRAC` of your height) is never a solid object; one placed with Solid ticked is parked scenery (`vehicleDrivable`), solid and never got into. At the wheel your body gets empty intent, your box is seated on the car every frame
   (`vehSeat`), and every hit on "player" meets the car instead (`hitBodyOf`, `applyHitTo`, the
   foe-shot test). Wheels are pieces flagged 🛞 `wheel`, turned about their tyre (`spinWheelPieces`,
   snapped to 15° so the art rebuilds rarely). On your car the 🪟 `driverWindow` piece becomes a
@@ -852,8 +852,8 @@ plus traps it does not cover:
   (`vehRider`, cut where `identifyLimbs` puts the legs), at your own size, over the car.
   A car whose two ends differ is two clipped copies of its art split at the editor's centre line
   (`vehicleHalvesOf`); the 🔥 is drawn from the marker's own box (`hoodFireBox`).
-  Passengers: pieces flagged 🪟 `passengerWindow` / 🪑 `passengerSeat` (a cutter window counts) are
-  places for your human allies (`vehiclePassengerSpots`, nearest the driver first). While you drive,
+  Passengers: no flags (Blake took the 🪟/🪑 Passenger checkboxes out, 2026-11-01): every car seats
+  `VEH_PASSENGER_SEATS` human allies beside the driver, each `VEH_PASSENGER_STEP` further back. While you drive,
   each free place goes to the nearest ally that is not a creature; it drops its fight, follows you,
   and gets in when `followerCanBoard`. A rider lives on `ep.ride = { car: uid, seat }` (the ep moves
   with the unit at a handoff, its key does not), is pinned to its place with i-frames, skipped by

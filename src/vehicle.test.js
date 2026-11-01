@@ -5,7 +5,7 @@ import {
   autoVehicleDamage, isGlassColor,
   vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, vehicleCrashDamage,
   carBearsDown, vehicleDodgeKind, vehicleDodgeChance,
-  VEH_SEAT_FRAC, vehicleSeatsPlayer, vehiclePassengerSpots, isPassengerSpot, followerCanBoard, VEH_BOARD_MAX_SPEED, vehicleSpeedOf, vehiclePower, vehicleHalveHpOnce, VEHICLE_DEFAULT_HP } from "./vehicle";
+  VEH_SEAT_FRAC, vehicleSeatsPlayer, vehicleDrivable, vehiclePassengerOffsets, VEH_PASSENGER_SEATS, followerCanBoard, VEH_BOARD_MAX_SPEED, vehicleSpeedOf, vehiclePower, vehicleHalveHpOnce, VEHICLE_DEFAULT_HP } from "./vehicle";
 
 const CAR = [
   { id: "body", kind: "rect", x: 20, y: 120, w: 160, h: 40, color: "#c43c3c" },
@@ -346,23 +346,22 @@ describe("who fits in a car", () => {
     expect(vehicleSeatsPlayer(80, you)).toBe(false);  // his Tractor at 4 (M13)
     expect(vehicleSeatsPlayer(13, you)).toBe(false);  // his Beetle at 1 (M5)
   });
+  test("a car placed Solid is parked scenery: never got into (the M17 stunt bus)", () => {
+    const you = 210, bus = { type: "vehicle" }, at = { kind: "prop", propId: "schbus6", size: 30 };
+    expect(vehicleDrivable(at, bus, 270, you)).toBe(true);
+    expect(vehicleDrivable({ ...at, solid: true }, bus, 270, you)).toBe(false);
+    expect(vehicleDrivable(at, { type: "prop" }, 270, you)).toBe(false);
+    expect(vehicleDrivable(at, bus, 80, you)).toBe(false);
+  });
 });
 
 // "passenger seats so your human NPC followers can try to get in vehichles with you" (Blake, 2026-11-01).
 describe("passenger places", () => {
-  const jeep = [
-    { id: "body", kind: "rect", x: 20, y: 120, w: 160, h: 40, color: "#556b2f" },
-    { id: "bed", kind: "rect", x: 25, y: 110, w: 50, h: 10, color: "#556b2f", passengerSeat: true },
-    { id: "pwin", kind: "rect", x: 100, y: 90, w: 20, h: 20, color: "#5a8fd8", passengerWindow: true },
-    { id: "dwin", kind: "rect", x: 120, y: 90, w: 20, h: 20, color: "#5a8fd8", driverWindow: true },
-  ];
-  test("the one nearest the driver is taken first, then the bed", () => {
-    expect(vehiclePassengerSpots(jeep).map((p) => p.id)).toEqual(["pwin", "bed"]);
-    expect(vehiclePassengerSpots([...jeep].reverse()).map((p) => p.id)).toEqual(["pwin", "bed"]);
-  });
-  test("a car with none flagged has no passengers; a window drawn as a cutter still is one", () => {
-    expect(vehiclePassengerSpots(CAR)).toEqual([]);
-    expect(isPassengerSpot({ passengerWindow: true, isCutter: true })).toBe(true);
+  test("every car seats its passengers beside the driver, each a step further back", () => {
+    const offs = vehiclePassengerOffsets();
+    expect(offs).toHaveLength(VEH_PASSENGER_SEATS);
+    expect(offs[0]).toBeGreaterThan(0);
+    expect(offs[1]).toBeGreaterThan(offs[0]);
   });
   test("a follower gets in beside a stopped car, never a moving one", () => {
     const car = { x: 100, y: 200, w: 300, h: 120, vx: 0 };

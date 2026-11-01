@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, vehicleHalveHpOnce, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleSpeedOf, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, vehicleHalveHpOnce, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, vehicleDrivable, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleSpeedOf, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerOffsets, followerCanBoard } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -15880,9 +15880,10 @@ export default function AssetStudio({ game = false } = {}) {
     // 🚗 A CAR YOU CAN DRIVE IS NEVER A SOLID OBJECT: it moves, and its old footprint would stay a wall
     // where it was parked (and the first thing the car itself drove into). One you cannot sit in — its
     // art as placed (vehArtH, the height vehSpotRect gives it) shorter than you are sitting down
-    // (vehicleSeatsPlayer) — is a toy on a shelf and keeps whatever Solid says.
+    // (vehicleSeatsPlayer) — is a toy on a shelf and keeps whatever Solid says. A car placed WITH Solid
+    // ticked is parked scenery (vehicleDrivable): solid, and never got into.
     const vehArtH = (o, pa) => { const fp = levelObjectFootprint(o, pa); if (fp.box) return fp.rows * CH; const box = propVisibleArtBox(pa), sz = fp.cols * CW; return box.h * Math.min(sz / W, sz / H); };
-    const vehDrivable = (o) => { if (!o || o.kind !== "prop") return false; const pa = findA(o.propId); return !!pa && pa.type === "vehicle" && vehicleSeatsPlayer(vehArtH(o, pa), CH * PLAYER_H_CELLS); };
+    const vehDrivable = (o) => { if (!o || o.kind !== "prop" || o.solid) return false; const pa = findA(o.propId); return vehicleDrivable(o, pa, pa ? vehArtH(o, pa) : 0, CH * PLAYER_H_CELLS); };
     // Precompute solid object footprints (a sized emoji can cover more than its anchor cell).
     // "In front of player" objects are a purely visual overlay (that's the whole point of the
     // 3-state model: Behind / In front / Same-layer-solid) — they must NEVER block movement,
@@ -16033,13 +16034,13 @@ export default function AssetStudio({ game = false } = {}) {
       const sc = car.w / car.box.w, mid = (win.x + win.w / 2 - car.box.minX) * sc;
       return (car.face > 0) !== !!car.pa.facesRight ? car.x + car.w - mid : car.x + mid;
     };
-    // 🧍 A CAR'S PASSENGER PLACES (vehiclePassengerSpots: his 🪟 Passenger window / 🪑 Passenger seat
-    // pieces in Stock, the one nearest the driver first), each as the level x a rider sits at, mirrored
-    // with the car the way vehWindowX is.
+    // 🧍 A CAR'S PASSENGER PLACES: beside the driver (vehWindowX), each a step further toward the back
+    // of the car (vehiclePassengerOffsets), as the level x a rider sits at. The back is behind the way
+    // the car faces.
     const vehPassengerXs = (car) => {
       if (!car.box) return [];
-      const sc = car.w / car.box.w, flip = (car.face > 0) !== !!car.pa.facesRight;
-      return vehiclePassengerSpots(vehicleStatePieces(car.pa, "front")).map((pc) => { const mid = (pc.x + pc.w / 2 - car.box.minX) * sc; return flip ? car.x + car.w - mid : car.x + mid; });
+      const sc = car.w / car.box.w, dx = vehWindowX(car);
+      return vehiclePassengerOffsets().map((o) => dx - car.face * o * sc);
     };
     // Out: on your feet at the driver's door, facing the car's way, your i-frames gone. Anywhere in the
     // world you could stand (inWorld: a car stopped across a seam lets you out on the far side, and the
@@ -22297,17 +22298,14 @@ export default function AssetStudio({ game = false } = {}) {
     const artFlip = (face > 0) !== !!pa.facesRight;
     const box = car.box, sc = Math.min(car.w / box.w, car.h / box.h);
     const step = spinStepOf(car.spin || 0), key = "veh" + nk + "|" + car.id;
-    // 🧍 Who rides with you (car.riders, set by the loop): an occupied 🪟 Passenger window is cut out
-    // like yours, so their head shows through it.
+    // 🧍 Who rides with you (car.riders, set by the loop), drawn beside you in your window.
     const riders = mine && car.riders && car.riders.length ? [...car.riders].sort((a, b) => b.seat - a.seat) : null;
-    const rideSet = riders ? new Set(riders.map((r) => r.seat)) : null;
-    const sig = halves.front + "/" + halves.rear + "|" + step + "|" + (mine ? 1 : 0) + "|" + (artFlip ? 1 : 0) + "|" + (riders ? [...rideSet].sort().join(",") : "");
+    const sig = halves.front + "/" + halves.rear + "|" + step + "|" + (mine ? 1 : 0) + "|" + (artFlip ? 1 : 0);
     let hit = vehArtCache.current.get(key);
     if (!hit || hit.sig !== sig || hit.pa !== pa || hit.w !== car.w || hit.h !== car.h || hit.texLib !== texLib) {
       const art = (look, k) => {
         let pieces = spinWheelPieces(vehicleStatePieces(pa, look), step);
         if (mine) pieces = pieces.map((pc) => (pc.driverWindow ? { ...pc, isCutter: true } : pc));
-        if (rideSet) { const spots = vehiclePassengerSpots(pieces); pieces = pieces.map((pc) => { const i = spots.indexOf(pc); return i >= 0 && rideSet.has(i) && pc.passengerWindow ? { ...pc, isCutter: true } : pc; }); }
         return propArtInner({ ...pa, frames: [{ front: pieces }], angles: null }, car.w, car.h, 0, k, box, undefined, artFlip);
       };
       let el;
@@ -22343,20 +22341,21 @@ export default function AssetStudio({ game = false } = {}) {
         else headOver = vehHeadEl(hd, car.w / 2, car.h * 0.3, ns, mirror);
       }
     }
-    // 🧍 The passengers, behind the car's own pieces and behind you: in a 🪟 Passenger window a head,
-    // at their own size, placed the way yours is in your window; on a 🪑 Passenger seat (a truck's bed)
-    // from the hips up, sitting on the top of the piece.
+    // 🧍 The passengers, behind the car's own pieces and behind you: beside you where you sit (your
+    // 🪟 window or 🪑 seat), each a step further toward the back (vehiclePassengerOffsets), at their own
+    // size and placed the way you are: a head in the window, from the hips up on a seat.
     let ridersEl = null;
     if (riders) {
-      const spots = vehiclePassengerSpots(vehicleStatePieces(pa, "front"));
+      const stock = vehicleStatePieces(pa, "front"), spot = stock.find((pc) => pc.driverWindow) || stock.find((pc) => pc.driverSeat);
+      const offs = vehiclePassengerOffsets(), back = pa.facesRight ? -1 : 1; // the art's own frame: its nose is right when it faces right
       ridersEl = riders.map((r) => {
-        const spot = spots[r.seat]; if (!spot || !r.ea) return null;
-        const win = !!spot.passengerWindow, hd = vehUnitRider(r.ea, !win);
+        if (!r.ea || offs[r.seat] == null) return null;
+        const win = !spot || !!spot.driverWindow, hd = vehUnitRider(r.ea, !win);
         if (!hd) return null;
         const us = enemyStandH(r.ea, LV_CELL) / H, mirror = !!pa.facesRight !== enemyArtFacesRight(r.ea);
-        const sx = (spot.x - box.minX) * sc, sy = (spot.y - box.minY) * sc, sw = spot.w * sc, sh = spot.h * sc;
-        const neck = win ? Math.max(sy + sh * 1.08, sy + sh * 0.06 + (hd.y1 - hd.y0) * us) : sy;
-        return vehHeadEl(hd, sx + sw / 2, neck, us, mirror, "vride" + r.seat, spriteAlphaOf(r.ea, null), "vehride" + r.seat + "|" + r.ea.id);
+        const sx = spot ? (spot.x - box.minX) * sc : car.w / 2 - 1, sy = spot ? (spot.y - box.minY) * sc : car.h * 0.3, sw = spot ? spot.w * sc : 2, sh = spot ? spot.h * sc : 0;
+        const neck = !spot ? sy : win ? Math.max(sy + sh * 1.08, sy + sh * 0.06 + (hd.y1 - hd.y0) * us) : sy;
+        return vehHeadEl(hd, sx + sw / 2 + back * offs[r.seat] * sc, neck, us, mirror, "vride" + r.seat, spriteAlphaOf(r.ea, null), "vehride" + r.seat + "|" + r.ea.id);
       });
     }
     let fx = null;
@@ -30755,8 +30754,6 @@ export default function AssetStudio({ game = false } = {}) {
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.wheel} onChange={(e) => updSelAll({ wheel: e.target.checked || undefined })} /> 🛞 Wheel</label>}
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.driverWindow} onChange={(e) => updSelAll({ driverWindow: e.target.checked || undefined })} /> 🪟 Driver window</label>}
               {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.driverSeat} onChange={(e) => updSelAll({ driverSeat: e.target.checked || undefined })} /> 🪑 Driver seat</label>}
-              {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.passengerWindow} onChange={(e) => updSelAll({ passengerWindow: e.target.checked || undefined })} /> 🪟 Passenger window</label>}
-              {!effEdit && asset.type === "vehicle" && <label className="chk"><input type="checkbox" checked={!!sel.passengerSeat} onChange={(e) => updSelAll({ passengerSeat: e.target.checked || undefined })} /> 🪑 Passenger seat</label>}
               {!effEdit && asset.type === "vehicle" && angle === "burning" && <label className="chk"><input type="checkbox" checked={!!sel.isHoodFire} onChange={(e) => updSelAll({ isHoodFire: e.target.checked || undefined })} /> 🔥 Hood fire</label>}
               {(sel.role === "weaponArm" || sel.limb === "arm") && (<>
                 <div className="ct2">Shoulder side 🫱</div>

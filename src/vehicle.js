@@ -42,6 +42,11 @@ export const VEHICLE_DEFAULT_DEFENSE = 10;
 // toy on a shelf (his size-1 Beetle on M5, the size-4 Tractor on M13): scenery, nothing gets in it.
 export const VEH_SEAT_FRAC = 0.6;
 export const vehicleSeatsPlayer = (carH, playerH) => carH >= playerH * VEH_SEAT_FRAC - 0.5;
+// A placed car you can get in. One placed with Solid ticked is PARKED SCENERY: a wall and a floor
+// (the bus you jump on Trailor Park M17, Blake 2026-11-01: "the bus should be solid"), never entered.
+// A drivable car cannot be solid, since its parked footprint would stay a wall once it drove off.
+export const vehicleDrivable = (o, pa, carH, playerH) =>
+  !!o && o.kind === "prop" && !o.solid && !!pa && pa.type === "vehicle" && vehicleSeatsPlayer(carH, playerH);
 
 // ── Damage ──────────────────────────────────────────────────────────────────────────────────
 // "Super weak to fire and explosion damage": fire lands four times over, a blast twelve (Blake
@@ -600,24 +605,15 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
 };
 
 // ── Passengers ──────────────────────────────────────────────────────────────────────────────
-// Blake, 2026-11-01: "add the option to add passenger seats so your human NPC followers can try to
-// get in vehichles with you ... most very slightly staggered behind the driver but with the army
-// jeep i may make one in the bed in case you have 2 followers". A passenger's place is a piece he
-// flags the way the driver's is: 🪟 `passengerWindow` (their head shows in it, the window cut out
-// while somebody sits there, like the driver's) or 🪑 `passengerSeat` (an open seat or a truck bed:
-// they sit on the top of the piece, from the hips up). Both are drawn just behind the car's own
-// pieces, so a door or a bed's side hides what it should, and behind the driver.
-// A window he drew as a see-through cutter (his Beetle's are) is a window all the same.
-export const isPassengerSpot = (p) => !!(p && (p.passengerWindow || p.passengerSeat));
-// The passenger places of a piece list, the one nearest the driver first: the first follower to
-// reach the car takes the seat beside you, the second the one behind it (the bed).
-export const vehiclePassengerSpots = (pieces) => {
-  const list = (pieces || []).map((p, i) => ({ p, i })).filter(({ p }) => isPassengerSpot(p));
-  const drv = (pieces || []).find((p) => p && p.driverWindow) || (pieces || []).find((p) => p && p.driverSeat);
-  const dx = drv ? drv.x + drv.w / 2 : null;
-  const gap = (p) => (dx == null ? 0 : Math.abs(p.x + p.w / 2 - dx));
-  return list.sort((a, b) => gap(a.p) - gap(b.p) || a.i - b.i).map(({ p }) => p);
-};
+// Blake, 2026-11-01: "passenger seats so your human NPC followers can try to get in vehichles with
+// you", then, the same day: "we don't need the passenger seat thing ... just put the passenger beside
+// the driver. Get rid of that checkbox". So no piece is flagged for it any more: every car seats
+// VEH_PASSENGER_SEATS riders where the driver sits (the 🪟 Driver window, else the 🪑 Driver seat),
+// each one a step further toward the back, drawn behind the driver and behind the car's pieces.
+export const VEH_PASSENGER_SEATS = 2;
+export const VEH_PASSENGER_STEP = 10; // canvas units toward the back per seat, about two thirds of a head
+// How far toward the car's back each passenger sits from the driver, in canvas units, seat 0 first.
+export const vehiclePassengerOffsets = () => Array.from({ length: VEH_PASSENGER_SEATS }, (_, i) => (i + 1) * VEH_PASSENGER_STEP);
 // A follower gets in when it is beside the car (its middle within the car's length), its feet near
 // the car's bottom, and the car going no faster than this (px/frame): nobody jumps into a moving car.
 export const VEH_BOARD_MAX_SPEED = 2;
