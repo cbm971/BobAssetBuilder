@@ -15967,6 +15967,14 @@ export default function AssetStudio({ game = false } = {}) {
         }
         return false;
       },
+      groundTop: (x, y) => {
+        const c = Math.floor(x / CW);
+        let r = Math.floor((y - 0.5) / CH);
+        if (!vehSolid(r, c)) return null;
+        for (let i = 0; i < 64 && vehSolid(r - 1, c); i++) r--;
+        const sf = vehSlopeAt(x, r - 1, c);
+        return sf ? sf.y : r * CH;
+      },
     };
     // A HIT ON A CAR (vehicleTakeHit): fire and a blast land four times over and through any armour,
     // a plain blow through its Defense on the curve a body's armour is on (applyDefense). `fromX` is
@@ -22231,8 +22239,11 @@ export default function AssetStudio({ game = false } = {}) {
         const ns = (LV_CELL * PLAYER_H_CELLS) / H, hb = hd.y1 - hd.y0;
         const mirror = !!pa.facesRight !== playerArtFacesRight(findA(playerId));
         if (win) {
+          // Your own size, always (2026-11-01, Blake: "I don't like how the player shrinks in the
+          // beetle"): it was squeezed to fit the window, and the Beetle's is a slot. Now a window too
+          // short for you has the top of your head just under its top and the rest behind the door.
           const wx = (win.x - box.minX) * sc, wy = (win.y - box.minY) * sc, ww = win.w * sc, wh = win.h * sc;
-          headUnder = vehHeadEl(hd, wx + ww / 2, wy + wh * 1.08, Math.min(wh * 0.95, hb * ns) / hb, mirror);
+          headUnder = vehHeadEl(hd, wx + ww / 2, Math.max(wy + wh * 1.08, wy + wh * 0.06 + hb * ns), ns, mirror);
         } else if (seat) headOver = vehHeadEl(hd, (seat.x + seat.w / 2 - box.minX) * sc, (seat.y - box.minY) * sc, ns, mirror);
         else headOver = vehHeadEl(hd, car.w / 2, car.h * 0.3, ns, mirror);
       }

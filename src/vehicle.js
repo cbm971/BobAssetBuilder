@@ -441,6 +441,8 @@ export const vehicleLandingDamage = (vy) => (vy >= VEH_HARD_LANDING ? Math.round
 //   wallAt(x, fromY, upStep, wallH) -> bool: solid standing across the body's height, from upStep
 //     to wallH above fromY. A hill's own backing is not a wall (its ramp is the floor), and the
 //     level's edge is one.
+//   groundTop(x, y) -> y | null (optional): when the point just above y is INSIDE solid ground, the
+//     surface of that ground above it (the first open cell's floor, or the ramp in it); else null.
 // Returns what happened: { crash, landed, turned, dist } — the impact speed and end, the fall
 // speed, a turn, and how far it rolled.
 export const vehicleStep = (v, ctl, world, dt = 1) => {
@@ -471,29 +473,38 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   const xl = nx + v.wl * v.w, xr = nx + v.wr * v.w;
   const reach = Math.abs(dx) * 2.2 + VEH_STEP_UP;
   const wallH = v.h * 0.55;
-  const fall = v.onGround ? reach : Math.max(0, v.vy * dt) + 1;
+  // A wheel hanging over a drop falls at its own speed (freeVy), so it looks that far down too: one
+  // that outran the window went straight through the floor it should have landed on.
+  const fall = v.onGround ? reach + Math.max(0, (v.freeVy || 0) + G * dt) * dt : Math.max(0, v.vy * dt) + 1;
   // The leading end: its wheel, and its bumper out past it. The bumper is asked at the height the
-  // body's own pitch puts it, so cresting a hill onto flat ground is not a wall.
+  // body's own pitch puts it, so cresting a hill onto flat ground is not a wall — but never lower
+  // than its wheel: nose-down (off the foot of a ramp, the back wheel up a bump) that height was under
+  // the flat ground ahead, and the ground itself stopped the car dead. A leading wheel hanging into a
+  // gap meets the far side as the road it dipped from (the other wheel's): the far lip of a gap
+  // narrower than the car is the road going on, and the wheel climbs out onto it (groundTop below).
   if (dx !== 0) {
     const leadRight = dx > 0;
     const leadY = leadRight ? v.yR : v.yL;
+    const wallY = v.onGround && v.hang === (leadRight ? "R" : "L") ? Math.min(leadY, leadRight ? v.yL : v.yR) : leadY;
     const wheelX = leadRight ? xr : xl;
     const bumperX = leadRight ? nx + v.w : nx;
-    const bumperY = leadY + (bumperX - wheelX) * Math.tan(t);
+    const bumperY = Math.min(wallY, leadY + (bumperX - wheelX) * Math.tan(t));
     const steep = v.onGround && world.floorAt(wheelX, leadY, reach, VEH_STEP_UP, fall).steep;
-    if (steep || world.wallAt(wheelX, leadY, VEH_STEP_UP, wallH) || world.wallAt(bumperX, bumperY, VEH_STEP_UP, wallH)) {
+    if (steep || world.wallAt(wheelX, wallY, VEH_STEP_UP, wallH) || world.wallAt(bumperX, bumperY, VEH_STEP_UP, wallH)) {
       const speed = Math.abs(v.vx);
       ev.crash = { speed, end: Math.sign(v.vx) === v.face ? "front" : "rear" };
       v.vx = -v.vx * 0.15;
       return ev;
     }
   }
+  const before = { x: v.x, yL: v.yL, yR: v.yR, freeVy: v.freeVy };
   v.x = nx;
   ev.dist = dx;
   const prevBottom = (v.yL + v.yR) / 2;
   const fl = world.floorAt(xl, v.yL, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
   const fr = world.floorAt(xr, v.yR, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
   const wasGround = v.onGround;
+  let hangL = false, hangR = false;
   if (wasGround) {
     if (fl.y == null && fr.y == null) {
       // Off the end of the ground: whatever upward speed the slope was giving it, it keeps.
@@ -503,7 +514,8 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
       v.yL += v.vy * dt; v.yR += v.vy * dt;
     } else {
       // One wheel over a drop: it falls, the body pitches about the other, until the pitch is a fall.
-      v.freeVy = fl.y == null || fr.y == null ? (v.freeVy || 0) + G * dt : 0;
+      hangL = fl.y == null; hangR = fr.y == null;
+      v.freeVy = hangL || hangR ? (v.freeVy || 0) + G * dt : 0;
       v.yL = fl.y != null ? fl.y : v.yL + v.freeVy * dt;
       v.yR = fr.y != null ? fr.y : v.yR + v.freeVy * dt;
     }
@@ -516,14 +528,44 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
       v.yL = landL ? fl.y : v.yL + dy; v.yR = landR ? fr.y : v.yR + dy;
     } else { v.yL += dy; v.yR += dy; }
   }
+  // A WHEEL NEVER ENDS A FRAME INSIDE THE GROUND (2026-11-01, Blake: "I went over a ramp ... my vehichle
+  // merged into the ground"). A wheel hanging into a gap, carried sideways with the car, went straight
+  // into the gap's far wall: nothing looked for ground beside a hanging wheel, so it stayed buried and
+  // the body pitched up out of the grass. Now it climbs out onto that ground: up to the car's own
+  // height, or however deep it hung so long as that ground is no higher than the other wheel's road.
+  // Ground taller than both beside a wheel is a wall, and the car stops against it.
+  if (world.groundTop) {
+    const tL = world.groundTop(v.x + v.wl * v.w, v.yL), tR = world.groundTop(v.x + v.wr * v.w, v.yR);
+    const wall = (y, top, other) => top != null && y - top > v.h && top < other - VEH_STEP_UP;
+    if (wall(v.yL, tL, v.yR) || wall(v.yR, tR, v.yL)) {
+      Object.assign(v, before);
+      ev.dist = 0;
+      if (dx !== 0) { ev.crash = { speed: Math.abs(v.vx), end: Math.sign(v.vx) === v.face ? "front" : "rear" }; v.vx = -v.vx * 0.15; }
+      return ev;
+    }
+    if (tL != null) { v.yL = tL; hangL = false; }
+    if (tR != null) { v.yR = tR; hangR = false; }
+    if ((tL != null || tR != null) && !v.onGround) { ev.landed = v.vy; v.onGround = true; v.vy = 0; }
+    if ((tL != null || tR != null) && !hangL && !hangR) v.freeVy = 0;
+  }
   const span = Math.max(1, (v.wr - v.wl) * v.w);
   let tilt = (Math.atan2(v.yR - v.yL, span) * 180) / Math.PI;
   if (Math.abs(tilt) > VEH_MAX_TILT) {
     tilt = Math.sign(tilt) * VEH_MAX_TILT;
-    const mid = (v.yL + v.yR) / 2, half = (Math.tan((VEH_MAX_TILT * Math.PI) / 180) * span) / 2;
-    v.yL = mid - Math.sign(tilt) * half; v.yR = mid + Math.sign(tilt) * half;
+    const full = Math.tan((VEH_MAX_TILT * Math.PI) / 180) * span;
+    if (hangL !== hangR) {
+      // One wheel hanging, pitched as far as a body goes: it is held there off the wheel still on the
+      // ground (which stays ON its ground: the old clamp about the middle pulled it under the ledge),
+      // and the car tips on over the edge as gravity rolls it down the pitch.
+      if (hangL) v.yL = v.yR - Math.sign(tilt) * full; else v.yR = v.yL + Math.sign(tilt) * full;
+      v.freeVy = 0;
+    } else {
+      const mid = (v.yL + v.yR) / 2;
+      v.yL = mid - (Math.sign(tilt) * full) / 2; v.yR = mid + (Math.sign(tilt) * full) / 2;
+    }
   }
   v.tilt = tilt;
+  v.hang = v.onGround && hangL !== hangR ? (hangL ? "L" : "R") : null;
   const bottom = (v.yL + v.yR) / 2;
   v.lastDy = wasGround && v.onGround ? (bottom - prevBottom) / dt : v.lastDy;
   v.y = bottom - v.h;

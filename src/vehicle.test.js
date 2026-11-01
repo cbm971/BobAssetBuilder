@@ -282,6 +282,40 @@ describe("driving", () => {
     expect(v.onGround).toBe(true);
     expect(v.y).toBeCloseTo(840, 0);
   });
+  // Blake 2026-11-01: "I went over a ramp ... my vehichle merged into the ground".
+  const withGround = (surf, edge) => ({ ...worldOf(surf, edge), groundTop: (x, y) => { const s = surf(x); return s && !s.slope && y - 0.5 > s.y ? s.y : null; } });
+  const buried = (v, surf) => [[v.x + v.wl * v.w, v.yL], [v.x + v.wr * v.w, v.yR]].some(([x, y]) => { const s = surf(x); return !!s && y > s.y + 0.5; });
+  test("a wheel that hangs into a gap climbs out of it, and never ends a frame inside the ground", () => {
+    const surf = (x) => (x >= 700 && x < 820 ? null : { y: 600, slope: false });
+    const w = withGround(surf, 1e9);
+    const v = newCar(400, 600);
+    for (let i = 0; i < 400; i++) { vehicleStep(v, { gas: true }, w); expect(buried(v, surf)).toBe(false); }
+    expect(v.x).toBeGreaterThan(820);
+    expect(v.tilt).toBeCloseTo(0, 5);
+    // ...and crawling over it, the front wheel dips in and climbs the far lip too
+    const slow = newCar(400, 600);
+    for (let i = 0; i < 900; i++) { vehicleStep(slow, { gas: i % 3 === 0 }, w); expect(buried(slow, surf)).toBe(false); }
+    expect(slow.x).toBeGreaterThan(820);
+  });
+  test("hanging off a ledge at its steepest, the wheel still on the ledge stays on top of it", () => {
+    const surf = (x) => ({ y: x < 2400 ? 600 : 900, slope: false });
+    const w = withGround(surf, 1e9);
+    const v = newCar(2215, 600);
+    let held = 0;
+    for (let i = 0; i < 400 && !(v.onGround && v.yL > 850); i++) {
+      vehicleStep(v, { gas: i < 6 }, w);
+      if (v.onGround && v.x + v.wl * v.w < 2400) { expect(v.yL).toBeLessThanOrEqual(600.5); if (Math.abs(v.tilt) >= 49.9) held++; }
+      expect(buried(v, surf)).toBe(false);
+    }
+    expect(held).toBeGreaterThan(0);
+  });
+  test("nose down off the foot of a ramp, the flat ahead is not a wall", () => {
+    const surf = (x) => (x < 1000 ? { y: 300, slope: false } : x < 1300 ? { y: 300 + (x - 1000), slope: true } : { y: 600, slope: false });
+    const v = newCar(700, 300);
+    const evs = drive(v, withGround(surf, 1e9), 300);
+    expect(evs.some((e) => e.crash)).toBe(false);
+    expect(v.x).toBeGreaterThan(1600);
+  });
 });
 
 describe("units and the car", () => {
