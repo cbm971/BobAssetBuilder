@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_HP_SCALE, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleSpeedOf, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, vehicleHalveHpOnce, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleSpeedOf, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -6365,7 +6365,7 @@ export function newAsset(type, slot, wtype) {
   // A vehicle: one canvas like a prop, one frame, and in that frame five looks — Stock is `front` (the
   // footprint is measured from it, so a dented car never changes size in a level), then the four in
   // VEHICLE_STATES. An empty one draws Stock. HP and Defense are the car's own, like an enemy's.
-  if (type === "vehicle") { a.size = 16; a.frames = [{ ...blankAngles(), frontDamage: [], rearDamage: [], burning: [], destroyed: [] }]; a.angles = a.frames[0]; a.solidDefault = false; a.category = ""; a.hp = VEHICLE_DEFAULT_HP; a.defense = VEHICLE_DEFAULT_DEFENSE; a.speed = 1; a.facesRight = false; a.hoodFirePropId = null; a.wreckSmokePropId = null; a.boomPropId = null; }
+  if (type === "vehicle") { a.size = 16; a.frames = [{ ...blankAngles(), frontDamage: [], rearDamage: [], burning: [], destroyed: [] }]; a.angles = a.frames[0]; a.solidDefault = false; a.category = ""; a.hp = VEHICLE_DEFAULT_HP; a.hpHalved = true; a.defense = VEHICLE_DEFAULT_DEFENSE; a.speed = 1; a.facesRight = false; a.hoodFirePropId = null; a.wreckSmokePropId = null; a.boomPropId = null; }
   // A single-use item: one Front canvas (drawn like a projectile), an effect, and category tags so
   // a pedestal can roll it. No poses/frames/rig — it only ever shows on a pedestal and in menus.
   if (type === "item") { a.effect = DEFAULT_ITEM_EFFECT(); a.categories = ["", "", ""]; }
@@ -6472,7 +6472,7 @@ export const normalizeAssetJson = (raw) => {
   if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
   if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0; // hand-written JSON rarely carries a price; 0 = free, never undefined
   if ((type === "prop" || type === "vehicle") && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
-  if (type === "vehicle") { if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (!Number.isFinite(a.hp)) a.hp = VEHICLE_DEFAULT_HP; if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; if (!Number.isFinite(a.speed)) a.speed = 1; if (a.size === undefined) a.size = 16; }
+  if (type === "vehicle") { if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; vehicleHalveHpOnce(a); if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; if (!Number.isFinite(a.speed)) a.speed = 1; if (a.size === undefined) a.size = 16; }
   if (!a.id) a.id = uid();
   if (typeof a.name !== "string" || !a.name.trim()) a.name = (type === "equipment" ? SLOTS[a.slot].label : (TYPES[type] ? TYPES[type].label : type));
   if (!a.guideId) a.guideId = "default";
@@ -8638,12 +8638,23 @@ export const fgSlopeFills = (cell) => {
   for (let i = 0; i < more.length; i++) if (fgIsSlope(more[i])) out.push(more[i]);
   return out.length ? out : NO_FILLS;
 };
+// 🚗 A CAR WALL (Blake 2026-11-01: "an invisible wall that only stops cars", for a Front-layer
+// interior a car must not drive into). A Foreground block painted with 🚗 Cars only: `carsOnly`, and
+// hideInPlay like Collision only. fgSolid passes it for every body; vehSolid adds it back for cars.
+export const fgCarWall = (cell) => {
+  const f = fgFillOf(cell);
+  if (!f) return false;
+  if (f.carsOnly) return true;
+  const more = fgMoreOf(cell);
+  if (more) for (let i = 0; i < more.length; i++) if (more[i] && more[i].carsOnly) return true;
+  return false;
+};
 export const fgSolid = (cell) => {
   const f = fgFillOf(cell);
   if (!f) return false;
-  if (!fgIsSlope(f)) return true;
+  if (!f.carsOnly && !fgIsSlope(f)) return true;
   const more = fgMoreOf(cell);
-  if (more) for (let i = 0; i < more.length; i++) if (!fgIsSlope(more[i])) return true;
+  if (more) for (let i = 0; i < more.length; i++) if (!more[i].carsOnly && !fgIsSlope(more[i])) return true;
   return false;
 };
 // THE SLOPES A BODY CAN STAND ON. A RAMP PAINTED OVER A PLAIN BLOCK IS PAINT, NOT A SLOPE (2026-10-31,
@@ -10258,7 +10269,7 @@ export const resolveTexture = (texLib, id) => (id && (texLib || []).find((t) => 
 // Every fill counts, so a cell with a gravel ramp stacked over grass is not "the same paint" as a
 // bare gravel ramp — otherwise flood-fill would bleed straight through a merged cell.
 export const cellSig = (cell) => (cell === undefined || cell === null) ? ""
-  : fgFills(cell).map((f) => fgColor(f) + "|" + fgShapeSig(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "hidden" : "visible")).join("&");
+  : fgFills(cell).map((f) => fgColor(f) + "|" + fgShapeSig(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "hidden" : "visible") + (fgCarWall(f) ? "|cars" : "")).join("&");
 // ---- Band textures (the girder) -----------------------------------------------------------------
 // A column of girder cells is ONE girder (see girderGeom for why). Any flat fill of that texture
 // counts — a girder painted over another fill is still the girder — but a ramp never does: its
@@ -10392,8 +10403,9 @@ export const paintValue = (color, texture, shape) => {
 // behind them, and a sloped roof edge or a diagonal foreground rock is the obvious thing to want.
 export const TERRAIN_SHAPE_LAYERS = ["fg", "bg", "front"];
 export const layerTakesRamps = (layer) => TERRAIN_SHAPE_LAYERS.includes(layer);
-export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hideInPlay = false, extra = null) => {
+export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hideInPlay = false, extra = null, carsOnly = false) => {
   if (!layerTakesRamps(layer)) return null;
+  if (layer === "fg" && carsOnly) return { hideInPlay: true, carsOnly: true }; // a 🚗 car wall is always a whole block
   const ramp = selectedShape === "slopeUp" || selectedShape === "slopeDown";
   const out = ramp
     ? { slope: selectedShape === "slopeUp" ? 1 : -1, ...(extra || {}), ...(upsideDown ? { upsideDown: true } : {}) }
@@ -10596,7 +10608,7 @@ export const cellRunSig = (cell, r, c, map, texLib) => {
   // Not fgClipPath(): that returns the STRING "none" for a plain block, which is perfectly
   // truthy and quietly refused to merge anything at all. fgHasDiagonalShape is the real question.
   if (f.ol || fgHasDiagonalShape(f)) return null;
-  const sig = fgColor(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "h" : "");
+  const sig = fgColor(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "h" : "") + (fgCarWall(f) ? "c" : "");
   const bt = map && bandTexOf(f, texLib);
   if (!bt) return sig;
   const b = cellBandAt(map, r, c, cellTexId(f), TEXTURES[bt.tex].band.max);
@@ -14030,6 +14042,7 @@ export default function AssetStudio({ game = false } = {}) {
   // every existing level was built with.
   const [lFgReplace, setLFgReplace] = useState(false);
   const [lFgUpsideDown, setLFgUpsideDown] = useState(false); // flips either layer's ramp diagonal to hang from the top; only Foreground participates in collision
+  const [lFgCars, setLFgCars] = useState(false);       // 🚗 Cars only Foreground paint: a wall nothing but a car meets (fgCarWall), invisible during play like Collision only
   const [lFgHide, setLFgHide] = useState(false);       // collision-only Foreground paint: visible/marked in the editor, omitted from Playtest art while collision remains live
   const [lHoverCell, setLHoverCell] = useState(null); // {r,c} under the pointer — drives the placement ghost preview
   const [rampDragOn, setRampDragOn] = useState(false); // true while dragging out a multi-cell ramp — drives the live ramp-span preview
@@ -14308,12 +14321,12 @@ export default function AssetStudio({ game = false } = {}) {
     if (sig !== null) {
       const fill = fgFills(cell)[0], hidden = fgHiddenInPlay(fill);
       if (play && hidden) return [];
-      return [<div key={"f" + key + "_0"} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib, span), width: span * LV_CELL }} />];
+      return [<div key={"f" + key + "_0"} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "") + (fgCarWall(fill) ? " carWall" : "")} title={fgCarWall(fill) ? "Cars only — invisible during play" : hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib, span), width: span * LV_CELL }} />];
     }
     return fgFills(cell).map((fill, i) => {
       const hidden = fgHiddenInPlay(fill);
       if (play && hidden) return null; // collision reads level.fg directly; only its Playtest art is omitted
-      return <div key={"f" + key + "_" + i} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />;
+      return <div key={"f" + key + "_" + i} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "") + (fgCarWall(fill) ? " carWall" : "")} title={fgCarWall(fill) ? "Cars only — invisible during play" : hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />;
     }).reverse();
   })}</div> : null, [level, texLib, play, runNodeNow]);
   // The Front layer keeps its ref here (the loop fades covered cells imperatively) — the wrapper it
@@ -15914,7 +15927,7 @@ export default function AssetStudio({ game = false } = {}) {
       const flip = !!sp.o.flip, face = !!pa.facesRight !== flip ? 1 : -1;
       const fr = wheelContactFracs(vehicleStatePieces(pa, "front"), R.box);
       const wl = flip ? 1 - fr.r : fr.l, wr = flip ? 1 - fr.l : fr.r;
-      const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round((pa.hp || VEHICLE_DEFAULT_HP) * VEHICLE_HP_SCALE));
+      const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round(pa.hp || VEHICLE_DEFAULT_HP));
       const power = vehicleSpeedOf(pa);
       const car = { id: sp.uid, uid: sp.uid, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, power, dent: null, fuse: 0, dead: false, driven: false };
       vehCars[sp.uid] = car; vehWoken.current.add(sp.uid);
@@ -15935,7 +15948,8 @@ export default function AssetStudio({ game = false } = {}) {
       if (!P) return !worldParts.some((Q) => c >= Q.dc && c < Q.dc + Q.lv.cols && r < Q.dr);
       const lr = r - P.dr, lc = c - P.dc;
       if (P.side === "S" && lr === 0 && !seamGateLeaving(lv, seams, "S", (c + 0.5) * CW, lv.rows * CH, LV_CELL)) return true;
-      return fgSolid(P.lv.fg[cellKey(lr, lc)]) || P.fxBlocks(lr, lc);
+      const cell = P.lv.fg[cellKey(lr, lc)];
+      return fgSolid(cell) || fgCarWall(cell) || P.fxBlocks(lr, lc);
     };
     const vehSlopeAt = (x, r, c) => { const P = worldPartOfCell(worldParts, r, c); if (!P) return null; const sf = slopeSurfaceAt(P.lv, x - P.dc * CW, r - P.dr, r - P.dr, CW, CH); return sf ? { y: sf.y + P.dr * CH } : null; };
     const vehHillCell = (r, c) => { const P = worldPartOfCell(worldParts, r, c); return !!P && isHillFormationCell(P.lv, r - P.dr, c - P.dc); };
@@ -20352,8 +20366,8 @@ export default function AssetStudio({ game = false } = {}) {
           // A tall ramp is ramp cells plus the solid ones underneath (or, upside down, above) the
           // line — both come out of the same span, and both paint in the colour/texture in hand.
           const shape = cell.kind === "ramp"
-            ? terrainPaintShape(targetLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step, ...(cell.rise > 1 ? { rise: cell.rise, rstep: cell.rstep } : {}) })
-            : terrainPaintShape(targetLayer, "block", false, lFgHide);
+            ? terrainPaintShape(targetLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step, ...(cell.rise > 1 ? { rise: cell.rise, rstep: cell.rstep } : {}) }, lFgCars)
+            : terrainPaintShape(targetLayer, "block", false, lFgHide, null, lFgCars);
           const value = paintValue(lColor, activeTexture, shape);
           // Foreground stacks ramps over its existing collision fills, unless ⧉ Replace is on.
           // Background is decorative and remains one fill per cell, so repainting simply replaces
@@ -20368,7 +20382,7 @@ export default function AssetStudio({ game = false } = {}) {
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture, lFgReplace]);
+  }, [lLayer, lFgShape, lFgUpsideDown, lFgHide, lFgCars, lColor, lBrush, activeTexture, lFgReplace]);
 
   // Area copy: drag from anchor to a different cell to CAPTURE that rectangle (fg/bg/objects,
   // relative to its own top-left corner) into the clipboard. A plain click with no drag instead
@@ -22648,13 +22662,13 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
     if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0;
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
-    if (a.type === "vehicle") { if (a.size === undefined) a.size = 16; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; if (!Number.isFinite(a.hp)) a.hp = VEHICLE_DEFAULT_HP; if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; }
+    if (a.type === "vehicle") { if (a.size === undefined) a.size = 16; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; vehicleHalveHpOnce(a); if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
     if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); if (a.flies === undefined) a.flies = false; for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
@@ -24591,7 +24605,7 @@ export default function AssetStudio({ game = false } = {}) {
     // and textures compose, so a textured ramp is simply both at once. In Outline mode fg/bg/front
     // paints also carry `ol` (see withOutline / cellOutlineStyle) — the outer edge renders in it.
     const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
-    const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
+    const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide, null, lFgCars);
     const base = paintValue(lColor, activeTexture, shape);
     // Foreground ramps stack on what's already in the cell (mergeFgFill) unless ⧉ Replace is on,
     // which paints the cell outright. Background and Front ramps replace the previous decorative
@@ -27025,7 +27039,7 @@ export default function AssetStudio({ game = false } = {}) {
       const target = layerWithPaintAt(lv, r0, c0);
       const { cells: cellsToFill, startVal, hitCap } = computeFillRegion(lv, target, r0, c0);
       const ol = lOutline ? lOutlineColor : null; // Outline rides along so the filled region gets an outer-edge border
-      const shape = terrainPaintShape(target, lFgShape, lFgUpsideDown, lFgHide);
+      const shape = terrainPaintShape(target, lFgShape, lFgUpsideDown, lFgHide, null, lFgCars);
       const newVal = withOutline(paintValue(lColor, activeTexture, shape), ol);
       if (JSON.stringify(newVal) === JSON.stringify(startVal)) return; // already this value everywhere reachable — nothing to do
       const CONFIRM_THRESHOLD = 300;
@@ -27722,6 +27736,7 @@ export default function AssetStudio({ game = false } = {}) {
                     {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
                   </div>
                   {lLayer === "fg" && <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only</label>}
+                  {lLayer === "fg" && <label className="chk solidchk"><input type="checkbox" checked={lFgCars} onChange={(e) => setLFgCars(e.target.checked)} /> 🚗 Cars only</label>}
                   {/* On every terrain layer, not just Foreground — stacking is what all three do
                       now, so all three need the way to say "no, one clean material here". */}
                   <label className="chk solidchk" title="Off: a ramp painted over a block keeps the block underneath, so a gravel ramp can cross grass and two opposing ramps make a two-material peak. On: the paint replaces whatever was in the cell, so you get one clean material — which is what you want when a cell has picked up a stack you didn't ask for."><input type="checkbox" checked={lFgReplace} onChange={(e) => setLFgReplace(e.target.checked)} /> ⧉ Replace, don't stack</label>
@@ -27912,12 +27927,12 @@ export default function AssetStudio({ game = false } = {}) {
                   const has = (rr, cc) => !!pmap[cellKey(rr, cc)] || foot.has(cellKey(rr, cc));
                   const cells = [];
                   for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) { const rr = lHoverCell.r + dr, cc = lHoverCell.c + dc; const sd = []; if (!has(rr - 1, cc)) sd.push("inset 0 2px 0 " + lOutlineColor); if (!has(rr + 1, cc)) sd.push("inset 0 -2px 0 " + lOutlineColor); if (!has(rr, cc - 1)) sd.push("inset 2px 0 0 " + lOutlineColor); if (!has(rr, cc + 1)) sd.push("inset -2px 0 0 " + lOutlineColor); cells.push([rr, cc, sd.join(", ")]); }
-                  const ghostVal = paintValue(lColor, activeTexture, lLayer === "fg" && lFgHide ? { hideInPlay: true } : null);
+                  const ghostVal = paintValue(lColor, activeTexture, lLayer === "fg" && (lFgHide || lFgCars) ? { hideInPlay: true, ...(lFgCars ? { carsOnly: true } : {}) } : null);
                   // A girder ghost is the girder the click will MAKE — the brush square joined to any
                   // girder already above or below it — not a stack of one-row girders that becomes
                   // one deep girder the moment the paint lands.
                   const gmap = activeTexture && TEXTURES[activeTexture.tex] && TEXTURES[activeTexture.tex].band ? { ...pmap, ...Object.fromEntries([...foot].map((k) => [k, ghostVal])) } : null;
-                  return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className={"blockGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(ghostVal, r, c, texLib, gmap && cellBand(gmap, ghostVal, r, c, texLib)), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
+                  return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className={"blockGhost" + (lLayer === "fg" && lFgCars ? " collisionOnly carWall" : lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(ghostVal, r, c, texLib, gmap && cellBand(gmap, ghostVal, r, c, texLib)), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
                 })()}
                 {!play && lTool === "fill" && fillPreview && fillPreview.cells.length <= 500 && (
                   <>{fillPreview.cells.map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fp" + k} style={{ position: "absolute", left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,255,255,.3)", outline: "1px solid rgba(255,255,255,.7)", pointerEvents: "none", zIndex: 5000 }} />; })}</>
@@ -27951,10 +27966,10 @@ export default function AssetStudio({ game = false } = {}) {
                   // under it; Background replaces its old decorative fill when the ramp is committed.
                   return <>{span.map((cell) => {
                     const shape = cell.kind === "ramp"
-                      ? terrainPaintShape(lLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step, ...(cell.rise > 1 ? { rise: cell.rise, rstep: cell.rstep } : {}) })
-                      : terrainPaintShape(lLayer, "block", false, lFgHide);
+                      ? terrainPaintShape(lLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step, ...(cell.rise > 1 ? { rise: cell.rise, rstep: cell.rstep } : {}) }, lFgCars)
+                      : terrainPaintShape(lLayer, "block", false, lFgHide, null, lFgCars);
                     const val = paintValue(lColor, activeTexture, shape);
-                    return <div key={"rg" + cell.r + "," + cell.c} className={"rampGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: cell.c * LV_CELL, top: cell.r * LV_CELL, ...cellPaintStyle(val, cell.r, cell.c, texLib), clipPath: fgClipPath(val) }} />;
+                    return <div key={"rg" + cell.r + "," + cell.c} className={"rampGhost" + (lLayer === "fg" && lFgCars ? " collisionOnly carWall" : lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: cell.c * LV_CELL, top: cell.r * LV_CELL, ...cellPaintStyle(val, cell.r, cell.c, texLib), clipPath: fgClipPath(val) }} />;
                   })}</>;
                 })()}
                 {!play && lEnemyId && lTool === "paint" && lHoverCell && (() => {
@@ -30868,7 +30883,7 @@ export default function AssetStudio({ game = false } = {}) {
               <div className="seg sizeseg">{PROP_DEFAULT_SIZES.map((n) => <button key={n} className={(asset.size ?? 16) === n ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, size: n }))}>{n}×</button>)}</div>
               <label className="slider">{sym("stat.hp", null, 14)} HP<input type="number" min="1" step="1" value={asset.hp ?? VEHICLE_DEFAULT_HP} onChange={(e) => setAsset((a) => ({ ...a, hp: Math.max(1, Math.round(+e.target.value) || 1) }))} style={{ width: 60 }} /></label>
               <label className="slider">{sym("stat.def", null, 14)} Defense<input type="number" min="0" step="1" value={asset.defense ?? VEHICLE_DEFAULT_DEFENSE} onChange={(e) => setAsset((a) => ({ ...a, defense: Math.max(0, Math.round(+e.target.value) || 0) }))} style={{ width: 60 }} /></label>
-              <label className="slider">{sym("stat.spd", null, 14)} Speed<input type="number" min="0.5" max="1.5" step="0.05" value={asset.speed ?? 1} onChange={(e) => setAsset((a) => ({ ...a, speed: Math.max(0.5, Math.min(1.5, Math.round(+e.target.value * 100) / 100)) }))} style={{ width: 60 }} /></label>
+              <label className="slider">{sym("stat.spd", null, 14)} Speed<input key={asset.id + "|spd"} type="number" min="0.5" max="1.5" step="0.05" defaultValue={asset.speed ?? 1} onChange={(e) => { const v = Math.round(+e.target.value * 100) / 100; if (e.target.value !== "" && Number.isFinite(v) && v > 0) setAsset((a) => ({ ...a, speed: Math.max(0.5, Math.min(1.5, v)) })); }} onBlur={(e) => { e.target.value = String(Math.max(0.5, Math.min(1.5, Number(asset.speed) || 1))); }} style={{ width: 60 }} /></label>
               <label className="chk"><input type="checkbox" checked={!!asset.facesRight} onChange={(e) => setAsset((a) => ({ ...a, facesRight: e.target.checked }))} /> ➡ Front is on the right</label>
               <button className="ltbtn" onClick={flipWholeVehicle}>⇋ Flip whole vehicle</button>
               {[["hoodFirePropId", "🔥 Hood fire"], ["wreckSmokePropId", "💨 Wreck smoke"], ["boomPropId", "💥 Explosion"]].map(([k, l]) => (
@@ -31731,6 +31746,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .statusFx.ice i:nth-child(2n){width:5px;height:1.5px;border-radius:1px}
 @keyframes iceGlint{0%,100%{opacity:0;transform:translate(0,0) scale(.3)}45%{opacity:1;transform:translate(0,4px) scale(1)}80%{opacity:.4;transform:translate(var(--dx),14px) scale(.6)}}
 .lcell.collisionOnly,.blockGhost.collisionOnly,.rampGhost.collisionOnly{opacity:.48;outline:2px dashed #62d9ff;outline-offset:-2px;filter:saturate(.55)}
+.lcell.carWall,.blockGhost.carWall,.rampGhost.carWall{outline-color:#ffb347}
 .player .pbody{position:absolute;inset:0;background:#7aa2d6;border-radius:5px}
 .player .peye{position:absolute;right:3px;top:5px;width:4px;height:4px;border-radius:50%;background:#0a0c12;z-index:2}
 .lside{width:300px;background:#12141c;border-left:1px solid #232838;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:11px;flex-shrink:0}

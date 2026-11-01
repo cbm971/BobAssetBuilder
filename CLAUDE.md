@@ -829,6 +829,11 @@ plus traps it does not cover:
   Man are `character`s (people), so Capture refuses them by design — only Enemy-creator assets are catchable.
 - A helper that two blocks of the play loop both call belongs at loop level. A `const` in one block
   is invisible to its sibling, and that once crashed the game on a parry.
+- **Vehicle HP is halved ONCE on load** (2026-11-01, `vehicleHalveHpOnce`): a vehicle record without
+  `hpHalved: true` has its `hp` halved and gets the flag. A vehicle record you generate must carry
+  `hpHalved: true` with the HP it should really have, or it loses half. Default HP is 75.
+- **🚗 Cars only Foreground paint** (`carsOnly` + `hideInPlay` on a fill) is a wall only cars meet:
+  `fgSolid` skips it, `vehSolid` adds `fgCarWall`. For a Front-layer interior a car must not enter.
 - **Vehicles: the rules are `src/vehicle.js`** (pure, `vehicle.test.js`); the loop's 🚗 blocks wire
   them to the level. A placed car is drawn by the ordinary prop passes, untouched, until you get in
   or a blast or a grenade's fire reaches it. Then it is a LIVE car in `vehLive` (one bucket per

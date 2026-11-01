@@ -71,6 +71,7 @@ import {
   fgSlopeFills,
   fgSurfaceFills,
   fgSolid,
+  fgCarWall,
   armHoldsAimPose,
   climbFreesGunArm,
   gunArmOnly,
@@ -2719,6 +2720,22 @@ describe("stacking two materials in one Foreground cell", () => {
 
   test("a single-material cell is unchanged — no more field is invented", () => {
     expect(mergeFgFill(null, { c: "#2e7d32", ...up() }).more).toBeUndefined();
+  });
+});
+
+describe("🚗 Cars only Foreground paint (a car wall)", () => {
+  test("it paints as a whole hidden block, whatever ramp is in hand", () => {
+    expect(terrainPaintShape("fg", "slopeUp", false, false, null, true)).toEqual({ hideInPlay: true, carsOnly: true });
+    expect(terrainPaintShape("bg", "block", false, false, null, true)).toBe(null);
+  });
+  test("bodies pass it, cars meet it, and a real block under it still blocks", () => {
+    const wall = { c: "#888", hideInPlay: true, carsOnly: true };
+    expect(fgSolid(wall)).toBe(false);
+    expect(fgCarWall(wall)).toBe(true);
+    expect(fgCarWall({ c: "#888" })).toBe(false);
+    const stacked = { ...wall, more: [{ c: "#2e7d32" }] };
+    expect(fgSolid(stacked)).toBe(true);
+    expect(fgCarWall(stacked)).toBe(true);
   });
 });
 

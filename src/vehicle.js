@@ -24,10 +24,17 @@
 
 export const VEHICLE_STATES = ["front", "frontDamage", "rearDamage", "burning", "destroyed"];
 export const VEHICLE_STATE_LABEL = { front: "Stock", frontDamage: "Front damage", rearDamage: "Rear damage", burning: "Imminent explosion", destroyed: "Destroyed" };
-export const VEHICLE_DEFAULT_HP = 150;
-// Blake (2026-11-01): "Vehicle health should be half as strong as it is currently". Every car comes
-// alive with half the HP its record holds, so his authored numbers keep their ratios.
-export const VEHICLE_HP_SCALE = 0.5;
+// Blake (2026-11-01): "Vehicle health should be half as strong as it is currently", then "I would
+// rather their HP reflect how it's set": the default went 150 -> 75, and every record saved before
+// that has its own HP halved ONCE as it loads (vehicleHalveHpOnce), marked `hpHalved` so it never
+// happens twice. The number in the editor is the car's HP in play.
+export const VEHICLE_DEFAULT_HP = 75;
+export const vehicleHalveHpOnce = (a) => {
+  if (!a || a.hpHalved) return a;
+  a.hp = Number.isFinite(a.hp) ? Math.max(1, Math.round(a.hp / 2)) : VEHICLE_DEFAULT_HP;
+  a.hpHalved = true;
+  return a;
+};
 export const VEHICLE_DEFAULT_DEFENSE = 10;
 // A CAR IS FOR SITTING IN (2026-11-01, Blake: "a sitting player should fit right?"). Whether you can
 // get in is not a size number but the car's own height as placed, against yours sitting down: Bob

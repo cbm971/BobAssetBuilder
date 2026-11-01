@@ -5,7 +5,7 @@ import {
   autoVehicleDamage, isGlassColor,
   vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, vehicleCrashDamage,
   carBearsDown, vehicleDodgeKind, vehicleDodgeChance,
-  VEH_SEAT_FRAC, vehicleSeatsPlayer, vehiclePassengerSpots, isPassengerSpot, followerCanBoard, VEH_BOARD_MAX_SPEED, vehicleSpeedOf, vehiclePower } from "./vehicle";
+  VEH_SEAT_FRAC, vehicleSeatsPlayer, vehiclePassengerSpots, isPassengerSpot, followerCanBoard, VEH_BOARD_MAX_SPEED, vehicleSpeedOf, vehiclePower, vehicleHalveHpOnce, VEHICLE_DEFAULT_HP } from "./vehicle";
 
 const CAR = [
   { id: "body", kind: "rect", x: 20, y: 120, w: 160, h: 40, color: "#c43c3c" },
@@ -390,5 +390,16 @@ describe("engine power and speed scaling", () => {
     drive(muscle, flat, 120);
     expect(muscle.vx).toBeGreaterThan(standard.vx);
     expect(muscle.x).toBeGreaterThan(standard.x);
+  });
+});
+
+describe("vehicle HP halved once (Blake 2026-11-01)", () => {
+  test("an old record halves, a halved one never again, a new one starts at 75", () => {
+    const a = vehicleHalveHpOnce({ hp: 180 });
+    expect([a.hp, a.hpHalved]).toEqual([90, true]);
+    expect(vehicleHalveHpOnce(a).hp).toBe(90);
+    expect(vehicleHalveHpOnce({ hp: 1 }).hp).toBe(1);
+    expect(vehicleHalveHpOnce({}).hp).toBe(VEHICLE_DEFAULT_HP);
+    expect(VEHICLE_DEFAULT_HP).toBe(75);
   });
 });
