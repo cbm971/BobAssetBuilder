@@ -2371866,20 +2371866,6 @@
       "z": 417
      }
     ],
-    "33,42": [
-     {
-      "kind": "prop",
-      "propId": "wdywgn6",
-      "solid": false,
-      "size": 16,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 419
-     }
-    ],
     "28,132": [
      {
       "kind": "prop",
@@ -2371998,6 +2371984,20 @@
       "rot": 0,
       "flip": false,
       "z": 428
+     }
+    ],
+    "29,40": [
+     {
+      "kind": "prop",
+      "propId": "wdywgn6",
+      "solid": false,
+      "size": 16,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "z": 419
      }
     ]
    },
@@ -2373084,8 +2373084,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792344972244,
-   "editedFrom": 1790762608484
+   "savedAt": 1793546100352,
+   "editedFrom": 1792344972244
   },
   {
    "id": "rq28a8w",
