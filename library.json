@@ -2398689,6 +2398689,36 @@
       "canvasScale": false,
       "z": 1
      }
+    ],
+    "19,20": [
+     {
+      "kind": "prop",
+      "propId": "mvmontr",
+      "solid": false,
+      "size": 5,
+      "inFront": true,
+      "rot": 81,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 82
+     }
+    ],
+    "18,2": [
+     {
+      "kind": "prop",
+      "propId": "c0uch60",
+      "solid": false,
+      "size": 9,
+      "inFront": true,
+      "rot": 198,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 83
+     }
     ]
    },
    "climb": {
@@ -2399029,8 +2399059,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793542975670,
-   "editedFrom": 1793458555331
+   "savedAt": 1793543099339,
+   "editedFrom": 1793543091580
   },
   {
    "id": "snssw0i",
