@@ -2007627,8 +2007627,9 @@
      "tex": "tha30x2"
     },
     "21,13": {
-     "c": "#b5b1a7",
-     "tex": "tjpoh5x"
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     },
     "20,6": {
      "c": "#544d45",
@@ -2015677,6 +2015678,121 @@
     "19,107": {
      "c": "#8a929c",
      "hideInPlay": true
+    },
+    "34,12": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,12": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,12": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,14": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,14": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,14": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "22,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "19,46": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "18,46": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "19,129": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "18,129": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2033495,8 +2033611,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792345152586,
-   "editedFrom": 1791586824220
+   "savedAt": 1793564423522,
+   "editedFrom": 1792345152586
   },
   {
    "id": "eb7tq0i",
@@ -2436731,6 +2436847,166 @@
     "12,70": {
      "c": "#d8214c",
      "tex": "wtymoug"
+    },
+    "34,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "22,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "21,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "19,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "18,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "17,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "22,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "21,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2450394,8 +2450670,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792345092825,
-   "editedFrom": 1790626992202
+   "savedAt": 1793564451863,
+   "editedFrom": 1793564443236
   },
   {
    "id": "t6ra6j0",
