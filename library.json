@@ -745069,7 +745069,7 @@
    "guideId": "default",
    "size": 12,
    "solidDefault": false,
-   "category": "vehicles",
+   "category": "Heavy",
    "angles": {
     "front": [
      {
@@ -746932,7 +746932,7 @@
       "id": "dhlz90v9",
       "kind": "circle",
       "x": 175,
-      "y": 154,
+      "y": 155,
       "w": 4,
       "h": 12,
       "color": "#daa520",
@@ -748217,22 +748217,6 @@
      }
     ],
     "rearDamage": [
-     {
-      "id": "dhlz90y5",
-      "kind": "curlytri",
-      "x": 23.7,
-      "y": 169.4,
-      "w": 14,
-      "h": 11.4,
-      "color": "#c0392b",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      }
-     },
      {
       "id": "dhlz90wj",
       "kind": "rect",
@@ -749780,8 +749764,8 @@
      {
       "id": "dhlz90y6",
       "kind": "rect",
-      "x": 20.8,
-      "y": 180,
+      "x": 19.5,
+      "y": 180.5,
       "w": 14.4,
       "h": 4.2,
       "color": "#a83529",
@@ -749792,17 +749776,17 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 30
+      "rot": 133
      }
     ],
     "burning": [
      {
       "id": "dhlz911i",
       "kind": "curlytri",
-      "x": 23.7,
-      "y": 169.4,
-      "w": 14,
-      "h": 11.4,
+      "x": 24.5,
+      "y": 172,
+      "w": 10.5,
+      "h": 10,
       "color": "#c0392b",
       "mirror": false,
       "fx": {
@@ -751425,10 +751409,10 @@
      {
       "id": "dhlza11k",
       "kind": "circle",
-      "x": 166.1,
-      "y": 152.6,
-      "w": 12.6,
-      "h": 18,
+      "x": 119,
+      "y": 146.5,
+      "w": 26,
+      "h": 31,
       "color": "#ff7a1f",
       "mirror": false,
       "isHoodFire": true
@@ -751438,10 +751422,10 @@
      {
       "id": "dhlza14w",
       "kind": "curlytri",
-      "x": 23.7,
-      "y": 172.4,
-      "w": 14,
-      "h": 11.4,
+      "x": 20,
+      "y": 171.5,
+      "w": 13,
+      "h": 11.5,
       "color": "#5f2d26",
       "mirror": false,
       "fx": {
@@ -754926,7 +754910,7 @@
        "id": "dhlz90v9",
        "kind": "circle",
        "x": 175,
-       "y": 154,
+       "y": 155,
        "w": 4,
        "h": 12,
        "color": "#daa520",
@@ -756211,22 +756195,6 @@
       }
      ],
      "rearDamage": [
-      {
-       "id": "dhlz90y5",
-       "kind": "curlytri",
-       "x": 23.7,
-       "y": 169.4,
-       "w": 14,
-       "h": 11.4,
-       "color": "#c0392b",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       }
-      },
       {
        "id": "dhlz90wj",
        "kind": "rect",
@@ -757774,8 +757742,8 @@
       {
        "id": "dhlz90y6",
        "kind": "rect",
-       "x": 20.8,
-       "y": 180,
+       "x": 19.5,
+       "y": 180.5,
        "w": 14.4,
        "h": 4.2,
        "color": "#a83529",
@@ -757786,17 +757754,17 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 30
+       "rot": 133
       }
      ],
      "burning": [
       {
        "id": "dhlz911i",
        "kind": "curlytri",
-       "x": 23.7,
-       "y": 169.4,
-       "w": 14,
-       "h": 11.4,
+       "x": 24.5,
+       "y": 172,
+       "w": 10.5,
+       "h": 10,
        "color": "#c0392b",
        "mirror": false,
        "fx": {
@@ -759419,10 +759387,10 @@
       {
        "id": "dhlza11k",
        "kind": "circle",
-       "x": 166.1,
-       "y": 152.6,
-       "w": 12.6,
-       "h": 18,
+       "x": 119,
+       "y": 146.5,
+       "w": 26,
+       "h": 31,
        "color": "#ff7a1f",
        "mirror": false,
        "isHoodFire": true
@@ -759432,10 +759400,10 @@
       {
        "id": "dhlza14w",
        "kind": "curlytri",
-       "x": 23.7,
-       "y": 172.4,
-       "w": 14,
-       "h": 11.4,
+       "x": 20,
+       "y": 171.5,
+       "w": 13,
+       "h": 11.5,
        "color": "#5f2d26",
        "mirror": false,
        "fx": {
@@ -761058,15 +761026,16 @@
      ]
     }
    ],
-   "savedAt": 1793561235527,
-   "editedFrom": 1793541815677,
-   "hp": 220,
+   "savedAt": 1793571269308,
+   "editedFrom": 1793561235527,
+   "hp": 110,
    "defense": 14,
    "facesRight": true,
    "hoodFirePropId": "swiwj1p",
    "wreckSmokePropId": "uvsmok1",
    "boomPropId": "expl0d3",
-   "speed": 0.8
+   "speed": 0.75,
+   "hpHalved": true
   },
   {
    "id": "frmtrgh",
