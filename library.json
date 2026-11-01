@@ -1603865,7 +1603865,7 @@
    "guideId": "default",
    "size": 16,
    "solidDefault": false,
-   "category": "Army",
+   "category": "vehicles",
    "angles": {
     "front": [
      {
@@ -1613508,8 +1613508,8 @@
      ]
     }
    ],
-   "savedAt": 1793494167841,
-   "editedFrom": 1791848158620,
+   "savedAt": 1793533540675,
+   "editedFrom": 1793494167841,
    "hp": 240,
    "defense": 18,
    "facesRight": true,
