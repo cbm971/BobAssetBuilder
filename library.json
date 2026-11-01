@@ -2096669,6 +2096669,39 @@
     },
     "25,3": {
      "kind": "cliff"
+    },
+    "17,10": {
+     "kind": "cliff"
+    },
+    "17,9": {
+     "kind": "cliff"
+    },
+    "17,8": {
+     "kind": "cliff"
+    },
+    "17,7": {
+     "kind": "cliff"
+    },
+    "17,6": {
+     "kind": "cliff"
+    },
+    "17,5": {
+     "kind": "cliff"
+    },
+    "17,4": {
+     "kind": "cliff"
+    },
+    "17,3": {
+     "kind": "cliff"
+    },
+    "17,2": {
+     "kind": "cliff"
+    },
+    "17,1": {
+     "kind": "cliff"
+    },
+    "17,0": {
+     "kind": "cliff"
     }
    },
    "hazard": {},
@@ -2096739,8 +2096772,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793533371723,
-   "editedFrom": 1793533308175
+   "savedAt": 1793564680778,
+   "editedFrom": 1793533371723
   },
   {
    "id": "gww324w",
@@ -2196836,6 +2196869,86 @@
      "c": "#7f8479",
      "tex": "v13fgi5",
      "hideInPlay": true
+    },
+    "27,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2207004,8 +2207117,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793455421584,
-   "editedFrom": 1792344933363
+   "savedAt": 1793564651114,
+   "editedFrom": 1793455421584
   },
   {
    "id": "llbe2ks",
