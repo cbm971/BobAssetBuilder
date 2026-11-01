@@ -15614,3 +15614,43 @@ describe("a look's abilities on the character select", () => {
     expect(lookAbilityNames(null)).toEqual([]);
   });
 });
+
+import { unitAutoFireHolds, flipVehicleAsset } from "./App";
+import { vehicleTurnPose, VEH_TURN_FRAMES, VEH_TURN_POSES } from "./vehicle";
+describe("units hold a full-auto trigger", () => {
+  test("held while rounds are in the clip and no reload runs", () => {
+    expect(unitAutoFireHolds({ clip: 40, ammo: 12, reloadT: 0, cd: 3 })).toBe(true);
+    expect(unitAutoFireHolds({ clip: 0, ammo: 0, reloadT: 0, cd: 0 })).toBe(true); // no clip: endless
+    expect(unitAutoFireHolds({ clip: 40, ammo: 0, reloadT: 0, cd: 0 })).toBe(false);
+    expect(unitAutoFireHolds({ clip: 40, ammo: 40, reloadT: 30, cd: 0 })).toBe(false);
+    expect(unitAutoFireHolds(null)).toBe(false);
+    expect(weaponFireMode({ fullAuto: true })).toBe("auto");
+  });
+});
+describe("flipVehicleAsset", () => {
+  const car = { id: "c", type: "vehicle", facesRight: false, frames: null, angles: {
+    front: [{ id: "a", kind: "rect", x: 0, y: 100, w: 100, h: 40 }, { id: "l", kind: "circle", x: 0, y: 110, w: 10, h: 10 }],
+    back: [], side: [], up: [], crouch: [],
+    frontDamage: [{ id: "d", kind: "rect", x: 10, y: 100, w: 90, h: 40 }], rearDamage: [], burning: [], destroyed: [] } };
+  test("mirrors every look about one pivot and turns the front round", () => {
+    const f = flipVehicleAsset(car);
+    expect(f.facesRight).toBe(true);
+    expect(f.angles.front.find((p) => p.id === "l").x).toBe(90); // the headlight is now at the right end
+    expect(f.angles.frontDamage[0].x).toBe(0); // the dent look flipped about the SAME pivot
+    expect(f.frames[0]).toBe(f.angles);
+    expect(flipVehicleAsset(flipVehicleAsset(car)).angles.front.find((p) => p.id === "l").x).toBe(0);
+  });
+  test("nothing drawn = nothing to flip", () => {
+    expect(flipVehicleAsset({ type: "vehicle", angles: { front: [] } })).toBe(null);
+  });
+});
+describe("vehicleTurnPose", () => {
+  test("held steps: old facing swinging away, then the new one opening out", () => {
+    const seen = [];
+    for (let t = VEH_TURN_FRAMES; t > 0; t--) seen.push(vehicleTurnPose(t).deg);
+    expect([...new Set(seen)]).toEqual(VEH_TURN_POSES);
+    expect(vehicleTurnPose(VEH_TURN_FRAMES).old).toBe(true);
+    expect(vehicleTurnPose(1).old).toBe(false);
+    expect(vehicleTurnPose(0)).toEqual({ old: false, deg: 0 });
+  });
+});

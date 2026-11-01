@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, VEH_TURN_FRAMES, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -1811,6 +1811,9 @@ export const burstShotDue = (burstLeft, burstT, ammo) =>
 export const weaponFireMode = (weapon) => weapon && weapon.burstFire ? "burst" : weapon && weapon.fullAuto ? "auto" : "semi";
 export const rangedTriggerWantsFire = (fireHeld, wasFire, weapon) =>
   weaponFireMode(weapon) === "auto" ? !!fireHeld : !!fireHeld && !wasFire;
+// A unit's held full-auto trigger stays held while this is true: rounds in the clip (or no clip at
+// all) and no reload running. The player's own hold stops at exactly the same two things.
+export const unitAutoFireHolds = (ammo) => !!ammo && ammo.reloadT <= 0 && (ammo.clip <= 0 || ammo.ammo > 0);
 export const weaponBurstShotCount = (weapon) => weaponFireMode(weapon) === "burst" ? burstShotCount(weapon && weapon.burst) : 1;
 // Before firing modes were abilities, saved weapons had neither flag. Missing flags must now mean
 // the clean default — semi-auto — rather than silently granting Full Auto to every old weapon.
@@ -11430,6 +11433,18 @@ export const flipPropFramesHorizontally = (frames, liveAngles, currentIndex) => 
   });
   return { frames: flipped, angles: flipped[idx], flipped: true, pivotX };
 };
+// 🚗 A VEHICLE turned round: every look (Stock and the four damaged ones) mirrored about ONE pivot,
+// so a dent stays on the end it was drawn on, and "Front is on the right" flips with it — the front
+// is still the front, it just points the other way, so the car drives and spawns nose-first that way.
+export const flipVehicleAsset = (a) => {
+  const frame = (a && (a.angles || (a.frames && a.frames[0]))) || {};
+  const all = VEHICLE_STATES.flatMap((st) => frame[st] || []);
+  if (!all.length) return null;
+  const pivotX = (Math.min(...all.map((p) => p.x)) + Math.max(...all.map((p) => p.x + p.w))) / 2;
+  const out = { ...frame };
+  for (const st of VEHICLE_STATES) out[st] = flipPiecesHorizontally(frame[st] || [], pivotX);
+  return { ...a, frames: [out, ...((a.frames || []).slice(1))], angles: out, facesRight: !a.facesRight };
+};
 export const SHAPE_LIST = [
   ["rect", "▮", "Square"], ["roundrect", "▣", "Rounded square"], ["circle", "●", "Circle"], ["stadium", "⬭", "Oval"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
   ["curlytri", null, "Curly triangle"], // no glyph for it exists; the picker draws the shape itself
@@ -18527,12 +18542,12 @@ export default function AssetStudio({ game = false } = {}) {
                   // Its own jump, exactly as a hop takes it (the hold boost included, jumpHoldT 0); in
                   // the air it steers onto the head (the dxMove rule), and the stomp lands in the head
                   // test when it comes down. No swing or shot rides along, and none is taken mid-leap.
-                  ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0;
+                  ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0; ep.autoFire = false;
                   ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, eLeap.frames);
                   sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep); ep.onGround = false; ep.jumpHoldT = 0;
                   ep.hsLeap = true;
                 } else if (eTailFront.length) {
-                  ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0;
+                  ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0; ep.autoFire = false;
                   ep.attackT = ATTACK_COOLDOWN_FRAMES;
                   // Turned from FACING THEM, whichever way it faced a frame ago: had it only just
                   // swung round onto a target behind it, the line above plus this flip would net to
@@ -18550,6 +18565,8 @@ export default function AssetStudio({ game = false } = {}) {
                   // does (the rest go out below, one per due frame). Units used to fire one round a pull
                   // whatever the gun, so the Experimental Rifle was a third of itself in their hands.
                   ep.burstLeft = weaponBurstShotCount(ew) - 1; ep.burstT = burstDelayFrames(ew.burstDelay);
+                  // 🔥 FULL AUTO: the trigger stays held after this first round (the rest go out below).
+                  ep.autoFire = weaponFireMode(ew) === "auto";
                 } else if (meleeGeom) {
                   sndMoment(ew, "swing", "swing", eCenterXFinal, ep.y + newEph * 0.5); // 🔊 its blade's Swing, else the basic Swing — the blow landing plays from the swing test above
                   ep.swingHit = {}; // weapon-hitbox melee: committing only STARTS the swing; the hits (one per body in the arc) land in the swing test above
@@ -18605,6 +18622,19 @@ export default function AssetStudio({ game = false } = {}) {
               ep.burstT = (ep.burstT || 0) - dtMul;
               if (burstShotDue(ep.burstLeft, ep.burstT, ep.weaponAmmo)) { fireUnitShot(); ep.burstLeft -= 1; ep.burstT = burstDelayFrames(ew.burstDelay); }
               else if (ep.weaponAmmo && (ep.weaponAmmo.reloadT > 0 || (ep.weaponAmmo.clip > 0 && ep.weaponAmmo.ammo <= 0))) ep.burstLeft = 0;
+            }
+          }
+          // 🔥 ...and a FULL AUTO gun keeps its trigger held: a round every time the fire-rate cooldown
+          // lets one go, the way yours does while you hold Fire — no fresh wind-up between rounds, so a
+          // Flamethrower is a stream in their hands too, not one puff a pull. Let go when the clip runs
+          // dry or a reload starts (unitAutoFireHolds), or the unit is frozen or loses its target.
+          // attackT is kept above the cooldown so the pull above never fires a second round alongside.
+          if (ep.autoFire) {
+            if (stunned || !rangedEnemy || !inSight || !acts || weaponFireMode(ew) !== "auto" || !unitAutoFireHolds(ep.weaponAmmo)) ep.autoFire = false;
+            else {
+              const autoCd = weaponFireCooldownFrames(ew.fireRate);
+              if (canFireNow(ep.weaponAmmo)) fireUnitShot();
+              ep.attackT = Math.max(ep.attackT || 0, autoCd + 1);
             }
           }
         }
@@ -21466,6 +21496,11 @@ export default function AssetStudio({ game = false } = {}) {
     });
     flash("Flipped the whole object — all frames ✓");
   };
+  const flipWholeVehicle = () => {
+    if (!flipVehicleAsset(asset)) { flash("Add a block before flipping the vehicle."); return; }
+    setAsset((a) => flipVehicleAsset(a) || a);
+    flash("Flipped the whole vehicle — every look ✓");
+  };
   // Skin/equipment per-body layouts — keyed by whichever body's id was the active guide
   // (asset.guideId) when that layout was drawn; "default" when no specific body is picked.
   // Switching the EXISTING "🧍 Load body" guide picker now also swaps which layout you're
@@ -22098,8 +22133,8 @@ export default function AssetStudio({ game = false } = {}) {
   // by the way it faces now, in the look it is in (vehicleStateOf: Stock, a dented end, Imminent
   // explosion, the wreck), with its 🛞 wheels turned by how far it has rolled. The art is built once
   // per look x wheel step x driver, like a placed prop's (see renderObj), so a car standing still or
-  // at a steady speed costs a frame nothing. Turning round, it narrows to an edge and opens out the
-  // other way (turnT), the way a sprite turns in a side-on game.
+  // at a steady speed costs a frame nothing. Turning round, it swings nose-first into the screen in a
+  // few held steps and opens out the other way (turnT, vehicleTurnPose), like an old side-on sprite.
   //
   // At the wheel, your head is in its 🪟 window. Blake: "you should see the players head sort of
   // sticking out the window like real life." It is your OWN Side drawing — what you are wearing on
@@ -22158,9 +22193,8 @@ export default function AssetStudio({ game = false } = {}) {
     return <div key={key} style={{ position: "absolute", left: x - fw / 2, top: y - hgt, width: fw, height: hgt, pointerEvents: "none" }}>{propArtInner(fa, fw, hgt, fi, key, fb)}</div>;
   };
   const vehCarEl = (car, off, mine, nk) => {
-    const pa = car.pa, st = vehicleStateOf(car), half = VEH_TURN_FRAMES / 2;
-    const tt = car.turnT || 0, face = tt > half ? -car.face : car.face;
-    const sq = tt > 0 ? Math.max(0.1, Math.abs(tt - half) / half) : 1;
+    const pa = car.pa, st = vehicleStateOf(car), turn = vehicleTurnPose(car.turnT || 0);
+    const face = turn.old ? -car.face : car.face;
     const artFlip = (face > 0) !== !!pa.facesRight;
     const box = car.box, sc = Math.min(car.w / box.w, car.h / box.h);
     const step = spinStepOf(car.spin || 0), key = "veh" + nk + "|" + car.id;
@@ -22198,9 +22232,11 @@ export default function AssetStudio({ game = false } = {}) {
         : <div key="smoulder" style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, opacity: 0.55, pointerEvents: "none" }}>{vehPropAt(null, car.w * 0.32, car.h * 0.45, sh, "s1", sym("fx.fire", null, sh))}{vehPropAt(null, car.w * 0.66, car.h * 0.5, sh * 0.75, "s2", sym("fx.fire", null, sh * 0.75))}</div>;
     }
     const z = !car.driven ? levelObjectZIndex(car.o, car.ord || 0) : mine ? VEH_DRIVEN_Z : VEH_PARKED_Z;
-    const flipX = (artFlip ? -1 : 1) * sq;
+    // Mid-turn: rotateY by the step, signed by the way the OLD nose pointed (-car.face), which sends the
+    // nose into the screen; perspective about 2 car widths away so the near end reads bigger.
+    const turnCss = turn.deg ? "perspective(" + Math.round(car.w * 2) + "px) rotateY(" + (-car.face * turn.deg) + "deg) " : "";
     return <div key={key} className="vehLive" data-vehicle={car.id} data-vehicle-state={st} style={{ position: "absolute", left: off.x + car.x, top: off.y + car.y, width: car.w, height: car.h, zIndex: z, pointerEvents: "none", transformOrigin: "50% 100%", transform: car.tilt ? "rotate(" + car.tilt.toFixed(2) + "deg)" : undefined }}>
-      <div style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, transform: flipX !== 1 ? "scaleX(" + flipX.toFixed(3) + ")" : undefined }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, transform: (turnCss + (artFlip ? "scaleX(-1)" : "")) || undefined }}>
         {headUnder}{hit.el}{headOver}{fx}
       </div>
     </div>;
@@ -29701,7 +29737,7 @@ export default function AssetStudio({ game = false } = {}) {
   // stray 🎯 floating over unrelated art (DEFAULT_SHOULDER's fallback body-shaped position).
   const showArmRig = asset.type === "body";
   const bodyRigNow = (asset.type === "body" || asset.type === "enemy") ? bodyRig(asset, angle) : null;
-  const hand = asset.type === "body" ? bodyRigNow.hand : (asset.type === "enemy" ? (bodyRigNow ? bodyRigNow.hand : DEFAULT_HAND[angle]) : handForGuide(asset)[angle]);
+  const hand = asset.type === "body" ? bodyRigNow.hand : (asset.type === "enemy" ? (bodyRigNow ? bodyRigNow.hand : DEFAULT_HAND[angle]) : (handForGuide(asset)[angle] || handForGuide(asset).front)); // a 🚗 vehicle's damage looks (frontDamage…) are "angles" no hand map has: the Stock pose's hand
   const shoulder = bodyRigNow ? bodyRigNow.shoulder : null;
   // ✋ WEAPON HOLD — Enemy creator, on the two poses a unit ever holds a weapon in. `holdArm` is exactly
   // what the game attaches to (unitHoldArm), so the marker and the preview weapon cannot disagree with
@@ -30703,6 +30739,7 @@ export default function AssetStudio({ game = false } = {}) {
               <label className="slider">{sym("stat.hp", null, 14)} HP<input type="number" min="1" step="1" value={asset.hp ?? VEHICLE_DEFAULT_HP} onChange={(e) => setAsset((a) => ({ ...a, hp: Math.max(1, Math.round(+e.target.value) || 1) }))} style={{ width: 60 }} /></label>
               <label className="slider">{sym("stat.def", null, 14)} Defense<input type="number" min="0" step="1" value={asset.defense ?? VEHICLE_DEFAULT_DEFENSE} onChange={(e) => setAsset((a) => ({ ...a, defense: Math.max(0, Math.round(+e.target.value) || 0) }))} style={{ width: 60 }} /></label>
               <label className="chk"><input type="checkbox" checked={!!asset.facesRight} onChange={(e) => setAsset((a) => ({ ...a, facesRight: e.target.checked }))} /> ➡ Front is on the right</label>
+              <button className="ltbtn" onClick={flipWholeVehicle}>⇋ Flip whole vehicle</button>
               {[["hoodFirePropId", "🔥 Hood fire"], ["wreckSmokePropId", "💨 Wreck smoke"], ["boomPropId", "💥 Explosion"]].map(([k, l]) => (
                 <label key={k} className="slider">{l}<select className="projSel" value={asset[k] || ""} onChange={(e) => setAsset((a) => ({ ...a, [k]: e.target.value || null }))}>
                   <option value="">—</option>
@@ -30711,7 +30748,7 @@ export default function AssetStudio({ game = false } = {}) {
               ))}
               {/* The four damaged looks drawn FROM Stock (autoVehicleDamage). On Stock it fills the looks
                   that are still empty; on a damaged look it redraws that one. Undo takes either back. */}
-              <button className="wcopy" onClick={vehicleLooksFromStock}>💥 {angle === "front" ? "Make the damaged looks" : "Redraw " + poseName(angle) + " from Stock"}</button>
+              <button className="ltbtn" onClick={vehicleLooksFromStock}>💥 {angle === "front" ? "Make the damaged looks" : "Redraw " + poseName(angle) + " from Stock"}</button>
               <div className="ct2">📂 Folder</div>
               <input className="catItemInput" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder={PROP_UNCAT} maxLength={28} />
               {vehCatSuggest.length > 0 && <div className="catchips">{vehCatSuggest.map((c) => <button key={c} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}

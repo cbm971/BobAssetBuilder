@@ -321,6 +321,21 @@ export const VEH_MAX_SPEED = 24;       // nothing rolls faster, however long the
 export const VEH_STEP_UP = 10;         // px: a kerb a wheel climbs; a 30 px block is a wall
 export const VEH_MAX_TILT = 50;        // degrees the body can pitch to before it is a fall, not a slope
 export const VEH_TURN_FRAMES = 12;     // the brake held this long at a stop turns the car round
+// THE TURN, AS DRAWN (2026-11-01, Blake: "slightly more jagged and retro feeling", "turn around nose
+// away from the player not towards"). Not a smooth squash to an edge: a few HELD steps of the car
+// swinging round its upright axis in perspective, the nose going INTO the screen so the back end
+// comes round towards you, then the other side opening out. Degrees, in order, VEH_TURN_FRAMES split
+// evenly between them; positive steps still show the old facing, negative ones the new.
+export const VEH_TURN_POSES = [40, 75, -75, -40];
+// { old, deg } for a car turnT frames from the end of its turn: `old` = draw it still facing the way it
+// was, `deg` = how far round it is. The caller turns it rotateY(deg x the way the OLD nose pointed on
+// screen), which is the direction that sends the nose away; deg 0 = not turning.
+export const vehicleTurnPose = (turnT) => {
+  if (!(turnT > 0)) return { old: false, deg: 0 };
+  const u = 1 - Math.min(VEH_TURN_FRAMES, turnT) / VEH_TURN_FRAMES;
+  const deg = VEH_TURN_POSES[Math.min(VEH_TURN_POSES.length - 1, Math.floor(u * VEH_TURN_POSES.length))];
+  return { old: deg > 0, deg };
+};
 export const VEH_CRASH_MIN = 5;        // px/frame into a wall to dent it and hurt it
 export const vehicleCrashDamage = (speed) => (speed >= VEH_CRASH_MIN ? Math.round((speed - 3) * 5) : 0);
 export const VEH_HARD_LANDING = 10;    // px/frame of fall that hurts the car when it lands
