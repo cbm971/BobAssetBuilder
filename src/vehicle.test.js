@@ -5,7 +5,7 @@ import {
   autoVehicleDamage, isGlassColor,
   vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, vehicleCrashDamage,
   carBearsDown, vehicleDodgeKind, vehicleDodgeChance,
-  VEH_SEAT_FRAC, vehicleSeatsPlayer, vehiclePassengerSpots, isPassengerSpot, followerCanBoard, VEH_BOARD_MAX_SPEED } from "./vehicle";
+  VEH_SEAT_FRAC, vehicleSeatsPlayer, vehiclePassengerSpots, isPassengerSpot, followerCanBoard, VEH_BOARD_MAX_SPEED, vehicleSpeedOf, vehiclePower } from "./vehicle";
 
 const CAR = [
   { id: "body", kind: "rect", x: 20, y: 120, w: 160, h: 40, color: "#c43c3c" },
@@ -370,5 +370,25 @@ describe("passenger places", () => {
     expect(followerCanBoard(car, 90, 320)).toBe(false);                       // not beside it yet
     expect(followerCanBoard(car, 150, 200)).toBe(false);                      // up on its roof, not at its door
     expect(followerCanBoard({ ...car, vx: VEH_BOARD_MAX_SPEED + 1 }, 150, 320)).toBe(false);
+  });
+});
+
+describe("engine power and speed scaling", () => {
+  test("vehicleSpeedOf clamps between 0.5 and 1.5, default 1", () => {
+    expect(vehicleSpeedOf({})).toBe(1);
+    expect(vehicleSpeedOf({ speed: 1.25 })).toBe(1.25);
+    expect(vehicleSpeedOf({ speed: 0.1 })).toBe(0.5);
+    expect(vehicleSpeedOf({ speed: 2.5 })).toBe(1.5);
+    expect(vehiclePower({ power: 1.25 })).toBe(1.25);
+    expect(vehiclePower({})).toBe(1);
+  });
+  test("a car with higher power accelerates faster and reaches higher top speed", () => {
+    const flat = worldOf(() => ({ y: 600, slope: false }), 1e9);
+    const standard = newCar(100, 600);
+    const muscle = { ...newCar(100, 600), power: 1.25 };
+    drive(standard, flat, 120);
+    drive(muscle, flat, 120);
+    expect(muscle.vx).toBeGreaterThan(standard.vx);
+    expect(muscle.x).toBeGreaterThan(standard.x);
   });
 });

@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_HP_SCALE, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, VEHICLE_HP_SCALE, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleSpeedOf, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerSpots, followerCanBoard } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -6365,7 +6365,7 @@ export function newAsset(type, slot, wtype) {
   // A vehicle: one canvas like a prop, one frame, and in that frame five looks — Stock is `front` (the
   // footprint is measured from it, so a dented car never changes size in a level), then the four in
   // VEHICLE_STATES. An empty one draws Stock. HP and Defense are the car's own, like an enemy's.
-  if (type === "vehicle") { a.size = 16; a.frames = [{ ...blankAngles(), frontDamage: [], rearDamage: [], burning: [], destroyed: [] }]; a.angles = a.frames[0]; a.solidDefault = false; a.category = ""; a.hp = VEHICLE_DEFAULT_HP; a.defense = VEHICLE_DEFAULT_DEFENSE; a.facesRight = false; a.hoodFirePropId = null; a.wreckSmokePropId = null; a.boomPropId = null; }
+  if (type === "vehicle") { a.size = 16; a.frames = [{ ...blankAngles(), frontDamage: [], rearDamage: [], burning: [], destroyed: [] }]; a.angles = a.frames[0]; a.solidDefault = false; a.category = ""; a.hp = VEHICLE_DEFAULT_HP; a.defense = VEHICLE_DEFAULT_DEFENSE; a.speed = 1; a.facesRight = false; a.hoodFirePropId = null; a.wreckSmokePropId = null; a.boomPropId = null; }
   // A single-use item: one Front canvas (drawn like a projectile), an effect, and category tags so
   // a pedestal can roll it. No poses/frames/rig — it only ever shows on a pedestal and in menus.
   if (type === "item") { a.effect = DEFAULT_ITEM_EFFECT(); a.categories = ["", "", ""]; }
@@ -6472,7 +6472,7 @@ export const normalizeAssetJson = (raw) => {
   if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
   if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0; // hand-written JSON rarely carries a price; 0 = free, never undefined
   if ((type === "prop" || type === "vehicle") && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
-  if (type === "vehicle") { if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (!Number.isFinite(a.hp)) a.hp = VEHICLE_DEFAULT_HP; if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; if (a.size === undefined) a.size = 16; }
+  if (type === "vehicle") { if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (!Number.isFinite(a.hp)) a.hp = VEHICLE_DEFAULT_HP; if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; if (!Number.isFinite(a.speed)) a.speed = 1; if (a.size === undefined) a.size = 16; }
   if (!a.id) a.id = uid();
   if (typeof a.name !== "string" || !a.name.trim()) a.name = (type === "equipment" ? SLOTS[a.slot].label : (TYPES[type] ? TYPES[type].label : type));
   if (!a.guideId) a.guideId = "default";
@@ -15915,7 +15915,8 @@ export default function AssetStudio({ game = false } = {}) {
       const fr = wheelContactFracs(vehicleStatePieces(pa, "front"), R.box);
       const wl = flip ? 1 - fr.r : fr.l, wr = flip ? 1 - fr.l : fr.r;
       const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round((pa.hp || VEHICLE_DEFAULT_HP) * VEHICLE_HP_SCALE));
-      const car = { id: sp.uid, uid: sp.uid, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, dent: null, fuse: 0, dead: false, driven: false };
+      const power = vehicleSpeedOf(pa);
+      const car = { id: sp.uid, uid: sp.uid, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, power, dent: null, fuse: 0, dead: false, driven: false };
       vehCars[sp.uid] = car; vehWoken.current.add(sp.uid);
       return car;
     };
@@ -16336,7 +16337,11 @@ export default function AssetStudio({ game = false } = {}) {
         if (ev.crash) {
           const dmg = vehicleCrashDamage(ev.crash.speed);
           const endX = (ev.crash.end === "front") === (car.face > 0) ? car.x + car.w : car.x;
-          if (dmg > 0) { vehHurt(car, dmg, "crash", endX); sndEvent("carCrash", endX, car.y + car.h / 2); }
+          if (dmg > 0) {
+            vehHurt(car, dmg, "crash", endX);
+            sndEvent("carCrash", endX, car.y + car.h / 2);
+            booms.current.push({ x: endX, y: car.y + car.h * 0.6, propId: null, slot: "fx.boom", size: Math.min(3, 1 + ev.crash.speed / 6), life: 0, maxLife: 16 });
+          }
         }
         if (ev.landed != null) { const ld = vehicleLandingDamage(ev.landed); if (ld > 0) { vehHurt(car, ld, "crash", null); sndEvent("carCrash", car.x + car.w / 2, car.y + car.h); } }
         const speed = Math.abs(car.vx);
@@ -30863,6 +30868,7 @@ export default function AssetStudio({ game = false } = {}) {
               <div className="seg sizeseg">{PROP_DEFAULT_SIZES.map((n) => <button key={n} className={(asset.size ?? 16) === n ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, size: n }))}>{n}×</button>)}</div>
               <label className="slider">{sym("stat.hp", null, 14)} HP<input type="number" min="1" step="1" value={asset.hp ?? VEHICLE_DEFAULT_HP} onChange={(e) => setAsset((a) => ({ ...a, hp: Math.max(1, Math.round(+e.target.value) || 1) }))} style={{ width: 60 }} /></label>
               <label className="slider">{sym("stat.def", null, 14)} Defense<input type="number" min="0" step="1" value={asset.defense ?? VEHICLE_DEFAULT_DEFENSE} onChange={(e) => setAsset((a) => ({ ...a, defense: Math.max(0, Math.round(+e.target.value) || 0) }))} style={{ width: 60 }} /></label>
+              <label className="slider">{sym("stat.spd", null, 14)} Speed<input type="number" min="0.5" max="1.5" step="0.05" value={asset.speed ?? 1} onChange={(e) => setAsset((a) => ({ ...a, speed: Math.max(0.5, Math.min(1.5, Math.round(+e.target.value * 100) / 100)) }))} style={{ width: 60 }} /></label>
               <label className="chk"><input type="checkbox" checked={!!asset.facesRight} onChange={(e) => setAsset((a) => ({ ...a, facesRight: e.target.checked }))} /> ➡ Front is on the right</label>
               <button className="ltbtn" onClick={flipWholeVehicle}>⇋ Flip whole vehicle</button>
               {[["hoodFirePropId", "🔥 Hood fire"], ["wreckSmokePropId", "💨 Wreck smoke"], ["boomPropId", "💥 Explosion"]].map(([k, l]) => (

@@ -406,6 +406,14 @@ export const autoVehicleDamage = (stock, kind, facesRight, uid, have) => {
 export const VEH_GRAVITY = 0.175;
 export const VEH_ACCEL = 0.2;          // the engine's pull from rest
 export const VEH_ENGINE_TOP = 16;      // the speed at which the engine has nothing left to give
+// A CAR'S OWN ENGINE (2026-11-01, Blake: "make a new muscle car ... a little faster than the existing
+// ones"). The vehicle's Speed (asset.speed, absent = 1) scales the engine: its pull and the speed it
+// pulls to, so a 1.2 car gets going a fifth harder and tops out a fifth higher on the flat. Hills,
+// brakes, drag and VEH_MAX_SPEED are the same for every car. A live car carries it as `power`.
+export const VEHICLE_SPEED_MIN = 0.5;
+export const VEHICLE_SPEED_MAX = 1.5;
+export const vehicleSpeedOf = (asset) => { const s = asset && Number(asset.speed); return Number.isFinite(s) && s > 0 ? Math.max(VEHICLE_SPEED_MIN, Math.min(VEHICLE_SPEED_MAX, s)) : 1; };
+export const vehiclePower = (v) => (v && v.power > 0 ? v.power : 1);
 export const VEH_ROLL = 0.004;         // rolling resistance
 export const VEH_DRAG = 0.00007;       // air, by the square of the speed
 export const VEH_COAST = 0.05;         // no pedal: the engine holding it back
@@ -457,7 +465,7 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   if (v.onGround) {
     const along = v.vx * v.face; // speed the way it faces; negative = rolling backwards
     let a = 0; // in the facing direction
-    if (ctl.gas) a = VEH_ACCEL * Math.min(1.5, 1 - along / VEH_ENGINE_TOP);
+    if (ctl.gas) { const pw = vehiclePower(v); a = VEH_ACCEL * pw * Math.min(1.5, 1 - along / (VEH_ENGINE_TOP * pw)); }
     else if (along !== 0) a = -Math.sign(along) * Math.min(Math.abs(along) / dt, ctl.brake ? VEH_BRAKE : VEH_COAST);
     let ax = a * v.face + G * Math.sin(t);
     if (v.vx !== 0) ax -= Math.sign(v.vx) * (VEH_ROLL + VEH_DRAG * v.vx * v.vx);
@@ -518,10 +526,18 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
       v.yL += v.vy * dt; v.yR += v.vy * dt;
     } else {
       // One wheel over a drop: it falls, the body pitches about the other, until the pitch is a fall.
+      // THE HANGING WHEEL IS CARRIED WITH THE BODY (2026-11-01, Trailor Park M17's bus jump): it moves
+      // up or down as far as the wheel still on the ground did this frame, and falls on top of that.
+      // It used to fall from where it was, so a car going up a ramp had its nose stop rising the frame
+      // it passed the lip: the car tipped nose-down over the edge (+13° at 11 px/frame off a 27° ramp)
+      // and left with a tenth of its climb (vy -0.5 for about -5), dropping off the end instead of
+      // jumping. On the flat the wheel on the ground does not move up or down, so a slow car rolling
+      // over a ledge tips exactly as before.
       hangL = fl.y == null; hangR = fr.y == null;
       v.freeVy = hangL || hangR ? (v.freeVy || 0) + G * dt : 0;
-      v.yL = fl.y != null ? fl.y : v.yL + v.freeVy * dt;
-      v.yR = fr.y != null ? fr.y : v.yR + v.freeVy * dt;
+      const carry = hangL !== hangR ? (hangL ? fr.y - v.yR : fl.y - v.yL) : 0;
+      v.yL = fl.y != null ? fl.y : v.yL + carry + v.freeVy * dt;
+      v.yR = fr.y != null ? fr.y : v.yR + carry + v.freeVy * dt;
     }
   } else {
     const dy = v.vy * dt;
