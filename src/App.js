@@ -12050,10 +12050,11 @@ const canAttach = (left, right, side) => { // does `right` attach to `side` of `
 // MIDDLE levels, so a run with both ends was 10 ("level 2 of 10"). The street chain is now 8 in all:
 // the middles are what is left after the Intro and the Exit, when the pool has them. Sewers and tree
 // tops hang off the street and are not counted.
-// TWENTY-FOUR (2026-11-01). Blake: "we are going to 24 levels per floor and i'm adding parcore and
-// driving levels". A floor with fewer levels than that still ends: no level twice on a seed, and a chain
-// that runs dry ends at the last level an Exit joins.
-export const RUN_LEVELS_PER_FLOOR = 24;
+// A FLOOR'S POOL IS NOT A RUN (2026-11-01). Blake: "we are going to 24 levels per floor" means a floor
+// will HOLD about 24 levels to pick from. A seed still SHOWS 8 of them. An agent read it as this number
+// and set it to 24; Blake: "YOU DO NOT SEE EVERY FREAKING LEVEL EVERY FREAKING SEED!!!! YOU SEE 8".
+// Never change this without asking him first.
+export const RUN_LEVELS_PER_FLOOR = 8;
 export const RUN_MIDDLE_LEVELS = RUN_LEVELS_PER_FLOOR;   // the middles when the pool has no Intro and no Exit (see buildRun)
 export const SEAM_STRIP_CELLS = 40;    // the old width of the neighbour strip. Neighbours are drawn WHOLE now and the camera and the object list use the whole level (see cameraTarget); this is only inSeamStrip's default and the camera's fallback for a seam with no level to measure
 export const GATE_REACH_CELLS = 10;    // a crossing counts as "through gate X" only within this many cells of X's marked point
@@ -12197,7 +12198,7 @@ export const buildRun = (levels, seed, opts = {}) => {
   const floor = String(opts.floor || "").trim(), onFloor = (l) => !floor || sameFloor(l.floor, floor);
   const pool = (levels || []).filter((l) => l && !l.isRoom && l.conns).map(migrateLevel);
   const intros = pool.filter((l) => runRole(l) === "intro" && onFloor(l)), exits = pool.filter((l) => runRole(l) === "exit" && onFloor(l)), middles = pool.filter((l) => runRole(l) === "middle");
-  const maxMiddles = opts.maxMiddles !== undefined ? opts.maxMiddles : RUN_LEVELS_PER_FLOOR - (intros.length ? 1 : 0) - (exits.length ? 1 : 0);   // twenty-four in all (RUN_LEVELS_PER_FLOOR)
+  const maxMiddles = opts.maxMiddles !== undefined ? opts.maxMiddles : RUN_LEVELS_PER_FLOOR - (intros.length ? 1 : 0) - (exits.length ? 1 : 0);   // eight in all (RUN_LEVELS_PER_FLOOR)
   // What may sit off the street: a sewer/tree-top level, or a middle level whose gates happen to fit.
   const offStreet = pool.filter((l) => runRole(l) === "side" || runRole(l) === "middle");
   const eastOpen = (l) => l.conns.E1.open || l.conns.E2.open;

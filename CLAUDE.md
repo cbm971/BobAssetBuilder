@@ -696,8 +696,8 @@ plus traps it does not cover:
 - **Runs** are the game loop, in the block headed `RUNS — a playable chain of levels`.
   - `buildRun(runPool(), seed)` is seeded. It picks an Intro (a level with no open left-hand
     gate), then middles chained by `canAttach`, then an Exit (no open right-hand gate). **A floor
-    is `RUN_LEVELS_PER_FLOOR` (24) street levels IN ALL, start and end counted** (his rule; sewers
-    are extra; it was 8 until 2026-11-01, when Blake said "we are going to 24 levels per floor and i'm adding parcore and driving levels"). **No level twice on a seed** (his rule): buildRun never re-picks a used street or sewer
+    is `RUN_LEVELS_PER_FLOOR` (8) street levels IN ALL, start and end counted** (his rule; sewers
+    are extra). **A floor's POOL is not a run** (2026-11-01): "we are going to 24 levels per floor" means a floor will hold about 24 levels to pick from, and a seed still shows 8 of them. An agent set the constant to 24 and Blake: "YOU DO NOT SEE EVERY FREAKING LEVEL EVERY FREAKING SEED!!!! YOU SEE 8". Never change it without asking. **No level twice on a seed** (his rule): buildRun never re-picks a used street or sewer
     level, and a chain that runs dry ends at the last level an Exit joins. A run starts at the Intro's Lower Left gate even though it is closed (`spawnGateFor`). **A level's role comes from its gates and Floor only (`runRole`).** Blake
     retired the free-text Section box on 2026-10-09; an old save's `section` is ignored.
   - **A run is one floor's** (`buildRun(pool, seed, { floor })`, 2026-10-18): the Intro, the Exit and
@@ -1036,4 +1036,4 @@ Grep it for the function or feature name. In order, it covers:
 - the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.
 - the game front end: why it is one app at two addresses, the title before the bundle, where saves live;
 - and, last, the 🚗 vehicles: his 7 cars migrated, what was measured driving one, and the car's i-frames;
-  then cars across seams, "a sitting player should fit", Bob on the tractor seat, ramp jump momentum carry, vehicle speed scaling, 1969 Muscle Car, and Trailor Park M17; then the Dragster, Trailor Park M18 and the 24-level floor.
+  then cars across seams, "a sitting player should fit", Bob on the tractor seat, ramp jump momentum carry, vehicle speed scaling, 1969 Muscle Car, and Trailor Park M17; then the Dragster and Trailor Park M18.

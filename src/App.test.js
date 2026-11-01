@@ -11024,9 +11024,9 @@ describe("runs", () => {
     expect(ids).not.toContain("ROOM");
     expect(new Set(ids).size).toBe(ids.length);                             // no level twice on a seed (Blake, 2026-10-11)
     expect(ids.length).toBeLessThanOrEqual(6);                              // four middles: the chain is shorter, never a repeat
-    const wide = [...Array.from({ length: 6 }, (_, i) => [A, B, C, D].map((L) => ({ ...L, id: L.id + "w" + i }))).flat(), INTRO, EXIT];
+    const wide = [A, B, C, D, { ...A, id: "A2" }, { ...B, id: "B2" }, { ...C, id: "C2" }, { ...D, id: "D2" }, { ...D, id: "D3" }, INTRO, EXIT];
     for (const sd of ["seed-1", "q", "r"]) { const w = buildRun(wide, sd), wi = w.order.map((k) => w.nodes[k].level.id); expect(wi.length).toBe(RUN_LEVELS_PER_FLOOR); expect(new Set(wi).size).toBe(wi.length); }
-    expect(RUN_LEVELS_PER_FLOOR).toBe(24);
+    expect(RUN_LEVELS_PER_FLOOR).toBe(8);
     const noEnds = buildRun([A, B, C, D], "seed-1");                         // no Intro or Exit made yet: eight middles
     expect(noEnds.order.length).toBeLessThanOrEqual(RUN_MIDDLE_LEVELS);
     // every consecutive pair joins east→west through an open, mutual gate pair (runSeams uses connMatch)
