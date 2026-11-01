@@ -2057736,6 +2057736,36 @@
     "37,101": {
      "c": "#2d3710",
      "tex": "qnfjme1"
+    },
+    "20,78": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,79": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,80": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,81": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,82": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,83": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2076304,6 +2076334,21 @@
       "canvasScale": false,
       "z": 11
      }
+    ],
+    "15,2": [
+     {
+      "kind": "prop",
+      "propId": "mscl69m",
+      "solid": false,
+      "size": 16,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 12
+     }
     ]
    },
    "climb": {
@@ -2076701,8 +2076746,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1793458364468
+   "savedAt": 1793564496073,
+   "editedFrom": 1793564467667
   },
   {
    "id": "gqjimzx",
