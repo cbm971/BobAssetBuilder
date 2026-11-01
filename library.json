@@ -2120915,6 +2120915,46 @@
      "c": "#b5b1a7",
      "tex": "tjpoh5x",
      "hideInPlay": true
+    },
+    "34,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2130314,8 +2130354,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792368518634,
-   "editedFrom": 1792345182014
+   "savedAt": 1793564393560,
+   "editedFrom": 1792368518634
   },
   {
    "id": "i80q4s6",
