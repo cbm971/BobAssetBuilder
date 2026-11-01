@@ -1382643,15 +1382643,15 @@
     "Gun",
     "Odd"
    ],
-   "value": 19,
+   "value": 30,
    "rank": "mystic",
    "groups": {
     "back": [],
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793454712895,
-   "editedFrom": 1792338923022,
+   "savedAt": 1793564769442,
+   "editedFrom": 1793454712895,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5",
