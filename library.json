@@ -1041115,7 +1041115,7 @@
    "categories": [
     "T2",
     "Meelee",
-    "Samurai"
+    "Ninja"
    ],
    "value": 18,
    "rank": "legendary",
@@ -1044680,7 +1044680,7 @@
      }
     }
    },
-   "savedAt": 1792357790218,
+   "savedAt": 1793613206337,
    "states": {
     "rest": {
      "front": [
@@ -1046424,7 +1046424,7 @@
      }
     ]
    },
-   "editedFrom": 1792357008640,
+   "editedFrom": 1792357790218,
    "boomerang": false,
    "pickupCount": 3
   },
@@ -1052787,7 +1052787,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Kung Fu"
+    "Ninja"
    ],
    "value": 16,
    "rank": "rare",
@@ -1058185,10 +1058185,10 @@
      }
     ]
    },
-   "savedAt": 1793613180314,
+   "savedAt": 1793613215358,
    "boomerang": false,
    "pickupCount": 3,
-   "editedFrom": 1792890464192
+   "editedFrom": 1793613180314
   },
   {
    "id": "kfqipao",
