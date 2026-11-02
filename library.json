@@ -1312298,7 +1312298,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0la",
@@ -1312315,7 +1312317,9 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 28
+      "rot": 28,
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lb",
@@ -1312331,7 +1312335,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lc",
@@ -1312347,7 +1312353,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0ld",
@@ -1312366,7 +1312374,9 @@
       },
       "overArms": true,
       "limb": "arm",
-      "rot": 358
+      "rot": 358,
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0le",
@@ -1312382,7 +1312392,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lf",
@@ -1312398,7 +1312410,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lg",
@@ -1312414,7 +1312428,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      }
     ],
     "back": [
@@ -1312432,7 +1312448,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0li",
@@ -1312449,13 +1312467,15 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 28
+      "rot": 28,
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lj",
       "kind": "rect",
-      "x": 66.5,
-      "y": 86,
+      "x": 64.5,
+      "y": 85.5,
       "w": 11.5,
       "h": 86,
       "color": "#3d4a28",
@@ -1312465,7 +1312485,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lk",
@@ -1312484,15 +1312506,17 @@
       },
       "overArms": true,
       "limb": "arm",
-      "rot": 353
+      "rot": 353,
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      }
     ],
     "side": [
      {
       "id": "uss0ls",
       "kind": "roundrect",
-      "x": 126.5,
-      "y": 112,
+      "x": 127.5,
+      "y": 117.5,
       "w": 6,
       "h": 11,
       "color": "#c9cdd2",
@@ -1312502,7 +1312526,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0ll",
@@ -1312518,13 +1312544,15 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lm",
       "kind": "tri",
       "x": 55,
-      "y": 142,
+      "y": 144.5,
       "w": 50,
       "h": 26,
       "color": "#3d4a28",
@@ -1312535,7 +1312563,9 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 347
+      "rot": 347,
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0ln",
@@ -1312551,7 +1312581,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lo",
@@ -1312570,7 +1312602,9 @@
       },
       "overArms": true,
       "rot": 0,
-      "limb": "arm"
+      "limb": "arm",
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lp",
@@ -1312586,14 +1312620,16 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lq",
       "kind": "circle",
       "x": 115,
       "y": 95,
-      "w": 18,
+      "w": 19,
       "h": 29,
       "color": "#3d4a28",
       "mirror": false,
@@ -1312603,7 +1312639,9 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 14
+      "rot": 14,
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      },
      {
       "id": "uss0lr",
@@ -1312619,7 +1312657,9 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "_src": "ni0q1xp",
+      "_slot": "shirt"
      }
     ],
     "up": [
@@ -1313971,7 +1314011,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0la",
@@ -1313988,7 +1314030,9 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 28
+       "rot": 28,
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lb",
@@ -1314004,7 +1314048,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lc",
@@ -1314020,7 +1314066,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0ld",
@@ -1314039,7 +1314087,9 @@
        },
        "overArms": true,
        "limb": "arm",
-       "rot": 358
+       "rot": 358,
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0le",
@@ -1314055,7 +1314105,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lf",
@@ -1314071,7 +1314123,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lg",
@@ -1314087,7 +1314141,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       }
      ],
      "back": [
@@ -1314105,7 +1314161,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0li",
@@ -1314122,13 +1314180,15 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 28
+       "rot": 28,
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lj",
        "kind": "rect",
-       "x": 66.5,
-       "y": 86,
+       "x": 64.5,
+       "y": 85.5,
        "w": 11.5,
        "h": 86,
        "color": "#3d4a28",
@@ -1314138,7 +1314198,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lk",
@@ -1314157,15 +1314219,17 @@
        },
        "overArms": true,
        "limb": "arm",
-       "rot": 353
+       "rot": 353,
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       }
      ],
      "side": [
       {
        "id": "uss0ls",
        "kind": "roundrect",
-       "x": 126.5,
-       "y": 112,
+       "x": 127.5,
+       "y": 117.5,
        "w": 6,
        "h": 11,
        "color": "#c9cdd2",
@@ -1314175,7 +1314239,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0ll",
@@ -1314191,13 +1314257,15 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lm",
        "kind": "tri",
        "x": 55,
-       "y": 142,
+       "y": 144.5,
        "w": 50,
        "h": 26,
        "color": "#3d4a28",
@@ -1314208,7 +1314276,9 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 347
+       "rot": 347,
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0ln",
@@ -1314224,7 +1314294,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lo",
@@ -1314243,7 +1314315,9 @@
        },
        "overArms": true,
        "rot": 0,
-       "limb": "arm"
+       "limb": "arm",
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lp",
@@ -1314259,14 +1314333,16 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lq",
        "kind": "circle",
        "x": 115,
        "y": 95,
-       "w": 18,
+       "w": 19,
        "h": 29,
        "color": "#3d4a28",
        "mirror": false,
@@ -1314276,7 +1314352,9 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 14
+       "rot": 14,
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       },
       {
        "id": "uss0lr",
@@ -1314292,7 +1314370,9 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "ni0q1xp",
+       "_slot": "shirt"
       }
      ],
      "up": [
@@ -1314595,8 +1314675,8 @@
    ],
    "value": 20,
    "rank": "legendary",
-   "savedAt": 1792624469716,
-   "editedFrom": 1792624469029
+   "savedAt": 1793613781562,
+   "editedFrom": 1793613774457
   },
   {
    "id": "np2j0ym",
