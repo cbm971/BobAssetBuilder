@@ -433,6 +433,7 @@ export const VEH_BRAKE = 0.45;         // the other way held: the brakes
 export const VEH_MAX_SPEED = 24;       // nothing rolls faster, however long the hill (less than a cell a frame, so a wall is always met)
 export const VEH_STEP_UP = 10;         // px: a kerb a wheel climbs; a 30 px block is a wall
 export const VEH_MAX_TILT = 50;        // degrees the body can pitch to before it is a fall, not a slope
+export const VEH_LIP_DROP = 30;        // px: ground past a hole no lower than this under the road is the road going on (a cell)
 export const VEH_TURN_FRAMES = 12;     // the brake held this long at a stop turns the car round
 // THE TURN, AS DRAWN (2026-11-01, Blake: "slightly more jagged and retro feeling", "turn around nose
 // away from the player not towards"). Not a smooth squash to an edge: a few HELD steps of the car
@@ -525,8 +526,35 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   v.x = nx;
   ev.dist = dx;
   const prevBottom = (v.yL + v.yR) / 2;
-  const fl = world.floorAt(xl, v.yL, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
-  const fr = world.floorAt(xr, v.yR, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
+  let fl = world.floorAt(xl, v.yL, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
+  let fr = world.floorAt(xr, v.yR, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
+  // A HOLE SHORTER THAN THE CAR IS BRIDGED (2026-11-02, Blake: "vehichles can clip through the sewer
+  // level"). A wheel over a hole used to drop into it and the body pitch about the other wheel, so a
+  // car crept over a manhole put its nose down the shaft at the full pitch, the body through the
+  // street and into the sewer under it (Trailor Park M5's 6-cell manhole: the Station Wagon's body
+  // 380 px inside the ground, the School Bus's 600). A car is a box: over a hole whose two sides are
+  // closer together than the car is long, it rests across it. With the road going on at the far
+  // side the wheel rolls on the line between the two lips; with a wall there (a pit against a
+  // cliff, Tree Tops 3) it stays level at the near lip and meets the wall as a wall. A hole the car
+  // fits into it still drops into, and a ledge or a step down it tips off exactly as before.
+  if (v.onGround) {
+    const bridged = (x, y, f) => {
+      if (f.y != null) return f;
+      const lip = (dir) => {
+        for (let d = 10; d <= v.w; d += 10) {
+          const g = world.floorAt(x + dir * d, y, VEH_STEP_UP, VEH_STEP_UP, VEH_LIP_DROP);
+          if (g.y != null) return { d, y: g.y };
+          if (world.groundTop && world.groundTop(x + dir * d, y) != null) return { d, y: null };
+        }
+        return null;
+      };
+      const a = lip(-1), b = a && lip(1);
+      if (!a || !b || a.d + b.d > v.w || (a.y == null && b.y == null)) return f;
+      if (a.y == null || b.y == null) return { y: a.y ?? b.y, steep: false };
+      return { y: a.y + ((b.y - a.y) * a.d) / (a.d + b.d), steep: false };
+    };
+    fl = bridged(xl, v.yL, fl); fr = bridged(xr, v.yR, fr);
+  }
   const wasGround = v.onGround;
   let hangL = false, hangR = false;
   if (wasGround) {
@@ -548,8 +576,30 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
       hangL = fl.y == null; hangR = fr.y == null;
       v.freeVy = hangL || hangR ? (v.freeVy || 0) + G * dt : 0;
       const carry = hangL !== hangR ? (hangL ? fr.y - v.yR : fl.y - v.yL) : 0;
-      v.yL = fl.y != null ? fl.y : v.yL + carry + v.freeVy * dt;
-      v.yR = fr.y != null ? fr.y : v.yR + carry + v.freeVy * dt;
+      const startL = v.yL + carry, startR = v.yR + carry;
+      v.yL = fl.y != null ? fl.y : startL + v.freeVy * dt;
+      v.yR = fr.y != null ? fr.y : startR + v.freeVy * dt;
+      // ...AND DROPS ONLY AS FAR AS THE BODY LETS IT: ground under the body past the hanging wheel (the
+      // foot of a step down, the far side of a hole wider than the car) holds the line from the wheel
+      // on the ground up, so the nose rests on it instead of going into it. Only ground the body comes
+      // DOWN onto this frame: one it was already under (a branch it just drove off) holds nothing up.
+      if (hangL !== hangR && world.groundTop) {
+        const sx = v.x + (hangL ? v.wr : v.wl) * v.w, sy = hangL ? v.yR : v.yL;
+        const hx = v.x + (hangL ? v.wl : v.wr) * v.w, ex = hangL ? v.x : v.x + v.w;
+        const span = Math.abs(hx - sx);
+        if (span > 1) {
+          let k = ((hangL ? v.yL : v.yR) - sy) / span; // drop per px away from the wheel on the ground
+          const k0 = ((hangL ? startL : startR) - sy) / span; // ...and where it was before this frame's fall
+          const n = Math.max(1, Math.ceil(Math.abs(ex - hx) / 10));
+          for (let i = 0; i <= n; i++) {
+            const x = hx + ((ex - hx) * i) / n, d = Math.abs(x - sx), top = world.groundTop(x, sy + d * k - VEH_STEP_UP);
+            if (top != null && top >= sy + d * k0 - VEH_STEP_UP) k = Math.min(k, (top + VEH_STEP_UP - sy) / d);
+          }
+          const held = Math.max(sy + span * k, Math.min(hangL ? v.yL : v.yR, hangL ? startL : startR));
+          if (hangL && held < v.yL) { v.yL = held; v.freeVy = 0; }
+          if (hangR && held < v.yR) { v.yR = held; v.freeVy = 0; }
+        }
+      }
     }
   } else {
     const dy = v.vy * dt;

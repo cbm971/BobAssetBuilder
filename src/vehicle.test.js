@@ -309,6 +309,42 @@ describe("driving", () => {
     }
     expect(held).toBeGreaterThan(0);
   });
+  // Blake 2026-11-02: "vehichles can clip through the sewer level" — a car crept over Trailor Park
+  // M5's manhole put its nose down the shaft and its body through the street into the sewer.
+  const hangEndY = (v) => { const t = (v.tilt * Math.PI) / 180, lead = v.hang === "R"; const wx = v.x + (lead ? v.wr : v.wl) * v.w, bx = lead ? v.x + v.w : v.x; return (lead ? v.yR : v.yL) + (bx - wx) * Math.tan(t); };
+  test("a hole shorter than the car is rolled across: no wheel drops into it", () => {
+    const surf = (x) => (x >= 700 && x < 850 ? null : { y: 600, slope: false }); // a 150 px manhole, nothing under it
+    const w = withGround(surf, 1e9);
+    for (const plan of [(i) => i % 3 === 0, () => true]) {
+      const v = newCar(400, 600);
+      for (let i = 0; i < 900 && v.x < 1000; i++) { vehicleStep(v, { gas: plan(i) }, w); expect(Math.abs(v.tilt)).toBeLessThan(1); expect(Math.max(v.yL, v.yR)).toBeLessThanOrEqual(600.5); }
+      expect(v.x).toBeGreaterThan(900);
+    }
+  });
+  test("a pit narrower than the car against a wall: it stays level and meets the wall", () => {
+    const surf = (x) => (x < 700 ? { y: 600, slope: false } : x < 850 ? null : { y: 300, slope: false });
+    const v = newCar(400, 600);
+    const evs = []; for (let i = 0; i < 600; i++) { evs.push(vehicleStep(v, { gas: true }, withGround(surf, 1e9))); expect(Math.abs(v.tilt)).toBeLessThan(1); }
+    expect(evs.some((e) => e.crash)).toBe(true);
+    expect(v.x + v.w).toBeLessThanOrEqual(851);
+  });
+  test("a hole the car fits into it still drops into", () => {
+    const surf = (x) => (x >= 700 && x < 1000 ? { y: 900, slope: false } : { y: 600, slope: false });
+    const v = newCar(400, 600);
+    let low = 0; for (let i = 0; i < 400; i++) { vehicleStep(v, { gas: i < 40 }, withGround(surf, 1e9)); low = Math.max(low, Math.min(v.yL, v.yR)); }
+    expect(low).toBeGreaterThan(890);
+  });
+  test("tipping off a step, the nose rests on the ground below instead of going into it", () => {
+    const surf = (x) => ({ y: x < 2400 ? 600 : 690, slope: false });
+    const v = newCar(2215, 600);
+    let hung = 0;
+    for (let i = 0; i < 400; i++) {
+      vehicleStep(v, { gas: i % 4 === 0 }, withGround(surf, 1e9));
+      if (v.hang === "R") { hung++; expect(hangEndY(v)).toBeLessThanOrEqual(690 + VEH_STEP_UP + 0.5); }
+    }
+    expect(hung).toBeGreaterThan(0);
+    expect(v.yL).toBeCloseTo(690, 0);
+  });
   test("nose down off the foot of a ramp, the flat ahead is not a wall", () => {
     const surf = (x) => (x < 1000 ? { y: 300, slope: false } : x < 1300 ? { y: 300 + (x - 1000), slope: true } : { y: 600, slope: false });
     const v = newCar(700, 300);

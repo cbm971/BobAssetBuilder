@@ -3027,6 +3027,24 @@ export const meleeSwingAngle = (t, dur) => {
   if (prog <= strikeEnd) return MELEE_WINDUP_DEG + (MELEE_IMPACT_DEG - MELEE_WINDUP_DEG) * ((prog - windupEnd) / (strikeEnd - windupEnd));
   return MELEE_IMPACT_DEG * (1 - (prog - strikeEnd) / (1 - strikeEnd));
 };
+// 🪜 THE SAME SWING FROM A CLIMBING GRIP (2026-11-02, Blake: "if you are climbing say up a ladder
+// and you meelee attack to the right ... the animation does not go left"). On a ladder, bars or a
+// ledge the arm is held straight up (armClimbAbs), and the swing used to be ADDED to that. For a
+// shoulder (top-pivot) arm straight up is 180° on this scale, so the strike's 90° ended pointing
+// behind you. This is the swing on the same scale from the grip (`grip`, climbGripSwingDeg): the
+// windup goes from the rung to 150°, the strike is the standing one exactly (150° → 90°, so the hit
+// and the Fire art land where they do standing), and the recover goes back to the grip instead of
+// down to your side. A grip of 0 (an arm whose rest already points up) is the standing swing.
+export const meleeClimbSwingAngle = (t, dur, grip = 180) => {
+  const prog = Math.max(0, Math.min(1, t / dur));
+  const windupEnd = MELEE_WINDUP_FRAC, strikeEnd = MELEE_WINDUP_FRAC + MELEE_STRIKE_FRAC;
+  if (prog <= windupEnd) return grip + (prog / windupEnd) * (MELEE_WINDUP_DEG - grip);
+  if (prog <= strikeEnd) return meleeSwingAngle(t, dur);
+  return MELEE_IMPACT_DEG + (grip - MELEE_IMPACT_DEG) * ((prog - strikeEnd) / (1 - strikeEnd));
+};
+// Where the climbing grip (armClimbAbs) sits on the swing's scale for an arm of this pivot and
+// mirror: top 180, bottom 0, a side pivot 90.
+export const climbGripSwingDeg = (pv, twist = 1) => (((armClimbAbs(pv) * armPivotSign(pv) * twist) % 360) + 360) % 360;
 // True from the instant the swing reaches its 90° impact angle through the end of the recover
 // phase — this is the window the weapon's Fire-pose art (and nothing else — hit detection
 // itself still just follows wherever the arm/hitbox actually is, every frame, same as before).
@@ -28236,14 +28254,21 @@ export default function AssetStudio({ game = false } = {}) {
                   // hitting with), on its Rest art since no round was fired.
                   const meleeSwinging = blocks && p.firing && (p.firing.unarmed || !playtestWeapon || !isRanged(playtestWeapon.wtype)) && !playerAtkPose && !creatureFlies(basePlayerAsset);
                   if (meleeSwinging) {
-                    const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
                     // CSS +rot is clockwise: for a top-pivot arm hanging DOWN that sweeps the hand
                     // BACKWARD (behind a right-facing player), so a forward swing is -swingAngle.
                     // A bottom-pivot arm points up, where clockwise IS forward.
+                    // 🪜 Climbing, the arms were just put on the grip (armClimbAbs), so the swing is
+                    // meleeClimbSwingAngle measured from where that grip is on the swing's scale — and
+                    // only the weapon arm swings (gunArmOnly, as aiming there): the other hand keeps
+                    // hold of the rung.
+                    const climbSwing = p.climbing ? gunArmOnly(blocks, armOf(blocks)) : null;
+                    const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
+                    const swingOf = (a) => { if (!climbSwing) return swingAngle; const g = climbGripSwingDeg(a.armPivot, armMirrorTwist(a)); return meleeClimbSwingAngle(p.firing.t, p.firing.dur, g) - g; };
                     const meleeAnchorOf = armAnchorFinder(blocks);
-                    const meleeArmRot = (a) => (a.rot || 0) + armPivotSign(a.armPivot) * swingAngle * armMirrorTwist(a);
+                    const meleeArmRot = (a) => (a.rot || 0) + armPivotSign(a.armPivot) * swingOf(a) * armMirrorTwist(a);
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      if (climbSwing && !climbSwing(b)) return b;
                       if (b.role === "weaponArm") return { ...b, rot: meleeArmRot(b) };
                       const a = meleeAnchorOf(b);
                       if (!a) return { ...b, rot: meleeArmRot(b) };

@@ -842,7 +842,11 @@ plus traps it does not cover:
   level: `seamHandoff` moves every live car standing in the level being entered into that level's
   bucket, re-based, and `vehWoken` (not the bucket) is what the three placement passes ask
   (`vehIsLive`), so its placement back home stays empty. Its ground (`vehWorld`) asks
-  `worldParts`, as units do. A drivable car (`vehicleSeatsPlayer`: its placed art at least
+  `worldParts`, as units do. A car is a box (2026-11-02, "vehichles can clip through the sewer
+  level"): a hole whose two sides are closer together than the car is long is BRIDGED in
+  `vehicleStep` (a manhole; its far side a wall = it stays level and meets the wall), and a
+  hanging wheel's drop is held where the body would go into ground past it. Never let a wheel
+  pivot a car's body through ground it has not fallen onto. A drivable car (`vehicleSeatsPlayer`: its placed art at least
   `VEH_SEAT_FRAC` of your height) is never a solid object; one placed with Solid ticked is parked scenery (`vehicleDrivable`), solid and never got into. At the wheel your body gets empty intent, your box is seated on the car every frame
   (`vehSeat`), and every hit on "player" meets the car instead (`hitBodyOf`, `applyHitTo`, the
   foe-shot test). Wheels are pieces flagged 🛞 `wheel`, turned about their tyre (`spinWheelPieces`,

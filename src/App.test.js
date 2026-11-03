@@ -15671,3 +15671,25 @@ describe("vehicleTurnPose", () => {
     expect(vehicleTurnPose(0)).toEqual({ old: false, deg: 0 });
   });
 });
+
+import { meleeSwingAngle as msa2, meleeClimbSwingAngle, climbGripSwingDeg, armAimAbs as aimAbs2, armClimbAbs as climbAbs2, armPivotSign as pivotSign2 } from "./App";
+describe("a melee swing from a climbing grip (Blake 2026-11-02: on a ladder a swing to the right went left)", () => {
+  const dur = 12, norm = (d) => ((d % 360) + 360) % 360;
+  test("a shoulder arm starts and ends on the rung and strikes exactly as standing", () => {
+    expect(climbGripSwingDeg("top")).toBe(180);
+    expect(meleeClimbSwingAngle(0, dur)).toBe(180);
+    expect(meleeClimbSwingAngle(dur, dur)).toBeCloseTo(180, 6);
+    for (let t = 6; t <= 9; t += 0.5) expect(meleeClimbSwingAngle(t, dur)).toBeCloseTo(msa2(t, dur), 6);
+  });
+  test("at the impact the arm points FORWARD, the way a standing swing does, not behind you", () => {
+    for (const pv of ["top", "bottom"]) for (const tw of [1, -1]) {
+      const g = climbGripSwingDeg(pv, tw), t = dur * 0.75;
+      const rot = climbAbs2(pv) + pivotSign2(pv) * (meleeClimbSwingAngle(t, dur, g) - g) * tw;
+      expect(norm(rot)).toBeCloseTo(norm(aimAbs2(pv) * tw), 6);
+    }
+  });
+  test("an arm whose rest already points up swings exactly as it did", () => {
+    expect(climbGripSwingDeg("bottom")).toBe(0);
+    for (let t = 0; t <= dur; t++) expect(meleeClimbSwingAngle(t, dur, 0)).toBeCloseTo(msa2(t, dur), 6);
+  });
+});
