@@ -1959218,6 +1959218,66 @@
     "21,67": {
      "c": "#ece4cc",
      "tex": "clgtl01"
+    },
+    "23,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -1972269,8 +1972329,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792345230804,
-   "editedFrom": 1792345225663
+   "savedAt": 1793707095768,
+   "editedFrom": 1792345230804
   },
   {
    "id": "8l3tqki",
