@@ -1880656,13 +1880656,13 @@
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 7,
-   "rank": "common",
+   "rank": "poor",
    "sounds": {
     "fire": "u2f4b15",
     "hit": "ynj37i2"
    },
-   "savedAt": 1792333748186,
-   "editedFrom": 1792267939149,
+   "savedAt": 1793790497240,
+   "editedFrom": 1792333748186,
    "boomerang": false,
    "pickupCount": 3
   },
