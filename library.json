@@ -1163635,7 +1163635,7 @@
    "projectileId": "aopkigm",
    "projectileSpeed": 8,
    "projectileRange": 20,
-   "damage": 60,
+   "damage": 75,
    "fireRate": 1.5,
    "clipSize": 1,
    "reloadTime": 2.2,
@@ -1163649,7 +1163649,7 @@
    "ignoreArmor": false,
    "burst": 1,
    "burstDelay": 0.06,
-   "explodeRadius": 4.5,
+   "explodeRadius": 5,
    "explodePropId": "expl0d3",
    "explodeSize": 8,
    "explodeLife": 0.7,
@@ -1163675,10 +1163675,9 @@
     "hit": "aghad42",
     "fire": "dti525c"
    },
-   "savedAt": 1792335930598,
-   "editedFrom": 1792333351113,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "savedAt": 1793788501368
   },
   {
    "id": "mdetsd1",
