@@ -511,6 +511,15 @@ export const unlockPool = (assets, tabId) => {
   return (assets || []).filter((a) => a && a.id && tab.match(a)).sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")) || (a.id < b.id ? -1 : 1));
 };
 
+// Roll a 0..999999 seed string that never deals the immediately preceding run's seed twice in a row.
+export const freshRunSeed = (prevSeed = "", rng = Math.random) => {
+  const prev = String(prevSeed ?? "").trim();
+  const n = Math.max(0, Math.min(999999, Math.floor(rng() * 1000000)));
+  let s = String(n);
+  if (prev && s === prev) s = String((n + 1) % 1000000);
+  return s;
+};
+
 // ---------- the game's own store ----------
 // One small IndexedDB database. Values are plain objects (structured clone), never strings — see
 // the header for why that keeps them out of the keeper's sweep. When IndexedDB cannot be opened (a

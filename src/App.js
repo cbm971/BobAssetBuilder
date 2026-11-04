@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC } from "./gameFront";
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
@@ -1739,6 +1739,19 @@ export const fireImmune = (effects) => wearsEffect(effects, "fireImmune");
 export const blastImmune = (effects) => wearsEffect(effects, "blastImmune");
 export const shotIsFlame = (pr) => !!pr && (pr.ignite || 0) > 0;
 export const throwIsExplosive = (a) => !!a && (!!a.explode || Math.round(a.clusterCount || 0) > 0);
+// Floating "Immune" callout when a player/friendly attack lands on an enemy wearing immunity to it
+// (blastImmune vs explosions/explosive throws; fireImmune vs flame rounds). Clamped to the struck
+// body box so splash hits still label the immune enemy, and throttled per target so rapid-fire
+// streams (Flamethrower) do not stack dozens of overlapping words on one body.
+export const IMMUNE_CALLOUT_FRAMES = 42, IMMUNE_CALLOUT_COOLDOWN_FRAMES = 18;
+export const pushImmuneCallout = (boomsList, targetKey, hitX, hitY, box) => {
+  if (!Array.isArray(boomsList)) return false;
+  const x = box ? Math.max(box.x, Math.min(box.x + box.w, hitX)) : hitX;
+  const y = box ? Math.max(box.y, Math.min(box.y + box.h, hitY)) : hitY;
+  if (targetKey && boomsList.some((b) => b && b.text === "Immune" && b.immuneKey === targetKey && b.life < IMMUNE_CALLOUT_COOLDOWN_FRAMES)) return false;
+  boomsList.push({ x, y, text: "Immune", immuneKey: targetKey || null, life: 0, maxLife: IMMUNE_CALLOUT_FRAMES });
+  return true;
+};
 // 🐞 LUCKY / 🪞 REFLECT / 🚒 FIRE RESISTANCE (clothing abilities, 2026-10-20). Blake asked for "an
 // ability that adds a percent chance hits will not do any damage" (on a Lucky Hat) and "an item that
 // has a percent chance to reflect damage back at the attacker", plus a fireman's jacket and hat "each
@@ -5091,12 +5104,12 @@ export const limbFollowRot = (piece, target, baseArmRot) => (piece.rot || 0) + (
 // joint arc turns the two together into one rigid rotation about the joint — so it stays glued.
 export const rigidLimbTransform = (piece, jointX, jointY, visDeg, newRot) => {
   const rad = visDeg * Math.PI / 180;
-  // The piece's own VISUAL pivot — the exact point the renderer turns it about: its chosen
-  // shoulder side for an arm piece, top-centre for everything else (legs, shoes, clothing).
-  // Orbiting an assumed top-centre while the renderer pivots elsewhere is what detached
-  // followers whose shoulder side wasn't "top".
-  const isArmP = piece.role === "weaponArm" || (piece.limb === "arm" && !piece._isShoe);
-  const op = isArmP ? armShoulderPoint(piece) : { x: piece.x + piece.w / 2, y: piece.y };
+  // The piece's own VISUAL pivot — the exact point shapeStyle/outlineStyle/cutterMaskCss turn it
+  // about (its chosen shoulder side for an arm piece, centre [0.5, 0.5] for ordinary leg/shoe/garment
+  // pieces). Orbiting that true render pivot around the joint while adding the same screen-space
+  // angle keeps rotated pieces (such as Stompers' 179°-flipped sole spikes) welded in place with
+  // zero jump at swing 0 instead of snapping to a top-centre pivot and poking out of the ankle.
+  const op = pieceOriginPoint(piece);
   const dx = op.x - jointX, dy = op.y - jointY;
   const nx = jointX + dx * Math.cos(rad) - dy * Math.sin(rad);
   const ny = jointY + dx * Math.sin(rad) + dy * Math.cos(rad);
@@ -7131,36 +7144,28 @@ export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
       // twin sitting over a non-twin body leg counter-rotates against it. That asymmetry is
       // exactly what made the cliff dangle peel the pants off the legs.
       if (o.legSway) return { ...b, x: b.x + o.legSway };
-      // Non-alternate walk: each column swings by its column's phase (colSign), folded through
-      // the mirror-render flip so what alternates is the ON-SCREEN motion — a far leg drawn via
-      // the mirror flag renders inside scaleX(-1), which visually reverses stored rotation.
-      // Single-column bodies (every biped) reduce to exactly the old `swing`.
-      const vis = o.alternate ? sideSign(b) * swing : colSign(b) * swing * renderFlip(b); // the swing this piece should SHOW on screen (alternate) / apply in stored space (walk)
+      // Non-alternate walk: each column swings by its column's on-screen phase (colSign), and
+      // stored rotation folds through renderFlip(b) because a mirrored twin renders inside
+      // scaleX(-1), which reverses stored rotation on screen. Keeping vis in screen space for both
+      // branches ensures rigidLimbTransform orbits mirrored and non-mirrored pieces along the same arc.
+      const vis = (o.alternate ? sideSign(b) : colSign(b)) * swing;
       // A SHOE gets no special case any more. It used to ride a translation-only foot-arc plus a
       // token 0.3x tilt, on the theory that a foot angles only slightly with the stride. But the
       // body's own foot/ankle art is part of the leg chain and rotates the FULL swing (28 degrees
       // at the peak of a walk), so a 8.4-degree shoe simply fell off the end of a 28-degree foot:
       // the bare skin foot swung out from under the shoe and past the pant cuff. A shoe is worn
-      // ON the foot, so it must move exactly as the foot does. rigidLimbTransform below already
-      // does the right thing for any piece far from the hip (orbit the hip, then rotate about the
-      // piece's own top by the same angle) — which is precisely what "rigidly attached" means, and
-      // is the same path every pant leg has always taken. The old worry that a shoe would "wobble
-      // in place" applied only to rotating it about its own top WITHOUT the hip orbit.
-      const newRot = (b.rot || 0) + vis * (o.alternate ? renderFlip(b) : 1);
-      // Every leg piece rotates RIGIDLY about the actual hip joint, not about its own top.
-      // Own-top pivots meant a pant leg whose waistband sits a few px above/below the body
-      // leg's hip swept a slightly different arc (the "pants lag the leg and it clips out"
-      // walking bug — 2.4px measured on the Military Fatigues), and a piece drawn far down
-      // the leg (a calf triangle, a knee pocket) barely moved at all while the leg swept
-      // away under it (12-27px measured on the ladder). The hip is the top-centre of the
-      // topmost true leg piece, preferring the BODY's own leg (no _slot) over clothing so
-      // garments anchor to the leg underneath them, grouped per on-screen side in alternate
-      // (ladder) mode since the two legs swing oppositely there. For the topmost piece
-      // itself the orbit is a no-op (it IS the pivot), so a plain body leg — and any
-      // single-piece leg wearing nothing — behaves exactly as before.
+      // ON the foot, so it must move exactly as the foot does. rigidLimbTransform below orbits each
+      // piece's natural render pivot (centre [0.5, 0.5]) around the hip and adds the same on-screen
+      // angle — keeping both unrotated pieces and rotated details (like Stompers' 179° sole spikes)
+      // rigidly attached to the foot without shifting transform-origin to top-centre.
+      const newRot = (b.rot || 0) + vis * renderFlip(b);
+      // Every leg piece (including the topmost hip piece itself) orbits its natural centre pivot
+      // around the hip joint (top-centre of the topmost true leg piece, preferring the BODY's own
+      // leg over clothing). For an unrotated hip piece this produces the exact same pixels as
+      // pivoting about its top edge, while rotated hip/leg/shoe pieces no longer jump at swing 0.
       const hip = hipFor(b);
-      if (hip && hip.id !== b.id) return { ...rigidLimbTransform(b, hip.x + hip.w / 2, hip.y, vis, newRot), _animPivotTop: true };
-      return { ...b, rot: newRot, _animPivotTop: true };
+      if (hip) return rigidLimbTransform(b, hip.x + hip.w / 2, hip.y, vis, newRot);
+      return { ...b, rot: newRot };
     }
     return b;
   });
@@ -18993,7 +18998,7 @@ export default function AssetStudio({ game = false } = {}) {
           const bx = enemyBlastBox(ea, ep);
           if (!blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) return;
           const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
-          const sDmg = incomingUnitDamage(sCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2);
+          const sDmg = incomingUnitDamage(sCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2, !!pr.ignoreArmor);
           if (shrugsHit(k, ea.effects, sDmg, k, bx.x + bx.w / 2, bx.y)) return; // 🐞 its own blast: luck, never a reflect
           enemyHP.current[k] = Math.max(0, enemyHP.current[k] - sDmg);
           ep.invuln = PLAYER_INVULN_FRAMES;
@@ -19006,7 +19011,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
               // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
               const bCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), bNote = bCrit ? "💥 Critical! " : "";
-              const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
+              const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch, !!pr.ignoreArmor);
               if (shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, pcx, p.y)) { /* 🐞 / 🪞 nothing lands on you */ }
               else {
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
@@ -19026,7 +19031,7 @@ export default function AssetStudio({ game = false } = {}) {
               // Armour counts, as it does on you just above; the shooter's crit and the weapon's
               // stun land on your ally exactly as yours land on a hostile in the branch below.
               const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
-              const aDmg = incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2);
+              const aDmg = incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2, !!pr.ignoreArmor);
               if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
@@ -19041,14 +19046,15 @@ export default function AssetStudio({ game = false } = {}) {
             const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
-            const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitHitImmune(ep) || blastImmune(ea.effects)) continue; // 🪖 — an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive or in its i-frames
+            const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitHitImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive or in its i-frames
             const bx = enemyBlastBox(ea, ep);
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
+              if (blastImmune(ea.effects)) { pushImmuneCallout(booms.current, k, ix, iy, bx); continue; } // 🪖 tell the player why the blast did 0
               // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
               // hit, and nothing else off the shooter. Then THEIR armour, as a blast gets yours.
               const base = playerRangedDamage(baseDmg);
               // Whoever fired it: your Intelligence for your shot, a friendly unit's for its own.
-              const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? pstats.intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
+              const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? pstats.intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2, !!pr.ignoreArmor);
               if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
@@ -19067,7 +19073,7 @@ export default function AssetStudio({ game = false } = {}) {
             const pcx = p.x + pw / 2;
             if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
               const sCrit = Math.random() < critChance(pr.critInt ?? pstats.intelligence);
-              const dmg = incomingPlayerDamage(sCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
+              const dmg = incomingPlayerDamage(sCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch, !!pr.ignoreArmor);
               if (shrugsHit("player", playerAsset?.effects, dmg, "player", pcx, p.y)) { /* 🐞 your own blast: luck, never a reflect */ }
               else {
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
@@ -19475,7 +19481,7 @@ export default function AssetStudio({ game = false } = {}) {
               continue;
             }
             if (unitHitImmune(s.ep)) continue; // 🐱 mid-revive or in its i-frames: it stopped the rock (see the collision note above) and took nothing
-            if (throwIsExplosive(g.asset) && blastImmune(s.ea.effects)) continue; // 🪖 as on you just above
+            if (throwIsExplosive(g.asset) && blastImmune(s.ea.effects)) { if (!g.foe) pushImmuneCallout(booms.current, s.k, g.x, g.y, enemyThrowBox(s.ea, s.ep)); continue; } // 🪖 as on you just above
             // The same treatment the player branch just above gets — a rock in the face is a hit.
             const uDmg = incomingUnitDamage(impactDmg, s.ea, s.ep, g.x, unitCenterX(s.ea, s.ep, CW), !!(g.asset && g.asset.ignoreArmor));
             if (shrugsHit(s.k, s.ea.effects, uDmg, g.throwerKey || (g.foe ? null : "player"), unitCenterX(s.ea, s.ep, CW), s.ep ? s.ep.y : g.y)) continue; // 🐞 / 🪞
@@ -19546,9 +19552,10 @@ export default function AssetStudio({ game = false } = {}) {
               // weapon's hit uses, so the 💫 marker and every can't-move/can't-aim/can't-attack gate
               // applies unchanged — and a raised guard or a queued burst is dropped exactly as it is
               // by any other stun. Your allies are caught in it too; the thrower's side is not.
-              if (blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, stunRadPx)) { stunPlayer(p, stunSecs); stunnedCount++; }
+              if (!(pBlastImmune && throwIsExplosive(a)) && blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, stunRadPx)) { stunPlayer(p, stunSecs); stunnedCount++; }
               for (const k of Object.keys(lv.enemies || {})) {
                 const ea2 = unitAssetAt(k, lv.enemies[k]); if (!ea2) continue;
+                if (throwIsExplosive(a) && blastImmune(ea2.effects)) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || !ep2.friendly) continue;
                 if (!(enemyHP.current[k] > 0)) continue;
                 const b = stunBoxOf(ea2, ep2);
@@ -19565,6 +19572,7 @@ export default function AssetStudio({ game = false } = {}) {
                 const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own resurrected allies aren't shocked, nor is a talkable NPC — a stun IS something landing on them
                 const b = stunBoxOf(ea2, ep2);
                 if (blastHitsBox(g.x, g.y, b.x, b.y, b.w, b.h, stunRadPx)) {
+                  if (throwIsExplosive(a) && blastImmune(ea2.effects)) { pushImmuneCallout(booms.current, k, g.x, g.y, b); continue; }
                   ep2.stun = Math.round(stunSecs * 60); ep2.reactT = 0; ep2.swingT = 0; ep2.aimHold = 0;
                   stunnedCount++;
                 }
@@ -19815,7 +19823,7 @@ export default function AssetStudio({ game = false } = {}) {
               // stay for blows -- melee, stomps, blasts -- which are one hit per swing. Only the revive grace
               // (unitUntouchable) still turns a round away.
               if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; }
-              if (shotIsFlame(pr) && fireImmune(ea.effects)) { if (!pr.pierce) return false; continue; } // 🧯 the player's rule, on it
+              if (shotIsFlame(pr) && fireImmune(ea.effects)) { pushImmuneCallout(booms.current, k, boxCx, boxCy, { x: eHitLeft, y: hitTop, w: epw, h: hitH }); if (!pr.pierce) return false; continue; } // 🧯 the player's rule, on it
               // The weapon's Damage number, flat, whoever pulled the trigger — then the one
               // permitted character difference: an Intelligence crit roll for double. What it
               // takes OFF is then decided by the target's armour, exactly as a foe's round into
@@ -25078,7 +25086,8 @@ export default function AssetStudio({ game = false } = {}) {
       for (const sc of runSceneryNodes(run, nb, LV_CELL)) if (!near.has(sc.key) && warmRunNode(sc.node)) return;
     }
   };
-  const newRunSeed = () => String(Math.floor(Math.random() * 1000000));
+  const lastRunSeedRef = useRef("");
+  const newRunSeed = () => { const s = freshRunSeed(lastRunSeedRef.current); lastRunSeedRef.current = s; return s; };
   // 🎲 GENERATE SHOWS THE RUN. It used to run its own older generator (generateChain — East-to-West
   // matching only, rooms and the unsaved editor level in the pool, no Intro/Exit) and draw a chain
   // 🏁 Play run would never actually produce, then freeze the page drawing it (see LevelThumb). Now
@@ -25098,6 +25107,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const rollGenerate = (seedText, floor) => {
     const typed = (seedText || "").trim(), seed = typed || newRunSeed();
+    lastRunSeedRef.current = String(seed);
     const fl = floor !== undefined ? floor : gen ? gen.floor : genDefaultFloor();
     const run = buildRun(runPool(), seed, { floor: fl });
     if (!typed) setRunSeedText(seed); // a fresh roll shows its seed; a typed one is left exactly as typed
@@ -25112,6 +25122,7 @@ export default function AssetStudio({ game = false } = {}) {
   const startRun = (seedText, floor) => {
     if (play) { flash("Stop the current Playtest first."); return; }
     const seed = (seedText || "").trim() || newRunSeed();
+    lastRunSeedRef.current = String(seed);
     const pool = runPool();
     const run = buildRun(pool, seed, { floor });
     if (!run.startKey) { flash("No level can start a run yet — save one with an open Right gate."); return; }
@@ -25306,6 +25317,7 @@ export default function AssetStudio({ game = false } = {}) {
     throwPickup.current = s.throwId ? Math.max(0, s.throwCount || 0) : null;
   };
   const beginGameRun = (b) => {
+    lastRunSeedRef.current = String(b.seed || "");
     const pool = runPool();
     const run = buildRun(pool, b.seed);
     if (!run.startKey) { setGameNote("No level can start a run yet."); setScreen("game"); setGameView("menu"); return; }
@@ -25323,7 +25335,7 @@ export default function AssetStudio({ game = false } = {}) {
     setScreen("level"); setGameView("play");
   };
   // NEW GAME comes off the character select (gameShell.js CharacterSelect) with the fighter and
-  // the difficulty picked there; Retry on Game Over comes here too, with the run's own seed.
+  // the difficulty picked there; Retry on Game Over comes here too, rolling a fresh seed.
   const gameNewGame = (look, diffId, seed) => {
     look = look || pickStartLook(allAssets);
     const difficulty = difficultyOf(diffId).id;
@@ -25444,7 +25456,7 @@ export default function AssetStudio({ game = false } = {}) {
     const o = gameOverInfo;
     setGameOverInfo(null);
     if (!o) { setGameView("select"); return; }
-    gameNewGame(findA(o.lookId), o.difficulty, o.seed);
+    gameNewGame(findA(o.lookId), o.difficulty);
   };
   const gameViewStyle = useMemo(() => {
     if (!game) return undefined;
@@ -29310,6 +29322,11 @@ export default function AssetStudio({ game = false } = {}) {
                   );
                 })}
                 {play && booms.current.map((b, i) => {
+                  if (b.text) {
+                    const prog = b.life / Math.max(1, b.maxLife);
+                    const fade = prog > 0.6 ? Math.max(0, 1 - (prog - 0.6) / 0.4) : 1;
+                    return <div key={"boom" + i} className="hitCallout" style={{ left: b.x, top: b.y - prog * 18, opacity: fade }}>{b.text}</div>;
+                  }
                   // A live explosion: the weapon's chosen Object/Prop, drawn in the front layer at
                   // the impact point, playing its animation frames once across the boom's short life
                   // and fading out at the end. No prop assigned -> a plain 💥 so the blast is still
@@ -31856,8 +31873,9 @@ html,body{margin:0;padding:0;background:#0f1117}
    speaker SAYS joined it on 2026-10-06 (.talkWho, .talkText): it used to be the one exception, a
    white speech bubble with black text, until Blake asked for the bubble to go. The name tag's gold
    comes from its own rule further down, which wins on order. */
-.pedcallout,.pedestalCap,.pedestalEmpty,.enemyDropCap,.doorPromptFloat,.talkCallout,.talkCallout .talkKey,.pbRows,.talkWho,.talkText{
+.pedcallout,.pedestalCap,.pedestalEmpty,.enemyDropCap,.doorPromptFloat,.talkCallout,.talkCallout .talkKey,.pbRows,.talkWho,.talkText,.hitCallout{
   color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+.hitCallout{position:absolute;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap;z-index:9100;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:14px;font-weight:700;letter-spacing:.03em;line-height:1}
 /* ...AND THEY ALL SIT IN FRONT OF THE PLAYER. A pedestal draws BELOW the player on purpose (you
    walk in front of the item on its stand), but z-index on a positioned element makes a stacking
    context, so its labels were trapped down there with it and the player's head covered the name of

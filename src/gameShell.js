@@ -578,8 +578,8 @@ function FloorDone({ done, onContinue, click }) {
 }
 
 // ---------- Game Over ----------
-// Out of lives (gameFront.js DIFFICULTIES). Retry starts the same run again from its first level —
-// same fighter, same difficulty, same seed, a full set of lives; Main Menu leaves it. The run's
+// Out of lives (gameFront.js DIFFICULTIES). Retry starts a fresh run as the same fighter on the
+// same difficulty — a new seed and a full set of lives; Main Menu leaves it. The old run's
 // checkpoint is already gone (App.js gameGameOver): out of lives is the end of that run, or Hard
 // would mean nothing.
 function GameOver({ over, onRetry, onMenu, click }) {

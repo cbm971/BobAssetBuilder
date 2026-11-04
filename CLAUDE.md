@@ -279,7 +279,9 @@ plus traps it does not cover:
   over the hips, so one unticked piece floats in front of the knees: Cheeky Bottoms' crotch on BoB
   and its hip bits on Bobbett, "behind legs in crouch isn't working right" (2026-10-24).
 - Arm-flagged pieces (`limb:"arm"`, `role:"weaponArm"`, and every block drawn in the weapon editor)
-  turn about the shoulder. `pieceOriginFrac` is the only place a pivot is decided.
+  turn about the shoulder. `pieceOriginFrac` is the only place a pivot is decided, and `rigidLimbTransform`
+  orbits `pieceOriginPoint(piece)` (never forcing `_animPivotTop` onto rotated leg/shoe blocks, which made
+  Stompers' 179°-flipped sole spikes snap up into the ankle on a step).
 - A ring hat (a crown, a headband) is split in two: the back half is `behindBody`, the front half
   sits over the forehead. Otherwise a hat piece draws over the hair. `ignoreHideIfHat: true` keeps
   the hair.
@@ -562,7 +564,7 @@ plus traps it does not cover:
   START, under Easy** (his placement). Then **Easy 4 / Medium 2 / Hard 1 lives**
   (`DIFFICULTIES`). A death no 🐱 Extra Life catches costs one (`gameDeathRef`, called from
   `playerDefeated`; counted in the save as `deaths`); the last one freezes the loop and shows
-  **Game Over** (Retry = same look, difficulty and seed; the save is deleted). A run life is the
+  **Game Over** (Retry = same look and difficulty on a fresh seed via `freshRunSeed`; the save is deleted). A run life is the
   editor's death (back where you entered, full HP), never the 🐱 get-up. **The HUD draws run lives
   as the PLAYER'S HEAD** (`.hudHeads`, `gameHead`: the front drawing cut at the rig's shoulder line,
   hat included, from the LIVE kit-merged body), and the difficulty boxes draw the lit fighter's head; the 🐱 symbol is ONLY the Extra Lives ability, on its own row ABOVE the heads.
@@ -909,7 +911,7 @@ plus traps it does not cover:
   `blastImmune(effects)`, the same call for the player (`pFireImmune`/`pBlastImmune`) and every unit (`ea.effects`).
   Fire = no burn pool at all (fire cells AND Ignite, zeroed where the pool is fed) plus a flame SHOT (`shotIsFlame`:
   a ranged round with ignite) washing over. Blast = every branch of `detonate` and the contact hit of an explosive
-  throwable (`throwIsExplosive`: explode or Cluster). A new blast or flame damage site must ask them too.
+  throwable (`throwIsExplosive`: explode or Cluster). A new blast or flame damage site must ask them too, and player/friendly hits stopped by `blastImmune` or `fireImmune` float bare-words `"Immune"` at the hit point (`pushImmuneCallout`, `.hitCallout`).
 - **🐞 Lucky / 🪞 Reflect / 🚒 Fire Resistance (clothing abilities, 2026-10-20):** every hit site, both ways, calls
   `shrugsHit(wearer, effects, dmg, by, x, y)` (loop level) once its damage is known and before HP moves. True = the hit
   does nothing to the wearer (no damage, stun, burn or i-frames); reflect has already put the wearer's post-armour damage

@@ -15693,3 +15693,134 @@ describe("a melee swing from a climbing grip (Blake 2026-11-02: on a ladder a sw
     for (let t = 0; t <= dur; t++) expect(meleeClimbSwingAngle(t, dur, 0)).toBeCloseTo(msa2(t, dur), 6);
   });
 });
+
+import {
+  applyLimbSwing as swingLimbsTest, addBackLeg as addBackLegTest, identifyLimbs as idLimbsTest,
+  pieceOriginFrac as originFracTest, pushImmuneCallout, IMMUNE_CALLOUT_FRAMES, IMMUNE_CALLOUT_COOLDOWN_FRAMES,
+  incomingUnitDamage as incomingUnitDamageTest, DEFENSE_HALF_AT as DEFENSE_HALF_AT_TEST, pierceFreshHit as pierceFreshHitTest,
+} from "./App";
+
+describe("rotated shoe pieces stay welded to the sole during walk swing (spiky shoes ankle fix)", () => {
+  const screenPt = (p, fx, fy) => {
+    const [ox, oy] = originFracTest(p);
+    const mir = !!p._m;
+    const rotDeg = mir ? (p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) : (p.rot || 0);
+    const r = (rotDeg * Math.PI) / 180;
+    const vx = (fx - ox) * p.w, vy = (fy - oy) * p.h;
+    const rx = vx * Math.cos(r) - vy * Math.sin(r), ry = vx * Math.sin(r) + vy * Math.cos(r);
+    return { x: p.x + ox * p.w + (mir ? -rx : rx), y: p.y + oy * p.h + ry };
+  };
+  const rotAround = (q, jx, jy, deg) => {
+    const r = (deg * Math.PI) / 180, dx = q.x - jx, dy = q.y - jy;
+    return { x: jx + dx * Math.cos(r) - dy * Math.sin(r), y: jy + dx * Math.sin(r) + dy * Math.cos(r) };
+  };
+
+  test("179-degree upside-down sole spikes do not jump to the ankle at swing 0 and orbit the hip rigidly across the stride", () => {
+    const leg = { id: "leg", kind: "rect", x: 77, y: 188, w: 44, h: 72, rot: 0, limb: "leg" };
+    const boot = { id: "boot", kind: "rect", x: 77, y: 247, w: 53.5, h: 11.5, rot: 0, limb: "leg", _slot: "shoes", _isShoe: true };
+    const spike = { id: "spk", kind: "tri", x: 79, y: 248.5, w: 11, h: 21, rot: 179, limb: "leg", _slot: "shoes", _isShoe: true };
+    const blocks = [leg, boot, spike];
+    const { legIds, armIds } = idLimbsTest(blocks);
+    const jx = leg.x + leg.w / 2, jy = leg.y;
+
+    // At swing 0 every corner of the upside-down spike stays at its authored sole position (below y=248.5, never above the ankle)
+    const restTip = screenPt(spike, 0.5, 0); // rot ~179 flips the top apex down below the sole
+    expect(restTip.y).toBeGreaterThan(268);
+    const atZero = swingLimbsTest(blocks, legIds, armIds, 0);
+    const zeroSpike = atZero.find((b) => b.id === "spk");
+    expect(screenPt(zeroSpike, 0.5, 0).x).toBeCloseTo(restTip.x, 6);
+    expect(screenPt(zeroSpike, 0.5, 0).y).toBeCloseTo(restTip.y, 6);
+
+    // Across full +/-28 deg stride (both front leg and addBackLeg's trailing clone), spike tip and base stay glued to the boot sole
+    for (const deg of [-28, -14, 14, 28]) {
+      const swung = swingLimbsTest(addBackLegTest(blocks, legIds, deg), legIds, armIds, deg);
+      const frontSpk = swung.find((b) => b.id === "spk");
+      const backSpk = swung.find((b) => b.id === "spk_backLeg");
+      for (const [fx, fy] of [[0.5, 0], [0, 1], [1, 1]]) {
+        const expFront = rotAround(screenPt(spike, fx, fy), jx, jy, deg);
+        const expBack = rotAround(screenPt(spike, fx, fy), jx, jy, -deg);
+        expect(screenPt(frontSpk, fx, fy).x).toBeCloseTo(expFront.x, 5);
+        expect(screenPt(frontSpk, fx, fy).y).toBeCloseTo(expFront.y, 5);
+        expect(screenPt(backSpk, fx, fy).x).toBeCloseTo(expBack.x, 5);
+        expect(screenPt(backSpk, fx, fy).y).toBeCloseTo(expBack.y, 5);
+      }
+    }
+  });
+
+  test("mirrored shoe pieces in 2-column walks orbit in the same screen direction as their leg", () => {
+    // Separated > legColGap (6px) so legL (60..86) and legR (114..140) form 2 distinct leg columns
+    const legL = { id: "leg_m", kind: "rect", x: 60, y: 188, w: 26, h: 72, rot: 0, limb: "leg", _m: true };
+    const legR = { id: "leg", kind: "rect", x: 114, y: 188, w: 26, h: 72, rot: 0, limb: "leg" };
+    // Boot drawn on the left and mirrored to the right (opposite _m parity from the body leg!)
+    const bootL = { id: "boot", kind: "rect", x: 55, y: 246, w: 35, h: 12, rot: 0, limb: "leg", _slot: "shoes", _isShoe: true };
+    const bootR = { id: "boot_m", kind: "rect", x: 110, y: 246, w: 35, h: 12, rot: 0, limb: "leg", _slot: "shoes", _isShoe: true, _m: true };
+    const stripeR = { id: "str_m", kind: "rect", x: 122, y: 245, w: 3, h: 11, rot: 43, limb: "leg", _slot: "shoes", _isShoe: true, _m: true };
+    const blocks = [legL, legR, bootL, bootR, stripeR];
+    const { legIds, armIds } = idLimbsTest(blocks);
+    const swung = swingLimbsTest(blocks, legIds, armIds, 20);
+    // Left column (col 0) swings +20 deg around legL hip (73, 188) regardless of _m parity; right column (col 1) swings -20 deg around legR hip (127, 188)
+    const expLegL = rotAround(screenPt(legL, 0.5, 1), 73, 188, 20);
+    const expBootL = rotAround(screenPt(bootL, 0.5, 0.5), 73, 188, 20);
+    const expBootR = rotAround(screenPt(bootR, 0.5, 0.5), 127, 188, -20);
+    const expStripeR = rotAround(screenPt(stripeR, 0.5, 0), 127, 188, -20);
+    expect(screenPt(swung.find((b) => b.id === "leg_m"), 0.5, 1).x).toBeCloseTo(expLegL.x, 5);
+    expect(screenPt(swung.find((b) => b.id === "boot"), 0.5, 0.5).x).toBeCloseTo(expBootL.x, 5);
+    expect(screenPt(swung.find((b) => b.id === "boot_m"), 0.5, 0.5).x).toBeCloseTo(expBootR.x, 5);
+    expect(screenPt(swung.find((b) => b.id === "boot_m"), 0.5, 0.5).y).toBeCloseTo(expBootR.y, 5);
+    expect(screenPt(swung.find((b) => b.id === "str_m"), 0.5, 0).x).toBeCloseTo(expStripeR.x, 5);
+    expect(screenPt(swung.find((b) => b.id === "str_m"), 0.5, 0).y).toBeCloseTo(expStripeR.y, 5);
+  });
+});
+
+describe("Immune floating callout on immune enemies", () => {
+  test("clamps splash impacts to the struck enemy box and throttles rapid-fire hits per enemy", () => {
+    const booms = [];
+    const box = { x: 200, y: 100, w: 30, h: 90 };
+    expect(pushImmuneCallout(booms, "5,8", 160, 140, box)).toBe(true);
+    expect(booms).toHaveLength(1);
+    expect(booms[0]).toEqual({ x: 200, y: 140, text: "Immune", immuneKey: "5,8", life: 0, maxLife: IMMUNE_CALLOUT_FRAMES });
+    // Immediate follow-up flame frame on the same enemy is throttled; a second enemy in the blast still gets its own label
+    expect(pushImmuneCallout(booms, "5,8", 210, 145, box)).toBe(false);
+    expect(pushImmuneCallout(booms, "5,9", 260, 145, { x: 250, y: 100, w: 30, h: 90 })).toBe(true);
+    expect(booms).toHaveLength(2);
+    // Once the cooldown window has elapsed, another hit pops a fresh label
+    booms[0].life = IMMUNE_CALLOUT_COOLDOWN_FRAMES;
+    expect(pushImmuneCallout(booms, "5,8", 215, 130, box)).toBe(true);
+    expect(booms).toHaveLength(3);
+    expect(booms[2].x).toBe(215);
+    expect(booms[2].y).toBe(130);
+  });
+
+  test("blastImmune and fireImmune enemy hit sites push Immune callouts and render in bare-words Chakra Petch", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect((src.match(/pushImmuneCallout\(booms\.current,/g) || []).length).toBe(4);
+    expect(src).toContain(".hitCallout{");
+    expect(src).toMatch(/\.talkText,\.hitCallout\{\s*color:#fff;text-shadow:/);
+  });
+});
+
+describe("enemy armor and piercing barrel hits stay intact", () => {
+  test("incomingUnitDamage applies DEFENSE_HALF_AT, backGuard, crouchGuard, and ignoreArmor", () => {
+    const armored = { defense: DEFENSE_HALF_AT_TEST, effects: [{ type: "backGuard", reduce: 0.5 }, { type: "crouchGuard", reduce: 0.5 }] };
+    // Front standing hit: 60 * 35 / (35 + 35) = 30
+    expect(incomingUnitDamageTest(60, armored, { face: -1, crouch: false }, 0, 100, false)).toBe(30);
+    // ignoreArmor skips Defense (60), still honours crouchGuard when ducking (30)
+    expect(incomingUnitDamageTest(60, armored, { face: -1, crouch: false }, 0, 100, true)).toBe(60);
+    expect(incomingUnitDamageTest(60, armored, { face: -1, crouch: true }, 0, 100, true)).toBe(30);
+    // Hit from behind while facing right (+1) triggers backGuard on top of Defense: 30 * 0.5 = 15
+    expect(incomingUnitDamageTest(60, armored, { face: 1, crouch: false }, 0, 100, false)).toBe(15);
+  });
+
+  test("pierceFreshHit lets a piercing barrel strike each enemy once, never every overlapping frame", () => {
+    const barrel = { pierce: true };
+    expect(pierceFreshHitTest(barrel, "10,12")).toBe(true);
+    expect(pierceFreshHitTest(barrel, "10,12")).toBe(false);
+    expect(pierceFreshHitTest(barrel, "10,15")).toBe(true);
+  });
+
+  test("every direct hit site on units routes through incomingUnitDamage", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const calls = (src.match(/incomingUnitDamage\(/g) || []).length; // definition is "incomingUnitDamage = ("
+    expect(calls).toBe(12);
+  });
+});

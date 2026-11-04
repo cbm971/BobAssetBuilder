@@ -9,6 +9,12 @@ before changing that system. Line counts and dates below are as they were when e
 
 # Bob Asset Builder — agent handoff
 
+## STOMPERS ROTATED-SHOE PIVOT FIX, FRESH RETRY SEEDS, "IMMUNE" CALLOUTS & EXPLOSION IGNORE-ARMOR (2026-11-04)
+
+- **Spiky shoes (`ojbos1r` Stompers) ankle fix:** Stompers' sole spikes are `tri` blocks (`h = 19..21`) drawn at `y = 248.5..249.5` with `rot: 179` around their natural `[0.5, 0.5]` centre so the tips point down below the sole. `applyLimbSwing` previously stamped `_animPivotTop: true` on every swung leg/shoe piece while `rigidLimbTransform` orbited top-centre `{ x + w/2, y }`, shifting `transform-origin` to `y = 248.5` so `rot: 179` flipped the spikes upward into Bob's ankle (`y = 227.5..248.5`), and mixed stored/screen swing signs for mirrored shoe twins in 2-column walks. `rigidLimbTransform` now orbits `pieceOriginPoint(piece)` and `applyLimbSwing` keeps `vis` in screen space without mutating `_animPivotTop`.
+- **Back-to-back duplicate seed fix:** `gameRetry` on Game Over previously passed `o.seed` back into `gameNewGame`, replaying the exact same seed on every Retry. `gameRetry` now drops `o.seed`, and `newRunSeed` routes through `freshRunSeed(lastRunSeedRef.current)` (`src/gameFront.js`) so back-to-back runs never deal the immediately preceding seed twice.
+- **Floating `"Immune"` callout & explosion `ignoreArmor`:** Player/friendly explosions (`detonate`), explosive throwables (`throwIsExplosive` direct impact + stun splash), and flame shots (`shotIsFlame`) hitting an enemy with `blastImmune` (e.g. Flak Vest `flkvst1`) or `fireImmune` now call `pushImmuneCallout` (clamped to the struck enemy's box, throttled per target, rendered via bare-words `.hitCallout` in `Chakra Petch` above blast booms). Also forwarded `!!pr.ignoreArmor` across all 5 `incomingUnitDamage` / `incomingPlayerDamage` calls in `detonate`.
+
 ## FLYING CREATURES (`flies: true`, `flapCreatureWings`) & EAGLE ENEMY (`eagl1x9`) (2026-10-28)
 
 - **Feature:** Added a **🦸 Flies** checkbox (`asset.flies`, `creatureFlies(ea)`) to the Enemy Creator's `📊 Stats` card for non-human enemies (`type: "enemy"`).

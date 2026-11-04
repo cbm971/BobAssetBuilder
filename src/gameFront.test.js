@@ -6,7 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
-  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC,
+  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -471,5 +471,21 @@ describe("the character select's player card", () => {
     expect(lookFloorMedals(d, "Bob", ["Trailor Park"])[0].diff).toBe("hard");
     expect(lookFloorMedals(d, "Rob", ["Trailor Park"])[0].diff).toBeNull();
     expect(lookFloorMedals(null, "Bob", [])).toEqual([]);
+  });
+});
+
+describe("back-to-back main-game runs never reuse the previous seed", () => {
+  test("freshRunSeed steps off a duplicate roll and wraps cleanly at 999999", () => {
+    expect(freshRunSeed("123456", () => 0.123456)).toBe("123457");
+    expect(freshRunSeed("999999", () => 0.999999)).toBe("0");
+    expect(freshRunSeed("123456", () => 0.654321)).toBe("654321");
+    expect(freshRunSeed("", () => 0.123456)).toBe("123456");
+  });
+  test("Game Over Retry starts a fresh seed instead of re-feeding o.seed into gameNewGame", () => {
+    const src = fs.readFileSync(path.join(__dirname, "App.js"), "utf8");
+    const m = src.match(/const gameRetry = \(\) => \{[\s\S]*?\};/);
+    expect(m).not.toBeNull();
+    expect(m[0]).toContain("gameNewGame(findA(o.lookId), o.difficulty)");
+    expect(m[0]).not.toContain("o.seed");
   });
 });
