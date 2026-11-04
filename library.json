@@ -2127137,14 +2127137,14 @@
       "z": 91
      }
     ],
-    "30,29": [
+    "29,38": [
      {
       "kind": "prop",
-      "propId": "vwb3tl6",
+      "propId": "mstng65",
       "solid": false,
-      "size": 12,
+      "size": 16,
       "inFront": false,
-      "rot": 359,
+      "rot": 354,
       "flip": false,
       "fitArt": true,
       "turnedBox": true,
@@ -2127484,8 +2127484,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793564680778,
-   "editedFrom": 1793533371723
+   "savedAt": 1793791386446,
+   "editedFrom": 1793564680778
   },
   {
    "id": "gww324w",
