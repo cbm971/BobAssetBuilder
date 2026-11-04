@@ -22380,6 +22380,8 @@ export default function AssetStudio({ game = false } = {}) {
         return vehHeadEl(hd, sx + sw / 2 + back * offs[r.seat] * sc, neck, us, mirror, "vride" + r.seat, spriteAlphaOf(r.ea, null), "vehride" + r.seat + "|" + r.ea.id);
       });
     }
+    // 🔥 The fire is the FIRST child, behind the car's own pieces (2026-11-03, Blake): the flames rise
+    // from behind the hood and roof line, so they look like they come out of the car, not stuck on it.
     let fx = null;
     if (st === "burning") {
       // The fire is the marker's box (hoodFireBox): standing on its bottom, as tall as it is. It was
@@ -22399,7 +22401,7 @@ export default function AssetStudio({ game = false } = {}) {
     const turnCss = turn.deg ? "perspective(" + Math.round(car.w * 2) + "px) rotateY(" + (-car.face * turn.deg) + "deg) " : "";
     return <div key={key} className="vehLive" data-vehicle={car.id} data-vehicle-state={st} data-vehicle-dent={car.dent || ""} style={{ position: "absolute", left: off.x + car.x, top: off.y + car.y, width: car.w, height: car.h, zIndex: z, pointerEvents: "none", transformOrigin: "50% 100%", transform: car.tilt ? "rotate(" + car.tilt.toFixed(2) + "deg)" : undefined }}>
       <div style={{ position: "absolute", left: 0, top: 0, width: car.w, height: car.h, transform: (turnCss + (artFlip ? "scaleX(-1)" : "")) || undefined }}>
-        {ridersEl}{headUnder}{hit.el}{headOver}{fx}
+        {fx}{ridersEl}{headUnder}{hit.el}{headOver}
       </div>
     </div>;
   };
