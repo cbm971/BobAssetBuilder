@@ -2107021,20 +2107021,6 @@
       "z": 7
      }
     ],
-    "17,56": [
-     {
-      "kind": "prop",
-      "propId": "wdywgn6",
-      "solid": false,
-      "size": 16,
-      "inFront": true,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 8
-     }
-    ],
     "18,17": [
      {
       "kind": "prop",
@@ -2107063,20 +2107049,6 @@
       "z": 10
      }
     ],
-    "0,12": [
-     {
-      "kind": "prop",
-      "propId": "frmwmil",
-      "solid": false,
-      "size": 24,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 11
-     }
-    ],
     "15,2": [
      {
       "kind": "prop",
@@ -2107090,6 +2107062,34 @@
       "turnedBox": true,
       "canvasScale": false,
       "z": 12
+     }
+    ],
+    "14,55": [
+     {
+      "kind": "prop",
+      "propId": "wdywgn6",
+      "solid": false,
+      "size": 16,
+      "inFront": true,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "canvasScale": false,
+      "z": 8
+     }
+    ],
+    "0,17": [
+     {
+      "kind": "prop",
+      "propId": "frmwmil",
+      "solid": false,
+      "size": 24,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "z": 11
      }
     ]
    },
@@ -2107488,8 +2107488,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793564496073,
-   "editedFrom": 1793564467667
+   "savedAt": 1793791484154,
+   "editedFrom": 1793564496073
   },
   {
    "id": "gqjimzx",
