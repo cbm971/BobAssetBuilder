@@ -15861,3 +15861,74 @@ describe("enemy armor and piercing barrel hits stay intact", () => {
     expect(calls).toBe(12);
   });
 });
+
+import { underwearSeepCuts, withUnderwearSeepCuts, pieceCoversPoint, SEEP_TOL } from "./App";
+describe("🩲 anti-seep: underwear trimmed where it pokes out the SIDES of clothes (2026-11-05)", () => {
+  const rect = (id, slot, x, y, w, h, more) => ({ id, kind: "rect", x, y, w, h, color: "#c33", _slot: slot, _src: slot, ...more });
+  // Fraction of a cut hole's area that lies in [xa, xb] of the canvas, by sampling the piece.
+  const trimmedAt = (cuts, u, x, y) => (cuts.get(u) || []).some((poly) => {
+    const fx = (x - u.x) / u.w, fy = (y - u.y) / u.h; let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > fy) !== (yj > fy) && fx < ((xj - xi) * (fy - yi)) / (yj - yi) + xi) inside = !inside; }
+    return inside;
+  });
+  test("briefs 3 units wider than the shorts lose both side slivers, nothing in the middle", () => {
+    const u = rect("u", "under_bottom", 67, 160, 66, 20);
+    const pants = rect("p", "pants", 70, 160, 60, 40);
+    const cuts = underwearSeepCuts([u, pants]);
+    expect(trimmedAt(cuts, u, 68.5, 170)).toBe(true);
+    expect(trimmedAt(cuts, u, 131.5, 170)).toBe(true);
+    expect(trimmedAt(cuts, u, 100, 170)).toBe(false);
+    expect(cuts.get(u).length).toBe(2);
+  });
+  test("riding ABOVE the waistband is left alone (only sides are trimmed)", () => {
+    const u = rect("u", "under_bottom", 67, 150, 66, 30); // top 10 units above the pants
+    const pants = rect("p", "pants", 70, 160, 60, 40);
+    const cuts = underwearSeepCuts([u, pants]);
+    expect(trimmedAt(cuts, u, 68.5, 155)).toBe(false); // band corner above the pants: shown
+    expect(trimmedAt(cuts, u, 100, 155)).toBe(false);
+    expect(trimmedAt(cuts, u, 68.5, 170)).toBe(true);  // beside the pants: trimmed
+  });
+  test("a deliberate overhang wider than SEEP_TOL is kept whole", () => {
+    const u = rect("u", "under_bottom", 70 - SEEP_TOL - 4, 160, 60 + SEEP_TOL + 4, 20);
+    const pants = rect("p", "pants", 70, 160, 60, 40);
+    const cuts = underwearSeepCuts([u, pants]);
+    expect(trimmedAt(cuts, u, 67, 170)).toBe(false);
+  });
+  test("a gap BETWEEN two pants pieces is the pants' design, not a side", () => {
+    const u = rect("u", "under_bottom", 70, 160, 60, 20);
+    const legL = rect("l", "pants", 70, 160, 28, 40), legR = rect("r", "pants", 102, 160, 28, 40);
+    expect(underwearSeepCuts([u, legL, legR]).size).toBe(0);
+  });
+  test("only clothes drawn OVER the underwear count, and see-through clothes cover nothing", () => {
+    const u = rect("u", "under_bottom", 67, 160, 66, 20);
+    expect(underwearSeepCuts([rect("p", "pants", 70, 160, 60, 40), u]).size).toBe(0);
+    expect(underwearSeepCuts([u, rect("p", "pants", 70, 160, 60, 40, { translucency: 0.5 })]).size).toBe(0);
+  });
+  test("an undershirt pokes out of a shirt the same way; hats and skin never trim", () => {
+    const u = rect("u", "under_top", 68, 100, 64, 40);
+    expect(underwearSeepCuts([u, rect("s", "shirt", 70, 95, 60, 50)]).size).toBe(1);
+    expect(underwearSeepCuts([u, rect("h", "hat", 70, 95, 60, 50)]).size).toBe(0);
+  });
+  test("rotated + curved shapes are read as drawn", () => {
+    expect(pieceCoversPoint({ kind: "circle", x: 0, y: 0, w: 10, h: 10 }, 0.5, 0.5)).toBe(false);
+    expect(pieceCoversPoint({ kind: "circle", x: 0, y: 0, w: 10, h: 10 }, 5, 5)).toBe(true);
+    expect(pieceCoversPoint({ kind: "tri", x: 0, y: 0, w: 10, h: 10 }, 1, 1)).toBe(false);
+    expect(pieceCoversPoint({ kind: "rect", x: 0, y: 0, w: 20, h: 2, rot: 90 }, 10, 8)).toBe(true);
+  });
+  test("an OUTLINED underwear piece flush with an un-outlined pants leg loses its ring there (Bobs Boxers / Football Pants)", () => {
+    const u = rect("u", "under_bottom", 70, 189, 27, 13, { outline: true });
+    const leg = rect("p", "pants", 70, 183.5, 28.5, 33);
+    const cuts = underwearSeepCuts([u, leg]);
+    expect(trimmedAt(cuts, u, 69.5, 195)).toBe(true);   // the ring just outside the shared edge
+    expect(trimmedAt(cuts, u, 80, 195)).toBe(false);
+    expect(underwearSeepCuts([{ ...u, outline: false }, leg]).size).toBe(0); // no ring, nothing pokes out
+  });
+  test("withUnderwearSeepCuts tags trimmed pieces and clears a stale trim", () => {
+    const u = rect("u", "under_bottom", 67, 160, 66, 20);
+    const out = withUnderwearSeepCuts([u, rect("p", "pants", 70, 160, 60, 40)]);
+    expect(out[0].seepCut.length).toBe(2);
+    expect(u.seepCut).toBeUndefined(); // the garment's own piece is never written to
+    const alone = withUnderwearSeepCuts([out[0]]);
+    expect(alone[0].seepCut).toBeUndefined();
+  });
+});

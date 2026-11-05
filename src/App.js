@@ -11215,11 +11215,22 @@ const boundsOf = (pts) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1
 // count as reaching the piece, so a cutter butted up against a piece's edge still cuts its ring there.
 export const CUTTER_CLIP_PAD_PCT = 1000;
 const CUTTER_REACH = 6; // canvas units past a piece's box that its outline ring or glow can still paint
+const SEEP_CLIP_CACHE = new WeakMap();
 export const cutterHoleClips = (p, mirrored, cutters) => {
-  if (!p || !(p.w > 0 && p.h > 0) || !cutters || !cutters.length) return null;
+  const seep = p && Array.isArray(p.seepCut) && p.seepCut.length ? p.seepCut : null;
+  if (!p || !(p.w > 0 && p.h > 0) || ((!cutters || !cutters.length) && !seep)) return null;
+  // 🩲 An underwear piece's anti-seep holes (underwearSeepCuts) are already in its own box, as
+  // fractions, so they ride every walk swing and turn with it. With no cutter beside them the clip
+  // only ever depends on that one array, so it is built once and reused every frame.
+  if (seep && (!cutters || !cutters.length)) {
+    let hit = SEEP_CLIP_CACHE.get(seep);
+    if (!hit) { hit = holeLayerClips(p, seep.map((f) => { const loc = f.map(([fx, fy]) => [p.x + fx * p.w, p.y + fy * p.h]); return { loc, b: boundsOf(loc) }; })); SEEP_CLIP_CACHE.set(seep, hit); }
+    return hit;
+  }
   const pf = pieceTurn(p, mirrored);
   const pb = boundsOf([[p.x, p.y], [p.x + p.w, p.y], [p.x + p.w, p.y + p.h], [p.x, p.y + p.h]].map(([x, y]) => turnToCanvas(pf, x, y)));
   const holes = [];
+  if (seep) for (const f of seep) { const loc = f.map(([fx, fy]) => [p.x + fx * p.w, p.y + fy * p.h]); holes.push({ loc, b: boundsOf(loc) }); }
   for (const c of cutters) {
     if (!c || !(c.w > 0 && c.h > 0)) continue;
     const cf = pieceTurn(c, !!c._m);
@@ -11229,8 +11240,13 @@ export const cutterHoleClips = (p, mirrored, cutters) => {
     const loc = pts.map(([x, y]) => turnToLocal(pf, x, y));
     holes.push({ loc, b: boundsOf(loc) });
   }
+  return holeLayerClips(p, holes);
+};
+// Packs holes (each { loc: points in p's unturned box, b: their bounds }) into non-overlapping
+// layers and writes one evenodd clip per layer — see OVERLAPPING CUTTERS above for why layers.
+const holeLayerClips = (p, holes) => {
   if (!holes.length) return null;
-  const apart = (a, b) => a[2] <= b[0] || b[2] <= a[0] || a[3] <= b[1] || b[3] <= a[1];
+  const apart =(a, b) => a[2] <= b[0] || b[2] <= a[0] || a[3] <= b[1] || b[3] <= a[1];
   const layers = [];
   for (const h of holes) {
     const into = layers.find((L) => L.every((o) => apart(o.b, h.b)));
@@ -11244,6 +11260,188 @@ export const cutterHoleClips = (p, mirrored, cutters) => {
   // bridge (a CSS polygon has no subpaths; under evenodd a segment walked out and back adds nothing).
   const holePath = (h) => { const s = h.loc.map(([x, y]) => pct(x - p.x, p.w) + " " + pct(y - p.y, p.h)); return s.join(", ") + ", " + s[0] + ", " + corner; };
   return layers.map((L) => "polygon(evenodd, " + outer + ", " + L.map(holePath).join(", ") + ")");
+};
+// Whether canvas point (x, y) is inside piece q's painted silhouette, turned and mirrored the way
+// Static draws it (pieceTurn — the same frame cutterHoleClips uses). Text and emoji count as their box.
+export const pieceCoversPoint = (q, x, y) => {
+  if (!q || !(q.w > 0 && q.h > 0)) return false;
+  const [lx, ly] = turnToLocal(pieceTurn(q, !!q._m), x, y);
+  const fx = (lx - q.x) / q.w, fy = (ly - q.y) / q.h;
+  if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return false;
+  if (q.kind === "circle") return (fx - 0.5) * (fx - 0.5) + (fy - 0.5) * (fy - 0.5) <= 0.25;
+  if (q.kind === "roundrect" || q.kind === "stadium") {
+    const r = q.kind === "stadium" ? stadiumRadius(q.w, q.h) : 0;
+    const rx = q.kind === "stadium" ? r / q.w : 0.22, ry = q.kind === "stadium" ? r / q.h : 0.22;
+    if (!(rx > 0 && ry > 0)) return true;
+    const dx = Math.max(0, Math.abs(fx - 0.5) - (0.5 - rx)) / rx, dy = Math.max(0, Math.abs(fy - 0.5) - (0.5 - ry)) / ry;
+    return dx * dx + dy * dy <= 1;
+  }
+  const pts = shapePolyPoints(q);
+  if (!pts) return true;
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > fy) !== (yj > fy) && fx < ((xj - xi) * (fy - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+// 🩲 ANTI-SEEP: UNDERWEAR NEVER POKES OUT THE SIDES OF THE CLOTHES OVER IT (2026-11-05, Blake: "On
+// Bob Underwear Lower and upper often sticks through the sides of pants and shirts ... especially with
+// Bobette due to complex shaping (IE Red bottoms) ... stops underwear items from seeping through the
+// sides of other clothing items at least if it's only trying to seep a little bit ... but only the
+// sides not like underwear riding higher than pants"). Every garment is drawn once and worn by both
+// bodies in five poses, so a pair of briefs a unit wider than one pair of pants on one pose showed
+// as a red sliver down the hip, and lining every pair up against every pair by hand was hopeless.
+//
+// The rule, read straight off his words, is HORIZONTAL and SMALL. Down each canvas row, a run of
+// underwear left showing (not under a pants/shirt/jacket piece drawn after it) is trimmed only when:
+//   * one end of the run touches that covering garment and the other end is the underwear's own
+//     edge — it is poking out of a SIDE. A run with nothing covering on either end is the waistband
+//     riding above the pants: untouched. A run with the garment on BOTH ends is a hole or the gap
+//     between two legs: that's the design of the pants, untouched.
+//   * it is at most SEEP_TOL canvas units long. Anything wider is drawn to show on purpose (his
+//     "I can technically use it for design elements"), so it is left whole, not shaved to a stub.
+// What is trimmed becomes holes in the underwear piece's OWN box (as fractions of it), carried as
+// `seepCut` and cut by cutterHoleClips like a cutter's hole: through the fill AND its outline ring,
+// and turned with the piece on every walk swing. Nothing about his saved garments changes; the trim is
+// worked out again every time a look is put together (layerBodyAndOverlays), on whatever is worn.
+// Arms only trim against arms (a sleeve over an undershirt sleeve), and everything else only
+// against non-arm pieces: arms swing on their own, so a gap between a sleeve and the torso is not a
+// side. A see-through covering piece (👻, ✨ Fade) shows what is under it, so it covers nothing.
+export const SEEP_TOL = 6;     // canvas units (of 200 across): the most underwear may poke out and still be trimmed
+export const SEEP_STEP = 0.5;  // sampling grid, canvas units
+// THE OUTLINE RING SEEPS TOO. Measured in Dress Bob the same day: Bobs Boxers' leg block on Bobbett
+// is EXACTLY as wide as Football Pants' leg (both x 70, flush), so no fill pokes out at all, but the
+// boxers carry an outline and the pants don't, and the boxers' 2px dark ring stood beside each pants
+// leg as a black bar. So an outlined underwear piece is read SEEP_RING_PROBE wider than its fill
+// (the ring is ~1 unit in Dress Bob, more on a smaller sprite; a flush edge is all it has to catch),
+// and a trim runs SEEP_RING past the edge it found on the open side, enough for the ring at any scale.
+const SEEP_RING_PROBE = 1.5;
+const SEEP_RING = 8;           // past the underwear's own SIDE edge: its outline ring goes with the trim
+const SEEP_RING_V = 4;         // past its own top/bottom edge, kept short so a shape widening above or below is not bitten
+const SEEP_OVER = 1;           // and this far back under the covering garment, so no hairline is left along the seam
+const SEEP_COVER_SLOTS = new Set(["pants", "shirt", "jacket"]);
+const seepIsArm = (p) => p.role === "weaponArm" || p.limb === "arm";
+// Returns Map(underwear piece -> array of hole polygons, each [[fx, fy], ...] in that piece's box).
+// `pieces` is a finished look in draw order (layerBodyAndOverlays' output), every garment piece
+// tagged with its `_slot`. Pieces with nothing to trim are absent.
+export const underwearSeepCuts = (pieces, opts = {}) => {
+  const tol = opts.tol != null ? opts.tol : SEEP_TOL, s = opts.step || SEEP_STEP;
+  const list = (pieces || []).filter(Boolean);
+  const out = new Map();
+  if (!list.some((p) => UNDER_SLOTS.has(p._slot))) return out;
+  // A garment's own cutters shape it (a notch cut out of the hip of a pair of pants), so coverage
+  // and the underwear itself are both read through them, exactly as they will be drawn.
+  const cutOf = new Map();
+  for (const r of cutterRuns(list)) if (r.hasCutter) for (const seg of cutterLayerSegments(r.pieces)) for (const [q] of seg.items) cutOf.set(q, seg.cutters);
+  const solidAt = (q, x, y) => pieceCoversPoint(q, x, y) && !(cutOf.get(q) || []).some((c) => pieceCoversPoint(c, x, y));
+  const turnedBounds = (q) => { const f = pieceTurn(q, !!q._m); return boundsOf([[q.x, q.y], [q.x + q.w, q.y], [q.x + q.w, q.y + q.h], [q.x, q.y + q.h]].map(([x, y]) => turnToCanvas(f, x, y))); };
+  const r4 = (v) => Math.round(v * 10000) / 10000;
+  list.forEach((u, i) => {
+    if (!UNDER_SLOTS.has(u._slot) || u.isCutter || u.isHitbox || u.isMuzzle || !(u.w > 0 && u.h > 0)) return;
+    const ub = turnedBounds(u);
+    const ringed = !!u.outline && u.kind !== "emoji", probe = ringed ? SEEP_RING_PROBE : 0;
+    const x0 = ub[0] - tol - 2 * s - probe, x1 = ub[2] + tol + 2 * s + probe, y0 = ub[1] - probe, y1 = ub[3] + probe;
+    const uArm = seepIsArm(u);
+    const covers = [];
+    for (let j = i + 1; j < list.length; j++) {
+      const q = list[j];
+      if (!SEEP_COVER_SLOTS.has(q._slot) || q.isCutter || q.isHitbox || q.isMuzzle || !(q.w > 0 && q.h > 0)) continue;
+      if (q.kind === "emoji" || q.kind === "text" || pieceFillSeeThrough(q) || seepIsArm(q) !== uArm) continue;
+      const qb = turnedBounds(q);
+      if (qb[2] < x0 || qb[0] > x1 || qb[3] < y0 || qb[1] > y1) continue;
+      covers.push(q);
+    }
+    if (!covers.length) return;
+    const nx = Math.max(1, Math.ceil((x1 - x0) / s)), ny = Math.max(1, Math.ceil((y1 - y0) / s));
+    const U = new Uint8Array(nx * ny), P = new Uint8Array(nx * ny);
+    for (let r = 0; r < ny; r++) {
+      const cy = y0 + (r + 0.5) * s;
+      for (let c = 0; c < nx; c++) {
+        const cx = x0 + (c + 0.5) * s, k = r * nx + c;
+        U[k] = solidAt(u, cx, cy) ? 1 : 0;
+        P[k] = covers.some((q) => solidAt(q, cx, cy)) ? 1 : 0;
+      }
+    }
+    if (ringed) { // grow the fill by its ring (a round brush of radius `probe`)
+      const d = Math.ceil(probe / s), grown = new Uint8Array(nx * ny);
+      for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) {
+        if (!U[r * nx + c]) continue;
+        for (let dr = -d; dr <= d; dr++) for (let dc = -d; dc <= d; dc++) {
+          const rr = r + dr, cc = c + dc;
+          if (rr >= 0 && rr < ny && cc >= 0 && cc < nx && (dr * dr + dc * dc) * s * s <= probe * probe + 1e-9) grown[rr * nx + cc] = 1;
+        }
+      }
+      U.set(grown);
+    }
+    // Per row, the trimmed runs: [a, b] cells, and which end is the covering garment.
+    const rows = [];
+    for (let r = 0; r < ny; r++) {
+      const runs = [];
+      for (let c = 0; c < nx;) {
+        const k = r * nx + c;
+        if (!(U[k] && !P[k])) { c++; continue; }
+        const a = c;
+        while (c < nx && U[r * nx + c] && !P[r * nx + c]) c++;
+        const b = c - 1;
+        const lP = a > 0 && P[r * nx + a - 1] === 1, rP = b < nx - 1 && P[r * nx + b + 1] === 1;
+        if (lP !== rP && (b - a + 1) * s <= tol + 1e-9) runs.push({ a, b, lP, rP });
+      }
+      rows.push(runs);
+    }
+    // Is there underwear left showing just above/below this run (the waistband carrying on)? Then
+    // the trim stops flat at the row edge; otherwise this is the underwear's own top/bottom edge and
+    // the trim runs on past it to take that edge's outline ring too.
+    const shownBeside = (r, a, b) => {
+      if (r < 0 || r >= ny) return false;
+      for (let c = a; c <= b; c++) { const k = r * nx + c; if (U[k] && !P[k] && !rows[r].some((h) => c >= h.a && c <= h.b)) return true; }
+      return false;
+    };
+    // Chain each row's runs into vertical strips, one hole polygon per strip.
+    const strips = [], open = [];
+    for (let r = 0; r < ny; r++) {
+      const next = [];
+      for (const h of rows[r]) {
+        const st = open.find((S) => !S.taken && S.rows[S.rows.length - 1].r === r - 1 && h.a <= S.rows[S.rows.length - 1].b && h.b >= S.rows[S.rows.length - 1].a && S.rows[S.rows.length - 1].lP === h.lP);
+        const row = { r, ...h };
+        if (st) { st.rows.push(row); st.taken = true; next.push(st); }
+        else { const S = { rows: [row], taken: true }; strips.push(S); next.push(S); }
+      }
+      open.length = 0;
+      for (const S of next) { S.taken = false; open.push(S); }
+    }
+    const f = pieceTurn(u, !!u._m);
+    const polys = strips.map((S) => {
+      const edge = (row) => {
+        let xl = x0 + row.a * s, xr = x0 + (row.b + 1) * s;
+        if (row.lP) { xl -= SEEP_OVER; xr += SEEP_RING; } else { xl -= SEEP_RING; xr += SEEP_OVER; }
+        return [xl, xr];
+      };
+      const first = S.rows[0], last = S.rows[S.rows.length - 1];
+      const yTop = y0 + first.r * s - (shownBeside(first.r - 1, first.a, first.b) ? 0 : SEEP_RING_V);
+      const yBot = y0 + (last.r + 1) * s + (shownBeside(last.r + 1, last.a, last.b) ? 0 : SEEP_RING_V);
+      const right = [], left = [];
+      S.rows.forEach((row, n) => {
+        const [xl, xr] = edge(row), ym = y0 + (row.r + 0.5) * s;
+        if (n === 0) { right.push([xr, yTop]); left.push([xl, yTop]); }
+        right.push([xr, ym]); left.push([xl, ym]);
+        if (n === S.rows.length - 1) { right.push([xr, yBot]); left.push([xl, yBot]); }
+      });
+      return right.concat(left.reverse()).map(([x, y]) => { const [lx, ly] = turnToLocal(f, x, y); return [r4((lx - u.x) / u.w), r4((ly - u.y) / u.h)]; });
+    });
+    if (polys.length) out.set(u, polys);
+  });
+  return out;
+};
+// Puts underwearSeepCuts' trims onto a finished look (new objects for trimmed pieces only) and
+// clears a stale `seepCut` from anything that no longer needs one (a look saved before a re-dress).
+export const withUnderwearSeepCuts = (pieces) => {
+  const cuts = underwearSeepCuts(pieces);
+  return (pieces || []).map((p) => {
+    if (cuts.has(p)) return { ...p, seepCut: cuts.get(p) };
+    if (p && p.seepCut) { const { seepCut, ...rest } = p; return rest; }
+    return p;
+  });
 };
 // Flagging a block must never MOVE it. Three flags quietly change which point the renderer turns
 // a piece about — 💪 Arm and 🫱 Shoulder side swap the piece's centre for an edge of its box, and
@@ -21992,7 +22190,9 @@ export default function AssetStudio({ game = false } = {}) {
         else { const firstLegIdx = rest.findIndex(isLegPiece); out = firstLegIdx === -1 ? rest.concat(insert) : rest.slice(0, firstLegIdx).concat(insert).concat(rest.slice(firstLegIdx)); }
       }
     }
-    return hatsUnderArms(out, body && body.id); // the arms in front of the hat, as they are in front of the head
+    // 🩲 Last, on the finished order: underwear poking a little out of the SIDES of the pants or
+    // shirt drawn over it is trimmed (underwearSeepCuts — riding above the waistband is left be).
+    return withUnderwearSeepCuts(hatsUnderArms(out, body && body.id)); // the arms in front of the hat, as they are in front of the head
   };
   const fxCss = (p) => { const f = p.fx; if (!f) return {}; const parts = []; if (f.glow > 0) parts.push(`drop-shadow(0 0 ${f.glow}px ${f.glowColor})`); if (f.bright !== 1) parts.push(`brightness(${f.bright})`); const o = {}; if (f.opacity !== 1) o.opacity = f.opacity; if (parts.length) o.filter = parts.join(" "); return o; };
   // Outer wrapper: position, size, transform, opacity, and the piece's own Effects filter
@@ -22198,7 +22398,7 @@ export default function AssetStudio({ game = false } = {}) {
     // A cutter above this piece in its run is cut into THIS piece's box (cutterHoleClips, stacked by
     // cutBox) — the silhouette clip on the inner fill then does the rest — instead of a mask over
     // the group.
-    const holes = cutters ? cutterHoleClips(p, flip, cutters) : null;
+    const holes = cutters || p.seepCut ? cutterHoleClips(p, flip, cutters) : null; // seepCut: underwear's anti-seep trim (underwearSeepCuts)
     const fill = shapeFillStyle(p);
     if (onPiecePointerDown) { fill.pointerEvents = "auto"; fill.cursor = "pointer"; }
     const outline = OutlineLayer(p, off, flip, faded, holes), body = cutBox(s, holes, <div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div>);

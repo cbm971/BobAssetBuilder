@@ -639,6 +639,10 @@ plus traps it does not cover:
   pieces tucked under the legs) · skin decor · shoes · underwear bottom · undershirt · pants · shirt/jacket
   · hat · body arm · over-arms. Units re-compose their drawing per run (`liveEnemyAsset`); a look's
   stats and effects are baked when it is saved.
+- **Anti-seep** (`underwearSeepCuts`, last step of `layerBodyAndOverlays`): underwear poking out the SIDE of a
+  pants/shirt/jacket piece drawn over it, by at most `SEEP_TOL` (6) units, is trimmed as `seepCut` holes in its own box
+  (cut by `cutterHoleClips`, ring included). Never above the waistband, never between two covering pieces, never a
+  wider overhang (that is design). An outlined underwear piece flush with an un-outlined garment seeps by its RING.
 - **Level cells:** `lv.fg` / `lv.bg` / `lv.front`, keyed `"r,c"`. A value is a colour or
   `{ c, tex, ol, slope, run, step, upsideDown, … }`, and `more` holds extra fills. Read cells with
   `fgFills` / `fgSolid` / `fgSlopeFills`, and paint with `mergeFgFill`. A ramp painted over a plain
