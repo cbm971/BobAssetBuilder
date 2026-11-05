@@ -110,6 +110,7 @@ import {
   terrainPaintShape,
   layerTakesRamps,
   eraseTargetLayer,
+  eraseInvisibleBlock,
   fgClipPath,
   mergeWeaponBlocks,
   tuckBehindLegs,
@@ -7512,6 +7513,42 @@ describe("🧽 Erase takes what is on top where you press, not only the lit tab"
   test("tabs that are not paint layers are left alone", () => {
     for (const tab of ["obj", "climb", "hazard", "marker"]) expect(eraseTargetLayer(lv, 35, 40, tab, {})).toBe(tab);
     expect(eraseTargetLayer(null, 35, 40, "bg", {})).toBe("bg");
+  });
+});
+
+describe("🧽 Erase reaches an invisible block from a tab that is not Foreground/Background", () => {
+  // Trailor Park M17: three collision-only ramps against the hay wall. With Objects, Front, Climb,
+  // Fire or Markers lit, the press did nothing at all, so they could not be taken off again.
+  const ramp = { c: "#3b2e1c", slope: 1, run: 1, step: 0, hideInPlay: true };
+  const lv = {
+    fg: { "34,145": ramp, "30,149": "#544d45", "20,20": { c: "#5d6b39", hideInPlay: true, carsOnly: true } },
+    bg: { "34,145": "#386aff" },
+    front: {},
+  };
+
+  test("a collision-only ramp comes off when the lit tab has nothing of its own there", () => {
+    expect(eraseInvisibleBlock(lv, 34, 145, false, {})).toBe("fg");
+  });
+
+  test("a cars-only wall counts as invisible too", () => {
+    expect(eraseInvisibleBlock(lv, 20, 20, false, {})).toBe("fg");
+  });
+
+  test("a tab that has its own thing at the cell keeps it: a ladder or a prop is erased as before", () => {
+    expect(eraseInvisibleBlock(lv, 34, 145, true, {})).toBeNull();
+  });
+
+  test("an ordinary visible block is NOT taken by a tab that is not its own", () => {
+    expect(eraseInvisibleBlock(lv, 30, 149, false, {})).toBeNull();
+  });
+
+  test("bare sky, an empty cell, and no level all fall through to nothing", () => {
+    expect(eraseInvisibleBlock(lv, 0, 0, false, {})).toBeNull();
+    expect(eraseInvisibleBlock(null, 34, 145, false, {})).toBeNull();
+  });
+
+  test("a Foreground hidden with 👁 See through is not on screen, so it is left alone", () => {
+    expect(eraseInvisibleBlock(lv, 34, 145, false, { fg: true })).toBeNull();
   });
 });
 

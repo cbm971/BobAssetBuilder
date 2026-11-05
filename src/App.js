@@ -10471,6 +10471,26 @@ export const eraseTargetLayer = (lv, r, c, activeLayer, hidden) => {
   }
   return activeLayer;
 };
+// 🧽 Erase pressed on an INVISIBLE block while a tab that is not Foreground/Background is lit.
+//
+// Collision-only blocks (and 🚗 car walls) are drawn see-through in the editor and not at all in play,
+// so nothing on screen says they live on the Foreground, and nothing says which tab to light to reach
+// them. Trailor Park M17: Blake painted three collision-only ramps against the hay wall, then could
+// not take them off again. With Objects, Front, Climb, Fire or Markers lit the 🧽 press reached none
+// of the paint layers: Objects ignores a press on empty space, and the others only erase their own
+// cells. Every one of those presses did nothing, with no message.
+//
+// This is deliberately the NARROW version of eraseTargetLayer: it only ever fires for a block that is
+// invisible in play, and only when the lit tab has nothing of its own at that cell (the caller passes
+// `litHasHere`), so erasing a ladder, a prop or a marker works exactly as before, and an ordinary
+// visible block is still left alone by a tab that is not its own. A 👁-hidden Foreground is not on
+// screen, so it is skipped. Returns the layer to erase from, or null.
+export const eraseInvisibleBlock = (lv, r, c, litHasHere, hidden) => {
+  if (!lv || litHasHere) return null;
+  if (hidden && hidden.fg) return null;
+  const v = lv.fg ? lv.fg[cellKey(r, c)] : undefined;
+  return v !== undefined && v !== null && fgHiddenInPlay(v) ? "fg" : null;
+};
 // Every cell a ramp drawn across this rectangle touches, and what each one has to become.
 //
 // The rectangle IS the ramp: its columns are the run, its rows are the rise, and one straight line
@@ -24603,6 +24623,13 @@ export default function AssetStudio({ game = false } = {}) {
     setLevel((lv) => {
     if (!lv) return lv;
     const k = cellKey(r, c);
+    // An erase stroke pinned to "!fg" (lvDown: pressed on an invisible block from a tab that cannot
+    // reach it) takes invisible Foreground blocks and nothing else, whichever tab is lit.
+    if ((erase || lTool === "erase") && eraseFrom === "!fg") {
+      if (!lv.fg || !fgHiddenInPlay(lv.fg[k])) return lv;
+      const cleared = { ...lv.fg }; delete cleared[k];
+      return { ...lv, fg: cleared };
+    }
     if (lLayer === "obj") {
       // Visible object nodes own erasing because they know the exact stack entry that was hit.
       // A grid-cell fallback can only guess from overlapping rectangular footprints and was able
@@ -27225,17 +27252,23 @@ export default function AssetStudio({ game = false } = {}) {
       }
       // Object art handles erase directly. Clicking transparent space must do nothing rather than
       // beginning a cell-based erase stroke that guesses which overlapping footprint was meant.
-      if (lLayer === "obj" && lTool === "erase") return;
+      // 🧽 An invisible (collision-only / cars-only) Foreground block pressed from a tab that cannot
+      // reach it: Objects, Front, Climb, Fire or Markers with nothing of their own at this cell. The
+      // stroke is pinned to "!fg", which paintCell reads as "invisible Foreground blocks only".
+      const litHasHere = lLayer === "obj" ? !!objKeyAt(lv, r, c, findA) : lLayer === "front" ? lv.front && lv.front[k] != null : lLayer === "climb" ? !!(lv.climb && lv.climb[k]) : lLayer === "hazard" ? !!(lv.hazard && lv.hazard[k]) : lLayer === "marker" ? !!(lv.markers && lv.markers[k]) : true;
+      const invisFrom = lTool === "erase" && lLayer !== "fg" && lLayer !== "bg" ? eraseInvisibleBlock(lv, r, c, litHasHere, lHidden) : null;
+      if (lLayer === "obj" && lTool === "erase" && !invisFrom) return;
       // 🧽 Erase takes what is ON TOP where you press, not just the lit tab (eraseTargetLayer), and
       // the stroke keeps that layer for the whole drag. The toast only appears when it differs from
       // the tab, which is the one time it would not be obvious what just happened.
-      const eraseFrom = lTool === "erase" && ERASE_LAYER_STACK.includes(lLayer) ? eraseTargetLayer(lv, r, c, lLayer, lHidden) : null;
-      if (eraseFrom && eraseFrom !== lLayer) flash("🧽 Erasing on the " + LAYER_LABEL[eraseFrom] + " — that's the layer the block you clicked is on.");
+      const eraseFrom = invisFrom ? "!" + invisFrom : lTool === "erase" && ERASE_LAYER_STACK.includes(lLayer) ? eraseTargetLayer(lv, r, c, lLayer, lHidden) : null;
+      if (invisFrom) flash("🧽 Erasing the invisible Foreground block you clicked.");
+      else if (eraseFrom && eraseFrom !== lLayer) flash("🧽 Erasing on the " + LAYER_LABEL[eraseFrom] + " — that's the layer the block you clicked is on.");
       lpaint.current = { on: true, last: k, startX: e.clientX, startY: e.clientY, moved: false, eraseFrom };
       paintBrush(r, c, undefined, inb, eraseFrom);
       // The inspector follows the object that was just placed, which lives at its centred
       // anchor — not at the clicked cell (objPaintKey).
-      if (lLayer === "obj") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
+      if (lLayer === "obj" && !invisFrom) { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
     };
     const lvMove = (e) => {
       if (play) { setLHoverCell(null); return; }
@@ -27290,7 +27323,7 @@ export default function AssetStudio({ game = false } = {}) {
       const k = cellKey(r, c);
       if (lLayer === "obj" && lpaint.current.last === k) return; // moving within the same cell shouldn't re-stack on every pointer jitter
       lpaint.current.last = k; paintBrush(r, c, undefined, inb, lpaint.current.eraseFrom);
-      if (lLayer === "obj") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
+      if (lLayer === "obj" && lpaint.current.eraseFrom !== "!fg") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
     };
     // 🔀 Move release. A box selects that area; a shift commits (one undo step — the press already
     // snapshotted the level); a click that never left its cell picks: the object under it if there
