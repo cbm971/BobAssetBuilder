@@ -1590097,8 +1590097,8 @@
    "wtype": "melee",
    "projectileId": null,
    "projectileSpeed": 12,
-   "damage": 1,
-   "savedAt": 1792267718483,
+   "damage": 0,
+   "savedAt": 1793838189097,
    "groups": {
     "front": [],
     "back": [],
@@ -1593126,7 +1593126,7 @@
    "sounds": {
     "hit": "j8bdd8g"
    },
-   "editedFrom": 1792254261820,
+   "editedFrom": 1792267718483,
    "boomerang": false,
    "pickupCount": 3
   },
