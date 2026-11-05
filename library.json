@@ -1312884,7 +1312884,7 @@
     "speed": 26,
     "size": 1
    },
-   "damage": 1,
+   "damage": 0,
    "projectileId": "nerfdrt",
    "projectileSpeed": 22,
    "variants": {
@@ -1314095,8 +1314095,8 @@
     "fire": "18sacwd",
     "hit": "332pcx1"
    },
-   "savedAt": 1792266563506,
-   "editedFrom": 1792254242358,
+   "savedAt": 1793838170178,
+   "editedFrom": 1792266563506,
    "boomerang": false,
    "pickupCount": 3
   },
