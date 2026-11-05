@@ -1428497,15 +1428497,15 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
       {
        "id": "ram01",
        "kind": "rect",
-       "x": 25,
-       "y": 60,
+       "x": 25.5,
+       "y": 64,
        "w": 150,
        "h": 44,
        "color": "#1f1e22",
@@ -1428689,8 +1428689,8 @@
      {
       "id": "ram01",
       "kind": "rect",
-      "x": 25,
-      "y": 60,
+      "x": 25.5,
+      "y": 64,
       "w": 150,
       "h": 44,
       "color": "#1f1e22",
@@ -1428868,7 +1428868,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839438178,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkbackd",
@@ -1441256,7 +1441257,7 @@
    "size": 3,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1441595,7 +1441596,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839472955,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkjackt",
@@ -1445471,7 +1445473,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Exterior",
    "frames": [
     {
      "front": [
@@ -1446342,7 +1446344,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839482633,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkmic01",
@@ -1446352,7 +1446355,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1446569,7 +1446572,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839488035,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkmixer",
@@ -1453771,7 +1453775,7 @@
    "size": 5,
    "animFps": 5,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Exterior",
    "frames": [
     {
      "front": [
@@ -1454296,7 +1454300,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839446511,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rockth7g",
