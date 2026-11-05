@@ -1428879,7 +1428879,7 @@
    "size": 40,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1430950,7 +1430950,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839539854,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkcrowd",
@@ -1430960,7 +1430961,7 @@
    "size": 12,
    "animFps": 3,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1432307,7 +1432308,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839494361,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkdrums",
@@ -1432317,7 +1432319,7 @@
    "size": 8,
    "animFps": 4,
    "solidDefault": false,
-   "category": "Stage",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1433310,8 +1433312,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793839378124,
-   "editedFrom": 1793442347590
+   "savedAt": 1793839515387,
+   "editedFrom": 1793839378124
   },
   {
    "id": "rkgenr1",
@@ -1443372,7 +1443374,7 @@
    "size": 40,
    "animFps": 2,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1445463,7 +1445465,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839534891,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkmerch",
@@ -1446583,7 +1446586,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1447638,7 +1447641,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839522577,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkpants",
@@ -1450976,7 +1450980,7 @@
    "size": 10,
    "animFps": 4,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1451867,7 +1451871,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839551293,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkstage",
