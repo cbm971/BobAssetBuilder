@@ -1432316,7 +1432316,7 @@
    "size": 8,
    "animFps": 4,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1433309,7 +1433309,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839378124,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkgenr1",
@@ -1433319,15 +1433320,15 @@
    "size": 8,
    "animFps": 3,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Army",
    "frames": [
     {
      "front": [
       {
        "id": "rgn01",
        "kind": "poly",
-       "x": 150,
-       "y": 243.5,
+       "x": 151.5,
+       "y": 235.5,
        "w": 44.5,
        "h": 8,
        "points": [
@@ -1433360,8 +1433361,8 @@
       {
        "id": "rgn02",
        "kind": "rect",
-       "x": 192,
-       "y": 244,
+       "x": 191.5,
+       "y": 236,
        "w": 8,
        "h": 10,
        "color": "#2b2b2b",
@@ -1433555,7 +1433556,7 @@
        "id": "rgn0e",
        "kind": "circle",
        "x": 98,
-       "y": 160,
+       "y": 159.5,
        "w": 12,
        "h": 12,
        "color": "#bdbdb4",
@@ -1433959,8 +1433960,8 @@
      {
       "id": "rgn01",
       "kind": "poly",
-      "x": 150,
-      "y": 243.5,
+      "x": 151.5,
+      "y": 235.5,
       "w": 44.5,
       "h": 8,
       "points": [
@@ -1433993,8 +1433994,8 @@
      {
       "id": "rgn02",
       "kind": "rect",
-      "x": 192,
-      "y": 244,
+      "x": 191.5,
+      "y": 236,
       "w": 8,
       "h": 10,
       "color": "#2b2b2b",
@@ -1434188,7 +1434189,7 @@
       "id": "rgn0e",
       "kind": "circle",
       "x": 98,
-      "y": 160,
+      "y": 159.5,
       "w": 12,
       "h": 12,
       "color": "#bdbdb4",
@@ -1434270,7 +1434271,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839415762,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkguitr",
@@ -1450516,7 +1450518,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Exterior",
    "frames": [
     {
      "front": [
@@ -1450959,7 +1450961,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793839400117,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkspkr1",
