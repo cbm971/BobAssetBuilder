@@ -2766067,9 +2766067,6 @@
     "14,72": "#2a2017",
     "14,73": "#2a2017",
     "14,74": "#2a2017",
-    "14,75": "#2a2017",
-    "14,76": "#2a2017",
-    "14,77": "#2a2017",
     "14,78": "#2a2017",
     "14,79": "#2a2017",
     "14,80": "#2a2017",
@@ -2766119,7 +2766116,9 @@
     "20,145": "#2a2017",
     "20,146": "#2a2017",
     "20,147": "#2a2017",
-    "20,148": "#2a2017"
+    "20,148": "#2a2017",
+    "14,75": "#2a2017",
+    "14,77": "#2a2017"
    },
    "bg": {
     "0,0": "#171d35",
@@ -2769399,9 +2769398,9 @@
     "14,72": "#4a5a28",
     "14,73": "#4a5a28",
     "14,74": "#4a5a28",
-    "14,75": "#4a5a28",
-    "14,76": "#4a5a28",
-    "14,77": "#4a5a28",
+    "14,75": "#2a2017",
+    "14,76": "#2a2017",
+    "14,77": "#2a2017",
     "14,78": "#4a5a28",
     "14,79": "#2a2017",
     "14,80": "#2a2017",
@@ -2771702,7 +2771701,7 @@
     "23,73": "#4a5a28",
     "23,74": "#4a5a28",
     "23,75": "#4a5a28",
-    "23,76": "#4a5a28",
+    "23,76": "#2a2017",
     "23,77": "#4a5a28",
     "23,78": "#4a5a28",
     "23,79": "#4a5a28",
@@ -2776417,45 +2776416,6 @@
     }
    },
    "fx": {
-    "22,76": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 0
-     }
-    ],
-    "23,76": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 1
-     }
-    ],
-    "24,76": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 2
-     }
-    ],
     "7,58": [
      {
       "kind": "shape",
@@ -2776493,71 +2776453,6 @@
       "rot": 0,
       "flip": false,
       "z": 5
-     }
-    ],
-    "19,133": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 6
-     }
-    ],
-    "20,133": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 7
-     }
-    ],
-    "21,133": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 8
-     }
-    ],
-    "22,133": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 9
-     }
-    ],
-    "23,133": [
-     {
-      "kind": "shape",
-      "shape": "vineWeb",
-      "tint": "#6b7b3a",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 10
      }
     ],
     "15,76": [
@@ -2778549,18 +2778444,61 @@
       "oy": 0.127,
       "z": 139
      }
+    ],
+    "24,76": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#4a5a28",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 140
+     }
+    ],
+    "23,76": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#4a5a28",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 141
+     }
+    ],
+    "22,76": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#4a5a28",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 142
+     }
+    ],
+    "14,76": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#4a5a28",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 143
+     }
     ]
    },
    "climb": {
-    "22,76": {
-     "kind": "ladder"
-    },
-    "23,76": {
-     "kind": "ladder"
-    },
-    "24,76": {
-     "kind": "ladder"
-    },
     "7,58": {
      "kind": "ladder"
     },
@@ -2778570,19 +2778508,40 @@
     "9,58": {
      "kind": "ladder"
     },
-    "19,133": {
+    "24,76": {
      "kind": "ladder"
     },
-    "20,133": {
+    "23,76": {
      "kind": "ladder"
     },
-    "21,133": {
+    "22,76": {
      "kind": "ladder"
     },
-    "22,133": {
+    "21,76": {
      "kind": "ladder"
     },
-    "23,133": {
+    "20,76": {
+     "kind": "ladder"
+    },
+    "19,76": {
+     "kind": "ladder"
+    },
+    "18,76": {
+     "kind": "ladder"
+    },
+    "17,76": {
+     "kind": "ladder"
+    },
+    "16,76": {
+     "kind": "ladder"
+    },
+    "15,76": {
+     "kind": "ladder"
+    },
+    "14,76": {
+     "kind": "ladder"
+    },
+    "25,76": {
      "kind": "ladder"
     }
    },
@@ -2778592,14 +2778551,6 @@
      "kind": "pedestal",
      "cats": [
       "Good",
-      ""
-     ],
-     "logic": "or"
-    },
-    "19,138": {
-     "kind": "pedestal",
-     "cats": [
-      "Rare",
       ""
      ],
      "logic": "or"
@@ -2778748,7 +2778699,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1793490862284
+   "savedAt": 1793965553644,
+   "editedFrom": 1793490862284
   },
   {
    "id": "vcfrm13",
