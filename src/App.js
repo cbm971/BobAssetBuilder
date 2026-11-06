@@ -14484,7 +14484,7 @@ export default function AssetStudio({ game = false } = {}) {
   const spawnReq = useRef(null);                            // one-shot spawn placement for the next frame: { gate:true } | { roomDoor:true } | { x, y }. Resolved once, using the real player size, then cleared.
   const respawnSpec = useRef(null);                         // where a death puts you back: { at: level/run-slot key, spec } — the spawnReq you last ARRIVED in that level by (or the gate a run crossed you in through)
   const propArtCache = useRef(new Map());                  // placement key -> the prop art element last built for it and what it was built from (see renderObj): a placed prop that has not changed is handed React the SAME element, so it bails out of that subtree instead of re-diffing ~90 nodes a frame
-  const playerLookCache = useRef({ key: "", look: null }); // memoises the live-composed player look (all angles) so re-composing every frame is free until the equipped set actually changes
+  const playerLookCache = useRef({ key: "", src: null, look: null }); // memoises the live-composed player look (all angles) so re-composing every frame is free until the equipped set actually changes
   const [equipGen, setEquipGen] = useState(0);            // bumped when pedestal equipment changes, so the playtest loop re-keys and the merged stats/effects take effect live
   const [pedPrompt, setPedPrompt] = useState(null);       // { key, name, type, slot } | { key, empty, summary } | null — pedestal the player is standing on, for the "Press E" HUD                       // cellKey -> the item this pedestal rolled this Playtest session (stable; pre-rolled at Playtest start, Binding-of-Isaac style)
   const [doorPrompt, setDoorPrompt] = useState(null);     // { enter: bool, tag, n } | null — door the player is standing on, for the "Press E to enter/exit" HUD
@@ -23926,15 +23926,19 @@ export default function AssetStudio({ game = false } = {}) {
     // never-touched both look like no pickup, so without it taking your only jacket off served the
     // cached art of you still wearing it until something else happened to change the key.
     const eqSig = SLOT_ORDER.map((sl) => (equipped.current[sl] && equipped.current[sl].id) || (slotWasEmptied(equipped.current, sl) ? "-" : "")).join(",");
+    // The SAVED LOOK is part of the key too (src: a save is a new record object). Keyed on the id alone,
+    // a look re-dressed and saved in Dress Bob while a Playtest or a game was still running kept being
+    // drawn as it was until he left the game and came back (Blake, 2026-11-06: "had to completely
+    // leave and reenter the game").
     const key = playRunId.current + "|" + bp.id + "|" + eqSig;
-    if (playerLookCache.current.key === key && playerLookCache.current.look) return playerLookCache.current.look.angles[ang] || [];
+    if (playerLookCache.current.key === key && playerLookCache.current.src === bp && playerLookCache.current.look) return playerLookCache.current.look.angles[ang] || [];
     const comp = bp.type === "character" ? (bp.components || {}) : {};
     const body = comp.body || bp, skin = comp.skin || null, weapon = comp.weapon || null;
     const eq = {};
     // Pickup wins over the look's own garment, and an EMPTIED slot beats both — see wornEquipMap.
     for (const sl of SLOT_ORDER) { const it = slotWasEmptied(equipped.current, sl) ? null : (equipped.current[sl] || (comp.equipment && comp.equipment[sl])); if (it) eq[sl] = it; }
     const look = assembleLook(body, skin, weapon, eq, { id: bp.id, name: bp.name, type: "character" });
-    playerLookCache.current = { key, look };
+    playerLookCache.current = { key, src: bp, look };
     return look.angles[ang] || [];
   };
   const composeLook = (idOverride) => {
