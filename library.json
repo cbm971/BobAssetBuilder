@@ -1780686,7 +1780686,7 @@
      ]
     }
    ],
-   "savedAt": 1793571345956,
+   "savedAt": 1793957483794,
    "angles": {
     "front": [
      {
@@ -1784053,7 +1784053,8 @@
     ]
    },
    "hpHalved": true,
-   "editedFrom": 1793541815677
+   "editedFrom": 1793571345956,
+   "speed": 0.9
   },
   {
    "id": "wugsq40",
