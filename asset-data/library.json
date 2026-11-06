@@ -2682096,23 +2682096,6 @@
    },
    "front": {},
    "fx": {
-    "28,1": [
-     {
-      "kind": "prop",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "propId": "1jqfzdy",
-      "size": 18,
-      "oy": 0.605263,
-      "ox": 0,
-      "z": 0
-     }
-    ],
     "31,24": [
      {
       "kind": "prop",
@@ -2682232,23 +2682215,6 @@
       "z": 7
      }
     ],
-    "27,66": [
-     {
-      "kind": "prop",
-      "propId": "17r21tq",
-      "size": 16,
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "oy": 0.836735,
-      "ox": 0,
-      "z": 8
-     }
-    ],
     "32,82": [
      {
       "kind": "prop",
@@ -2682332,23 +2682298,6 @@
       "oy": 0,
       "ox": 0.6,
       "z": 13
-     }
-    ],
-    "29,135": [
-     {
-      "kind": "prop",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "propId": "ufuxwzg",
-      "size": 16,
-      "oy": 0.583333,
-      "ox": 0,
-      "z": 14
      }
     ],
     "31,150": [
@@ -2683336,6 +2683285,72 @@
       "flip": false,
       "z": 88
      }
+    ],
+    "30,0": [
+     {
+      "kind": "prop",
+      "propId": "1jqfzdy",
+      "solid": false,
+      "size": 30,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 89
+     }
+    ],
+    "27,137": [
+     {
+      "kind": "prop",
+      "propId": "frmcoop",
+      "size": 8,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0,
+      "ox": 0,
+      "z": 90
+     }
+    ],
+    "33,134": [
+     {
+      "kind": "prop",
+      "propId": "frmchkn",
+      "size": 2,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0,
+      "ox": 0.5,
+      "z": 91
+     }
+    ],
+    "33,145": [
+     {
+      "kind": "prop",
+      "propId": "frmchkn",
+      "size": 2,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0,
+      "ox": 0.6,
+      "z": 92
+     }
     ]
    },
    "climb": {
@@ -2683600,49 +2683615,21 @@
    },
    "hazard": {},
    "markers": {
-    "33,11": {
-     "kind": "door",
-     "tag": "Trailor Int"
-    },
-    "20,58": {
-     "kind": "pedestal",
-     "cats": [
-      "Rare",
-      ""
-     ],
-     "logic": "or"
-    },
     "20,92": {
-     "kind": "pedestal",
-     "cats": [
-      "Legendary",
-      ""
-     ],
-     "logic": "or"
-    },
-    "18,117": {
-     "kind": "pedestal",
-     "cats": [
-      "Legendary",
-      ""
-     ],
-     "logic": "or"
-    },
-    "18,124": {
-     "kind": "pedestal",
-     "cats": [
-      "Legendary",
-      ""
-     ],
-     "logic": "or"
-    },
-    "34,105": {
      "kind": "pedestal",
      "cats": [
       "Heal",
       "Drink"
      ],
      "logic": "or"
+    },
+    "18,124": {
+     "kind": "pedestal",
+     "cats": [
+      "Rare",
+      "Trailer"
+     ],
+     "logic": "and"
     }
    },
    "enemies": {
@@ -2683747,8 +2683734,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "editedFrom": 1793928722156,
-   "savedAt": 1793955289012
+   "editedFrom": 1793955289012,
+   "savedAt": 1793957615291
   },
   {
    "id": "vcfrm13",
