@@ -434,6 +434,8 @@ export const VEH_MAX_SPEED = 24;       // nothing rolls faster, however long the
 export const VEH_STEP_UP = 10;         // px: a kerb a wheel climbs; a 30 px block is a wall
 export const VEH_MAX_TILT = 50;        // degrees the body can pitch to before it is a fall, not a slope
 export const VEH_LIP_DROP = 30;        // px: ground past a hole no lower than this under the road is the road going on (a cell)
+export const VEH_LAUNCH_SPEED = 6;    // px/frame: faster than this AND climbing, a car flies over a hole instead of being held across it
+export const VEH_LAUNCH_RISE = 1;     // px/frame the car must be rising (lastDy) for that
 export const VEH_TURN_FRAMES = 12;     // the brake held this long at a stop turns the car round
 // THE TURN, AS DRAWN (2026-11-01, Blake: "slightly more jagged and retro feeling", "turn around nose
 // away from the player not towards"). Not a smooth squash to an edge: a few HELD steps of the car
@@ -537,7 +539,14 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   // side the wheel rolls on the line between the two lips; with a wall there (a pit against a
   // cliff, Tree Tops 3) it stays level at the near lip and meets the wall as a wall. A hole the car
   // fits into it still drops into, and a ledge or a step down it tips off exactly as before.
-  if (v.onGround) {
+  // ...BUT NOT A CAR FLYING UP A RAMP (2026-11-06, Blake: "No matter how fast I go over the manholes on
+  // the levels that connect to the sewer I do not get air time ... like my car is stuck to the
+  // ground"). The manholes sit at the top of ramps; held across the hole, a fast car levelled out on
+  // the lip line and never left the ground (sim: 76-98 frames of air before 3c15320, 0 after). Fast
+  // and rising, the hanging wheel is carried up with the body as before and the car launches. Creeping
+  // (the clip he reported) or on the flat, it is still held across.
+  const launching = Math.abs(v.vx) > VEH_LAUNCH_SPEED && ((v.lastDy || 0) < -VEH_LAUNCH_RISE || !!v.hang); // ...and a launch that has begun (a wheel already out over the hole) is let finish
+  if (v.onGround && !launching) {
     const bridged = (x, y, f) => {
       if (f.y != null) return f;
       const lip = (dir) => {

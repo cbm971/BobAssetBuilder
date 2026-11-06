@@ -345,6 +345,21 @@ describe("driving", () => {
     expect(hung).toBeGreaterThan(0);
     expect(v.yL).toBeCloseTo(690, 0);
   });
+  // Blake 2026-11-06: "No matter how fast I go over the manholes ... I do not get air time". The
+  // manhole sits at the top of a ramp: fast, the car flies it (as before 3c15320); creeping, it is held.
+  test("fast up a ramp onto a manhole the car takes off; creeping up it, nothing goes into the ground", () => {
+    for (const top of [0, 30, 60]) {
+      const a = 2000, b = a + top, c = b + 150, d = c + top;
+      const surf = (x) => (x < 1600 ? { y: 600, slope: false } : x < a ? { y: 600 - (x - 1600) / 2, slope: true } : x < b ? { y: 400, slope: false } : x < c ? null : x < d ? { y: 400, slope: false } : x < d + 400 ? { y: 400 + (x - d) / 2, slope: true } : { y: 600, slope: false });
+      const w = withGround(surf, 1e9);
+      const fast = newCar(100, 600); let air = 0, high = 600;
+      for (let i = 0; i < 700 && fast.x < 3200; i++) { vehicleStep(fast, { gas: true }, w); if (!fast.onGround) air++; high = Math.min(high, fast.yL, fast.yR); }
+      expect(air).toBeGreaterThan(10);
+      expect(high).toBeLessThan(380);
+      const slow = newCar(1300, 600);
+      for (let i = 0; i < 3000 && slow.x < 2600; i++) { vehicleStep(slow, { gas: i % 3 === 0 }, w); expect(buried(slow, surf)).toBe(false); if (slow.x + slow.w * slow.wr > b && slow.x + slow.w * slow.wl < c) expect(Math.max(slow.yL, slow.yR)).toBeLessThanOrEqual(400.5); }
+    }
+  });
   test("nose down off the foot of a ramp, the flat ahead is not a wall", () => {
     const surf = (x) => (x < 1000 ? { y: 300, slope: false } : x < 1300 ? { y: 300 + (x - 1000), slope: true } : { y: 600, slope: false });
     const v = newCar(700, 300);

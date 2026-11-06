@@ -333,7 +333,7 @@ export const normalizeGameOptions = (o) => {
 // `met` is every conversation that has opened in a game, by the DIALOGUE's name (lower case) — Bob
 // Li unlocks on meeting Bob Li (Blake, 2026-10-24). The dialogue's name, not the speaker's or the
 // look's: the Tree Tops 2 NPC who says it wears the Bob Li starter look itself (2026-10-31).
-// `picked` is every pickup (a record from before it was counted starts at the items already found), repeats and all (Super Bob opens at 500 collected); `kills` is every hostile
+// `picked` is every pickup (a record from before it was counted starts at the items already found), repeats and all (no lock reads it: Super Bob is 500 UNIQUE items, `found`); `kills` is every hostile
 // defeated and `rangedKills` the ones whose last blow was a shot or a throw (Agent Bob 1,000, Bob The Alien 500).
 export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, picked: 0, games: 0 });
 export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
@@ -437,7 +437,7 @@ export const STARTER_LOCKS = [
   { name: "bob li", met: "Bob Li" }, // Blake (2026-10-24): open once the "Bob Li" conversation has been met in a game (record.met)
   { name: "robbie", items: 100 }, // Blake (2026-10-25): lock Robbie behind 100 items found (same rule as Bobert's 50)
   { name: "robert", items: 200 }, // Blake (2026-10-31): lock Robert behind 200 items found
-  { name: "super bob", picks: 500 }, // Blake (2026-10-31): "until you have collected 500 items" — every pickup counts, repeats included
+  { name: "super bob", items: 500 }, // Blake (2026-11-06): "It should require picking up 500 unique items" — distinct items found, like Robert's 200; repeats never count
   { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
 ];

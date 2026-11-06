@@ -331,12 +331,15 @@ describe("locked starters", () => {
     r = { ...r, found: [...r.found, "i199"] };
     expect(starterLock(look("Robert"), r, assets)).toBeNull();
   });
-  test("Super Bob opens at 500 items collected, repeats counting", () => {
+  test("Super Bob opens at 500 UNIQUE items; repeat pickups never count", () => {
+    const many = [...Array.from({ length: 520 }, (_, i) => ({ id: "i" + i, type: "equipment", name: "Item " + i })), { id: "dog", type: "enemy", name: "Dog" }];
     let r = newGameRecord();
-    for (let i = 0; i < 499; i++) r = recordFound(r, "i" + (i % 5));
-    expect(starterLock(look("Super Bob"), r, assets)).toEqual({ need: "Collect 500 Items", have: 499, of: 500 });
-    r = recordFound(r, "i0");
-    expect(starterLock(look("Super Bob"), r, assets)).toBeNull();
+    for (let i = 0; i < 1000; i++) r = recordFound(r, "i" + (i % 120)); // 1,000 pickups of 120 items
+    expect(starterLock(look("Super Bob"), r, many)).toEqual({ need: "Unlock 500 Items", have: 120, of: 500 });
+    for (let i = 120; i < 499; i++) r = recordFound(r, "i" + i);
+    expect(starterLock(look("Super Bob"), r, many)).toEqual({ need: "Unlock 500 Items", have: 499, of: 500 });
+    r = recordFound(r, "i499");
+    expect(starterLock(look("Super Bob"), r, many)).toBeNull();
   });
   test("Bob The Alien opens at 500 enemies defeated with ranged weapons; melee kills do not count", () => {
     let r = newGameRecord();
