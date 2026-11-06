@@ -2620349,23 +2620349,6 @@
       "z": 13
      }
     ],
-    "29,135": [
-     {
-      "kind": "prop",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "propId": "ufuxwzg",
-      "size": 16,
-      "oy": 0.583333,
-      "ox": 0,
-      "z": 14
-     }
-    ],
     "31,150": [
      {
       "kind": "prop",
@@ -2621366,6 +2621349,57 @@
       "canvasScale": false,
       "z": 89
      }
+    ],
+    "27,137": [
+     {
+      "kind": "prop",
+      "propId": "frmcoop",
+      "size": 8,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0,
+      "ox": 0,
+      "z": 90
+     }
+    ],
+    "33,134": [
+     {
+      "kind": "prop",
+      "propId": "frmchkn",
+      "size": 2,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0,
+      "ox": 0.5,
+      "z": 91
+     }
+    ],
+    "33,145": [
+     {
+      "kind": "prop",
+      "propId": "frmchkn",
+      "size": 2,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0,
+      "ox": 0.6,
+      "z": 92
+     }
     ]
    },
    "climb": {
@@ -2621630,45 +2621664,21 @@
    },
    "hazard": {},
    "markers": {
-    "20,58": {
-     "kind": "pedestal",
-     "cats": [
-      "Rare",
-      ""
-     ],
-     "logic": "or"
-    },
     "20,92": {
-     "kind": "pedestal",
-     "cats": [
-      "Legendary",
-      ""
-     ],
-     "logic": "or"
-    },
-    "18,117": {
-     "kind": "pedestal",
-     "cats": [
-      "Legendary",
-      ""
-     ],
-     "logic": "or"
-    },
-    "18,124": {
-     "kind": "pedestal",
-     "cats": [
-      "Legendary",
-      ""
-     ],
-     "logic": "or"
-    },
-    "34,105": {
      "kind": "pedestal",
      "cats": [
       "Heal",
       "Drink"
      ],
      "logic": "or"
+    },
+    "18,124": {
+     "kind": "pedestal",
+     "cats": [
+      "Rare",
+      "Trailer"
+     ],
+     "logic": "and"
     }
    },
    "enemies": {
@@ -2621774,7 +2621784,7 @@
     }
    },
    "editedFrom": 1793955289012,
-   "savedAt": 1793957204474
+   "savedAt": 1793957615291
   },
   {
    "id": "uw2goe0",
