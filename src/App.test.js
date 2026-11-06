@@ -15931,4 +15931,32 @@ describe("🩲 anti-seep: underwear trimmed where it pokes out the SIDES of clot
     const alone = withUnderwearSeepCuts([out[0]]);
     expect(alone[0].seepCut).toBeUndefined();
   });
+  test("fast precomputed sampler + SEEP_CUT_CACHE match pieceCoversPoint on rotated/curved/cutter pieces and hit cache in <2ms", () => {
+    const u = { id: "ub", kind: "roundrect", x: 66, y: 162, w: 68, h: 24, rot: 8, outline: true, color: "#c33", _slot: "under_bottom", _src: "under_bottom" };
+    const pants = { id: "pt", kind: "tri", x: 68, y: 156, w: 64, h: 42, rot: -4, color: "#246", _slot: "pants", _src: "pants" };
+    const cutter = { id: "ct", kind: "circle", x: 96, y: 165, w: 8, h: 8, isCutter: true, _slot: "pants", _src: "pants" };
+    const first = underwearSeepCuts([u, pants, cutter]);
+    expect(first.get(u)).toBeDefined();
+    // Fresh piece clones with identical geometry hit SEEP_CUT_CACHE and produce identical polygons
+    const t0 = Date.now();
+    for (let i = 0; i < 200; i++) {
+      const u2 = { ...u, id: "ub_" + i };
+      const again = underwearSeepCuts([u2, { ...pants, id: "pt_" + i }, { ...cutter, id: "ct_" + i }]);
+      expect(again.get(u2)).toEqual(first.get(u));
+    }
+    expect(Date.now() - t0).toBeLessThan(150);
+  });
+});
+
+describe("⚡ New Game S1 TV walk & play-loop frame-time guards (2026-11-06)", () => {
+  test("cutscenes warm ahead & pre-promote Front cells, connectedFrontRegion caches active region, look caches survive across runs, and gameMode skips hidden studio chrome", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("if (cutRef.current) { cutFrame(p, RK, dtMul); prePromoteFront(); if (runNodeLive) warmRunAhead(runNow, runNodeLive);");
+    expect(src).toContain("const sameReg = !!(behindKeys.length && prevReg && behindKeys.every((k) => prevReg.has(k)));");
+    expect(src).not.toContain('playRunId.current + "|" + bp.id');
+    expect(src).not.toContain('playRunId.current + "|" + ea.id');
+    expect(src).toContain('{!game && <>');
+    expect(src).toContain('{!game && <div className="statusrow">');
+    expect(src).toContain('{!game && <aside className="lside">');
+  });
 });

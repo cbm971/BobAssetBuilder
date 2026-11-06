@@ -11325,6 +11325,44 @@ const seepIsArm = (p) => p.role === "weaponArm" || p.limb === "arm";
 // Returns Map(underwear piece -> array of hole polygons, each [[fx, fy], ...] in that piece's box).
 // `pieces` is a finished look in draw order (layerBodyAndOverlays' output), every garment piece
 // tagged with its `_slot`. Pieces with nothing to trim are absent.
+const SEEP_CUT_CACHE = new Map();
+const makeSeepShapeSampler = (q) => {
+  const f = pieceTurn(q, !!q._m);
+  const ox = f.ox, oy = f.oy, mir = f.mirrored, cos = Math.cos(-f.rad), sin = Math.sin(-f.rad);
+  const qx = q.x, qy = q.y, qw = q.w, qh = q.h, kind = q.kind;
+  const b = boundsOf([[qx, qy], [qx + qw, qy], [qx + qw, qy + qh], [qx, qy + qh]].map(([x, y]) => turnToCanvas(f, x, y)));
+  let mode = 0, rx = 0, ry = 0, pts = null;
+  if (kind === "circle") mode = 1;
+  else if (kind === "roundrect" || kind === "stadium") {
+    const r = kind === "stadium" ? stadiumRadius(qw, qh) : 0;
+    rx = kind === "stadium" ? r / qw : 0.22;
+    ry = kind === "stadium" ? r / qh : 0.22;
+    mode = rx > 0 && ry > 0 ? 2 : 0;
+  } else {
+    pts = shapePolyPoints(q);
+    if (pts) mode = 3;
+  }
+  const hit = (x, y) => {
+    let dx = x - ox; const dy = y - oy; if (mir) dx = -dx;
+    const lx = ox + dx * cos - dy * sin, ly = oy + dx * sin + dy * cos;
+    const fx = (lx - qx) / qw, fy = (ly - qy) / qh;
+    if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return false;
+    if (mode === 0) return true;
+    if (mode === 1) return (fx - 0.5) * (fx - 0.5) + (fy - 0.5) * (fy - 0.5) <= 0.25;
+    if (mode === 2) {
+      const ex = Math.max(0, Math.abs(fx - 0.5) - (0.5 - rx)) / rx, ey = Math.max(0, Math.abs(fy - 0.5) - (0.5 - ry)) / ry;
+      return ex * ex + ey * ey <= 1;
+    }
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, yi] = pts[i], [xj, yj] = pts[j];
+      if ((yi > fy) !== (yj > fy) && fx < ((xj - xi) * (fy - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const sig = (kind || "rect") + ":" + qx + "," + qy + "," + qw + "," + qh + "," + ox + "," + oy + "," + f.rad + "," + (mir ? 1 : 0) + "," + (q.outline && kind !== "emoji" ? 1 : 0) + (pts ? ":" + pts.map((p) => p[0] + "," + p[1]).join(";") : "");
+  return { f, b, hit, sig };
+};
 export const underwearSeepCuts = (pieces, opts = {}) => {
   const tol = opts.tol != null ? opts.tol : SEEP_TOL, s = opts.step || SEEP_STEP;
   const list = (pieces || []).filter(Boolean);
@@ -11334,33 +11372,54 @@ export const underwearSeepCuts = (pieces, opts = {}) => {
   // and the underwear itself are both read through them, exactly as they will be drawn.
   const cutOf = new Map();
   for (const r of cutterRuns(list)) if (r.hasCutter) for (const seg of cutterLayerSegments(r.pieces)) for (const [q] of seg.items) cutOf.set(q, seg.cutters);
-  const solidAt = (q, x, y) => pieceCoversPoint(q, x, y) && !(cutOf.get(q) || []).some((c) => pieceCoversPoint(c, x, y));
-  const turnedBounds = (q) => { const f = pieceTurn(q, !!q._m); return boundsOf([[q.x, q.y], [q.x + q.w, q.y], [q.x + q.w, q.y + q.h], [q.x, q.y + q.h]].map(([x, y]) => turnToCanvas(f, x, y))); };
+  const rawCache = new Map(), solidCache = new Map();
+  const rawOf = (q) => { let t = rawCache.get(q); if (!t) { t = makeSeepShapeSampler(q); rawCache.set(q, t); } return t; };
+  const testerOf = (q) => {
+    let t = solidCache.get(q);
+    if (t) return t;
+    const base = rawOf(q);
+    const cuts = (cutOf.get(q) || []).filter((c) => c && c.w > 0 && c.h > 0).map(rawOf);
+    const hit = cuts.length ? (x, y) => base.hit(x, y) && !cuts.some((ct) => ct.hit(x, y)) : base.hit;
+    const sig = cuts.length ? base.sig + "{c:" + cuts.map((ct) => ct.sig).join("&") + "}" : base.sig;
+    t = { f: base.f, b: base.b, hit, sig };
+    solidCache.set(q, t);
+    return t;
+  };
   const r4 = (v) => Math.round(v * 10000) / 10000;
   list.forEach((u, i) => {
     if (!UNDER_SLOTS.has(u._slot) || u.isCutter || u.isHitbox || u.isMuzzle || !(u.w > 0 && u.h > 0)) return;
-    const ub = turnedBounds(u);
+    const uT = testerOf(u), ub = uT.b;
     const ringed = !!u.outline && u.kind !== "emoji", probe = ringed ? SEEP_RING_PROBE : 0;
     const x0 = ub[0] - tol - 2 * s - probe, x1 = ub[2] + tol + 2 * s + probe, y0 = ub[1] - probe, y1 = ub[3] + probe;
     const uArm = seepIsArm(u);
-    const covers = [];
+    const covTs = [];
     for (let j = i + 1; j < list.length; j++) {
       const q = list[j];
       if (!SEEP_COVER_SLOTS.has(q._slot) || q.isCutter || q.isHitbox || q.isMuzzle || !(q.w > 0 && q.h > 0)) continue;
       if (q.kind === "emoji" || q.kind === "text" || pieceFillSeeThrough(q) || seepIsArm(q) !== uArm) continue;
-      const qb = turnedBounds(q);
+      const qT = testerOf(q), qb = qT.b;
       if (qb[2] < x0 || qb[0] > x1 || qb[3] < y0 || qb[1] > y1) continue;
-      covers.push(q);
+      covTs.push(qT);
     }
-    if (!covers.length) return;
+    if (!covTs.length) return;
+    const cacheKey = tol + "|" + s + "|" + uT.sig + "||" + covTs.map((t) => t.sig).join("||");
+    const cached = SEEP_CUT_CACHE.get(cacheKey);
+    if (cached !== undefined) { if (cached.length) out.set(u, cached); return; }
     const nx = Math.max(1, Math.ceil((x1 - x0) / s)), ny = Math.max(1, Math.ceil((y1 - y0) / s));
     const U = new Uint8Array(nx * ny), P = new Uint8Array(nx * ny);
-    for (let r = 0; r < ny; r++) {
-      const cy = y0 + (r + 0.5) * s;
-      for (let c = 0; c < nx; c++) {
-        const cx = x0 + (c + 0.5) * s, k = r * nx + c;
-        U[k] = solidAt(u, cx, cy) ? 1 : 0;
-        P[k] = covers.some((q) => solidAt(q, cx, cy)) ? 1 : 0;
+    const uR0 = Math.max(0, Math.floor((ub[1] - y0) / s)), uR1 = Math.min(ny - 1, Math.ceil((ub[3] - y0) / s));
+    const uC0 = Math.max(0, Math.floor((ub[0] - x0) / s)), uC1 = Math.min(nx - 1, Math.ceil((ub[2] - x0) / s));
+    for (let r = uR0; r <= uR1; r++) {
+      const cy = y0 + (r + 0.5) * s, rowOff = r * nx;
+      for (let c = uC0; c <= uC1; c++) { if (uT.hit(x0 + (c + 0.5) * s, cy)) U[rowOff + c] = 1; }
+    }
+    for (let m = 0; m < covTs.length; m++) {
+      const qT = covTs[m], qb = qT.b;
+      const qR0 = Math.max(0, Math.floor((qb[1] - y0) / s)), qR1 = Math.min(ny - 1, Math.ceil((qb[3] - y0) / s));
+      const qC0 = Math.max(0, Math.floor((qb[0] - x0) / s)), qC1 = Math.min(nx - 1, Math.ceil((qb[2] - x0) / s));
+      for (let r = qR0; r <= qR1; r++) {
+        const cy = y0 + (r + 0.5) * s, rowOff = r * nx;
+        for (let c = qC0; c <= qC1; c++) { const k = rowOff + c; if (!P[k] && qT.hit(x0 + (c + 0.5) * s, cy)) P[k] = 1; }
       }
     }
     if (ringed) { // grow the fill by its ring (a round brush of radius `probe`)
@@ -11410,7 +11469,7 @@ export const underwearSeepCuts = (pieces, opts = {}) => {
       open.length = 0;
       for (const S of next) { S.taken = false; open.push(S); }
     }
-    const f = pieceTurn(u, !!u._m);
+    const f = uT.f;
     const polys = strips.map((S) => {
       const edge = (row) => {
         let xl = x0 + row.a * s, xr = x0 + (row.b + 1) * s;
@@ -11429,6 +11488,8 @@ export const underwearSeepCuts = (pieces, opts = {}) => {
       });
       return right.concat(left.reverse()).map(([x, y]) => { const [lx, ly] = turnToLocal(f, x, y); return [r4((lx - u.x) / u.w), r4((ly - u.y) / u.h)]; });
     });
+    if (SEEP_CUT_CACHE.size >= 4096) SEEP_CUT_CACHE.clear();
+    SEEP_CUT_CACHE.set(cacheKey, polys);
     if (polys.length) out.set(u, polys);
   });
   return out;
@@ -14663,10 +14724,11 @@ export default function AssetStudio({ game = false } = {}) {
   // not change at the handoff either. Levels in grid order, not live-first (see runGridOrder).
   const runObjects = useMemo(() => {
     if (!runNodeNow) return null;
-    const out = [{ nk: runNodeNow.key, node: runNodeNow, off: { x: 0, y: 0 }, live: true, items: lvDrawOrder }];
+    const prep = (items) => items.map((it) => ({ ...it, baseLeft: objNudgedLeft(it.o, it.c, LV_CELL), baseTop: objNudgedTop(it.o, it.r, LV_CELL), _assets: null, _layout: null }));
+    const out = [{ nk: runNodeNow.key, node: runNodeNow, off: { x: 0, y: 0 }, live: true, items: prep(lvDrawOrder) }];
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
-    for (const side of Object.keys(seams)) { const { level: nb, off, key } = seams[side]; out.push({ nk: key, node: runRef.current.nodes[key], off, live: false, items: levelObjectsInDrawOrder(nb.fx || {}) }); }
-    for (const { key, node, off } of runSceneryNodes(runRef.current, runNodeNow, LV_CELL)) out.push({ nk: key, node, off, live: false, items: levelObjectsInDrawOrder(node.level.fx || {}) });
+    for (const side of Object.keys(seams)) { const { level: nb, off, key } = seams[side]; out.push({ nk: key, node: runRef.current.nodes[key], off, live: false, items: prep(levelObjectsInDrawOrder(nb.fx || {})) }); }
+    for (const { key, node, off } of runSceneryNodes(runRef.current, runNodeNow, LV_CELL)) out.push({ nk: key, node, off, live: false, items: prep(levelObjectsInDrawOrder(node.level.fx || {})) });
     out.sort((a, b) => runGridOrder(a.node, b.node));
     return out;
   }, [runNodeNow, lvDrawOrder]);
@@ -14738,6 +14800,7 @@ export default function AssetStudio({ game = false } = {}) {
     return el;
   };
   const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
+  const xrayRegionRef = useRef(null);      // active connected Front region Set — reused while behindKeys stays inside it so walking across a 596-cell building runs BFS once on entry, not every column
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
@@ -15743,7 +15806,7 @@ export default function AssetStudio({ game = false } = {}) {
       // frontCellsRef still points at it — the effect cleanup below runs after the ref has moved.
       for (const k of fadedFrontKeys.current.keys()) { const d = frontCellEl(k); if (d) d.style.opacity = ""; }
       for (const k of promotedFrontKeys.current) { const d = frontCellEl(k); if (d) d.style.willChange = ""; }
-      fadedFrontKeys.current = new Map(); promotedFrontKeys.current = new Set(); xrayFrontSig.current = "";
+      fadedFrontKeys.current = new Map(); promotedFrontKeys.current = new Set(); xrayFrontSig.current = ""; xrayRegionRef.current = null;
       // EVERY UNIT GOES BACK TO THE LEVEL IT IS STANDING IN (releaseRunUnits), and the level you are
       // walking into then adopts its own neighbours — the one being left among them — so whatever
       // was chasing or following you is still in the world exactly where it was, still coming. This
@@ -16513,6 +16576,20 @@ export default function AssetStudio({ game = false } = {}) {
     // measured cheap (~0.1ms of physics, and the render was already happening 6ms later anyway) —
     // this only moves it back inside the frame it belongs to.
     const commitFrame = () => flushSync(() => setPframe((f) => (f + 1) % 1000000));
+    let frontPrePromoted = false;
+    const prePromoteFront = () => {
+      if (frontPrePromoted || !frontCellsRef.current || !lv.front) return;
+      frontPrePromoted = true;
+      const keys = Object.keys(lv.front);
+      if (!keys.length || keys.length > 650) return;
+      const promoted = promotedFrontKeys.current;
+      for (let i = 0; i < keys.length; i++) {
+        const fk = keys[i];
+        if (promoted.has(fk)) continue;
+        const d = frontCellEl(fk);
+        if (d) { promoted.add(fk); d.style.willChange = "opacity"; }
+      }
+    };
     const myGen = ++__ptLoopGen; // this run is now the authoritative loop
     const loop = () => {
       if (myGen !== __ptLoopGen) return; // a newer loop exists — stop; don't touch player or reschedule
@@ -16547,7 +16624,7 @@ export default function AssetStudio({ game = false } = {}) {
       // 🎬 A CUTSCENE PAUSES IT ON THE SAME TERMS: one return, above everything, so nobody walks up
       // and shoots a sleeping man. Only the animation's clock runs (cutFrame), and the camera keeps
       // following the hidden body, which cutFrame keeps on the actor.
-      if (cutRef.current) { cutFrame(p, RK, dtMul); updateCamera(p, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS, dtMul); commitFrame(); raf = requestAnimationFrame(loop); return; }
+      if (cutRef.current) { cutFrame(p, RK, dtMul); prePromoteFront(); if (runNodeLive) warmRunAhead(runNow, runNodeLive); updateCamera(p, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS, dtMul); commitFrame(); raf = requestAnimationFrame(loop); return; }
       // STATUS FREEZES ON THE PLAYER — 💫 stunned by an enemy's Stun weapon, 😵 flattened by an
       // enemy's Tackle. Ticked here, before anything reads the keys, because a frozen player has no
       // input INTENT at all: mergeInputIntent({}) hands the rest of the loop the same all-false
@@ -20418,21 +20495,31 @@ export default function AssetStudio({ game = false } = {}) {
       // standing on top of it. Both this flood fill and the pedestal scan are skipped entirely
       // unless the set of covered cells changed — for ordinary play, once entering and once leaving.
       playerCenter.current = { x: p.x + pw / 2, y: p.y + ph / 2 };
+      prePromoteFront();
       const behindKeys = frontFadeKeys(lv.front, p.x, p.y, pw, ph, CW, CH);
       const behindSig = behindKeys.join("|");
       if (behindSig !== xrayFrontSig.current) {
         xrayFrontSig.current = behindSig;
-        const reg = behindKeys.length ? connectedFrontRegion(lv.front, behindKeys) : null;
-        const peds = new Set();
-        if (reg && reg.size && lv.markers) {
-          for (const mk in lv.markers) {
-            const mm = lv.markers[mk];
-            if (!mm || mm.kind !== "pedestal") continue;
-            const [pr0, pc0] = mk.split(",").map(Number);
-            if (pedestalCoverKeys(pr0, pc0).some((ck) => reg.has(ck))) peds.add(mk);
+        const prevReg = xrayRegionRef.current;
+        const sameReg = !!(behindKeys.length && prevReg && behindKeys.every((k) => prevReg.has(k)));
+        const reg = !behindKeys.length ? null : sameReg ? prevReg : connectedFrontRegion(lv.front, behindKeys);
+        if (reg !== prevReg) {
+          xrayRegionRef.current = reg;
+          if (reg && reg.size && frontCellsRef.current) {
+            const promoted = promotedFrontKeys.current;
+            for (const rk of reg) if (!promoted.has(rk)) { const d = frontCellEl(rk); if (d) { promoted.add(rk); d.style.willChange = "opacity"; } }
           }
+          const peds = new Set();
+          if (reg && reg.size && lv.markers) {
+            for (const mk in lv.markers) {
+              const mm = lv.markers[mk];
+              if (!mm || mm.kind !== "pedestal") continue;
+              const [pr0, pc0] = mk.split(",").map(Number);
+              if (pedestalCoverKeys(pr0, pc0).some((ck) => reg.has(ck))) peds.add(mk);
+            }
+          }
+          xrayPedKeys.current = peds;
         }
-        xrayPedKeys.current = peds;
       }
       // Front tiles the player is currently behind go translucent — imperatively, on just the
       // covered cells, because this layer is deliberately memoized for playtest performance and
@@ -20508,7 +20595,7 @@ export default function AssetStudio({ game = false } = {}) {
       // worth its memory while a fade can actually run, and in the editor it never can.
       if (frontCellsRef.current) for (const k of promotedFrontKeys.current) { const d = frontCellEl(k); if (d) d.style.willChange = ""; }
       promotedFrontKeys.current = new Set();
-      xrayFrontSig.current = ""; xrayPedKeys.current = new Set(); // no stale interior left x-rayed once play stops
+      xrayFrontSig.current = ""; xrayRegionRef.current = null; xrayPedKeys.current = new Set(); // no stale interior left x-rayed once play stops
       // Fires that burned out during play are only hidden imperatively; the level still has them.
       // Restore every hazard element's display so the editor shows the full painted set again.
       if (hazardCellsRef.current) for (const el of hazardCellsRef.current.querySelectorAll("[data-hk]")) el.style.display = "";
@@ -23930,15 +24017,16 @@ export default function AssetStudio({ game = false } = {}) {
     // a look re-dressed and saved in Dress Bob while a Playtest or a game was still running kept being
     // drawn as it was until he left the game and came back (Blake, 2026-11-06: "had to completely
     // leave and reenter the game").
-    const key = playRunId.current + "|" + bp.id + "|" + eqSig;
-    if (playerLookCache.current.key === key && playerLookCache.current.src === bp && playerLookCache.current.look) return playerLookCache.current.look.angles[ang] || [];
     const comp = bp.type === "character" ? (bp.components || {}) : {};
-    const body = comp.body || bp, skin = comp.skin || null, weapon = comp.weapon || null;
     const eq = {};
     // Pickup wins over the look's own garment, and an EMPTIED slot beats both — see wornEquipMap.
     for (const sl of SLOT_ORDER) { const it = slotWasEmptied(equipped.current, sl) ? null : (equipped.current[sl] || (comp.equipment && comp.equipment[sl])); if (it) eq[sl] = it; }
+    const key = bp.id + "|" + eqSig;
+    const pc = playerLookCache.current;
+    if (pc.key === key && pc.src === bp && pc.look && pc.eq && SLOT_ORDER.every((sl) => pc.eq[sl] === eq[sl])) return pc.look.angles[ang] || [];
+    const body = comp.body || bp, skin = comp.skin || null, weapon = comp.weapon || null;
     const look = assembleLook(body, skin, weapon, eq, { id: bp.id, name: bp.name, type: "character" });
-    playerLookCache.current = { key, src: bp, look };
+    playerLookCache.current = { key, src: bp, eq, look };
     return look.angles[ang] || [];
   };
   const composeLook = (idOverride) => {
@@ -24037,7 +24125,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (!worn.length) {
       // Only the PICTURE is re-composed here, exactly like livePlayerBlocks: stats, effects, rig and
       // enemy settings stay the saved look's own, so nothing but the drawing order can differ.
-      const artKey = playRunId.current + "|" + ea.id + "|art";
+      const artKey = ea.id + "|art";
       const art = enemyGearLookCache.current.get(artKey);
       if (art && art.src === ea) return art.out;
       const look = assembleLook(c.body, c.skin || null, c.weapon || null, c.equipment || {}, { id: ea.id, name: ea.name, type: "character" });
@@ -24045,9 +24133,9 @@ export default function AssetStudio({ game = false } = {}) {
       enemyGearLookCache.current.set(artKey, { src: ea, out });
       return out;
     }
-    const key = playRunId.current + "|" + ea.id + "|" + worn.map((a) => a.id).join("|");
+    const key = ea.id + "|" + worn.map((a) => a.id).join("|");
     const hit = enemyGearLookCache.current.get(key);
-    if (hit) return hit;
+    if (hit && hit.src === ea && hit.worn && hit.worn.length === worn.length && hit.worn.every((w, i) => w === worn[i])) return hit.out;
     const eq = { ...(c.equipment || {}) }, slots = { ...((ea.recipe && ea.recipe.slots) || {}) };
     for (const a of worn) { eq[a.slot] = a; slots[a.slot] = a.id; }
     const base = {
@@ -24056,7 +24144,7 @@ export default function AssetStudio({ game = false } = {}) {
       components: { ...c, equipment: eq },
     };
     const out = assembleLook(c.body, c.skin || null, c.weapon || null, eq, base);
-    enemyGearLookCache.current.set(key, out);
+    enemyGearLookCache.current.set(key, { src: ea, worn: worn.slice(), out });
     return out;
   };
   // Remember the sprite a unit was just drawn as, keyed on everything it was drawn from, so the next
@@ -25216,7 +25304,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -25765,14 +25853,19 @@ export default function AssetStudio({ game = false } = {}) {
           bb = { x: x0, y: top, w: Math.max(1, x1 - x0), h: Math.max(1, neck - top) };
         }
       }
-      hit = { src: a, sig, pieces, bb, n: hit ? hit.n + 1 : 0 };
+      hit = { src: a, sig, pieces, bb, n: hit ? hit.n + 1 : 0, els: {}, texLib: null, alpha: null };
       gameHeadCache.current.set(a.id, hit);
     }
     const bb = hit.bb;
     if (!bb) return null;
+    const alpha = assetAlpha(a);
+    if (hit.texLib !== texLib || hit.alpha !== alpha) { hit.els = {}; hit.texLib = texLib; hit.alpha = alpha; }
+    if (hit.els[px]) return hit.els[px];
     const sc = (px / Math.max(bb.w, bb.h)) * 0.96;
     const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * (bb.x + bb.w / 2)}px,${px / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, clipPath: `inset(${bb.y}px ${W - bb.x - bb.w}px ${H - bb.y - bb.h}px ${bb.x}px)` };
-    return <div style={plane}>{renderPieceRuns({ pieces: hit.pieces, keyPrefix: "hd" + a.id + "_" + hit.n + "_", alpha: assetAlpha(a), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
+    const el = <div style={plane}>{renderPieceRuns({ pieces: hit.pieces, keyPrefix: "hd" + a.id + "_" + hit.n + "_", alpha: alpha, drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
+    hit.els[px] = el;
+    return el;
   };
   // THE CHARACTER SELECT'S FULL-BODY CARD shows the fighter DRESSED, not in the underwear a Starter
   // begins a run in (Blake, 2026-10-18: "show how they would look if fully dressed … You can give them
@@ -27689,6 +27782,7 @@ export default function AssetStudio({ game = false } = {}) {
       // gameMode: the game's run — every editor bar, the side panel and the status row are hidden by
       // the sheet (.bb.gameMode), and the view fills the window (gameViewStyle on .lscroll).
       <div className={"bb" + (game ? " gameMode" : "")} onPointerDownCapture={game ? undefined : snapshotLevel}><style>{css}</style>
+        {!game && <>
         <header className="bar">
           <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
           <input className="nm wide2" value={lv.name} onChange={(e) => setLevel({ ...lv, name: e.target.value })} />
@@ -28042,6 +28136,7 @@ export default function AssetStudio({ game = false } = {}) {
               onClick={() => { const b = bgLib.find((x) => x && x.id === bgPick); if (!b) return; if (confirmBgDel === bgPick) deleteBackground(b); else { setConfirmBgDel(bgPick); flash("Tap ✕ again to permanently delete background \"" + b.name + "\""); } }}>{bgPick && confirmBgDel === bgPick ? "Sure?" : "✕"}</button>
           </>}
         </div>
+        </>}
 
         <div className="lmain">
           <div className="lstage">
@@ -28050,7 +28145,7 @@ export default function AssetStudio({ game = false } = {}) {
                 that was four separate full-width bars to scroll past before you could see the
                 level. They flow side by side now and only wrap when the stage is genuinely too
                 narrow, so the canvas keeps its vertical space. */}
-            <div className="statusrow">
+            {!game && <div className="statusrow">
             {play && runHud && <p className="statusline runhud" title="This run: its seed (type it into 🎲 Generate to play the same run again), where you are in the chain, and what the chain is still missing.">🏁 Run <b>{runHud.seed}</b> · {runHud.where} · <b>{runHud.name}</b>{runHud.notes ? <span className="runnote"> · {runHud.notes}</span> : null}</p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
@@ -28080,7 +28175,7 @@ export default function AssetStudio({ game = false } = {}) {
                 layer, an enemy loaded onto the brush. */}
             {!play && lTool === "move" && !(layerMove && layerMove.levelId === lv.id) && areaSel && areaSel.levelId === lv.id && <p className="statusline">🔀 <b>{areaSel.key !== undefined ? areaSel.name : (areaSel.c1 - areaSel.c0 + 1) + "×" + (areaSel.r1 - areaSel.r0 + 1)}</b> selected <button className="ltbtn" onClick={() => setAreaSel(null)}>✕ Deselect</button></p>}
             {!play && lTool === "paint" && lEnemyId && !(layerMove && layerMove.levelId === lv.id) && <p className="statusline">👹 Placing <b>{lEnemyTag ? "🎲 " + lEnemyTag : (lEnemyAsset || {}).name || "enemy"}</b></p>}
-            </div>
+            </div>}
             {/* While play is on the CAMERA drives the level: .lscroll stops scrolling and .lgrid is
                 translated by the camera (camRef, written by the loop and read here inside
                 commitFrame, so it lands on the frame it was computed for). In the editor no transform
@@ -28152,11 +28247,12 @@ export default function AssetStudio({ game = false } = {}) {
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
                   return runObjects.flatMap(({ nk, off, live, items }) => {
                     const haz = live ? hazLife.current : ((roomState.current[nk] || {}).haz || {});
-                    return items.map(({ k, r, c, si, o, ord }) => {
+                    return items.map((it) => {
+                      const { k, si, o, ord, baseLeft, baseTop } = it;
                       if (play && o._thrown && !hazardStillBurning(haz, k)) return null;
                       if (play && vehIsLive(nk, k, si)) return null; // 🚗 a car that has come alive is drawn by the live-car pass, wherever it has rolled
-                      const layout = levelObjectPixelLayout(o);
-                      const left = off.x + objNudgedLeft(o, c, LV_CELL), top = off.y + objNudgedTop(o, r, LV_CELL);
+                      const layout = it._assets === allAssets ? it._layout : (it._assets = allAssets, it._layout = levelObjectPixelLayout(o));
+                      const left = off.x + baseLeft, top = off.y + baseTop;
                       if (offScreen(left, top, layout.width, layout.height)) return null;
                       const key = "ro" + nk + "|" + k + "_" + si;
                       const behind = play && o.inFront && p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
@@ -29725,12 +29821,19 @@ export default function AssetStudio({ game = false } = {}) {
                 // Bottom-right: what you hold, drawn from its own art the way the shop shelf draws it
                 // (hudWeaponArt), and the ATK figure beside it. Bare hands show the ATK symbol.
                 const wBoxW = 88, wBoxH = 44;
-                const { pieces: wPieces, bb: wBb, turn: wTurn } = hudWeaponArt(playtestWeapon);
-                let wPlane = null;
-                if (wBb) {
-                  const across = wTurn ? wBb.h : wBb.w, tall = wTurn ? wBb.w : wBb.h;
-                  const sc = Math.min(wBoxW / across, wBoxH / tall) * 0.92;
-                  wPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${wBoxW / 2}px,${wBoxH / 2}px) rotate(${wTurn}deg) scale(${sc}) translate(${-(wBb.x + wBb.w / 2)}px,${-(wBb.y + wBb.h / 2)}px)`, ...groundRingVars(sc) };
+                const wHudEntry = playtestWeapon ? hudWeaponArt(playtestWeapon) : null;
+                let wHudEl = null;
+                if (wHudEntry && wHudEntry.bb) {
+                  const wAlpha = assetAlpha(playtestWeapon);
+                  if (wHudEntry.el && wHudEntry.elTex === texLib && wHudEntry.elAlpha === wAlpha) wHudEl = wHudEntry.el;
+                  else {
+                    const { pieces: wPieces, bb: wBb, turn: wTurn } = wHudEntry;
+                    const across = wTurn ? wBb.h : wBb.w, tall = wTurn ? wBb.w : wBb.h;
+                    const sc = Math.min(wBoxW / across, wBoxH / tall) * 0.92;
+                    const wPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${wBoxW / 2}px,${wBoxH / 2}px) rotate(${wTurn}deg) scale(${sc}) translate(${-(wBb.x + wBb.w / 2)}px,${-(wBb.y + wBb.h / 2)}px)`, ...groundRingVars(sc) };
+                    wHudEl = <div style={wPlane}>{renderPieceRuns({ pieces: wPieces, cacheKey: "hudw_" + playtestWeapon.id, keyPrefix: "hudw" + playtestWeapon.id + "_", alpha: wAlpha, drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
+                    wHudEntry.el = wHudEl; wHudEntry.elTex = texLib; wHudEntry.elAlpha = wAlpha;
+                  }
                 }
                 // ATK lives here only (Blake: "you don't need Atk at the top and the weapon in the bottom right").
                 const atkEffects = withTimedTagBoosts(merged?.effects, itemBuffs.current, playNowMs()); // a 🧪 timed Tag Damage shows in ATK while it runs
@@ -29745,8 +29848,7 @@ export default function AssetStudio({ game = false } = {}) {
                     <div key={"money" + walletRises.current} className={"hudMoney" + (walletRises.current ? " gain" : "")}>{sym("hud.money", null, 22)}<span>{walletUI}</span></div>
                     <div className={"hudWpn" + (atk.d > 0 ? " up" : atk.d < 0 ? " down" : "")}>
                       <div className="hudWpnArt" style={{ width: wBoxW, height: wBoxH }}>
-                        {wPlane ? <div style={wPlane}>{renderPieceRuns({ pieces: wPieces, cacheKey: "hudw_" + playtestWeapon.id, keyPrefix: "hudw" + playtestWeapon.id + "_", alpha: assetAlpha(playtestWeapon), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
-                          : sym("stat.atk", null, 34)}
+                        {wHudEl || sym("stat.atk", null, 34)}
                       </div>
                       <span className="hudWpnDmg">{formatDps(dps)}<small className="hudWpnUnit">DPS</small></span>
                     </div>
@@ -29790,7 +29892,7 @@ export default function AssetStudio({ game = false } = {}) {
             </div>
           </div>
 
-          <aside className="lside">
+          {!game && <aside className="lside">
             {/* MOVE & ALIGN, in its own card at the top of the panel rather than folded away inside
                 a stack row. Alignment is the job people are doing when two big props are involved,
                 and it was previously reachable only by expanding a row that opens by default and so
@@ -29966,7 +30068,7 @@ export default function AssetStudio({ game = false } = {}) {
               )}
             </div>
 
-          </aside>
+          </aside>}
         </div>
 
 

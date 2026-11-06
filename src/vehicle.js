@@ -545,29 +545,56 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   // the lip line and never left the ground (sim: 76-98 frames of air before 3c15320, 0 after). Fast
   // and rising, the hanging wheel is carried up with the body as before and the car launches. Creeping
   // (the clip he reported) or on the flat, it is still held across.
-  const launching = Math.abs(v.vx) > VEH_LAUNCH_SPEED && ((v.lastDy || 0) < -VEH_LAUNCH_RISE || !!v.hang); // ...and a launch that has begun (a wheel already out over the hole) is let finish
-  if (v.onGround && !launching) {
+  // Real cars (w 385..560 px, wheelbase 240..478 px) are longer than both the 120-150 px manhole ramps
+  // and the 150 px sewer shafts on Trailor Park M5, M6 and M15, and M5 (c108) / M6 & M15 (c51) have a
+  // sunken inner lip one row below the ramp peak. When a fast car is pitched uphill on a ramp and the
+  // floor under its leading wheel vanishes or drops sharply (> VEH_STEP_UP), it launches into the air
+  // from the ramp lip instead of snapping onto the sunken step or bridging while the rear wheel is still
+  // on the flat street; when creeping slowly, bridged spans both the shaft and any sunken inner lip.
+  const leadRight = dx > 0;
+  const fLead = dx !== 0 ? (leadRight ? fr : fl) : null;
+  const prevLeadY = leadRight ? v.yR : v.yL;
+  const prevTrailY = leadRight ? v.yL : v.yR;
+  const pitchedUp = v.tilt * Math.sign(dx) < -2.5 && prevTrailY - prevLeadY >= 12;
+  const climbing = (v.lastDy || 0) < -VEH_LAUNCH_RISE || pitchedUp;
+  const rampLaunch = v.onGround && Math.abs(v.vx) > VEH_LAUNCH_SPEED && pitchedUp && fLead && (fLead.y == null || fLead.y > prevLeadY + VEH_STEP_UP);
+  const launching = Math.abs(v.vx) > VEH_LAUNCH_SPEED && (climbing || !!v.hang);
+  if (v.onGround && !launching && !rampLaunch) {
     const bridged = (x, y, f) => {
-      if (f.y != null) return f;
+      if (f.y != null && f.y <= y + VEH_STEP_UP) return f;
       const lip = (dir) => {
+        let hit = null;
         for (let d = 10; d <= v.w; d += 10) {
-          const g = world.floorAt(x + dir * d, y, VEH_STEP_UP, VEH_STEP_UP, VEH_LIP_DROP);
-          if (g.y != null) return { d, y: g.y };
-          if (world.groundTop && world.groundTop(x + dir * d, y) != null) return { d, y: null };
+          const g = world.floorAt(x + dir * d, y, VEH_LIP_DROP, VEH_STEP_UP, VEH_LIP_DROP);
+          if (g.y != null) {
+            if (!hit || g.y < hit.y) hit = { d, y: g.y };
+            if (g.y <= y + VEH_STEP_UP || d >= hit.d + VEH_LIP_DROP) return hit;
+            continue;
+          }
+          if (!hit && world.groundTop && world.groundTop(x + dir * d, y) != null) return { d, y: null };
         }
-        return null;
+        return hit;
       };
       const a = lip(-1), b = a && lip(1);
       if (!a || !b || a.d + b.d > v.w || (a.y == null && b.y == null)) return f;
-      if (a.y == null || b.y == null) return { y: a.y ?? b.y, steep: false };
-      return { y: a.y + ((b.y - a.y) * a.d) / (a.d + b.d), steep: false };
+      const by = (a.y == null || b.y == null) ? (a.y ?? b.y) : a.y + ((b.y - a.y) * a.d) / (a.d + b.d);
+      if (f.y != null && f.y <= by) return f;
+      return { y: by, steep: false };
     };
     fl = bridged(xl, v.yL, fl); fr = bridged(xr, v.yR, fr);
   }
   const wasGround = v.onGround;
   let hangL = false, hangR = false;
   if (wasGround) {
-    if (fl.y == null && fr.y == null) {
+    if (rampLaunch) {
+      v.onGround = false;
+      v.freeVy = 0;
+      v.vy = Math.min(v.lastDy || 0, -Math.abs(v.vx * Math.tan(t)) * 1.6 - 1.2);
+      v.vx = v.vx * Math.cos(t);
+      const dy = v.vy * dt;
+      v.yL = prevLeadY + dy + (v.yL - prevLeadY) * 0.35;
+      v.yR = prevLeadY + dy + (v.yR - prevLeadY) * 0.35;
+    } else if (fl.y == null && fr.y == null) {
       // Off the end of the ground: whatever upward speed the slope was giving it, it keeps.
       v.onGround = false;
       v.vy = Math.min(0, v.lastDy || 0);
@@ -613,11 +640,14 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   } else {
     const dy = v.vy * dt;
     const landL = fl.y != null && fl.y <= v.yL + dy + 1, landR = fr.y != null && fr.y <= v.yR + dy + 1;
-    if (landL || landR) {
+    if ((landL || landR) && v.vy >= 0) {
       ev.landed = v.vy;
       v.onGround = true; v.vy = 0; v.freeVy = 0;
       v.yL = landL ? fl.y : v.yL + dy; v.yR = landR ? fr.y : v.yR + dy;
-    } else { v.yL += dy; v.yR += dy; }
+    } else {
+      const mid = (v.yL + v.yR) / 2 + dy, half = ((v.yR - v.yL) / 2) * Math.pow(0.88, dt);
+      v.yL = mid - half; v.yR = mid + half;
+    }
   }
   // A WHEEL NEVER ENDS A FRAME INSIDE THE GROUND (2026-11-01, Blake: "I went over a ramp ... my vehichle
   // merged into the ground"). A wheel hanging into a gap, carried sideways with the car, went straight
@@ -636,7 +666,7 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
     }
     if (tL != null) { v.yL = tL; hangL = false; }
     if (tR != null) { v.yR = tR; hangR = false; }
-    if ((tL != null || tR != null) && !v.onGround) { ev.landed = v.vy; v.onGround = true; v.vy = 0; }
+    if ((tL != null || tR != null) && !v.onGround && v.vy >= 0) { ev.landed = v.vy; v.onGround = true; v.vy = 0; }
     if ((tL != null || tR != null) && !hangL && !hangR) v.freeVy = 0;
   }
   const span = Math.max(1, (v.wr - v.wl) * v.w);

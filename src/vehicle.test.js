@@ -360,6 +360,42 @@ describe("driving", () => {
       for (let i = 0; i < 3000 && slow.x < 2600; i++) { vehicleStep(slow, { gas: i % 3 === 0 }, w); expect(buried(slow, surf)).toBe(false); if (slow.x + slow.w * slow.wr > b && slow.x + slow.w * slow.wl < c) expect(Math.max(slow.yL, slow.yR)).toBeLessThanOrEqual(400.5); }
     }
   });
+  test("full-size car (wheelbase > ramp and > manhole, with sunken inner lip like M5/M6/M15) gets real air at speed and bridges cleanly when creeping", () => {
+    // Mirrors Trailor Park M6/M15: 150 px ramp (1200..1350, y 1050->990), 30 px flat lip (1350..1380, y 990),
+    // 150 px open shaft (1380..1530), 30 px sunken inner lip (1530..1560, y 1050->1020), far ramp (1560..1680, y 1000->1050).
+    const surf = (x) => {
+      if (x < 1200) return { y: 1050, slope: false };
+      if (x < 1350) return { y: 1050 - ((x - 1200) / 150) * 60, slope: true };
+      if (x < 1380) return { y: 990, slope: true };
+      if (x < 1530) return null;
+      if (x < 1560) return { y: 1050 - ((x - 1530) / 30) * 30, slope: true };
+      if (x < 1680) return { y: 1000 + ((x - 1560) / 120) * 50, slope: true };
+      return { y: 1050, slope: false };
+    };
+    const w = withGround(surf, 1e9);
+    const mustang = (x, face) => ({ x, y: 1050 - 154, w: 445, h: 154, vx: 0, vy: 0, face, onGround: true, yL: 1050, yR: 1050, wl: 0.19, wr: 0.82, tilt: 0, stopT: 0, turnT: 0 });
+    for (const [startX, face, done] of [[300, 1, (v) => v.x > 2200], [2400, -1, (v) => v.x < 500]]) {
+      const fast = mustang(startX, face);
+      let air = 0, peakRise = 0;
+      for (let i = 0; i < 500 && !done(fast); i++) {
+        const ev = vehicleStep(fast, { gas: true }, w);
+        expect(ev.crash).toBeFalsy();
+        if (!fast.onGround) air++;
+        peakRise = Math.max(peakRise, 1050 - (fast.y + fast.h));
+      }
+      expect(air).toBeGreaterThan(35);
+      expect(peakRise).toBeGreaterThan(85);
+    }
+    for (const [startX, face, done] of [[650, 1, (v) => v.x > 1800], [1800, -1, (v) => v.x < 700]]) {
+      const slow = mustang(startX, face);
+      for (let i = 0; i < 900 && !done(slow); i++) {
+        const ev = vehicleStep(slow, { gas: Math.abs(slow.vx) < 2.2 }, w);
+        expect(ev.crash).toBeFalsy();
+        expect(Math.max(slow.yL, slow.yR)).toBeLessThanOrEqual(1050.5);
+      }
+      expect(done(slow)).toBe(true);
+    }
+  });
   test("nose down off the foot of a ramp, the flat ahead is not a wall", () => {
     const surf = (x) => (x < 1000 ? { y: 300, slope: false } : x < 1300 ? { y: 300 + (x - 1000), slope: true } : { y: 600, slope: false });
     const v = newCar(700, 300);
