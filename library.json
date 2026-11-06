@@ -2612954,23 +2612954,6 @@
       "z": 1
      }
     ],
-    "26,66": [
-     {
-      "kind": "prop",
-      "propId": "17r21tq",
-      "size": 16,
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "oy": 0.836735,
-      "ox": 0,
-      "z": 2
-     }
-    ],
     "32,82": [
      {
       "kind": "prop",
@@ -2614020,6 +2614003,23 @@
       "flip": false,
       "z": 80
      }
+    ],
+    "27,66": [
+     {
+      "kind": "prop",
+      "propId": "17r21tq",
+      "size": 16,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0.836735,
+      "ox": 0,
+      "z": 2
+     }
     ]
    },
    "climb": {
@@ -2614426,7 +2614426,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793928722156
+   "savedAt": 1793953237151,
+   "editedFrom": 1793928722156
   },
   {
    "id": "uw2goe0",
