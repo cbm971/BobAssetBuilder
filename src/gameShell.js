@@ -18,7 +18,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   GAME_MENU, menuStep, introRemainingMs, INTRO_OUT_MS, formatPlayTime, UNLOCK_TABS, unlockPool,
-  starterRoster, pickStartLook, selectGridCols, selectGridFill, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
+  starterRoster, pickStartLook, selectGridCols, selectGridFill, selectBoxPx, SELECT_GRID_ROWS_SHOWN, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
   starterStats, lookFloorMedals,
 } from "./gameFront";
 
@@ -279,7 +279,18 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
   const [step, setStep] = useState("fighter");
   const [diff, setDiff] = useState(() => difficultyOf(difficulty).id);
   const cols = selectGridCols(roster.length);
-  const box = Math.round(Math.max(92, Math.min(176, vp.w * 0.095, (vp.h * 0.36) / Math.ceil(Math.max(1, roster.length) / cols))));
+  // One box size whatever the roster's length (selectBoxPx); past SELECT_GRID_ROWS_SHOWN rows the grid
+  // scrolls inside that height instead, and the lit box is kept in view.
+  const box = selectBoxPx(vp.w, vp.h);
+  const boxH = Math.round(box * 1.12);
+  const gap = Math.round(Math.max(8, Math.min(16, vp.w * 0.01)));
+  const rows = Math.ceil(Math.max(1, roster.length) / cols);
+  const scrolls = rows > SELECT_GRID_ROWS_SHOWN;
+  const rosterRef = React.useRef(null);
+  React.useEffect(() => {
+    const el = scrolls && rosterRef.current && rosterRef.current.children[at];
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+  }, [at, scrolls]);
   const artBox = Math.max(1, box - 8); // .gFighter carries a 4px border on each side
   const cur = roster[Math.min(at, roster.length - 1)] || null;
   const locks = React.useMemo(() => roster.map((a) => starterLock(a, record, assets)), [roster, record, assets]);
@@ -314,9 +325,9 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
   return (
     <div className="gBody gSelect">
       <div className="gSelHead"><span>Select Character</span></div>
-      <div className="gRoster" style={{ gridTemplateColumns: "repeat(" + cols + "," + box + "px)" }}>
+      <div ref={rosterRef} className={"gRoster" + (scrolls ? " scrolls" : "")} style={{ gridTemplateColumns: "repeat(" + cols + "," + box + "px)", gap, maxHeight: scrolls ? SELECT_GRID_ROWS_SHOWN * boxH + (SELECT_GRID_ROWS_SHOWN - 1) * gap + 24 : undefined }}>
         {roster.map((a, i) => (
-          <div key={a.id + (i === at && locks[i] ? ":" + shake : "")} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "") + (locks[i] ? " shut" : "") + (i === at && locks[i] && shake ? " no" : "")} style={{ width: box, height: Math.round(box * 1.12) }}
+          <div key={a.id + (i === at && locks[i] ? ":" + shake : "")} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "") + (locks[i] ? " shut" : "") + (i === at && locks[i] && shake ? " no" : "")} style={{ width: box, height: boxH }}
             onMouseEnter={() => { if (step === "fighter") setAt(i); }}
             onClick={() => { setAt(i); if (locks[i]) { refuse(); setStep("fighter"); return; } click(); setStep("diff"); }}>
             <div className="gFighterArt" style={{ width: artBox, height: artBox }}>{(locks[i] ? renderArt : renderDressed)(a, artBox, FIGHTER_PORTRAIT_FRAC)}</div>
@@ -326,7 +337,7 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
           </div>
         ))}
         {Array.from({ length: soon }, (_, i) => (
-          <div key={"soon" + i} className="gFighter shut gSoon" style={{ width: box, height: Math.round(box * 1.12) }}>
+          <div key={"soon" + i} className="gFighter shut gSoon" style={{ width: box, height: boxH }}>
             {soonLook && <div className="gFighterArt" style={{ width: artBox, height: artBox }}>{renderDressed(soonLook, artBox, SOON_PORTRAIT_FRAC)}</div>}
             <div className="gFighterName" style={{ fontSize: Math.max(10, Math.round(box * 0.085)) }}><span>Coming Soon</span></div>
           </div>
@@ -743,6 +754,7 @@ export const GAME_CSS = `
 .gSelBack:hover{background:var(--gGold);color:var(--gG3);text-shadow:none}
 .gSelHead>span{display:inline-block;font-size:clamp(20px,2.3vw,40px);letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--gG2);border:4px solid var(--gEdge);padding:.2em 1.2em .2em .9em;transform:skewX(-12deg);box-shadow:0 6px 0 rgba(0,0,0,.35);text-shadow:0 3px 0 rgba(0,0,0,.35)}
 .gRoster{display:grid;gap:clamp(8px,1vw,16px);justify-content:center;padding:6px}
+.gRoster.scrolls{flex:none;box-sizing:border-box;padding:12px 14px;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(241,239,228,.35) transparent}
 .gFighter{position:relative;box-sizing:border-box;overflow:hidden;cursor:pointer;background:var(--gG1);border:4px solid var(--gEdge);box-shadow:0 6px 0 rgba(0,0,0,.4);transition:transform .1s,box-shadow .1s,border-color .1s;animation:gIn .35s ease both}
 .gFighterArt{position:absolute;left:0;top:0;overflow:hidden;pointer-events:none}
 .gFighterArt>div{filter:drop-shadow(0 4px 0 rgba(0,0,0,.25))}

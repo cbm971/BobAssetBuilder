@@ -6,7 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
-  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
+  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, selectBoxPx, keepsSavedOutfit, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -183,11 +183,27 @@ describe("the character select (2026-10-18)", () => {
     expect(r.map((a) => a.name)).toEqual(["Bob", "Bobette", "Rob"]);
     expect(starterLooks([])).toEqual([]);
   });
-  test("the grid is five boxes to a row, however many starters there are", () => {
-    for (const n of [1, 4, 5, 7, 10, 14, 40]) expect(selectGridCols(n)).toBe(5);
-    expect(selectGridFill(14, selectGridCols(14))).toBe(1); // 5 + 5 + 4 + one Coming Soon
+  test("the grid is six boxes to a row, however many starters there are", () => {
+    for (const n of [1, 4, 6, 7, 10, 16, 40]) expect(selectGridCols(n)).toBe(6);
+    expect(selectGridFill(16, selectGridCols(16))).toBe(2); // 6 + 6 + 4 + two Coming Soon
     expect(FIGHTER_PORTRAIT_FRAC).toBeGreaterThan(0.3);
     expect(SOON_PORTRAIT_FRAC).toBeGreaterThan(FIGHTER_PORTRAIT_FRAC);
+  });
+  // Blake 2026-11-07: adding Bobena (the 16th Starter) shrank every box. The box is a function of the
+  // screen only; it never takes the roster's length.
+  test("a box is the same size however many rows the roster has", () => {
+    expect(selectBoxPx.length).toBe(2);
+    expect(selectBoxPx(2752, 1040)).toBe(Math.round((1040 * 0.36) / 3)); // his 3440x1440 at 125%
+    expect(selectBoxPx(3440, 1300)).toBe(156);
+    expect(selectBoxPx(4000, 3000)).toBe(176);
+    expect(selectBoxPx(800, 500)).toBe(92);
+  });
+  test("Bobena keeps her own outfit on the select; everyone else is dressed", () => {
+    expect(keepsSavedOutfit({ name: "Bobena" })).toBe(true);
+    expect(keepsSavedOutfit({ name: " bobena " })).toBe(true);
+    expect(keepsSavedOutfit({ name: "Bob" })).toBe(false);
+    expect(keepsSavedOutfit({ name: "Bobette" })).toBe(false);
+    expect(keepsSavedOutfit(null)).toBe(false);
   });
   test("arrows: left/right wrap the list, up/down keep the column and land in a short last row", () => {
     expect(gridStep(7, 4, 3, 1, 0)).toBe(4);

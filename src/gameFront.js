@@ -104,10 +104,23 @@ export const pickStartLook = (assets) => {
   const starters = looks.filter((a) => normName(a.category) === START_LOOK_FOLDER);
   return starters.find((a) => normName(a.name) === "bob") || looks.find((a) => normName(a.name) === "bob") || starters[0] || looks[0] || null;
 };
-// The Smash grid: FIVE boxes to a row, however long the roster (Blake, 2026-10-31: "There should be 5
-// playable characters per row"). A short last row is finished with Coming Soon boxes (selectGridFill).
-export const SELECT_GRID_COLS = 5;
+// The Smash grid: SIX boxes to a row, however long the roster (Blake, 2026-11-07: "It should be 6
+// characters per row"; it was 5 from 2026-10-31). A short last row is finished with Coming Soon boxes
+// (selectGridFill).
+export const SELECT_GRID_COLS = 6;
 export const selectGridCols = (n) => (n > 0 ? SELECT_GRID_COLS : 1);
+// THE BOXES NEVER CHANGE SIZE WITH THE ROSTER (Blake, 2026-11-07: "whenever I added a starter
+// character ... it made the boxes for all of the characters smaller ... The boxes should not change
+// size when you add rows"). The box was the screen's height shared out over however many rows there
+// were, so Bobena, the 16th Starter, opened a 4th row of 5 and shrank every box by a quarter. Now a
+// box is the size three rows give, always (the size he had before her); rows past that scroll.
+export const SELECT_GRID_ROWS_SHOWN = 3;
+export const selectBoxPx = (vw, vh) => Math.round(Math.max(92, Math.min(176, vw * 0.095, (vh * 0.36) / SELECT_GRID_ROWS_SHOWN)));
+// LOOKS THE SELECT SHOWS AS SAVED, never auto-dressed in a random shirt and pants (Blake, 2026-11-07:
+// "for the auto dress in the character selection, make an exception for Bobena" — she wears his Pink
+// Dress, and the roll put a shirt and pants on over it). By name, any case.
+export const SELECT_KEEP_OUTFIT = ["bobena"];
+export const keepsSavedOutfit = (look) => !!look && SELECT_KEEP_OUTFIT.includes(normName(look.name));
 // How much of a fighter's height fills a Character Select portrait box (`gameArt` `frac`), and how
 // much fills a Coming Soon silhouette box (Blake, 2026-10-31: zoomed out a touch from 0.3 so a
 // growing roster does not crowd the faces, and Coming Soon zoomed out further so Bob's head-and-

@@ -556,7 +556,7 @@ plus traps it does not cover:
 - **New Game → character select, Smash style**: a box per look filed under **Starter**
   (`starterLooks`, Bob first), the box shows the HEAD only ("neck up"), the P1 card the whole body;
   BOTH are **dressed in the same random shirt + pants** drawn for its body (`gameDressed`, kept per
-  page; the boxes too since 2026-10-24; a look already wearing a shirt, like Super Bob, keeps it and only its pants roll; a LOCKED fighter is never dressed, its box and P1 silhouette are the look as saved, 2026-10-31) — display only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
+  page; the boxes too since 2026-10-24; a look already wearing a shirt, like Super Bob, keeps it and only its pants roll; a LOCKED fighter is never dressed, its box and P1 silhouette are the look as saved, 2026-10-31; **Bobena is never auto-dressed**, she wears his Pink Dress: `SELECT_KEEP_OUTFIT` / `keepsSavedOutfit` by name, 2026-11-07) — display only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
   spaces ignored so "VietBob" = "Viet Bob"): Bobby = Trailor Park floor done, Bobert = 50 items found
   (Items-tab ids in `record.found`), Roberta = Trailor Park done AS Rob (`record.floorsWith`), Rob =
   Trailor Park on Hard, Viet Bob = Vietnam on Hard, Bob Li = the conversation NAMED "Bob Li" opened in
@@ -566,7 +566,7 @@ plus traps it does not cover:
   counted from 2026-10-31 on), Agent Bob = 1,000 kills (`record.kills`). Locked boxes show as a silhouette under
   a padlock, can be lit but not picked; the P1 card names what opens them. **Order** (`starterRoster`):
   every open fighter first (Bob, then A-Z), then the locked ones A-Z; an unlock moves a fighter up into
-  its alphabetical place. `selectGridCols` is always 5 to a row (Blake, 2026-10-31; boxes are sized by row count, so a long roster shrinks them on a short window). The P1 card's dead space on the right lists the look's ABILITIES (`lookAbilityNames`, names only; hidden under 1280px wide),
+  its alphabetical place. `selectGridCols` is always **6** to a row (Blake, 2026-11-07; 5 before). **A box NEVER changes size with the roster** (Blake, 2026-11-07: adding Bobena opened a 4th row and shrank every box; "The boxes should not change size when you add rows"): `selectBoxPx(vw, vh)` is the 3-row size from the screen alone, and past `SELECT_GRID_ROWS_SHOWN` rows the roster scrolls (the lit box kept in view). Never divide the box by the row count again. The P1 card's dead space on the right lists the look's ABILITIES (`lookAbilityNames`, names only; hidden under 1280px wide),
   fighter portraits frame `FIGHTER_PORTRAIT_FRAC` (0.36) inside the inner `box - 8` window centred on the
   body (not worn gear, and `textPieceBox` crops `kind:"text"` bounds to the centred glyphs so a wide text
   wrapper on a hat/undies never shoves a fighter or life head off-centre), and **Coming Soon** boxes
