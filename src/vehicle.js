@@ -159,6 +159,23 @@ export const wheelContactFracs = (pieces, box) => {
   if (r - l < 0.2) { l = 1 / 6; r = 5 / 6; }
   return { l, r, rad: Math.max(...hubs.map((h) => h.r)) };
 };
+// How high the car's underside rides above the bottom of its wheels, in canvas units: the lowest
+// piece of the body between the wheels (not a fender over one: a piece whose middle is within a
+// wheel's radius of a hub), up from the wheels' bottom. A car with no wheels flagged, or nothing
+// between them, rides a wheel radius up. His Mustang/Wagon/Pickup measure 14, the Beetle 7, the Jeep 28.
+export const vehicleClearanceOf = (pieces) => {
+  const hubs = [...wheelHubs(pieces).values()];
+  if (!hubs.length) return 0;
+  const r = Math.max(...hubs.map((h) => h.r)), bottom = Math.max(...hubs.map((h) => h.y + h.r));
+  const lo = Math.min(...hubs.map((h) => h.x)) + r, hi = Math.max(...hubs.map((h) => h.x)) - r;
+  let low = -Infinity;
+  for (const p of pieces || []) {
+    if (!p || p.wheel || p.isCutter || p.isHoodFire || p.driverWindow || p.driverSeat) continue;
+    const cx = p.x + p.w / 2;
+    if (cx > lo && cx < hi) low = Math.max(low, p.y + p.h);
+  }
+  return Math.max(0, low > -Infinity ? bottom - low : r);
+};
 // The fire marker in the burning pose, as a design-canvas point (its middle), or null.
 export const hoodFirePoint = (pieces) => {
   const m = (pieces || []).find((p) => p && p.isHoodFire);
@@ -434,6 +451,7 @@ export const VEH_MAX_SPEED = 24;       // nothing rolls faster, however long the
 export const VEH_STEP_UP = 10;         // px: a kerb a wheel climbs; a 30 px block is a wall
 export const VEH_MAX_TILT = 50;        // degrees the body can pitch to before it is a fall, not a slope
 export const VEH_LIP_DROP = 30;        // px: ground past a hole no lower than this under the road is the road going on (a cell)
+export const VEH_BODY_SLACK = 6;      // px: ground this far up inside the body (a sharp crest the samples straddled) still holds it up
 export const VEH_LAUNCH_SPEED = 6;    // px/frame: faster than this AND climbing, a car flies over a hole instead of being held across it
 export const VEH_LAUNCH_RISE = 1;     // px/frame the car must be rising (lastDy) for that
 export const VEH_TURN_FRAMES = 12;     // the brake held this long at a stop turns the car round
@@ -512,12 +530,18 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   if (dx !== 0) {
     const leadRight = dx > 0;
     const leadY = leadRight ? v.yR : v.yL;
-    const wallY = v.onGround && v.hang === (leadRight ? "R" : "L") ? Math.min(leadY, leadRight ? v.yL : v.yR) : leadY;
+    const inHole = v.onGround && (v.hang === (leadRight ? "R" : "L") || v.climb === (leadRight ? "R" : "L")); // ...or rolling up out of it
+    const wallY = inHole ? Math.min(leadY, leadRight ? v.yL : v.yR) : leadY;
     const wheelX = leadRight ? xr : xl;
     const bumperX = leadRight ? nx + v.w : nx;
     const bumperY = Math.min(wallY, leadY + (bumperX - wheelX) * Math.tan(t));
     const steep = v.onGround && world.floorAt(wheelX, leadY, reach, VEH_STEP_UP, fall).steep;
-    if (steep || world.wallAt(wheelX, wallY, VEH_STEP_UP, wallH) || world.wallAt(bumperX, bumperY, VEH_STEP_UP, wallH)) {
+    // A leading wheel whose hub would go into a block meets its face (2026-11-07: flying low over M5's
+    // manhole, the Pickup's front wheel went in under the far rim — the far hill's own block, so no
+    // wall — and popped 61 px up out of it once the car was down). A wheel rolling up out of a hole
+    // never gets its hub there (the climb below lifts it first), so this is the one that came in fast.
+    const hubIn = world.groundTop && v.wheelR > 0 && world.groundTop(wheelX, leadY - v.wheelR) != null;
+    if (steep || hubIn || world.wallAt(wheelX, wallY, VEH_STEP_UP, wallH) || world.wallAt(bumperX, bumperY, VEH_STEP_UP, wallH)) {
       const speed = Math.abs(v.vx);
       ev.crash = { speed, end: Math.sign(v.vx) === v.face ? "front" : "rear" };
       v.vx = -v.vx * 0.15;
@@ -530,58 +554,82 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   const prevBottom = (v.yL + v.yR) / 2;
   let fl = world.floorAt(xl, v.yL, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
   let fr = world.floorAt(xr, v.yR, v.onGround ? reach : 0, v.onGround ? VEH_STEP_UP : 0, fall);
-  // A HOLE SHORTER THAN THE CAR IS BRIDGED (2026-11-02, Blake: "vehichles can clip through the sewer
-  // level"). A wheel over a hole used to drop into it and the body pitch about the other wheel, so a
-  // car crept over a manhole put its nose down the shaft at the full pitch, the body through the
-  // street and into the sewer under it (Trailor Park M5's 6-cell manhole: the Station Wagon's body
-  // 380 px inside the ground, the School Bus's 600). A car is a box: over a hole whose two sides are
-  // closer together than the car is long, it rests across it. With the road going on at the far
-  // side the wheel rolls on the line between the two lips; with a wall there (a pit against a
-  // cliff, Tree Tops 3) it stays level at the near lip and meets the wall as a wall. A hole the car
-  // fits into it still drops into, and a ledge or a step down it tips off exactly as before.
-  // ...BUT NOT A CAR FLYING UP A RAMP (2026-11-06, Blake: "No matter how fast I go over the manholes on
-  // the levels that connect to the sewer I do not get air time ... like my car is stuck to the
-  // ground"). The manholes sit at the top of ramps; held across the hole, a fast car levelled out on
-  // the lip line and never left the ground (sim: 76-98 frames of air before 3c15320, 0 after). Fast
-  // and rising, the hanging wheel is carried up with the body as before and the car launches. Creeping
-  // (the clip he reported) or on the flat, it is still held across.
+  // A HOLE IS A HOLE (2026-11-07, Blake: "when you go over the manhole the vehichle becomes magic,
+  // becomes flat and stops following the laws of physics ... It act like there are invisible walls").
+  // 3c15320 BRIDGED a hole shorter than the car: a wheel over it rolled on a made-up floor drawn
+  // between the two lips, so a car crept across Trailor Park M5's manhole dead level with its front
+  // wheel held up on nothing (sim: the Mustang's front wheel at y 990-1000 the whole way over the open
+  // shaft). That floor is gone. A wheel over a hole drops into it as it does off any edge, and what
+  // stops the clip 3c15320 was for (the nose pitched down the shaft about the other wheel, the body
+  // through the street) is the car's BODY: its underside, `clear` above the wheels (vehicleClearanceOf,
+  // measured off his art), comes down onto the lip it is crossing and the car rests there (the hold
+  // below), and a wheel that dropped into a hole rolls up out of it over the far lip (the climb below).
+  // How far a wheel falls is how long it is over the hole: creeping, the nose dips onto its underside;
+  // quick, it barely drops before the far side.
   // Real cars (w 385..560 px, wheelbase 240..478 px) are longer than both the 120-150 px manhole ramps
   // and the 150 px sewer shafts on Trailor Park M5, M6 and M15, and M5 (c108) / M6 & M15 (c51) have a
   // sunken inner lip one row below the ramp peak. When a fast car is pitched uphill on a ramp and the
   // floor under its leading wheel vanishes or drops sharply (> VEH_STEP_UP), it launches into the air
-  // from the ramp lip instead of snapping onto the sunken step or bridging while the rear wheel is still
-  // on the flat street; when creeping slowly, bridged spans both the shaft and any sunken inner lip.
+  // from the ramp lip (2026-11-06, "No matter how fast I go over the manholes ... I do not get air time").
   const leadRight = dx > 0;
   const fLead = dx !== 0 ? (leadRight ? fr : fl) : null;
   const prevLeadY = leadRight ? v.yR : v.yL;
   const prevTrailY = leadRight ? v.yL : v.yR;
   const pitchedUp = v.tilt * Math.sign(dx) < -2.5 && prevTrailY - prevLeadY >= 12;
-  const climbing = (v.lastDy || 0) < -VEH_LAUNCH_RISE || pitchedUp;
-  const rampLaunch = v.onGround && Math.abs(v.vx) > VEH_LAUNCH_SPEED && pitchedUp && fLead && (fLead.y == null || fLead.y > prevLeadY + VEH_STEP_UP);
-  const launching = Math.abs(v.vx) > VEH_LAUNCH_SPEED && (climbing || !!v.hang);
-  if (v.onGround && !launching && !rampLaunch) {
-    const bridged = (x, y, f) => {
-      if (f.y != null && f.y <= y + VEH_STEP_UP) return f;
-      const lip = (dir) => {
-        let hit = null;
-        for (let d = 10; d <= v.w; d += 10) {
-          const g = world.floorAt(x + dir * d, y, VEH_LIP_DROP, VEH_STEP_UP, VEH_LIP_DROP);
-          if (g.y != null) {
-            if (!hit || g.y < hit.y) hit = { d, y: g.y };
-            if (g.y <= y + VEH_STEP_UP || d >= hit.d + VEH_LIP_DROP) return hit;
-            continue;
+  // ...going UP its ramp: a leading wheel just dropped into a dip, or one hanging while the back wheel
+  // is not climbing, is not leaving a ramp (sim, 2026-11-07: right at the launch speed, M5's front wheel
+  // went over the peak into the dip behind it, the body high-centred on the peak with the back wheel on
+  // the flat, and the drop under that wheel "launched" the car from down there, low into the far rim).
+  const leadDy = (leadRight ? v.dyR : v.dyL) || 0, trailDy = (leadRight ? v.dyL : v.dyR) || 0, leadHung = v.hang === (leadRight ? "R" : "L");
+  const rampLaunch = v.onGround && Math.abs(v.vx) > VEH_LAUNCH_SPEED && pitchedUp && (!leadHung || trailDy < -0.5) && leadDy <= 0.5 && fLead && (fLead.y == null || fLead.y > prevLeadY + VEH_STEP_UP);
+  // The ground a point is inside, or null: the surface over it (a block's top, or a ramp's line when
+  // the point is under it — groundTop alone only sees blocks, and a body could sink into a ramp's
+  // wedge unseen before reaching the block under it).
+  const groundOver = (x, y) => {
+    const top = world.groundTop(x, y);
+    if (top != null) return top;
+    const f = world.floorAt(x, y, VEH_LIP_DROP, 0, 0);
+    return f.y != null && f.y < y - 0.5 ? f.y : null;
+  };
+  const clear = v.clear > 0 ? v.clear : VEH_STEP_UP;
+  // A WHEEL DOWN IN A HOLE ROLLS UP OUT OF IT (2026-11-07). With no floor across a manhole, a wheel in
+  // the shaft met the far side as a wall (sim: the Mustang crept into M5's shaft and crashed into its
+  // far side every frame, stuck). A wheel is round: at the corner of a lip it rides up the corner's
+  // curve, a wheel radius across, and a lip deeper than that it rolls up at 60° below the curve, so it
+  // climbs out over the last few px before the far side instead of popping up in one frame. Asked at
+  // the wheel's bottom, hub and top, so a rim that overhangs the hole is the corner it rolls over. Only
+  // a wheel in a hole (hanging last frame or this one, or already rolling out) is lifted so, and only
+  // onto a lip it could climb out to (no deeper under it than the car is tall, or no higher than the
+  // other wheel's road: the wall rule below). A block in the road is still a wall. In the air the
+  // TRAILING wheel rides over a corner it meets the same way (sim: landing just short off M5's
+  // manhole, the Pickup's front wheel on the far street, its back wheel came in under the far rim from
+  // the side and popped 58 px up out of it); a leading wheel meets the face (hubIn, above).
+  if (dx !== 0 && world.groundTop) {
+    const R = v.wheelR > 0 ? v.wheelR : v.h * 0.2, d1 = R * 0.866, dir = Math.sign(dx);
+    const curve = (d) => (d <= d1 ? R - Math.sqrt(R * R - d * d) : R * 0.5 + (d - d1) * 1.732);
+    const reachD = d1 + Math.max(0, v.h - R * 0.5) / 1.732;
+    const rollOut = (side, x, y, f, otherY) => {
+      if (!v.onGround && side === (dx > 0 ? "R" : "L")) return f;
+      if (!(f.y == null || v.hang === side || v.climb === side)) return f;
+      let best = null;
+      for (let d = 0; d <= reachD; d += 4) {
+        for (let up = 0; up <= 2 * R; up += 10) { // up the tyre, finer than a one-cell rim is tall
+          const top = groundOver(x + dir * d, y - up);
+          if (top == null) continue;
+          if (f.y != null && top >= f.y - VEH_STEP_UP - d) break; // the slope its wheel is on, not a lip
+          // a lip, not a wall: never more than a wheel across above the other wheel's road (a School Bus
+          // 270 px tall otherwise climbed M15's 180 px cars-only wall as a "lip")
+          if (top < y && top >= otherY - 2 * R && !(y - top > v.h && top < otherY - VEH_STEP_UP)) {
+            const cy = top + curve(d);
+            if (cy < y + fall && (best == null || cy < best)) best = cy;
           }
-          if (!hit && world.groundTop && world.groundTop(x + dir * d, y) != null) return { d, y: null };
+          break;
         }
-        return hit;
-      };
-      const a = lip(-1), b = a && lip(1);
-      if (!a || !b || a.d + b.d > v.w || (a.y == null && b.y == null)) return f;
-      const by = (a.y == null || b.y == null) ? (a.y ?? b.y) : a.y + ((b.y - a.y) * a.d) / (a.d + b.d);
-      if (f.y != null && f.y <= by) return f;
-      return { y: by, steep: false };
+      }
+      if (best == null || (f.y != null && f.y <= best)) return f;
+      return { y: best, steep: false, climb: true };
     };
-    fl = bridged(xl, v.yL, fl); fr = bridged(xr, v.yR, fr);
+    fl = rollOut("L", xl, v.yL, fl, v.yR); fr = rollOut("R", xr, v.yR, fr, v.yL);
   }
   const wasGround = v.onGround;
   let hangL = false, hangR = false;
@@ -589,7 +637,11 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
     if (rampLaunch) {
       v.onGround = false;
       v.freeVy = 0;
-      v.vy = Math.min(v.lastDy || 0, -Math.abs(v.vx * Math.tan(t)) * 1.6 - 1.2);
+      // Never faster up than the slope throws it: lastDy also holds a wheel lifted up a lip in one
+      // frame, and that is a bump, not a ramp (sim: a 49 px climb out of M5's shaft read as 24 px a
+      // frame up and threw the Beetle 1300 px into the sky).
+      const throwVy = -Math.abs(v.vx * Math.tan(t)) * 1.6 - 1.2;
+      v.vy = Math.max(throwVy, Math.min(v.lastDy || 0, throwVy));
       v.vx = v.vx * Math.cos(t);
       const dy = v.vy * dt;
       v.yL = prevLeadY + dy + (v.yL - prevLeadY) * 0.35;
@@ -597,7 +649,7 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
     } else if (fl.y == null && fr.y == null) {
       // Off the end of the ground: whatever upward speed the slope was giving it, it keeps.
       v.onGround = false;
-      v.vy = Math.min(0, v.lastDy || 0);
+      v.vy = Math.max(-Math.abs(v.vx * Math.tan(t)) * 1.6 - 1.2, Math.min(0, v.lastDy || 0));
       v.vx = v.vx * Math.cos(t);
       v.yL += v.vy * dt; v.yR += v.vy * dt;
     } else {
@@ -611,29 +663,47 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
       // over a ledge tips exactly as before.
       hangL = fl.y == null; hangR = fr.y == null;
       v.freeVy = hangL || hangR ? (v.freeVy || 0) + G * dt : 0;
+      const oldL = v.yL, oldR = v.yR;
       const carry = hangL !== hangR ? (hangL ? fr.y - v.yR : fl.y - v.yL) : 0;
       const startL = v.yL + carry, startR = v.yR + carry;
       v.yL = fl.y != null ? fl.y : startL + v.freeVy * dt;
       v.yR = fr.y != null ? fr.y : startR + v.freeVy * dt;
-      // ...AND DROPS ONLY AS FAR AS THE BODY LETS IT: ground under the body past the hanging wheel (the
-      // foot of a step down, the far side of a hole wider than the car) holds the line from the wheel
-      // on the ground up, so the nose rests on it instead of going into it. Only ground the body comes
-      // DOWN onto this frame: one it was already under (a branch it just drove off) holds nothing up.
-      if (hangL !== hangR && world.groundTop) {
-        const sx = v.x + (hangL ? v.wr : v.wl) * v.w, sy = hangL ? v.yR : v.yL;
-        const hx = v.x + (hangL ? v.wl : v.wr) * v.w, ex = hangL ? v.x : v.x + v.w;
+      // ...AND DROPS ONLY AS FAR AS THE BODY LETS IT. The car is one rigid body on two wheels, so the
+      // line from the wheel staying up out to the one going down, and on to that end of the car, is held
+      // where the body would go into ground: its underside, `clear` above that line (his art: the
+      // bumpers ride as high as the underbody), rests on whatever it comes down onto — the lip of the
+      // hole it is crossing between the wheels (2026-11-07, in place of the made-up floor across a
+      // manhole), the foot of a step down or the far side of a hole past the hanging wheel. The wheel
+      // going down is the hanging one, or, both on the ground, the one dropping past the other: off a
+      // crest into a dip, the car high-centres on the crest and that wheel is left hanging (M5's
+      // manhole sits behind a ramp peak; creeping, the Mustang straddled it with the peak 16 px up
+      // inside its underside, then nosed down the shaft). Only ground the body comes DOWN onto this
+      // frame: one it was already under (a branch it just drove off) holds nothing up.
+      let dropL = hangL && !hangR, dropR = hangR && !hangL, dropStart = dropL ? startL : startR;
+      if (!hangL && !hangR) {
+        const dL = v.yL - oldL, dR = v.yR - oldR;
+        if (dR - dL > 0.5) { dropR = true; dropStart = oldR + dL; }
+        else if (dL - dR > 0.5) { dropL = true; dropStart = oldL + dR; }
+      }
+      if ((dropL || dropR) && world.groundTop) {
+        const sx = v.x + (dropL ? v.wr : v.wl) * v.w, sy = dropL ? v.yR : v.yL;
+        const hx = v.x + (dropL ? v.wl : v.wr) * v.w, ex = dropL ? v.x : v.x + v.w;
         const span = Math.abs(hx - sx);
         if (span > 1) {
-          let k = ((hangL ? v.yL : v.yR) - sy) / span; // drop per px away from the wheel on the ground
-          const k0 = ((hangL ? startL : startR) - sy) / span; // ...and where it was before this frame's fall
-          const n = Math.max(1, Math.ceil(Math.abs(ex - hx) / 10));
-          for (let i = 0; i <= n; i++) {
-            const x = hx + ((ex - hx) * i) / n, d = Math.abs(x - sx), top = world.groundTop(x, sy + d * k - VEH_STEP_UP);
-            if (top != null && top >= sy + d * k0 - VEH_STEP_UP) k = Math.min(k, (top + VEH_STEP_UP - sy) / d);
+          let k = ((dropL ? v.yL : v.yR) - sy) / span; // drop per px away from the wheel staying up
+          // Where the body was last frame (the wheels' old line, here): ground it was not already inside.
+          const xl0 = v.x + v.wl * v.w, oldAt = (x) => oldL + ((oldR - oldL) * (x - xl0)) / Math.max(1, (v.wr - v.wl) * v.w);
+          const n = Math.max(2, Math.ceil(Math.abs(ex - sx) / 5));
+          for (let i = 1; i <= n; i++) {
+            const x = sx + ((ex - sx) * i) / n, d = Math.abs(x - sx), top = groundOver(x, sy + d * k - clear);
+            if (top != null && top >= oldAt(x) - clear - VEH_BODY_SLACK) k = Math.min(k, (top + clear - sy) / d);
           }
-          const held = Math.max(sy + span * k, Math.min(hangL ? v.yL : v.yR, hangL ? startL : startR));
-          if (hangL && held < v.yL) { v.yL = held; v.freeVy = 0; }
-          if (hangR && held < v.yR) { v.yR = held; v.freeVy = 0; }
+          // Resting on a crest while the wheel on the ground goes on down (off M5's far lip onto its ramp,
+          // the back wheel still over the shaft), the car seesaws on it: the hanging end comes UP, as far
+          // as a kerb a frame. Never further, so nothing is ever thrown up out of a hole.
+          const held = Math.max(sy + span * k, Math.min(dropL ? v.yL : v.yR, dropStart, dropL ? oldL : oldR) - VEH_STEP_UP * dt);
+          if (dropL && held < v.yL - 0.01) { v.yL = held; v.freeVy = 0; hangL = true; }
+          if (dropR && held < v.yR - 0.01) { v.yR = held; v.freeVy = 0; hangR = true; }
         }
       }
     }
@@ -647,6 +717,26 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
     } else {
       const mid = (v.yL + v.yR) / 2 + dy, half = ((v.yR - v.yL) / 2) * Math.pow(0.88, dt);
       v.yL = mid - half; v.yR = mid + half;
+      // ...AND ITS BELLY COMES DOWN ON A LIP AS A BODY DOES (2026-11-07: landing just short of M5's far
+      // side, the Pickup's underside sank 26 px into the rim before a wheel touched down). It pivots on
+      // that point: the end past the car's middle goes on falling and the other end comes up, so the
+      // wheel out there lands on its road and the ground rules take the car on (held where the body
+      // lets it, a wheel in the hole rolling out). Held up level instead, a Truck on M15's lip hovered
+      // with both wheels off the road until the ground check threw it 100 px up.
+      if (world.groundTop && v.vy > 0) {
+        const sp = Math.max(1, (v.wr - v.wl) * v.w), xl1 = v.x + v.wl * v.w, xr1 = v.x + v.wr * v.w, oxl = before.x + v.wl * v.w;
+        const lineAt = (x) => v.yL + ((v.yR - v.yL) * (x - xl1)) / sp, oldAt = (x) => before.yL + ((before.yR - before.yL) * (x - oxl)) / sp;
+        let up = 0, cx = 0;
+        for (let x = v.x; x <= v.x + v.w; x += 5) {
+          const u = lineAt(x) - clear, top = groundOver(x, u);
+          if (top != null && top < u && top >= oldAt(x) - clear - VEH_BODY_SLACK && u - top > up) { up = u - top; cx = x; }
+        }
+        if (up > 0) {
+          const yc = lineAt(cx) - up;
+          if (cx < v.x + v.w / 2) v.yL = yc + ((v.yR - yc) * (xl1 - cx)) / (xr1 - cx);
+          else v.yR = yc + ((v.yL - yc) * (xr1 - cx)) / (xl1 - cx);
+        }
+      }
     }
   }
   // A WHEEL NEVER ENDS A FRAME INSIDE THE GROUND (2026-11-01, Blake: "I went over a ramp ... my vehichle
@@ -669,6 +759,40 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
     if ((tL != null || tR != null) && !v.onGround && v.vy >= 0) { ev.landed = v.vy; v.onGround = true; v.vy = 0; }
     if ((tL != null || tR != null) && !hangL && !hangR) v.freeVy = 0;
   }
+  // THE NOSE RIDES UP OVER A LIP IT RUNS INTO (2026-11-07). The front of the car past its leading wheel
+  // has the same underside: creeping into M5's manhole, the Jeep's front wheel dipped into the shaft
+  // and its bumper, 76 px further on, drove straight into the far rim's face (sim: 25 px inside it) —
+  // the rim is the far hill's own block, so it is no wall, and the hold above only stops a body coming
+  // DOWN onto ground. Now ground the leading end runs into, no higher above its underside than the
+  // wall height, lifts that end about the trailing wheel onto its top, at most as fast as a 60°
+  // approach at this speed, and the leading wheel hangs from it (the hold then rests the nose there).
+  // Only a leading wheel down in a hole: on the road the nose is his art's own business (a low
+  // bumper's touch on a ramp lifted the Beetle's wheel off it, and that read as the ramp's lip).
+  const leadInHole = dx > 0 ? hangR || v.hang === "R" || v.climb === "R" : hangL || v.hang === "L" || v.climb === "L";
+  if (wasGround && v.onGround && dx !== 0 && world.groundTop && leadInHole) {
+    const right = dx > 0;
+    const tx = v.x + (right ? v.wl : v.wr) * v.w, wx = v.x + (right ? v.wr : v.wl) * v.w, bx = right ? v.x + v.w : v.x;
+    const trailY = right ? v.yL : v.yR, leadY = right ? v.yR : v.yL;
+    const reachX = Math.abs(bx - tx), leadX = Math.abs(wx - tx);
+    if (leadX > 1) {
+      const line = (x) => trailY + ((leadY - trailY) * Math.abs(x - tx)) / leadX;
+      const n = Math.max(2, Math.ceil(Math.abs(bx - wx) / 5));
+      let lift = 0;
+      for (let i = 1; i <= n; i++) {
+        const x = wx + ((bx - wx) * i) / n, u = line(x) - clear, top = groundOver(x, u);
+        if (top != null && top < u - 0.5 && u - top <= wallH) lift = Math.max(lift, ((u - top) * leadX) / Math.abs(x - tx));
+      }
+      // As fast as a 60° approach, from where that wheel was last frame (it may have dropped back
+      // onto its floor since), so the nose keeps rising frame to frame and never jumps.
+      const most = ((Math.abs(dx) * 1.732 + 1) * leadX) / reachX;
+      const was = right ? before.yR : before.yL;
+      const y = Math.min(leadY, Math.max(leadY - lift, was - most));
+      if (lift > 0.01 && y < leadY - 0.01) {
+        if (right) { v.yR = y; hangR = true; } else { v.yL = y; hangL = true; }
+        v.freeVy = 0;
+      }
+    }
+  }
   const span = Math.max(1, (v.wr - v.wl) * v.w);
   let tilt = (Math.atan2(v.yR - v.yL, span) * 180) / Math.PI;
   if (Math.abs(tilt) > VEH_MAX_TILT) {
@@ -687,8 +811,10 @@ export const vehicleStep = (v, ctl, world, dt = 1) => {
   }
   v.tilt = tilt;
   v.hang = v.onGround && hangL !== hangR ? (hangL ? "L" : "R") : null;
+  v.climb = v.onGround && fl.climb && !hangL ? "L" : v.onGround && fr.climb && !hangR ? "R" : null; // a wheel rolling up out of a hole
   const bottom = (v.yL + v.yR) / 2;
   v.lastDy = wasGround && v.onGround ? (bottom - prevBottom) / dt : v.lastDy;
+  v.dyL = v.yL - before.yL; v.dyR = v.yR - before.yR; // each wheel's own rise or fall this frame
   v.y = bottom - v.h;
   return ev;
 };

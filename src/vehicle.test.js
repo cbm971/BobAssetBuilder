@@ -3,7 +3,7 @@ import {
   VEHICLE_STATES, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, VEHICLE_FUSE_FRAMES, VEHICLE_WEAK_MULT, vehicleSideFacing,
   wheelHubs, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, hoodFireBox, vehicleStatePieces,
   autoVehicleDamage, isGlassColor,
-  vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, vehicleCrashDamage,
+  vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, VEH_BODY_SLACK, vehicleCrashDamage, vehicleClearanceOf,
   carBearsDown, vehicleDodgeKind, vehicleDodgeChance,
   VEH_SEAT_FRAC, vehicleSeatsPlayer, vehicleDrivable, vehiclePassengerOffsets, VEH_PASSENGER_SEATS, followerCanBoard, VEH_BOARD_MAX_SPEED, vehicleSpeedOf, vehiclePower, vehicleHalveHpOnce, VEHICLE_DEFAULT_HP } from "./vehicle";
 
@@ -297,34 +297,64 @@ describe("driving", () => {
     for (let i = 0; i < 900; i++) { vehicleStep(slow, { gas: i % 3 === 0 }, w); expect(buried(slow, surf)).toBe(false); }
     expect(slow.x).toBeGreaterThan(820);
   });
-  test("hanging off a ledge at its steepest, the wheel still on the ledge stays on top of it", () => {
+  // 2026-11-07: the car is a body, not a stick between two wheels. Its front wheel rolled just off a
+  // ledge, it rests on its underside on the edge (it used to swing down to its steepest pitch about
+  // the back wheel, the body through the ledge's corner); driven on, it tips over and goes down.
+  test("a front wheel just off a ledge: the car rests on its underside on the edge, and driven on it tips over", () => {
     const surf = (x) => ({ y: x < 2400 ? 600 : 900, slope: false });
     const w = withGround(surf, 1e9);
-    const v = newCar(2215, 600);
-    let held = 0;
-    for (let i = 0; i < 400 && !(v.onGround && v.yL > 850); i++) {
+    const v = newCar(2215, 600); // no `clear`: its underside is a kerb (VEH_STEP_UP) above its wheels
+    const underAtEdge = () => v.yL + ((v.yR - v.yL) * (2400 - (v.x + v.wl * v.w))) / ((v.wr - v.wl) * v.w) - VEH_STEP_UP;
+    for (let i = 0; i < 120; i++) {
       vehicleStep(v, { gas: i < 6 }, w);
-      if (v.onGround && v.x + v.wl * v.w < 2400) { expect(v.yL).toBeLessThanOrEqual(600.5); if (Math.abs(v.tilt) >= 49.9) held++; }
+      expect(v.yL).toBeLessThanOrEqual(600.5);
+      expect(buried(v, surf)).toBe(false);
+      if (v.x + v.wr * v.w > 2400) expect(underAtEdge()).toBeLessThanOrEqual(600 + VEH_BODY_SLACK + 0.5);
+    }
+    expect(v.hang).toBe("R");
+    expect(v.yR).toBeGreaterThan(605);
+    for (let i = 0; i < 600 && !(v.onGround && v.yL > 850); i++) {
+      vehicleStep(v, { gas: true }, w);
+      if (v.onGround && v.x + v.wl * v.w < 2400) expect(v.yL).toBeLessThanOrEqual(600.5);
       expect(buried(v, surf)).toBe(false);
     }
-    expect(held).toBeGreaterThan(0);
+    expect(v.yL).toBeGreaterThan(850);
   });
   // Blake 2026-11-02: "vehichles can clip through the sewer level" — a car crept over Trailor Park
   // M5's manhole put its nose down the shaft and its body through the street into the sewer.
+  // The underside at x: the wheels' line, `clear` up (a kerb when the car has none).
+  const underAt = (v, x) => v.yL + ((v.yR - v.yL) * (x - (v.x + v.wl * v.w))) / ((v.wr - v.wl) * v.w) - (v.clear > 0 ? v.clear : VEH_STEP_UP);
   const hangEndY = (v) => { const t = (v.tilt * Math.PI) / 180, lead = v.hang === "R"; const wx = v.x + (lead ? v.wr : v.wl) * v.w, bx = lead ? v.x + v.w : v.x; return (lead ? v.yR : v.yL) + (bx - wx) * Math.tan(t); };
-  test("a hole shorter than the car is rolled across: no wheel drops into it", () => {
+  // 2026-11-07, Blake: "when you go over the manhole the vehichle becomes magic, becomes flat and stops
+  // following the laws of physics". 3c15320 rolled a car across a hole shorter than it on a made-up
+  // floor, dead level. A hole is a hole: a wheel over it dips in, the body rests on the lips (never
+  // through them), and the wheel rolls up out over the far side.
+  test("a hole shorter than the car: the wheels dip into it, the body rests on its lips, and it drives on out", () => {
     const surf = (x) => (x >= 700 && x < 850 ? null : { y: 600, slope: false }); // a 150 px manhole, nothing under it
     const w = withGround(surf, 1e9);
     for (const plan of [(i) => i % 3 === 0, () => true]) {
-      const v = newCar(400, 600);
-      for (let i = 0; i < 900 && v.x < 1000; i++) { vehicleStep(v, { gas: plan(i) }, w); expect(Math.abs(v.tilt)).toBeLessThan(1); expect(Math.max(v.yL, v.yR)).toBeLessThanOrEqual(600.5); }
+      const v = { ...newCar(400, 600), clear: 20, wheelR: 15 };
+      let dip = 0;
+      for (let i = 0; i < 900 && v.x < 1000; i++) {
+        const ev = vehicleStep(v, { gas: plan(i) }, w);
+        expect(ev.crash).toBeFalsy();
+        expect(buried(v, surf)).toBe(false);
+        dip = Math.max(dip, v.yL - 600, v.yR - 600);
+        // the near lip it rests on; the far one its nose rides up at a 60° approach (a chamfer up to the
+        // wall height), never deeper into it
+        if (700 > v.x && 700 < v.x + v.w) expect(underAt(v, 700)).toBeLessThanOrEqual(600 + VEH_STEP_UP);
+        if (850 > v.x && 850 < v.x + v.w) expect(underAt(v, 850) - 600).toBeLessThanOrEqual(Math.max(VEH_STEP_UP, v.h * 0.55 - 1.732 * (v.x + v.w - 850)) + 0.5);
+      }
       expect(v.x).toBeGreaterThan(900);
+      expect(dip).toBeGreaterThan(5);
     }
   });
-  test("a pit narrower than the car against a wall: it stays level and meets the wall", () => {
+  test("a pit narrower than the car against a wall: the nose dips in, and it meets the wall", () => {
     const surf = (x) => (x < 700 ? { y: 600, slope: false } : x < 850 ? null : { y: 300, slope: false });
     const v = newCar(400, 600);
-    const evs = []; for (let i = 0; i < 600; i++) { evs.push(vehicleStep(v, { gas: true }, withGround(surf, 1e9))); expect(Math.abs(v.tilt)).toBeLessThan(1); }
+    let dipped = false;
+    const evs = []; for (let i = 0; i < 600; i++) { evs.push(vehicleStep(v, { gas: true }, withGround(surf, 1e9))); expect(buried(v, surf)).toBe(false); if (700 > v.x && 700 < v.x + v.w) expect(underAt(v, 700)).toBeLessThanOrEqual(600 + VEH_STEP_UP); if (v.yR > 601) dipped = true; }
+    expect(dipped).toBe(true);
     expect(evs.some((e) => e.crash)).toBe(true);
     expect(v.x + v.w).toBeLessThanOrEqual(851);
   });
@@ -360,7 +390,7 @@ describe("driving", () => {
       for (let i = 0; i < 3000 && slow.x < 2600; i++) { vehicleStep(slow, { gas: i % 3 === 0 }, w); expect(buried(slow, surf)).toBe(false); if (slow.x + slow.w * slow.wr > b && slow.x + slow.w * slow.wl < c) expect(Math.max(slow.yL, slow.yR)).toBeLessThanOrEqual(400.5); }
     }
   });
-  test("full-size car (wheelbase > ramp and > manhole, with sunken inner lip like M5/M6/M15) gets real air at speed and bridges cleanly when creeping", () => {
+  test("full-size car (wheelbase > ramp and > manhole, with sunken inner lip like M5/M6/M15) gets real air at speed, and creeping its front wheel dips into the shaft and climbs out", () => {
     // Mirrors Trailor Park M6/M15: 150 px ramp (1200..1350, y 1050->990), 30 px flat lip (1350..1380, y 990),
     // 150 px open shaft (1380..1530), 30 px sunken inner lip (1530..1560, y 1050->1020), far ramp (1560..1680, y 1000->1050).
     const surf = (x) => {

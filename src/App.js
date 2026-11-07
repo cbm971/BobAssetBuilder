@@ -15,7 +15,7 @@ import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
-import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, vehicleHalveHpOnce, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, vehicleDrivable, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleSpeedOf, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerOffsets, followerCanBoard } from "./vehicle";
+import { VEHICLE_STATES, VEHICLE_STATE_LABEL, VEHICLE_DEFAULT_HP, vehicleHalveHpOnce, VEHICLE_DEFAULT_DEFENSE, vehicleSeatsPlayer, vehicleDrivable, VEHICLE_BOOM_DAMAGE, VEHICLE_BOOM_RADIUS, VEHICLE_BOOM_SIZE, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, vehicleSideFacing, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, vehicleClearanceOf, hoodFireBox, vehicleStatePieces, autoVehicleDamage, vehicleStep, vehicleCrashDamage, vehicleLandingDamage, VEH_ENGINE_TOP, vehicleSpeedOf, vehicleTurnPose, VEH_MELEE_MAX_SPEED, VEH_RAM_MIN_SPEED, VEH_GRAVITY, vehicleRamDamage, vehicleRamSelfDamage, carBearsDown, vehicleDodgeKind, vehicleDodgeChance, vehiclePassengerOffsets, followerCanBoard } from "./vehicle";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -16243,7 +16243,7 @@ export default function AssetStudio({ game = false } = {}) {
       const wl = flip ? 1 - fr.r : fr.l, wr = flip ? 1 - fr.l : fr.r;
       const x = bx - R.w / 2, y = by - R.h, hp = Math.max(1, Math.round(pa.hp || VEHICLE_DEFAULT_HP));
       const power = vehicleSpeedOf(pa);
-      const car = { id: sp.uid, uid: sp.uid, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, power, dent: null, fuse: 0, dead: false, driven: false };
+      const car = { id: sp.uid, uid: sp.uid, k: sp.k, si: sp.si, o: sp.o, ord: sp.ord, pa, box: R.box, x, y, w: R.w, h: R.h, vx: 0, vy: 0, face, onGround: true, wl, wr, yL: by + (x + wl * R.w - bx) * Math.tan(t), yR: by + (x + wr * R.w - bx) * Math.tan(t), tilt, stopT: 0, turnT: 0, spin: 0, wheelR: Math.max(2, fr.rad * (R.w / R.box.w)), clear: vehicleClearanceOf(vehicleStatePieces(pa, "front")) * (R.w / R.box.w), hp, maxHp: hp, defense: pa.defense ?? VEHICLE_DEFAULT_DEFENSE, power, dent: null, fuse: 0, dead: false, driven: false };
       vehCars[sp.uid] = car; vehWoken.current.add(sp.uid);
       return car;
     };
@@ -16271,9 +16271,12 @@ export default function AssetStudio({ game = false } = {}) {
       floorAt: (x, fromY, upSlope, upStep, down) => {
         const c = Math.floor(x / CW);
         // A wheel that ended a frame inside a block (a long fall at the clamped dt) is lifted onto it
-        // — at most a cell and a half, so two cells up is as far as it is worth looking.
+        // — at most a cell and a half, so two cells up is as far as it is worth looking. Onto its
+        // SURFACE: a ramp standing on that block is the ground there, as groundTop says (2026-11-07: a
+        // wheel lifted onto the block under the far lip of M5's manhole ended inside the lip's ramp,
+        // and the ramp then read as too steep to drive every frame — the car stuck in the shaft).
         const rIn = Math.floor((fromY - 0.5) / CH);
-        if (vehSolid(rIn, c)) { let r = rIn; for (let i = 0; i < 2 && vehSolid(r - 1, c); i++) r--; if (fromY - r * CH <= CH * 1.5) return { y: r * CH, steep: false }; }
+        if (vehSolid(rIn, c)) { let r = rIn; for (let i = 0; i < 2 && vehSolid(r - 1, c); i++) r--; if (fromY - r * CH <= CH * 1.5) { const sf = vehSlopeAt(x, r - 1, c); return { y: sf ? sf.y : r * CH, steep: false }; } }
         const hi = fromY + down, lo = fromY - Math.max(upSlope, upStep);
         let best = null, ramp = false, steep = false;
         for (let r = Math.floor(lo / CH) - 1; r <= Math.floor(hi / CH); r++) {
