@@ -810,8 +810,8 @@ plus traps it does not cover:
   (Briefing)** `gnrlbf1` (Army folder: General Skin `gnrlskn` on BoB, General's Cap `gnrlcap`, General's
   Jacket `gnrljkt`, his White Dress Shirt / Military Fatigues / Army Boots), NOT the playable Starter
   **The General** `thgnrl1`: he re-dressed that one and the cutscene changed with it ("I don't want him
-  to have the starter look in the cut scene"). `thgnrl1` is locked behind 1,000 ranged kills
-  (STARTER_LOCKS). `gnrlcu1` stays, unused.
+  to have the starter look in the cut scene"). `thgnrl1` is locked behind 500 enemies defeated in
+  Vietnam (STARTER_LOCKS `on`, the game record's `floorKills`). `gnrlcu1` stays, unused.
   The 🎬 editor: only DRAWN pieces take a click (`.animStage.ed` css, `elementsFromPoint` over
   `data-ly`); a drag on the SELECTED layer's pieces moves it even under another; nothing changes
   before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys
@@ -906,6 +906,11 @@ plus traps it does not cover:
 
 ## Blake's decisions — do not undo these
 
+- **The floor is "Trailer Park" (renamed from "Trailor", 2026-11-07, his call).** Every level name, Floor,
+  gate accepts, door/room tag, prop folder and sign was renamed on his newest records. Older text
+  (comments, CLAUDE-HISTORY, his saved games, a stray old copy) still says Trailor, so every place
+  comparison goes through `placeKey` (App.js; anim.js floorEndAnim; gameFront floorKey) which treats
+  the two spellings as one place. Write "Trailer" in anything new.
 - **Never remove a feature to fix a bug.** Narrow the fix instead. Gear is a choice the player makes
   and can undo; a body stat is not. A hat boosting a gun is intended. Removing anything is his
   call, so ask, and keep building everything else.

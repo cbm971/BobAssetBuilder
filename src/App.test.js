@@ -11117,6 +11117,9 @@ describe("runs", () => {
     // the floors to choose from: street floors only, once each, never a sewer's or a room's
     expect(runFloors([...pool, mk("f2", { floor: "vietnam", open: { E1: "" } })])).toEqual(["Trailor Park", "Vietnam"]);
     expect(runFloors([SEWER, ROOM])).toEqual([]);
+    // renamed Trailer Park (2026-11-07): either spelling builds the same floor, so a game saved under
+    // the old name loads, and a gate saying the old name still takes a renamed neighbour
+    const ren = buildRun(pool, "1", { floor: "Trailer Park" }); expect(ren.nodes[ren.order[0]].level.id).toBe("INTRO");
   });
 
   test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {
@@ -14552,6 +14555,11 @@ describe("objective markers", () => {
     expect(roomTagMatches("wardrobe", "Wardrobe")).toBe(true);
     expect(roomTagMatches(" Wardrobe ", "wardrobe")).toBe(true);
     expect(roomTagMatches("wardrobe", "draft office")).toBe(false);
+    // Trailor -> Trailer (2026-11-07): a game saved before the rename still clears its objective.
+    expect(roomTagMatches("Trailor Park E1", "Trailer Park E1")).toBe(true);
+    const rooms = [{ id: "r1", isRoom: true, roomTag: "Trailer Int" }, { id: "r2", isRoom: true, roomTag: "Sewer" }];
+    expect(pickRoom(rooms, "Trailor Int", "s").id).toBe("r1");
+    expect(pickRoom([{ ...rooms[0], roomTag: "Trailor int" }], "Trailer Int", "s").id).toBe("r1");
     expect(roomTagMatches("", "")).toBe(false);
     expect(roomTagMatches("", "wardrobe")).toBe(false);
     expect(roomTagMatches("wardrobe", "")).toBe(false);

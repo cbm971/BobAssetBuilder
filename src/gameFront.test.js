@@ -304,7 +304,7 @@ describe("locked starters", () => {
     for (const n of ["Bob", "Bobette", "Bobbi"]) expect(starterLock(look(n), newGameRecord(), assets)).toBeNull();
   });
   test("Bobby opens on Trailor Park, by anyone, either spelling", () => {
-    expect(starterLock(look("Bobby"), newGameRecord(), assets).need).toBe("Complete Trailor Park");
+    expect(starterLock(look("Bobby"), newGameRecord(), assets).need).toBe("Complete Trailer Park");
     expect(starterLock(look("Bobby"), recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bobette"), assets)).toBeNull();
     expect(starterLock(look("bobby"), recordFloorDone(newGameRecord(), "Trailer park", 10, "Bob"), assets)).toBeNull();
     expect(starterLock(look("Bobby"), recordFloorDone(newGameRecord(), "Sewer", 10, "Bob"), assets)).not.toBeNull();
@@ -356,18 +356,23 @@ describe("locked starters", () => {
     r = recordDefeated(r, "dog");
     expect(starterLock(look("Agent Bob"), r, assets)).toBeNull();
   });
-  test("The General opens at 1,000 enemies defeated with ranged weapons; melee kills do not count", () => {
+  test("The General opens at 500 enemies defeated in Vietnam; other floors do not count", () => {
     let r = newGameRecord();
-    for (let i = 0; i < 999; i++) r = recordDefeated(r, "dog", true);
-    for (let i = 0; i < 50; i++) r = recordDefeated(r, "dog", false);
-    expect(starterLock(look("The General"), r, assets)).toEqual({ need: "Defeat 1,000 Enemies With Ranged Weapons", have: 999, of: 1000 });
+    for (let i = 0; i < 499; i++) r = recordDefeated(r, "dog", i % 2 === 0, "Vietnam");
+    for (let i = 0; i < 50; i++) r = recordDefeated(r, "dog", true, "Trailer Park");
+    r = recordDefeated(r, "dog", true); // no floor known: counts overall only
+    expect(r.kills).toBe(550);
+    expect(starterLock(look("The General"), r, assets)).toEqual({ need: "Defeat 500 Enemies in Vietnam", have: 499, of: 500 });
     expect(starterLock(look("The General (Briefing)"), r, assets)).toBeNull();
-    r = recordDefeated(r, "dog", true);
-    expect(starterLock(look("The General"), r, assets)).toBeNull();
+    r = recordDefeated(r, "dog", false, " vietnam ");
+    expect(starterLock(look("The General"), normalizeGameRecord(JSON.parse(JSON.stringify(r))), assets)).toBeNull();
+    // either spelling of a floor is one count, and an old record without floorKills reads as none
+    expect(normalizeGameRecord({ floorKills: { "Trailor Park": 2, trailerpark: 3 } }).floorKills).toEqual({ trailerpark: 5 });
+    expect(normalizeGameRecord({ kills: 9 }).floorKills).toEqual({});
   });
   test("Roberta opens only on Trailor Park finished AS Rob", () => {
     let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob");
-    expect(starterLock(look("Roberta"), r, assets).need).toBe("Complete Trailor Park as Rob");
+    expect(starterLock(look("Roberta"), r, assets).need).toBe("Complete Trailer Park as Rob");
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
@@ -375,7 +380,7 @@ describe("locked starters", () => {
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();
-    expect(starterLock(look("Rob"), r, assets).need).toBe("Complete Trailor Park on Hard");
+    expect(starterLock(look("Rob"), r, assets).need).toBe("Complete Trailer Park on Hard");
     r = recordFloorDone(r, "Trailor Park", 10, "Bob", "easy");
     r = recordFloorDone(r, "Trailor Park", 10, "Bob", "medium");
     expect(starterLock(look("Rob"), r, assets)).not.toBeNull();

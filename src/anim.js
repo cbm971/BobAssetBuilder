@@ -11,7 +11,7 @@
  *   { id, type: "anim", name, w, h,                  the stage, in level cells
  *     trigger: "start" | "reach" | "floor",          plays as the level starts / when you walk up and press E /
  *                                                    as the floor is done, over the whole screen (see floorEndAnim)
- *     floor: "Trailor Park",                         "floor" only: which floor's end it closes ("" = any)
+ *     floor: "Trailer Park",                         "floor" only: which floor's end it closes ("" = any)
  *     ending: "play" | "leave",                      you take over where the actor ends / the floor is done
  *     eState: <state id>,                            "Walk up + E": the state E starts (see animReachAt)
  *     layers: [{ id, name, kind: "actor" } | { id, name, kind: "prop", propId, size }
@@ -262,9 +262,11 @@ export const animMirrorValues = (v, w) => ({ ...v, x: w - v.x, rot: -(v.rot || 0
 // `floor` names this floor (the level's Floor, the same loose match a gate's "accepts" uses), else
 // one that names none. null when there is none, and the floor ends the way it always did.
 export const floorEndAnim = (anims, floor) => {
-  const want = String(floor || "").trim().toLowerCase();
+  // "Trailor" is the floor's old spelling of "Trailer" (renamed 2026-11-07): either names the same floor.
+  const key = (s) => String(s || "").trim().toLowerCase().replace(/trailor/g, "trailer");
+  const want = key(floor);
   const ends = (anims || []).filter((a) => a && a.type === "anim" && a.trigger === "floor");
-  return ends.find((a) => want && String(a.floor || "").trim().toLowerCase() === want)
+  return ends.find((a) => want && key(a.floor) === want)
     || ends.find((a) => !String(a.floor || "").trim()) || null;
 };
 // The cell size that fits a whole stage in a view w × h px, and where its top-left goes: a screen

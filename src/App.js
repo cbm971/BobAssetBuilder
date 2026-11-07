@@ -3776,10 +3776,14 @@ export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.u
 // A door carries a tag; entering it collects every saved room whose roomTag matches (case-
 // insensitive), then picks one deterministically from a seed so the same door in the same play
 // session always lands on the same room — different doors/sessions can differ (Isaac-style).
+// placeKey: how a floor, room tag, gate "accepts" or objective target compares. Trimmed, any case,
+// and the floor's old "Trailor" spelling is the same place as "Trailer" (Blake, 2026-11-07, renamed
+// the floor) — so a game saved before the rename, or an old copy of one level, still finds its rooms.
+export const placeKey = (s) => String(s || "").trim().toLowerCase().replace(/trailor/g, "trailer");
 export const roomPool = (levels, tag) => {
-  const t = (tag || "").trim().toLowerCase();
+  const t = placeKey(tag);
   if (!t) return [];
-  return (levels || []).filter((l) => l && l.isRoom && ((l.roomTag || "").trim().toLowerCase() === t));
+  return (levels || []).filter((l) => l && l.isRoom && (placeKey(l.roomTag) === t));
 };
 export const roomSeed = (str) => { let h = 2166136261 >>> 0; const s = String(str); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return (h >>> 0) / 4294967296; };
 // NO ROOM TWICE ON A SEED (2026-10-18; Blake: "You shouldn't generate the same room twice on a floor
@@ -3813,7 +3817,7 @@ export const firstDoorKey = (markers) => { for (const k in (markers || {})) { co
 // moment you walk into the room/level holding it, and it clears the moment you reach a room whose
 // roomTag matches the marker's own targetTag — the SAME case-insensitive, trimmed match a door's
 // room tag uses against roomPool, just one level and one tag at a time instead of a pool of them.
-export const roomTagMatches = (targetTag, roomTag) => { const t = (targetTag || "").trim().toLowerCase(); return !!t && t === (roomTag || "").trim().toLowerCase(); };
+export const roomTagMatches = (targetTag, roomTag) => { const t = placeKey(targetTag); return !!t && t === placeKey(roomTag); };
 // WHAT AN OBJECTIVE CAN POINT AT (Blake, 2026-10-17: "it did not complete the objective when I
 // finished it"). His markers read "TCloset 1" and "Trailor Park E1" — the LEVEL NAMES — because a
 // level has no tag to type and a room's tag ("TCloset") is not what the room is called. Matching
@@ -12286,7 +12290,7 @@ const signOverlapping = (lv, x, y, w, h, CW, CH, skip) => {
 // the new `tag` field, falling back to older doors that stored it as `accepts`.
 export const doorTagOf = (m) => ((m && (m.tag !== undefined ? m.tag : m.accepts)) || "").trim();
 // "Accepts" is free text, comma/space separated. Blank = matches this level's own floor.
-const parseCats = (text, own) => { const t = (text || "").trim(); const list = t ? t.split(/[,\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean) : [(own || "").trim().toLowerCase()]; return list; };
+const parseCats = (text, own) => { const t = (text || "").trim(); const list = t ? t.split(/[,\n]/).map(placeKey).filter(Boolean) : [placeKey(own)]; return list; };
 // A connector matches a neighbour if it's open, the neighbour's floor is in
 // what it accepts, AND the neighbour's connector likewise accepts this floor
 // (mutual — like a lock and key, not just one-way).
@@ -12301,7 +12305,7 @@ const connMatch = (connA, levelA, connB, levelB) => {
   if (!connA || !connB || !connA.open || !connB.open) return false;
   const aAccepts = parseCats(connA.accepts, levelA.floor);
   const bAccepts = parseCats(connB.accepts, levelB.floor);
-  const aOk = aAccepts.includes((levelB.floor || "").trim().toLowerCase()), bOk = bAccepts.includes((levelA.floor || "").trim().toLowerCase());
+  const aOk = aAccepts.includes(placeKey(levelB.floor)), bOk = bAccepts.includes(placeKey(levelA.floor));
   const aBlank = !(connA.accepts || "").trim(), bBlank = !(connB.accepts || "").trim();
   return (aOk && bOk) || (aOk && !aBlank && bBlank) || (bOk && !bBlank && aBlank);
 };
@@ -12484,7 +12488,7 @@ export const vertSeamLinesUp = (top, bottom, side) => {
 // FOR: its Intro, its Exit, and (with no Intro there) its first level come from that floor only.
 // Levels after the first still join purely by gates, so a gate that names another floor still
 // leads there. No floor = the old pick among every Intro. `runFloors` is the list to choose from.
-const sameFloor = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+const sameFloor = (a, b) => placeKey(a) === placeKey(b);
 export const runFloors = (levels) => {
   const out = [];
   for (const l of levels || []) {
@@ -20214,7 +20218,7 @@ export default function AssetStudio({ game = false } = {}) {
         // hostile body whose last blow was yours (null; a unit's blow stores its effects, at least []).
         // ...and noted for the game's Unlocks by the placement's own look or animal (spawnEnemyIdAt:
         // a 🎲 tag placement has no enemyId, its roll does; ea may be a re-composed copy).
-        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") { scoreRef.current.total += SCORE_KILL; gameNoteRef.current("defeated", spawnEnemyIdAt(k, lv.enemies[k], enemyGearRolls.current), !!ep.lastHitRanged); }
+        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") { scoreRef.current.total += SCORE_KILL; gameNoteRef.current("defeated", spawnEnemyIdAt(k, lv.enemies[k], enemyGearRolls.current), !!ep.lastHitRanged, (!lv.isRoom && lv.floor) || (runRef.current && runRef.current.floor) || lv.floor || ""); }
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
         // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
@@ -25616,10 +25620,10 @@ export default function AssetStudio({ game = false } = {}) {
   };
   // Unlocks hears of a pickup, a purchase (showPickup / buyFromShop), a kill (the loot pass) and a
   // conversation opening (openTalk, by the dialogue's NAME — meeting "Bob Li" opens Bob Li).
-  gameNoteRef.current = (kind, id, ranged) => {
+  gameNoteRef.current = (kind, id, ranged, floor) => {
     if (!game || !id) return;
     const r = gameRecordRef.current;
-    const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id, ranged) : kind === "met" ? recordMet(r, id) : r;
+    const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id, ranged, floor) : kind === "met" ? recordMet(r, id) : r;
     if (n !== r) putGameRecord(n);
   };
   // What the player is carrying now, as a save at `loc` (gameFront.js makeGameSave).

@@ -5737,8 +5737,9 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1791285887905,
-   "category": "Trailor Park"
+   "savedAt": 1794064324160,
+   "category": "Trailer Park",
+   "editedFrom": 1791285887905
   },
   {
    "id": "1h089d6",
@@ -8084,8 +8085,9 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1791285887905,
-   "category": "Trailor Park"
+   "savedAt": 1794064324160,
+   "category": "Trailer Park",
+   "editedFrom": 1791285887905
   },
   {
    "id": "2016osh",
@@ -85930,7 +85932,7 @@
   },
   {
    "id": "8ujprob",
-   "name": "Trailor 3",
+   "name": "Trailer 3",
    "type": "prop",
    "angles": {
     "front": [
@@ -87124,8 +87126,9 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1791285887904,
-   "category": "Trailor Park"
+   "savedAt": 1794064324160,
+   "category": "Trailer Park",
+   "editedFrom": 1791285887904
   },
   {
    "id": "8wg0xj2",
@@ -289936,7 +289939,7 @@
    "size": 24,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Trailor Park",
+   "category": "Trailer Park",
    "angles": {
     "front": [
      {
@@ -292843,7 +292846,8 @@
      "crouch": []
     }
    ],
-   "savedAt": 1791042119371
+   "savedAt": 1794064324160,
+   "editedFrom": 1791042119371
   },
   {
    "id": "cnsltv1",
@@ -440458,8 +440462,9 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1791285887904,
-   "category": "Trailor Park"
+   "savedAt": 1794064324160,
+   "category": "Trailer Park",
+   "editedFrom": 1791285887904
   },
   {
    "id": "g1raff3",
@@ -568179,7 +568184,7 @@
    "size": 24,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Trailor Park",
+   "category": "Trailer Park",
    "angles": {
     "front": [
      {
@@ -570904,7 +570909,8 @@
      "crouch": []
     }
    ],
-   "savedAt": 1791042148522
+   "savedAt": 1794064324160,
+   "editedFrom": 1791042148522
   },
   {
    "id": "kj6zdxa",
@@ -649389,8 +649395,9 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1791285887905,
-   "category": "Trailor Park"
+   "savedAt": 1794064324160,
+   "category": "Trailer Park",
+   "editedFrom": 1791285887905
   },
   {
    "id": "np2j0ym",
@@ -851169,7 +851176,7 @@
   },
   {
    "id": "ufuxwzg",
-   "name": "Trailor 4",
+   "name": "Trailer 4",
    "type": "prop",
    "angles": {
     "front": [
@@ -851849,8 +851856,9 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787702583327,
-   "category": "Trailor Park"
+   "savedAt": 1794064324160,
+   "category": "Trailer Park",
+   "editedFrom": 1787702583327
   },
   {
    "id": "ujpw26u",
@@ -1306020,7 +1306028,7 @@
    "w": 48,
    "h": 20,
    "trigger": "floor",
-   "floor": "Trailor Park",
+   "floor": "Trailer Park",
    "ending": "leave",
    "eState": "",
    "angles": {
@@ -1306057,7 +1306065,7 @@
      "kind": "text",
      "name": "Crawl",
      "title": "The Draft",
-     "text": "It is a dark time for the free world. Deep in the jungles of Vietnam, the Vietkong have hatched their most fiendish plot yet.\n\nWhile on a completely unrelated experiment with LSD to see about its medical uses and ability to improve the brain's cognitive functions, our scientists found credible information to suggest that the Vietkong are planning to commit 911 roughly 50 years into the future.\n\nThat is where you come in. We wanted the best and got the hero we deserve. Uncle Sam has drafted every able body in the Trailor Park, and found you to be somehow more able than the rest.\n\nHe got a C. on his physical. You got a B. on your IQ test. Your cholesterol should be studied and your blood sugar is 50/50. You are a specimen of specimen and you are,\n\nBOB\n\nOne more thing...",
+     "text": "It is a dark time for the free world. Deep in the jungles of Vietnam, the Vietkong have hatched their most fiendish plot yet.\n\nWhile on a completely unrelated experiment with LSD to see about its medical uses and ability to improve the brain's cognitive functions, our scientists found credible information to suggest that the Vietkong are planning to commit 911 roughly 50 years into the future.\n\nThat is where you come in. We wanted the best and got the hero we deserve. Uncle Sam has drafted every able-bodied man in the Trailer Park, and found you to be somehow more able than the rest.\n\nHe got a C. on his physical. He got a B. on his IQ test. Your cholesterol should be studied and your blood sugar is 50/50. You are a specimen among specimens and you are,\n\nBOB\n\nOne more thing...",
      "size": 1.1,
      "tilt": 52,
      "wide": 32,
@@ -1306466,8 +1306474,8 @@
      ]
     }
    ],
-   "savedAt": 1794062797973,
-   "editedFrom": 1794046327864
+   "savedAt": 1794064324160,
+   "editedFrom": 1794062797973
   },
   {
    "id": "vcrrckt",
@@ -1741955,7 +1741963,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "text": "TRAILOR PARK",
+       "text": "TRAILER PARK",
        "font": "Impact, 'Arial Narrow', sans-serif"
       },
       {
@@ -1743286,7 +1743294,7 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "text": "TRAILOR PARK",
+      "text": "TRAILER PARK",
       "font": "Impact, 'Arial Narrow', sans-serif"
      },
      {
@@ -1743747,7 +1743755,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793955289012
+   "savedAt": 1794064324160,
+   "editedFrom": 1793955289012
   },
   {
    "id": "lamaid1",
@@ -1804638,8 +1804647,8 @@
  "levels": [
   {
    "id": "13dakjo",
-   "name": "Trailor Park M7",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M7",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -1812918,6 +1812927,36 @@
     "36,145": {
      "c": "#544d45",
      "tex": "tha30x2"
+    },
+    "20,76": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,77": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,78": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,79": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,80": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,81": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -1831155,20 +1831194,6 @@
       "z": 6
      }
     ],
-    "19,37": [
-     {
-      "kind": "prop",
-      "propId": "mstng65",
-      "solid": false,
-      "size": 16,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 7
-     }
-    ],
     "13,71": [
      {
       "kind": "prop",
@@ -1831195,6 +1831220,20 @@
       "fitArt": true,
       "canvasScale": false,
       "z": 9
+     }
+    ],
+    "30,10": [
+     {
+      "kind": "prop",
+      "propId": "mstng65",
+      "solid": false,
+      "size": 16,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "z": 7
      }
     ]
    },
@@ -1831474,11 +1831513,11 @@
    "markers": {
     "18,83": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     },
     "33,126": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     },
     "19,14": {
      "kind": "pedestal",
@@ -1831582,7 +1831621,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -1831598,17 +1831637,17 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792344998298
+   "savedAt": 1794064324160,
+   "editedFrom": 1793564552213
   },
   {
    "id": "4oqbjy0",
-   "name": "Trailor Int8",
+   "name": "Trailer Int8",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -1837918,12 +1837957,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790604177699
+   "savedAt": 1794064324160,
+   "editedFrom": 1790604177699
   },
   {
    "id": "5ao9ocf",
-   "name": "Trailor Park E1",
-   "floor": "Trailor Park",
+   "name": "Trailer Park E1",
+   "floor": "Trailer Park",
    "cols": 160,
    "rows": 46,
    "fg": {
@@ -1855558,6 +1855598,12 @@
     },
     "17,7": {
      "kind": "cliff"
+    },
+    "17,0": {
+     "kind": "cliff"
+    },
+    "25,0": {
+     "kind": "cliff"
     }
    },
    "hazard": {},
@@ -1855653,7 +1855699,7 @@
     },
     "E2": {
      "open": false,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -1855669,16 +1855715,16 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1793263191567
+   "savedAt": 1794064324160,
+   "editedFrom": 1793841523799
   },
   {
    "id": "6ktwvoo",
-   "name": "Trailor Park S1",
-   "floor": "Trailor Park",
+   "name": "Trailer Park S1",
+   "floor": "Trailer Park",
    "cols": 160,
    "rows": 46,
    "fg": {
@@ -1864650,6 +1864696,66 @@
     "21,67": {
      "c": "#ece4cc",
      "tex": "clgtl01"
+    },
+    "23,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,67": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -1864750,9 +1864856,9 @@
     "25,79": "#386aff",
     "25,80": "#2a2017",
     "25,81": "#386aff",
-    "25,82": "#2a2017",
+    "25,82": "#386aff",
     "25,83": "#386aff",
-    "26,82": "#2a2017",
+    "26,82": "#386aff",
     "26,81": "#386aff",
     "26,80": "#2a2017",
     "26,79": "#386aff",
@@ -1865439,13 +1865545,13 @@
     "28,79": "#386aff",
     "28,80": "#2a2017",
     "28,81": "#386aff",
-    "28,82": "#2a2017",
-    "29,82": "#2a2017",
-    "30,82": "#2a2017",
-    "31,82": "#2a2017",
-    "32,82": "#2a2017",
-    "33,82": "#2a2017",
-    "34,82": "#2a2017",
+    "28,82": "#386aff",
+    "29,82": "#386aff",
+    "30,82": "#386aff",
+    "31,82": "#386aff",
+    "32,82": "#386aff",
+    "33,82": "#386aff",
+    "34,82": "#386aff",
     "35,82": "#386aff",
     "28,83": "#386aff",
     "29,83": "#386aff",
@@ -1865642,7 +1865748,7 @@
     "26,84": "#386aff",
     "26,83": "#386aff",
     "27,83": "#386aff",
-    "27,82": "#2a2017",
+    "27,82": "#386aff",
     "27,81": "#386aff",
     "27,80": "#2a2017",
     "27,78": "#386aff",
@@ -1870942,37 +1871048,37 @@
     "14,85": "#386aff",
     "15,80": "#386aff",
     "15,81": "#386aff",
-    "15,82": "#2a2017",
+    "15,82": "#386aff",
     "15,83": "#386aff",
     "15,84": "#386aff",
     "15,85": "#386aff",
     "16,80": "#386aff",
     "16,81": "#386aff",
-    "16,82": "#2a2017",
+    "16,82": "#386aff",
     "16,83": "#386aff",
     "16,84": "#386aff",
     "16,85": "#386aff",
     "17,80": "#2a2017",
     "17,81": "#386aff",
-    "17,82": "#2a2017",
+    "17,82": "#386aff",
     "17,83": "#386aff",
     "17,84": "#386aff",
     "17,85": "#386aff",
     "18,80": "#2a2017",
     "18,81": "#386aff",
-    "18,82": "#2a2017",
+    "18,82": "#386aff",
     "18,83": "#386aff",
     "18,84": "#386aff",
     "18,85": "#386aff",
     "19,80": "#2a2017",
     "19,81": "#8a929c",
-    "19,82": "#2a2017",
+    "19,82": "#386aff",
     "19,83": "#386aff",
     "19,84": "#386aff",
     "19,85": "#386aff",
     "20,80": "#2a2017",
     "20,81": "#8a929c",
-    "20,82": "#2a2017",
+    "20,82": "#386aff",
     "20,83": "#386aff",
     "20,84": "#386aff",
     "20,85": "#386aff",
@@ -1870998,7 +1871104,7 @@
     "20,87": "#386aff",
     "20,88": "#386aff",
     "21,81": "#8a929c",
-    "21,82": "#2a2017",
+    "21,82": "#386aff",
     "21,83": "#386aff",
     "21,84": "#386aff",
     "21,85": "#386aff",
@@ -1871060,7 +1871166,7 @@
     "22,92": "#386aff",
     "22,93": "#386aff",
     "22,94": "#386aff",
-    "22,82": "#2a2017",
+    "22,82": "#386aff",
     "22,83": "#386aff",
     "22,84": "#386aff",
     "22,85": "#386aff",
@@ -1871108,7 +1871214,7 @@
     "13,57": "#386aff",
     "13,58": "#386aff",
     "23,81": "#386aff",
-    "23,82": "#2a2017",
+    "23,82": "#386aff",
     "23,83": "#386aff",
     "23,84": "#386aff",
     "23,85": "#386aff",
@@ -1871171,7 +1871277,7 @@
     "21,72": "#386aff",
     "22,72": "#386aff",
     "24,81": "#386aff",
-    "24,82": "#2a2017",
+    "24,82": "#386aff",
     "24,83": "#386aff",
     "21,97": "#386aff",
     "21,98": "#386aff",
@@ -1871694,25 +1871800,25 @@
     "34,152": "#386aff",
     "35,152": "#386aff",
     "28,153": "#386aff",
-    "28,154": "#2a2017",
+    "28,154": "#386aff",
     "28,155": "#386aff",
     "29,153": "#386aff",
-    "29,154": "#2a2017",
+    "29,154": "#386aff",
     "29,155": "#386aff",
     "30,153": "#386aff",
-    "30,154": "#2a2017",
+    "30,154": "#386aff",
     "30,155": "#386aff",
     "31,153": "#386aff",
-    "31,154": "#2a2017",
+    "31,154": "#386aff",
     "31,155": "#386aff",
     "32,153": "#386aff",
-    "32,154": "#2a2017",
+    "32,154": "#386aff",
     "32,155": "#386aff",
     "33,153": "#386aff",
-    "33,154": "#2a2017",
+    "33,154": "#386aff",
     "33,155": "#386aff",
     "34,153": "#386aff",
-    "34,154": "#2a2017",
+    "34,154": "#386aff",
     "34,155": "#386aff",
     "35,153": "#386aff",
     "35,154": "#386aff",
@@ -1871945,7 +1872051,7 @@
     "20,151": "#386aff",
     "20,152": "#386aff",
     "20,153": "#386aff",
-    "20,154": "#2a2017",
+    "20,154": "#386aff",
     "20,155": "#386aff",
     "21,148": "#386aff",
     "21,149": "#386aff",
@@ -1871953,7 +1872059,7 @@
     "21,151": "#386aff",
     "21,152": "#386aff",
     "21,153": "#386aff",
-    "21,154": "#2a2017",
+    "21,154": "#386aff",
     "21,155": "#386aff",
     "22,148": "#386aff",
     "22,149": "#386aff",
@@ -1871961,7 +1872067,7 @@
     "22,151": "#386aff",
     "22,152": "#386aff",
     "22,153": "#386aff",
-    "22,154": "#2a2017",
+    "22,154": "#386aff",
     "22,155": "#386aff",
     "23,148": "#386aff",
     "23,149": "#386aff",
@@ -1871969,7 +1872075,7 @@
     "23,151": "#386aff",
     "23,152": "#386aff",
     "23,153": "#386aff",
-    "23,154": "#2a2017",
+    "23,154": "#386aff",
     "23,155": "#386aff",
     "24,148": "#386aff",
     "24,149": "#386aff",
@@ -1871977,7 +1872083,7 @@
     "24,151": "#386aff",
     "24,152": "#386aff",
     "24,153": "#386aff",
-    "24,154": "#2a2017",
+    "24,154": "#386aff",
     "24,155": "#386aff",
     "25,148": "#386aff",
     "25,149": "#386aff",
@@ -1871985,7 +1872091,7 @@
     "25,151": "#386aff",
     "25,152": "#386aff",
     "25,153": "#386aff",
-    "25,154": "#2a2017",
+    "25,154": "#386aff",
     "25,155": "#386aff",
     "26,148": "#386aff",
     "26,149": "#386aff",
@@ -1871993,13 +1872099,13 @@
     "26,151": "#386aff",
     "26,152": "#386aff",
     "26,153": "#386aff",
-    "26,154": "#2a2017",
+    "26,154": "#386aff",
     "26,155": "#386aff",
     "27,150": "#2a2017",
     "27,151": "#386aff",
     "27,152": "#386aff",
     "27,153": "#386aff",
-    "27,154": "#2a2017",
+    "27,154": "#386aff",
     "27,155": "#386aff",
     "20,156": "#386aff",
     "21,156": "#386aff",
@@ -1872271,8 +1872377,8 @@
     "19,145": "#386aff",
     "19,146": "#386aff",
     "19,147": "#386aff",
-    "17,148": "#386aff",
-    "17,149": "#386aff",
+    "17,148": "#3a3f52",
+    "17,149": "#3a3f52",
     "18,148": "#386aff",
     "18,149": "#386aff",
     "19,148": "#386aff",
@@ -1872289,31 +1872395,31 @@
     "17,151": "#386aff",
     "17,152": "#386aff",
     "17,153": "#386aff",
-    "17,154": "#2a2017",
-    "18,154": "#2a2017",
-    "19,154": "#2a2017",
-    "17,155": "#8a929c",
-    "18,155": "#8a929c",
+    "17,154": "#386aff",
+    "18,154": "#386aff",
+    "19,154": "#386aff",
+    "17,155": "#386aff",
+    "18,155": "#386aff",
     "19,155": "#386aff",
     "17,156": "#386aff",
     "18,156": "#386aff",
     "19,156": "#386aff",
-    "16,150": "#386aff",
+    "16,150": "#2a2017",
     "16,151": "#386aff",
     "16,152": "#386aff",
     "16,153": "#386aff",
-    "16,154": "#2a2017",
-    "16,155": "#8a929c",
+    "16,154": "#386aff",
+    "16,155": "#386aff",
     "16,156": "#386aff",
     "16,157": "#386aff",
     "17,157": "#386aff",
     "18,157": "#386aff",
     "19,157": "#386aff",
-    "15,150": "#386aff",
+    "15,150": "#2a2017",
     "15,151": "#386aff",
     "15,152": "#386aff",
     "15,153": "#386aff",
-    "15,154": "#2a2017",
+    "15,154": "#386aff",
     "15,155": "#386aff",
     "15,156": "#386aff",
     "15,157": "#386aff",
@@ -1872326,17 +1872432,17 @@
     "14,156": "#386aff",
     "14,157": "#386aff",
     "14,149": "#386aff",
-    "15,149": "#386aff",
-    "16,149": "#386aff",
+    "15,149": "#3a3f52",
+    "16,149": "#3a3f52",
     "14,146": "#386aff",
     "14,147": "#386aff",
     "14,148": "#386aff",
     "15,146": "#386aff",
     "15,147": "#386aff",
-    "15,148": "#386aff",
+    "15,148": "#3a3f52",
     "16,146": "#386aff",
     "16,147": "#386aff",
-    "16,148": "#386aff",
+    "16,148": "#3a3f52",
     "15,140": "#386aff",
     "15,141": "#386aff",
     "15,142": "#386aff",
@@ -1873121,7 +1873227,7 @@
     "3,140": "#386aff",
     "4,140": "#386aff",
     "1,134": "#386aff",
-    "0,132": "#386aff",
+    "0,132": "#f5f5dc",
     "0,133": "#386aff",
     "0,134": "#386aff",
     "0,135": "#386aff",
@@ -1873131,28 +1873237,28 @@
     "0,139": "#386aff",
     "1,132": "#386aff",
     "1,133": "#386aff",
-    "0,131": "#386aff",
-    "1,131": "#386aff",
+    "0,131": "#f5f5dc",
+    "1,131": "#f5f5dc",
     "2,131": "#386aff",
     "3,131": "#386aff",
-    "0,128": "#386aff",
-    "0,129": "#386aff",
-    "0,130": "#386aff",
-    "1,128": "#386aff",
-    "1,129": "#386aff",
-    "1,130": "#386aff",
+    "0,128": "#f5f5dc",
+    "0,129": "#f5f5dc",
+    "0,130": "#f5f5dc",
+    "1,128": "#f5f5dc",
+    "1,129": "#f5f5dc",
+    "1,130": "#f5f5dc",
     "2,128": "#386aff",
     "2,129": "#386aff",
     "2,130": "#386aff",
     "3,128": "#386aff",
     "3,129": "#386aff",
     "3,130": "#386aff",
-    "0,125": "#386aff",
-    "0,126": "#386aff",
-    "0,127": "#386aff",
-    "1,125": "#386aff",
-    "1,126": "#386aff",
-    "1,127": "#386aff",
+    "0,125": "#f5f5dc",
+    "0,126": "#f5f5dc",
+    "0,127": "#f5f5dc",
+    "1,125": "#f5f5dc",
+    "1,126": "#f5f5dc",
+    "1,127": "#f5f5dc",
     "2,125": "#386aff",
     "2,126": "#386aff",
     "2,127": "#386aff",
@@ -1873163,14 +1873269,14 @@
     "0,120": "#386aff",
     "0,121": "#386aff",
     "0,122": "#386aff",
-    "0,123": "#386aff",
-    "0,124": "#386aff",
+    "0,123": "#f5f5dc",
+    "0,124": "#f5f5dc",
     "1,119": "#386aff",
     "1,120": "#386aff",
     "1,121": "#386aff",
     "1,122": "#386aff",
     "1,123": "#386aff",
-    "1,124": "#386aff",
+    "1,124": "#f5f5dc",
     "2,119": "#386aff",
     "2,120": "#386aff",
     "2,121": "#386aff",
@@ -1877638,11 +1877744,17 @@
     },
     "33,111": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     },
     "43,79": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
+    },
+    "13,33": {
+     "kind": "objective",
+     "text": "Go into the side room to prepare",
+     "targetTag": "TCloset 1",
+     "score": 100
     }
    },
    "enemies": {
@@ -1877676,7 +1877788,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -1877692,16 +1877804,17 @@
     },
     "W2": {
      "open": false,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1792252245787
+   "savedAt": 1794064324160,
+   "editedFrom": 1793707095768
   },
   {
    "id": "8l3tqki",
-   "name": "Trailor Int3",
+   "name": "Trailer Int3",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -1883777,7 +1883890,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790437963752
+   "savedAt": 1794064324160,
+   "editedFrom": 1790437963752
   },
   {
    "id": "bv4u5mz",
@@ -1890047,6 +1890161,11 @@
       ""
      ],
      "logic": "or"
+    },
+    "12,19": {
+     "kind": "objective",
+     "text": "Make it to the draft office",
+     "targetTag": "Trailer Park E1"
     }
    },
    "enemies": {},
@@ -1890084,8 +1890203,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792256040188,
-   "editedFrom": 1792256016260
+   "savedAt": 1794064324160,
+   "editedFrom": 1792272780700
   },
   {
    "id": "d78n8wx",
@@ -1924489,8 +1924608,8 @@
   },
   {
    "id": "eb4dqst",
-   "name": "Trailor Park M14",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M14",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -1925620,8 +1925739,9 @@
      "tex": "tha30x2"
     },
     "21,13": {
-     "c": "#b5b1a7",
-     "tex": "tjpoh5x"
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     },
     "20,6": {
      "c": "#544d45",
@@ -1933670,6 +1933790,121 @@
     "19,107": {
      "c": "#8a929c",
      "hideInPlay": true
+    },
+    "34,12": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,12": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,12": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,14": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,14": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,14": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "22,13": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "19,46": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "18,46": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "19,129": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "18,129": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -1938826,7 +1939061,7 @@
     "0,131": "#386aff",
     "0,130": "#386aff",
     "0,129": "#386aff",
-    "0,128": "#386aff",
+    "0,128": "#f5f5dc",
     "1,131": "#386aff",
     "1,130": "#386aff",
     "1,129": "#386aff",
@@ -1938843,10 +1939078,10 @@
     "4,130": "#386aff",
     "4,129": "#386aff",
     "4,128": "#386aff",
-    "0,127": "#386aff",
-    "0,126": "#386aff",
-    "0,125": "#386aff",
-    "0,124": "#386aff",
+    "0,127": "#f5f5dc",
+    "0,126": "#f5f5dc",
+    "0,125": "#f5f5dc",
+    "0,124": "#f5f5dc",
     "1,127": "#386aff",
     "1,126": "#386aff",
     "1,125": "#386aff",
@@ -1938863,7 +1939098,7 @@
     "4,126": "#386aff",
     "4,125": "#386aff",
     "4,124": "#386aff",
-    "0,123": "#386aff",
+    "0,123": "#f5f5dc",
     "0,122": "#386aff",
     "1,123": "#386aff",
     "1,122": "#386aff",
@@ -1951469,7 +1951704,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -1951485,16 +1951720,17 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1791586824220
+   "savedAt": 1794064324160,
+   "editedFrom": 1793564423522
   },
   {
    "id": "eb7tq0i",
-   "name": "Trailor Int6",
+   "name": "Trailer Int6",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -1956989,13 +1957225,14 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790437963763
+   "savedAt": 1794064324160,
+   "editedFrom": 1790437963763
   },
   {
    "id": "fc8mxkc",
-   "name": "Trailor Int2",
+   "name": "Trailer Int2",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -1963206,12 +1963443,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791283252499
+   "savedAt": 1794064324160,
+   "editedFrom": 1791283252499
   },
   {
    "id": "gcmzc4t",
-   "name": "Trailor Park M11",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M11",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -1973038,6 +1973276,36 @@
     "37,101": {
      "c": "#2d3710",
      "tex": "qnfjme1"
+    },
+    "20,78": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,79": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,80": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,81": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,82": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,83": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -1991551,20 +1991819,6 @@
       "z": 7
      }
     ],
-    "17,56": [
-     {
-      "kind": "prop",
-      "propId": "wdywgn6",
-      "solid": false,
-      "size": 16,
-      "inFront": true,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 8
-     }
-    ],
     "18,17": [
      {
       "kind": "prop",
@@ -1991593,7 +1991847,36 @@
       "z": 10
      }
     ],
-    "0,12": [
+    "15,2": [
+     {
+      "kind": "prop",
+      "propId": "mscl69m",
+      "solid": false,
+      "size": 16,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 12
+     }
+    ],
+    "14,55": [
+     {
+      "kind": "prop",
+      "propId": "wdywgn6",
+      "solid": false,
+      "size": 16,
+      "inFront": true,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "canvasScale": false,
+      "z": 8
+     }
+    ],
+    "0,17": [
      {
       "kind": "prop",
       "propId": "frmwmil",
@@ -1991984,7 +1992267,7 @@
     },
     "E2": {
      "open": false,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -1992000,16 +1992283,16 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1793458364468
+   "savedAt": 1794064324160,
+   "editedFrom": 1793791484154
   },
   {
    "id": "gqjimzx",
-   "name": "Trailor Park M2",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M2",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2011651,6 +2011934,21 @@
       "canvasScale": false,
       "z": 91
      }
+    ],
+    "29,38": [
+     {
+      "kind": "prop",
+      "propId": "mstng65",
+      "solid": false,
+      "size": 16,
+      "inFront": false,
+      "rot": 354,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 92
+     }
     ]
    },
    "climb": {
@@ -2011881,6 +2012179,39 @@
     },
     "25,3": {
      "kind": "cliff"
+    },
+    "17,10": {
+     "kind": "cliff"
+    },
+    "17,9": {
+     "kind": "cliff"
+    },
+    "17,8": {
+     "kind": "cliff"
+    },
+    "17,7": {
+     "kind": "cliff"
+    },
+    "17,6": {
+     "kind": "cliff"
+    },
+    "17,5": {
+     "kind": "cliff"
+    },
+    "17,4": {
+     "kind": "cliff"
+    },
+    "17,3": {
+     "kind": "cliff"
+    },
+    "17,2": {
+     "kind": "cliff"
+    },
+    "17,1": {
+     "kind": "cliff"
+    },
+    "17,0": {
+     "kind": "cliff"
     }
    },
    "hazard": {},
@@ -2011951,14 +2012282,14 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792344796427
+   "savedAt": 1794064324160,
+   "editedFrom": 1793791386446
   },
   {
    "id": "gww324w",
-   "name": "Trailor Int4",
+   "name": "Trailer Int4",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -2018096,15 +2018427,16 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790437963755
+   "savedAt": 1794064324160,
+   "editedFrom": 1790437963755
   },
   {
    "id": "h440ssw",
-   "name": "Trailor Int7",
+   "name": "Trailer Int7",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
-   "section": "Trailor Int",
+   "section": "Trailer Int",
    "cols": 40,
    "rows": 24,
    "fg": {
@@ -2024296,12 +2024628,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790604113005
+   "savedAt": 1794064324160,
+   "editedFrom": 1790604113005
   },
   {
    "id": "h5nuldp",
-   "name": "Trailor Park M15",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M15",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2031225,6 +2031558,46 @@
      "c": "#b5b1a7",
      "tex": "tjpoh5x",
      "hideInPlay": true
+    },
+    "34,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2032597,22 +2032970,22 @@
     "4,57": "#386aff",
     "0,58": "#386aff",
     "0,59": "#386aff",
-    "0,60": "#386aff",
-    "0,61": "#386aff",
-    "0,62": "#386aff",
-    "0,63": "#386aff",
+    "0,60": "#f5f5dc",
+    "0,61": "#f5f5dc",
+    "0,62": "#f5f5dc",
+    "0,63": "#f5f5dc",
     "1,58": "#386aff",
     "1,59": "#386aff",
     "1,60": "#386aff",
     "1,61": "#386aff",
-    "1,62": "#386aff",
-    "1,63": "#386aff",
+    "1,62": "#f5f5dc",
+    "1,63": "#f5f5dc",
     "2,58": "#386aff",
     "2,59": "#386aff",
     "2,60": "#386aff",
     "2,61": "#386aff",
     "2,62": "#386aff",
-    "2,63": "#386aff",
+    "2,63": "#f5f5dc",
     "3,58": "#386aff",
     "3,59": "#386aff",
     "3,60": "#386aff",
@@ -2032625,51 +2032998,51 @@
     "4,61": "#386aff",
     "4,62": "#386aff",
     "4,63": "#386aff",
-    "0,64": "#386aff",
-    "1,64": "#386aff",
-    "2,64": "#386aff",
+    "0,64": "#f5f5dc",
+    "1,64": "#f5f5dc",
+    "2,64": "#f5f5dc",
     "3,64": "#386aff",
     "4,64": "#386aff",
-    "0,65": "#386aff",
-    "0,66": "#386aff",
-    "0,67": "#386aff",
-    "0,68": "#386aff",
-    "0,69": "#386aff",
-    "1,65": "#386aff",
-    "1,66": "#386aff",
-    "1,67": "#386aff",
-    "1,68": "#386aff",
-    "1,69": "#386aff",
-    "2,65": "#386aff",
-    "2,66": "#386aff",
-    "2,67": "#386aff",
-    "2,68": "#386aff",
-    "2,69": "#386aff",
+    "0,65": "#f5f5dc",
+    "0,66": "#f5f5dc",
+    "0,67": "#f5f5dc",
+    "0,68": "#f5f5dc",
+    "0,69": "#f5f5dc",
+    "1,65": "#f5f5dc",
+    "1,66": "#f5f5dc",
+    "1,67": "#f5f5dc",
+    "1,68": "#f5f5dc",
+    "1,69": "#f5f5dc",
+    "2,65": "#f5f5dc",
+    "2,66": "#f5f5dc",
+    "2,67": "#f5f5dc",
+    "2,68": "#f5f5dc",
+    "2,69": "#f5f5dc",
     "3,65": "#386aff",
     "3,66": "#386aff",
-    "3,67": "#386aff",
-    "3,68": "#386aff",
-    "3,69": "#386aff",
+    "3,67": "#f5f5dc",
+    "3,68": "#f5f5dc",
+    "3,69": "#f5f5dc",
     "4,65": "#386aff",
     "4,66": "#386aff",
     "4,67": "#386aff",
     "4,68": "#386aff",
     "4,69": "#386aff",
-    "0,70": "#386aff",
-    "0,71": "#386aff",
-    "0,72": "#386aff",
-    "0,73": "#386aff",
-    "1,70": "#386aff",
-    "1,71": "#386aff",
-    "1,72": "#386aff",
-    "1,73": "#386aff",
-    "2,70": "#386aff",
-    "2,71": "#386aff",
-    "2,72": "#386aff",
-    "2,73": "#386aff",
-    "3,70": "#386aff",
-    "3,71": "#386aff",
-    "3,72": "#386aff",
+    "0,70": "#f5f5dc",
+    "0,71": "#f5f5dc",
+    "0,72": "#f5f5dc",
+    "0,73": "#f5f5dc",
+    "1,70": "#f5f5dc",
+    "1,71": "#f5f5dc",
+    "1,72": "#f5f5dc",
+    "1,73": "#f5f5dc",
+    "2,70": "#f5f5dc",
+    "2,71": "#f5f5dc",
+    "2,72": "#f5f5dc",
+    "2,73": "#f5f5dc",
+    "3,70": "#f5f5dc",
+    "3,71": "#f5f5dc",
+    "3,72": "#f5f5dc",
     "3,73": "#386aff",
     "4,70": "#386aff",
     "4,71": "#386aff",
@@ -2032683,9 +2033056,9 @@
     "5,71": "#386aff",
     "5,72": "#386aff",
     "5,73": "#386aff",
-    "0,74": "#386aff",
-    "1,74": "#386aff",
-    "2,74": "#386aff",
+    "0,74": "#f5f5dc",
+    "1,74": "#f5f5dc",
+    "2,74": "#f5f5dc",
     "3,74": "#386aff",
     "4,74": "#386aff",
     "5,74": "#386aff",
@@ -2034140,8 +2034513,8 @@
     "6,148": "#386aff",
     "6,149": "#386aff",
     "6,150": "#386aff",
-    "0,145": "#386aff",
-    "0,146": "#386aff",
+    "0,145": "#f5f5dc",
+    "0,146": "#f5f5dc",
     "1,145": "#386aff",
     "1,146": "#386aff",
     "2,145": "#386aff",
@@ -2035014,10 +2035387,10 @@
     "7,141": "#386aff",
     "1,139": "#386aff",
     "1,140": "#386aff",
-    "1,141": "#386aff",
-    "1,142": "#386aff",
-    "1,143": "#386aff",
-    "1,144": "#386aff",
+    "1,141": "#f5f5dc",
+    "1,142": "#f5f5dc",
+    "1,143": "#f5f5dc",
+    "1,144": "#f5f5dc",
     "2,139": "#386aff",
     "2,140": "#386aff",
     "2,141": "#386aff",
@@ -2035054,12 +2035427,12 @@
     "8,142": "#386aff",
     "8,143": "#386aff",
     "8,144": "#386aff",
-    "0,139": "#386aff",
-    "0,140": "#386aff",
-    "0,141": "#386aff",
-    "0,142": "#386aff",
-    "0,143": "#386aff",
-    "0,144": "#386aff",
+    "0,139": "#f5f5dc",
+    "0,140": "#f5f5dc",
+    "0,141": "#f5f5dc",
+    "0,142": "#f5f5dc",
+    "0,143": "#f5f5dc",
+    "0,144": "#f5f5dc",
     "2,138": "#386aff",
     "3,138": "#386aff",
     "4,138": "#386aff",
@@ -2035191,8 +2035564,8 @@
     "7,90": "#386aff",
     "11,87": "#386aff",
     "11,88": "#386aff",
-    "2,75": "#386aff",
-    "2,76": "#386aff",
+    "2,75": "#f5f5dc",
+    "2,76": "#f5f5dc",
     "2,77": "#386aff",
     "2,78": "#386aff",
     "2,79": "#386aff",
@@ -2035204,15 +2035577,15 @@
     "6,75": "#386aff",
     "7,74": "#386aff",
     "7,75": "#386aff",
-    "0,75": "#386aff",
-    "0,76": "#386aff",
-    "0,77": "#386aff",
-    "0,78": "#386aff",
-    "0,79": "#386aff",
-    "1,75": "#386aff",
-    "1,76": "#386aff",
-    "1,77": "#386aff",
-    "1,78": "#386aff",
+    "0,75": "#f5f5dc",
+    "0,76": "#f5f5dc",
+    "0,77": "#f5f5dc",
+    "0,78": "#f5f5dc",
+    "0,79": "#f5f5dc",
+    "1,75": "#f5f5dc",
+    "1,76": "#f5f5dc",
+    "1,77": "#f5f5dc",
+    "1,78": "#f5f5dc",
     "1,79": "#386aff",
     "0,80": "#386aff",
     "1,80": "#386aff",
@@ -2040582,7 +2040955,7 @@
      "facing": -1,
      "ai": "seek",
      "dialogueId": "g9g3g3z",
-     "weaponId": "s2n10qc"
+     "weaponId": "em48p2o"
     },
     "34,119": {
      "enemyId": "trtl5hl",
@@ -2040624,15 +2040997,16 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791597056378
+   "savedAt": 1794064324160,
+   "editedFrom": 1793564393560
   },
   {
    "id": "i80q4s6",
-   "name": "Trailor Int1",
+   "name": "Trailer Int1",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
-   "section": "Trailor Int",
+   "section": "Trailer Int",
    "cols": 40,
    "rows": 24,
    "fg": {
@@ -2046821,7 +2047195,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790437963756
+   "savedAt": 1794064324160,
+   "editedFrom": 1790437963756
   },
   {
    "id": "ikupopa",
@@ -2082829,8 +2083204,8 @@
   },
   {
    "id": "le2ieau",
-   "name": "Trailor Park M3",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M3",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2085766,6 +2086141,86 @@
      "c": "#7f8479",
      "tex": "v13fgi5",
      "hideInPlay": true
+    },
+    "27,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,21": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,29": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2095837,6 +2096292,54 @@
     },
     "17,4": {
      "kind": "cliff"
+    },
+    "17,152": {
+     "kind": "bars"
+    },
+    "17,153": {
+     "kind": "bars"
+    },
+    "17,154": {
+     "kind": "bars"
+    },
+    "17,155": {
+     "kind": "bars"
+    },
+    "17,156": {
+     "kind": "bars"
+    },
+    "17,157": {
+     "kind": "bars"
+    },
+    "17,158": {
+     "kind": "bars"
+    },
+    "17,159": {
+     "kind": "bars"
+    },
+    "25,152": {
+     "kind": "bars"
+    },
+    "25,153": {
+     "kind": "bars"
+    },
+    "25,154": {
+     "kind": "bars"
+    },
+    "25,155": {
+     "kind": "bars"
+    },
+    "25,156": {
+     "kind": "bars"
+    },
+    "25,157": {
+     "kind": "bars"
+    },
+    "25,158": {
+     "kind": "bars"
+    },
+    "25,159": {
+     "kind": "bars"
     }
    },
    "hazard": {},
@@ -2095934,8 +2096437,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793455421584,
-   "editedFrom": 1792344933363
+   "savedAt": 1794064324160,
+   "editedFrom": 1793841477523
   },
   {
    "id": "llbe2ks",
@@ -2110509,8 +2111012,8 @@
   },
   {
    "id": "ml8g3tb",
-   "name": "Trailor Park M4",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M4",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2129225,8 +2129728,8 @@
     "4,27": "#386aff",
     "0,28": "#386aff",
     "0,29": "#386aff",
-    "0,30": "#386aff",
-    "0,31": "#386aff",
+    "0,30": "#f5f5dc",
+    "0,31": "#f5f5dc",
     "1,28": "#386aff",
     "1,29": "#386aff",
     "1,30": "#386aff",
@@ -2129243,14 +2129746,14 @@
     "4,29": "#386aff",
     "4,30": "#386aff",
     "4,31": "#386aff",
-    "0,32": "#386aff",
-    "0,33": "#386aff",
-    "0,34": "#386aff",
-    "0,35": "#386aff",
-    "1,32": "#386aff",
-    "1,33": "#386aff",
-    "1,34": "#386aff",
-    "1,35": "#386aff",
+    "0,32": "#f5f5dc",
+    "0,33": "#f5f5dc",
+    "0,34": "#f5f5dc",
+    "0,35": "#f5f5dc",
+    "1,32": "#f5f5dc",
+    "1,33": "#f5f5dc",
+    "1,34": "#f5f5dc",
+    "1,35": "#f5f5dc",
     "2,32": "#386aff",
     "2,33": "#386aff",
     "2,34": "#386aff",
@@ -2129263,24 +2129766,24 @@
     "4,33": "#386aff",
     "4,34": "#386aff",
     "4,35": "#386aff",
-    "0,36": "#386aff",
-    "0,37": "#386aff",
-    "1,36": "#386aff",
-    "1,37": "#386aff",
+    "0,36": "#f5f5dc",
+    "0,37": "#f5f5dc",
+    "1,36": "#f5f5dc",
+    "1,37": "#f5f5dc",
     "2,36": "#386aff",
     "2,37": "#386aff",
     "3,36": "#386aff",
     "3,37": "#386aff",
     "4,36": "#386aff",
     "4,37": "#386aff",
-    "0,38": "#386aff",
-    "0,39": "#386aff",
-    "0,40": "#386aff",
-    "0,41": "#386aff",
-    "1,38": "#386aff",
-    "1,39": "#386aff",
-    "1,40": "#386aff",
-    "1,41": "#386aff",
+    "0,38": "#f5f5dc",
+    "0,39": "#f5f5dc",
+    "0,40": "#f5f5dc",
+    "0,41": "#f5f5dc",
+    "1,38": "#f5f5dc",
+    "1,39": "#f5f5dc",
+    "1,40": "#f5f5dc",
+    "1,41": "#f5f5dc",
     "2,38": "#386aff",
     "2,39": "#386aff",
     "2,40": "#386aff",
@@ -2129293,12 +2129796,12 @@
     "4,39": "#386aff",
     "4,40": "#386aff",
     "4,41": "#386aff",
-    "0,42": "#386aff",
-    "0,43": "#386aff",
-    "0,44": "#386aff",
-    "0,45": "#386aff",
+    "0,42": "#f5f5dc",
+    "0,43": "#f5f5dc",
+    "0,44": "#f5f5dc",
+    "0,45": "#f5f5dc",
     "0,46": "#386aff",
-    "1,42": "#386aff",
+    "1,42": "#f5f5dc",
     "1,43": "#386aff",
     "1,44": "#386aff",
     "1,45": "#386aff",
@@ -2134767,7 +2135270,7 @@
    "markers": {
     "18,67": {
      "kind": "door",
-     "tag": "Trailor int"
+     "tag": "Trailer int"
     }
    },
    "enemies": {
@@ -2134841,12 +2135344,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791642468017
+   "savedAt": 1794064324160,
+   "editedFrom": 1792344954599
   },
   {
    "id": "nj00zi0",
-   "name": "Trailor Park M8",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M8",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2142808,6 +2143312,36 @@
     "35,145": {
      "c": "#544d45",
      "tex": "tha30x2"
+    },
+    "20,58": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,59": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,60": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,61": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,62": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,63": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2160664,7 +2161198,7 @@
    "markers": {
     "17,56": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2160750,7 +2161284,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -2160766,11 +2161300,11 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792344842346
+   "savedAt": 1794064324160,
+   "editedFrom": 1793564537677
   },
   {
    "id": "p7bbbh1",
@@ -2196298,7 +2196832,7 @@
    "markers": {
     "18,136": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2196394,12 +2196928,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791422555183
+   "savedAt": 1794064324160,
+   "editedFrom": 1791422555183
   },
   {
    "id": "qp0ktjg",
-   "name": "Trailor Park M10",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M10",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2225027,7 +2225562,7 @@
    "markers": {
     "33,142": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2225117,7 +2225652,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -2225133,16 +2225668,16 @@
     },
     "W2": {
      "open": false,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792345053741
+   "savedAt": 1794064324160,
+   "editedFrom": 1793458555331
   },
   {
    "id": "rhp4fgn",
-   "name": "Trailor Park M5",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M5",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2236219,7 +2236754,7 @@
     "0,35": "#386aff",
     "0,34": "#386aff",
     "0,33": "#386aff",
-    "0,32": "#386aff",
+    "0,32": "#f5f5dc",
     "1,39": "#386aff",
     "1,38": "#386aff",
     "1,37": "#386aff",
@@ -2236268,12 +2236803,12 @@
     "6,33": "#386aff",
     "7,34": "#386aff",
     "7,33": "#386aff",
-    "0,31": "#386aff",
+    "0,31": "#f5f5dc",
     "1,31": "#386aff",
     "2,31": "#386aff",
     "3,31": "#386aff",
     "4,31": "#386aff",
-    "0,29": "#386aff",
+    "0,29": "#f5f5dc",
     "0,28": "#386aff",
     "0,27": "#386aff",
     "0,26": "#386aff",
@@ -2236408,8 +2236943,8 @@
     "8,34": "#386aff",
     "8,33": "#386aff",
     "2,30": "#386aff",
-    "0,30": "#386aff",
-    "1,30": "#386aff",
+    "0,30": "#f5f5dc",
+    "1,30": "#f5f5dc",
     "9,53": "#386aff",
     "9,52": "#386aff",
     "9,51": "#386aff",
@@ -2245237,20 +2245772,6 @@
       "z": 417
      }
     ],
-    "33,42": [
-     {
-      "kind": "prop",
-      "propId": "wdywgn6",
-      "solid": false,
-      "size": 16,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 419
-     }
-    ],
     "28,132": [
      {
       "kind": "prop",
@@ -2245369,6 +2245890,20 @@
       "rot": 0,
       "flip": false,
       "z": 428
+     }
+    ],
+    "29,40": [
+     {
+      "kind": "prop",
+      "propId": "wdywgn6",
+      "solid": false,
+      "size": 16,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "z": 419
      }
     ]
    },
@@ -2246374,7 +2246909,7 @@
    "markers": {
     "33,139": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2246455,12 +2246990,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790762608484
+   "savedAt": 1794064324160,
+   "editedFrom": 1793546100352
   },
   {
    "id": "rq28a8w",
-   "name": "Trailor Park M9",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M9",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2254422,6 +2254958,36 @@
     "35,159": {
      "c": "#544d45",
      "tex": "tha30x2"
+    },
+    "20,96": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,97": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,98": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,99": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,100": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,101": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2272046,20 +2272612,6 @@
       "z": 81
      }
     ],
-    "18,10": [
-     {
-      "kind": "prop",
-      "propId": "mstng65",
-      "solid": false,
-      "size": 16,
-      "inFront": true,
-      "rot": 355,
-      "flip": true,
-      "fitArt": true,
-      "canvasScale": false,
-      "z": 2
-     }
-    ],
     "25,78": [
      {
       "kind": "prop",
@@ -2272072,6 +2272624,36 @@
       "fitArt": true,
       "canvasScale": false,
       "z": 1
+     }
+    ],
+    "19,20": [
+     {
+      "kind": "prop",
+      "propId": "mvmontr",
+      "solid": false,
+      "size": 5,
+      "inFront": true,
+      "rot": 81,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 82
+     }
+    ],
+    "18,2": [
+     {
+      "kind": "prop",
+      "propId": "c0uch60",
+      "solid": false,
+      "size": 9,
+      "inFront": true,
+      "rot": 198,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 83
      }
     ]
    },
@@ -2272306,7 +2272888,7 @@
    "markers": {
     "33,94": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2272394,7 +2272976,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -2272410,16 +2272992,16 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792345031905
+   "savedAt": 1794064324160,
+   "editedFrom": 1793564525623
   },
   {
    "id": "snssw0i",
-   "name": "Trailor Park M13",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M13",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2290060,22 +2290642,22 @@
     "15,22": "#386aff",
     "15,23": "#386aff",
     "15,24": "#386aff",
-    "0,53": "#386aff",
-    "0,54": "#386aff",
-    "0,55": "#386aff",
-    "0,56": "#386aff",
-    "0,57": "#386aff",
-    "0,58": "#386aff",
-    "0,59": "#386aff",
-    "0,60": "#386aff",
+    "0,53": "#f5f5dc",
+    "0,54": "#f5f5dc",
+    "0,55": "#f5f5dc",
+    "0,56": "#f5f5dc",
+    "0,57": "#f5f5dc",
+    "0,58": "#f5f5dc",
+    "0,59": "#f5f5dc",
+    "0,60": "#f5f5dc",
     "1,53": "#386aff",
     "1,54": "#386aff",
     "1,55": "#386aff",
-    "1,56": "#386aff",
-    "1,57": "#386aff",
-    "1,58": "#386aff",
-    "1,59": "#386aff",
-    "1,60": "#386aff",
+    "1,56": "#f5f5dc",
+    "1,57": "#f5f5dc",
+    "1,58": "#f5f5dc",
+    "1,59": "#f5f5dc",
+    "1,60": "#f5f5dc",
     "2,53": "#386aff",
     "2,54": "#386aff",
     "2,55": "#386aff",
@@ -2290506,9 +2291088,9 @@
     "4,22": "#386aff",
     "4,23": "#386aff",
     "4,24": "#386aff",
-    "0,25": "#386aff",
-    "0,26": "#386aff",
-    "0,27": "#386aff",
+    "0,25": "#f5f5dc",
+    "0,26": "#f5f5dc",
+    "0,27": "#f5f5dc",
     "1,25": "#386aff",
     "1,26": "#386aff",
     "1,27": "#386aff",
@@ -2290521,14 +2291103,14 @@
     "4,25": "#386aff",
     "4,26": "#386aff",
     "4,27": "#386aff",
-    "0,28": "#386aff",
-    "0,29": "#386aff",
-    "0,30": "#386aff",
-    "0,31": "#386aff",
+    "0,28": "#f5f5dc",
+    "0,29": "#f5f5dc",
+    "0,30": "#f5f5dc",
+    "0,31": "#f5f5dc",
     "1,28": "#386aff",
-    "1,29": "#386aff",
-    "1,30": "#386aff",
-    "1,31": "#386aff",
+    "1,29": "#f5f5dc",
+    "1,30": "#f5f5dc",
+    "1,31": "#f5f5dc",
     "2,28": "#386aff",
     "2,29": "#386aff",
     "2,30": "#386aff",
@@ -2290541,14 +2291123,14 @@
     "4,29": "#386aff",
     "4,30": "#386aff",
     "4,31": "#386aff",
-    "0,32": "#386aff",
-    "0,33": "#386aff",
-    "0,34": "#386aff",
-    "0,35": "#386aff",
-    "1,32": "#386aff",
-    "1,33": "#386aff",
-    "1,34": "#386aff",
-    "1,35": "#386aff",
+    "0,32": "#f5f5dc",
+    "0,33": "#f5f5dc",
+    "0,34": "#f5f5dc",
+    "0,35": "#f5f5dc",
+    "1,32": "#f5f5dc",
+    "1,33": "#f5f5dc",
+    "1,34": "#f5f5dc",
+    "1,35": "#f5f5dc",
     "2,32": "#386aff",
     "2,33": "#386aff",
     "2,34": "#386aff",
@@ -2290561,9 +2291143,9 @@
     "4,33": "#386aff",
     "4,34": "#386aff",
     "4,35": "#386aff",
-    "0,36": "#386aff",
-    "0,37": "#386aff",
-    "1,36": "#386aff",
+    "0,36": "#f5f5dc",
+    "0,37": "#f5f5dc",
+    "1,36": "#f5f5dc",
     "1,37": "#386aff",
     "2,36": "#386aff",
     "2,37": "#386aff",
@@ -2290571,9 +2291153,9 @@
     "3,37": "#386aff",
     "4,36": "#386aff",
     "4,37": "#386aff",
-    "0,38": "#386aff",
-    "0,39": "#386aff",
-    "0,40": "#386aff",
+    "0,38": "#f5f5dc",
+    "0,39": "#f5f5dc",
+    "0,40": "#f5f5dc",
     "0,41": "#386aff",
     "1,38": "#386aff",
     "1,39": "#386aff",
@@ -2290612,14 +2291194,14 @@
     "1,48": "#386aff",
     "2,47": "#386aff",
     "2,48": "#386aff",
-    "0,61": "#386aff",
-    "0,62": "#386aff",
-    "0,63": "#386aff",
-    "0,64": "#386aff",
-    "1,61": "#386aff",
-    "1,62": "#386aff",
-    "1,63": "#386aff",
-    "1,64": "#386aff",
+    "0,61": "#f5f5dc",
+    "0,62": "#f5f5dc",
+    "0,63": "#f5f5dc",
+    "0,64": "#f5f5dc",
+    "1,61": "#f5f5dc",
+    "1,62": "#f5f5dc",
+    "1,63": "#f5f5dc",
+    "1,64": "#f5f5dc",
     "2,61": "#386aff",
     "2,62": "#386aff",
     "2,63": "#386aff",
@@ -2290637,14 +2291219,14 @@
     "5,62": "#386aff",
     "5,63": "#386aff",
     "5,64": "#386aff",
-    "0,65": "#386aff",
-    "0,66": "#386aff",
-    "0,67": "#386aff",
-    "0,68": "#386aff",
-    "1,65": "#386aff",
-    "1,66": "#386aff",
-    "1,67": "#386aff",
-    "1,68": "#386aff",
+    "0,65": "#f5f5dc",
+    "0,66": "#f5f5dc",
+    "0,67": "#f5f5dc",
+    "0,68": "#f5f5dc",
+    "1,65": "#f5f5dc",
+    "1,66": "#f5f5dc",
+    "1,67": "#f5f5dc",
+    "1,68": "#f5f5dc",
     "2,65": "#386aff",
     "2,66": "#386aff",
     "2,67": "#386aff",
@@ -2290669,18 +2291251,18 @@
     "6,66": "#386aff",
     "6,67": "#386aff",
     "6,68": "#386aff",
-    "0,69": "#386aff",
-    "1,69": "#386aff",
+    "0,69": "#f5f5dc",
+    "1,69": "#f5f5dc",
     "2,69": "#386aff",
     "3,69": "#386aff",
     "4,69": "#386aff",
     "5,69": "#386aff",
     "6,69": "#386aff",
-    "0,70": "#386aff",
-    "0,71": "#386aff",
-    "0,72": "#386aff",
-    "1,70": "#386aff",
-    "1,71": "#386aff",
+    "0,70": "#f5f5dc",
+    "0,71": "#f5f5dc",
+    "0,72": "#f5f5dc",
+    "1,70": "#f5f5dc",
+    "1,71": "#f5f5dc",
     "1,72": "#386aff",
     "2,70": "#386aff",
     "2,71": "#386aff",
@@ -2290697,16 +2291279,16 @@
     "6,70": "#386aff",
     "6,71": "#386aff",
     "6,72": "#386aff",
-    "0,73": "#386aff",
+    "0,73": "#f5f5dc",
     "1,73": "#386aff",
     "2,73": "#386aff",
     "3,73": "#386aff",
     "4,73": "#386aff",
     "5,73": "#386aff",
     "6,73": "#386aff",
-    "0,74": "#386aff",
-    "0,75": "#386aff",
-    "0,76": "#386aff",
+    "0,74": "#f5f5dc",
+    "0,75": "#f5f5dc",
+    "0,76": "#f5f5dc",
     "1,74": "#386aff",
     "1,75": "#386aff",
     "1,76": "#386aff",
@@ -2291460,25 +2292042,25 @@
     "2,85": "#386aff",
     "0,89": "#386aff",
     "0,90": "#386aff",
-    "0,91": "#386aff",
+    "0,91": "#f5f5dc",
     "1,89": "#386aff",
     "1,90": "#386aff",
     "1,91": "#386aff",
-    "0,92": "#386aff",
-    "0,93": "#386aff",
-    "0,94": "#386aff",
-    "0,95": "#386aff",
+    "0,92": "#f5f5dc",
+    "0,93": "#f5f5dc",
+    "0,94": "#f5f5dc",
+    "0,95": "#f5f5dc",
     "1,92": "#386aff",
-    "0,96": "#386aff",
+    "0,96": "#f5f5dc",
     "0,78": "#386aff",
     "0,79": "#386aff",
     "0,80": "#386aff",
-    "0,77": "#386aff",
-    "0,97": "#386aff",
-    "0,98": "#386aff",
-    "0,99": "#386aff",
-    "0,100": "#386aff",
-    "0,101": "#386aff",
+    "0,77": "#f5f5dc",
+    "0,97": "#f5f5dc",
+    "0,98": "#f5f5dc",
+    "0,99": "#f5f5dc",
+    "0,100": "#f5f5dc",
+    "0,101": "#f5f5dc",
     "0,102": "#386aff",
     "0,103": "#386aff",
     "0,104": "#386aff",
@@ -2291510,15 +2292092,15 @@
     "7,111": "#386aff",
     "0,117": "#386aff",
     "0,118": "#386aff",
-    "0,119": "#386aff",
-    "0,120": "#386aff",
-    "0,121": "#386aff",
-    "0,122": "#386aff",
+    "0,119": "#f5f5dc",
+    "0,120": "#f5f5dc",
+    "0,121": "#f5f5dc",
+    "0,122": "#f5f5dc",
     "1,120": "#386aff",
     "1,121": "#386aff",
     "1,122": "#386aff",
-    "0,123": "#386aff",
-    "0,124": "#386aff",
+    "0,123": "#f5f5dc",
+    "0,124": "#f5f5dc",
     "0,125": "#386aff",
     "0,126": "#386aff",
     "0,127": "#386aff",
@@ -2291675,24 +2292257,24 @@
     "1,154": "#386aff",
     "0,153": "#386aff",
     "1,153": "#386aff",
-    "0,152": "#386aff",
+    "0,152": "#f5f5dc",
     "1,152": "#386aff",
-    "0,150": "#386aff",
-    "0,151": "#386aff",
-    "1,150": "#386aff",
+    "0,150": "#f5f5dc",
+    "0,151": "#f5f5dc",
+    "1,150": "#f5f5dc",
     "1,151": "#386aff",
-    "0,147": "#386aff",
-    "0,148": "#386aff",
-    "0,149": "#386aff",
-    "1,147": "#386aff",
-    "1,148": "#386aff",
-    "1,149": "#386aff",
-    "0,145": "#386aff",
-    "0,146": "#386aff",
+    "0,147": "#f5f5dc",
+    "0,148": "#f5f5dc",
+    "0,149": "#f5f5dc",
+    "1,147": "#f5f5dc",
+    "1,148": "#f5f5dc",
+    "1,149": "#f5f5dc",
+    "0,145": "#f5f5dc",
+    "0,146": "#f5f5dc",
     "1,145": "#386aff",
-    "1,146": "#386aff",
+    "1,146": "#f5f5dc",
     "0,143": "#386aff",
-    "0,144": "#386aff",
+    "0,144": "#f5f5dc",
     "0,138": "#386aff",
     "0,139": "#386aff",
     "0,140": "#386aff",
@@ -2296277,7 +2296859,7 @@
    "markers": {
     "17,122": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2296325,12 +2296907,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791671301249
+   "savedAt": 1794064324160,
+   "editedFrom": 1792345129630
   },
   {
    "id": "sxnw2pk",
-   "name": "Trailor Park M12",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M12",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2303857,6 +2304440,166 @@
     "12,70": {
      "c": "#d8214c",
      "tex": "wtymoug"
+    },
+    "34,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "22,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "21,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "20,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "19,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "18,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "17,121": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "22,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "21,54": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -2306659,8 +2307402,8 @@
     "4,2": "#386aff",
     "4,1": "#386aff",
     "4,0": "#386aff",
-    "0,6": "#386aff",
-    "0,5": "#386aff",
+    "0,6": "#f5f5dc",
+    "0,5": "#f5f5dc",
     "0,4": "#386aff",
     "0,3": "#386aff",
     "0,2": "#386aff",
@@ -2306680,8 +2307423,8 @@
     "2,2": "#386aff",
     "2,1": "#386aff",
     "2,0": "#386aff",
-    "0,8": "#386aff",
-    "0,7": "#386aff",
+    "0,8": "#f5f5dc",
+    "0,7": "#f5f5dc",
     "1,8": "#386aff",
     "1,7": "#386aff",
     "2,8": "#386aff",
@@ -2317432,7 +2318175,7 @@
    "markers": {
     "32,39": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2317520,12 +2318263,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790626992202
+   "savedAt": 1794064324160,
+   "editedFrom": 1793564451863
   },
   {
    "id": "t6ra6j0",
-   "name": "Trailor Park M1",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M1",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2337411,7 +2338155,7 @@
    "markers": {
     "20,32": {
      "kind": "door",
-     "tag": "Trailor int"
+     "tag": "Trailer int"
     }
    },
    "enemies": {
@@ -2337500,14 +2338244,14 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792252738700
+   "savedAt": 1794064324160,
+   "editedFrom": 1793458555331
   },
   {
    "id": "trlint5",
-   "name": "Trailor Int5",
+   "name": "Trailer Int5",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -2343003,13 +2343747,14 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790127903969
+   "savedAt": 1794064324160,
+   "editedFrom": 1790127903969
   },
   {
    "id": "trlnt10",
-   "name": "Trailor Int10",
+   "name": "Trailer Int10",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -2348320,14 +2349065,14 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1791061344401
+   "savedAt": 1794064324160,
+   "editedFrom": 1793458555331
   },
   {
    "id": "uw2goe0",
-   "name": "Trailor Int9",
+   "name": "Trailer Int9",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -2353826,12 +2354571,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790604060631
+   "savedAt": 1794064324160,
+   "editedFrom": 1790604060631
   },
   {
    "id": "ypjilr0",
-   "name": "Trailor Park M6",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M6",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2360745,7 +2361491,97 @@
      "tex": "8aejkny"
     },
     "24,96": "#2a2017",
-    "24,97": "#2a2017"
+    "24,97": "#2a2017",
+    "34,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,117": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "34,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,156": {
+     "c": "#3b2e1c",
+     "hideInPlay": true,
+     "carsOnly": true
+    }
    },
    "bg": {
     "23,50": "#386aff",
@@ -2381496,13 +2382332,14 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790762791498
+   "savedAt": 1794064324160,
+   "editedFrom": 1793564590144
   },
   {
    "id": "zgsg9mr",
-   "name": "Trailor Int11",
+   "name": "Trailer Int11",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -2386758,7 +2387595,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791636246935
+   "savedAt": 1794064324160,
+   "editedFrom": 1791636246935
   },
   {
    "id": "zwlzff7",
@@ -2423536,7 +2424374,7 @@
    "markers": {
     "29,55": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2423632,13 +2424470,14 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791332066131
+   "savedAt": 1794064324160,
+   "editedFrom": 1791332066131
   },
   {
    "id": "gzomnkj",
-   "name": "Trailor Int12",
+   "name": "Trailer Int12",
    "isRoom": true,
-   "roomTag": "Trailor Int",
+   "roomTag": "Trailer Int",
    "floor": "",
    "section": "",
    "cols": 40,
@@ -2428724,8 +2429563,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792249849359,
-   "editedFrom": 1792249846598
+   "savedAt": 1794064324160,
+   "editedFrom": 1792249849359
   },
   {
    "id": "vcfrm02",
@@ -2509557,8 +2510396,8 @@
   },
   {
    "id": "trpm16a",
-   "name": "Trailor Park M16",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M16",
+   "floor": "Trailer Park",
    "section": "",
    "cols": 160,
    "rows": 46,
@@ -2527665,7 +2528504,7 @@
     },
     "33,96": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     }
    },
    "enemies": {
@@ -2527762,8 +2528601,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793458555331,
-   "editedFrom": 1792978035805
+   "savedAt": 1794064324160,
+   "editedFrom": 1793458555331
   },
   {
    "id": "lqroom1",
@@ -2664833,8 +2665672,8 @@
   },
   {
    "id": "trpm17a",
-   "name": "Trailor Park M17",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M17",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2674660,7 +2675499,7 @@
     "15,19": "#386aff",
     "15,20": "#386aff",
     "15,21": "#386aff",
-    "15,22": "#386aff",
+    "15,22": "#2a2017",
     "15,23": "#386aff",
     "15,24": "#386aff",
     "15,25": "#386aff",
@@ -2674779,7 +2675618,7 @@
     "15,138": "#386aff",
     "15,139": "#386aff",
     "15,140": "#386aff",
-    "15,141": "#386aff",
+    "15,141": "#2a2017",
     "15,142": "#386aff",
     "15,143": "#386aff",
     "15,144": "#386aff",
@@ -2674820,7 +2675659,7 @@
     "16,19": "#386aff",
     "16,20": "#386aff",
     "16,21": "#386aff",
-    "16,22": "#386aff",
+    "16,22": "#2a2017",
     "16,23": "#386aff",
     "16,24": "#386aff",
     "16,25": "#386aff",
@@ -2674939,7 +2675778,7 @@
     "16,138": "#386aff",
     "16,139": "#386aff",
     "16,140": "#386aff",
-    "16,141": "#386aff",
+    "16,141": "#2a2017",
     "16,142": "#386aff",
     "16,143": "#386aff",
     "16,144": "#386aff",
@@ -2674979,9 +2675818,9 @@
     "17,18": "#386aff",
     "17,19": "#386aff",
     "17,20": "#386aff",
-    "17,21": "#386aff",
-    "17,22": "#386aff",
-    "17,23": "#386aff",
+    "17,21": "#3a3f52",
+    "17,22": "#2a2017",
+    "17,23": "#3a3f52",
     "17,24": "#386aff",
     "17,25": "#386aff",
     "17,26": "#386aff",
@@ -2675098,9 +2675937,9 @@
     "17,137": "#386aff",
     "17,138": "#386aff",
     "17,139": "#386aff",
-    "17,140": "#386aff",
-    "17,141": "#386aff",
-    "17,142": "#386aff",
+    "17,140": "#3a3f52",
+    "17,141": "#2a2017",
+    "17,142": "#3a3f52",
     "17,143": "#386aff",
     "17,144": "#386aff",
     "17,145": "#386aff",
@@ -2675139,9 +2675978,9 @@
     "18,18": "#386aff",
     "18,19": "#386aff",
     "18,20": "#386aff",
-    "18,21": "#386aff",
-    "18,22": "#386aff",
-    "18,23": "#386aff",
+    "18,21": "#3a3f52",
+    "18,22": "#2a2017",
+    "18,23": "#3a3f52",
     "18,24": "#386aff",
     "18,25": "#386aff",
     "18,26": "#386aff",
@@ -2675258,9 +2676097,9 @@
     "18,137": "#386aff",
     "18,138": "#386aff",
     "18,139": "#386aff",
-    "18,140": "#386aff",
-    "18,141": "#386aff",
-    "18,142": "#386aff",
+    "18,140": "#3a3f52",
+    "18,141": "#2a2017",
+    "18,142": "#3a3f52",
     "18,143": "#386aff",
     "18,144": "#386aff",
     "18,145": "#386aff",
@@ -2675299,9 +2676138,9 @@
     "19,18": "#386aff",
     "19,19": "#386aff",
     "19,20": "#386aff",
-    "19,21": "#386aff",
-    "19,22": "#386aff",
-    "19,23": "#386aff",
+    "19,21": "#3a3f52",
+    "19,22": "#2a2017",
+    "19,23": "#3a3f52",
     "19,24": "#386aff",
     "19,25": "#386aff",
     "19,26": "#386aff",
@@ -2675418,9 +2676257,9 @@
     "19,137": "#386aff",
     "19,138": "#386aff",
     "19,139": "#386aff",
-    "19,140": "#386aff",
-    "19,141": "#386aff",
-    "19,142": "#386aff",
+    "19,140": "#3a3f52",
+    "19,141": "#2a2017",
+    "19,142": "#3a3f52",
     "19,143": "#386aff",
     "19,144": "#386aff",
     "19,145": "#386aff",
@@ -2675460,7 +2676299,7 @@
     "20,19": "#386aff",
     "20,20": "#386aff",
     "20,21": "#386aff",
-    "20,22": "#386aff",
+    "20,22": "#2a2017",
     "20,23": "#386aff",
     "20,24": "#386aff",
     "20,25": "#386aff",
@@ -2675579,7 +2676418,7 @@
     "20,138": "#386aff",
     "20,139": "#386aff",
     "20,140": "#386aff",
-    "20,141": "#386aff",
+    "20,141": "#2a2017",
     "20,142": "#386aff",
     "20,143": "#386aff",
     "20,144": "#386aff",
@@ -2675620,7 +2676459,7 @@
     "21,19": "#386aff",
     "21,20": "#386aff",
     "21,21": "#386aff",
-    "21,22": "#386aff",
+    "21,22": "#2a2017",
     "21,23": "#386aff",
     "21,24": "#386aff",
     "21,25": "#386aff",
@@ -2675739,7 +2676578,7 @@
     "21,138": "#386aff",
     "21,139": "#386aff",
     "21,140": "#386aff",
-    "21,141": "#386aff",
+    "21,141": "#2a2017",
     "21,142": "#386aff",
     "21,143": "#386aff",
     "21,144": "#386aff",
@@ -2675780,7 +2676619,7 @@
     "22,19": "#386aff",
     "22,20": "#386aff",
     "22,21": "#386aff",
-    "22,22": "#386aff",
+    "22,22": "#2a2017",
     "22,23": "#386aff",
     "22,24": "#386aff",
     "22,25": "#386aff",
@@ -2675899,7 +2676738,7 @@
     "22,138": "#386aff",
     "22,139": "#386aff",
     "22,140": "#386aff",
-    "22,141": "#386aff",
+    "22,141": "#2a2017",
     "22,142": "#386aff",
     "22,143": "#386aff",
     "22,144": "#386aff",
@@ -2675940,7 +2676779,7 @@
     "23,19": "#386aff",
     "23,20": "#386aff",
     "23,21": "#386aff",
-    "23,22": "#386aff",
+    "23,22": "#2a2017",
     "23,23": "#386aff",
     "23,24": "#386aff",
     "23,25": "#386aff",
@@ -2676059,7 +2676898,7 @@
     "23,138": "#386aff",
     "23,139": "#386aff",
     "23,140": "#386aff",
-    "23,141": "#386aff",
+    "23,141": "#2a2017",
     "23,142": "#386aff",
     "23,143": "#386aff",
     "23,144": "#386aff",
@@ -2676100,7 +2676939,7 @@
     "24,19": "#386aff",
     "24,20": "#386aff",
     "24,21": "#386aff",
-    "24,22": "#386aff",
+    "24,22": "#2a2017",
     "24,23": "#386aff",
     "24,24": "#386aff",
     "24,25": "#386aff",
@@ -2676219,7 +2677058,7 @@
     "24,138": "#386aff",
     "24,139": "#386aff",
     "24,140": "#386aff",
-    "24,141": "#386aff",
+    "24,141": "#2a2017",
     "24,142": "#386aff",
     "24,143": "#386aff",
     "24,144": "#386aff",
@@ -2676259,9 +2677098,9 @@
     "25,18": "#386aff",
     "25,19": "#386aff",
     "25,20": "#386aff",
-    "25,21": "#386aff",
-    "25,22": "#386aff",
-    "25,23": "#386aff",
+    "25,21": "#3a3f52",
+    "25,22": "#2a2017",
+    "25,23": "#3a3f52",
     "25,24": "#386aff",
     "25,25": "#386aff",
     "25,26": "#386aff",
@@ -2676378,9 +2677217,9 @@
     "25,137": "#386aff",
     "25,138": "#386aff",
     "25,139": "#386aff",
-    "25,140": "#386aff",
-    "25,141": "#386aff",
-    "25,142": "#386aff",
+    "25,140": "#3a3f52",
+    "25,141": "#2a2017",
+    "25,142": "#3a3f52",
     "25,143": "#386aff",
     "25,144": "#386aff",
     "25,145": "#386aff",
@@ -2676420,7 +2677259,7 @@
     "26,19": "#386aff",
     "26,20": "#386aff",
     "26,21": "#386aff",
-    "26,22": "#386aff",
+    "26,22": "#2a2017",
     "26,23": "#386aff",
     "26,24": "#386aff",
     "26,25": "#386aff",
@@ -2676539,7 +2677378,7 @@
     "26,138": "#386aff",
     "26,139": "#386aff",
     "26,140": "#386aff",
-    "26,141": "#386aff",
+    "26,141": "#2a2017",
     "26,142": "#386aff",
     "26,143": "#386aff",
     "26,144": "#386aff",
@@ -2676579,9 +2677418,9 @@
     "27,18": "#386aff",
     "27,19": "#386aff",
     "27,20": "#386aff",
-    "27,21": "#386aff",
-    "27,22": "#386aff",
-    "27,23": "#386aff",
+    "27,21": "#3a3f52",
+    "27,22": "#2a2017",
+    "27,23": "#3a3f52",
     "27,24": "#386aff",
     "27,25": "#386aff",
     "27,26": "#386aff",
@@ -2676698,9 +2677537,9 @@
     "27,137": "#386aff",
     "27,138": "#386aff",
     "27,139": "#386aff",
-    "27,140": "#386aff",
-    "27,141": "#386aff",
-    "27,142": "#386aff",
+    "27,140": "#3a3f52",
+    "27,141": "#2a2017",
+    "27,142": "#3a3f52",
     "27,143": "#386aff",
     "27,144": "#386aff",
     "27,145": "#386aff",
@@ -2676740,7 +2677579,7 @@
     "28,19": "#386aff",
     "28,20": "#386aff",
     "28,21": "#386aff",
-    "28,22": "#386aff",
+    "28,22": "#2a2017",
     "28,23": "#386aff",
     "28,24": "#386aff",
     "28,25": "#386aff",
@@ -2676859,7 +2677698,7 @@
     "28,138": "#386aff",
     "28,139": "#386aff",
     "28,140": "#386aff",
-    "28,141": "#386aff",
+    "28,141": "#2a2017",
     "28,142": "#386aff",
     "28,143": "#386aff",
     "28,144": "#386aff",
@@ -2676899,9 +2677738,9 @@
     "29,18": "#386aff",
     "29,19": "#386aff",
     "29,20": "#386aff",
-    "29,21": "#386aff",
-    "29,22": "#386aff",
-    "29,23": "#386aff",
+    "29,21": "#3a3f52",
+    "29,22": "#2a2017",
+    "29,23": "#3a3f52",
     "29,24": "#386aff",
     "29,25": "#386aff",
     "29,26": "#386aff",
@@ -2677018,9 +2677857,9 @@
     "29,137": "#386aff",
     "29,138": "#386aff",
     "29,139": "#386aff",
-    "29,140": "#386aff",
-    "29,141": "#386aff",
-    "29,142": "#386aff",
+    "29,140": "#3a3f52",
+    "29,141": "#2a2017",
+    "29,142": "#3a3f52",
     "29,143": "#386aff",
     "29,144": "#386aff",
     "29,145": "#386aff",
@@ -2677060,7 +2677899,7 @@
     "30,19": "#386aff",
     "30,20": "#386aff",
     "30,21": "#386aff",
-    "30,22": "#386aff",
+    "30,22": "#2a2017",
     "30,23": "#386aff",
     "30,24": "#386aff",
     "30,25": "#386aff",
@@ -2677179,7 +2678018,7 @@
     "30,138": "#386aff",
     "30,139": "#386aff",
     "30,140": "#386aff",
-    "30,141": "#386aff",
+    "30,141": "#2a2017",
     "30,142": "#386aff",
     "30,143": "#386aff",
     "30,144": "#386aff",
@@ -2677219,9 +2678058,9 @@
     "31,18": "#386aff",
     "31,19": "#386aff",
     "31,20": "#386aff",
-    "31,21": "#386aff",
-    "31,22": "#386aff",
-    "31,23": "#386aff",
+    "31,21": "#3a3f52",
+    "31,22": "#2a2017",
+    "31,23": "#3a3f52",
     "31,24": "#386aff",
     "31,25": "#386aff",
     "31,26": "#386aff",
@@ -2677338,9 +2678177,9 @@
     "31,137": "#386aff",
     "31,138": "#386aff",
     "31,139": "#386aff",
-    "31,140": "#386aff",
-    "31,141": "#386aff",
-    "31,142": "#386aff",
+    "31,140": "#3a3f52",
+    "31,141": "#2a2017",
+    "31,142": "#3a3f52",
     "31,143": "#386aff",
     "31,144": "#386aff",
     "31,145": "#386aff",
@@ -2677380,7 +2678219,7 @@
     "32,19": "#386aff",
     "32,20": "#386aff",
     "32,21": "#386aff",
-    "32,22": "#386aff",
+    "32,22": "#2a2017",
     "32,23": "#386aff",
     "32,24": "#386aff",
     "32,25": "#386aff",
@@ -2677499,7 +2678338,7 @@
     "32,138": "#386aff",
     "32,139": "#386aff",
     "32,140": "#386aff",
-    "32,141": "#386aff",
+    "32,141": "#2a2017",
     "32,142": "#386aff",
     "32,143": "#386aff",
     "32,144": "#386aff",
@@ -2677539,9 +2678378,9 @@
     "33,18": "#386aff",
     "33,19": "#386aff",
     "33,20": "#386aff",
-    "33,21": "#386aff",
-    "33,22": "#386aff",
-    "33,23": "#386aff",
+    "33,21": "#3a3f52",
+    "33,22": "#2a2017",
+    "33,23": "#3a3f52",
     "33,24": "#386aff",
     "33,25": "#386aff",
     "33,26": "#386aff",
@@ -2677658,9 +2678497,9 @@
     "33,137": "#386aff",
     "33,138": "#386aff",
     "33,139": "#386aff",
-    "33,140": "#386aff",
-    "33,141": "#386aff",
-    "33,142": "#386aff",
+    "33,140": "#3a3f52",
+    "33,141": "#2a2017",
+    "33,142": "#3a3f52",
     "33,143": "#386aff",
     "33,144": "#386aff",
     "33,145": "#386aff",
@@ -2677675,7 +2678514,7 @@
     "33,154": "#386aff",
     "33,155": "#386aff",
     "33,156": "#386aff",
-    "33,157": "#386aff",
+    "33,157": "#3a3f52",
     "33,158": "#386aff",
     "33,159": "#386aff",
     "34,0": "#386aff",
@@ -2677700,7 +2678539,7 @@
     "34,19": "#386aff",
     "34,20": "#386aff",
     "34,21": "#386aff",
-    "34,22": "#386aff",
+    "34,22": "#2a2017",
     "34,23": "#386aff",
     "34,24": "#386aff",
     "34,25": "#386aff",
@@ -2677819,7 +2678658,7 @@
     "34,138": "#386aff",
     "34,139": "#386aff",
     "34,140": "#386aff",
-    "34,141": "#386aff",
+    "34,141": "#2a2017",
     "34,142": "#386aff",
     "34,143": "#386aff",
     "34,144": "#386aff",
@@ -2684981,6 +2685820,17 @@
       "oy": 0,
       "ox": 0,
       "z": 6
+     },
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 44
      }
     ],
     "28,9": [
@@ -2685015,23 +2685865,6 @@
       "oy": 0.148936,
       "ox": 0,
       "z": 8
-     }
-    ],
-    "29,133": [
-     {
-      "kind": "prop",
-      "propId": "rkcrowd",
-      "size": 12,
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "oy": 0,
-      "ox": 0,
-      "z": 9
      }
     ],
     "24,32": [
@@ -2685204,30 +2686037,2112 @@
       "z": 19
      }
     ],
-    "32,157": [
+    "17,0": [
      {
-      "kind": "prop",
-      "propId": "2yao24w",
-      "size": 3,
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
       "solid": false,
+      "size": 1,
       "inFront": false,
       "rot": 0,
       "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "oy": 0.098361,
+      "z": 21
+     }
+    ],
+    "17,1": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 22
+     }
+    ],
+    "17,2": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 23
+     }
+    ],
+    "17,3": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 24
+     }
+    ],
+    "17,4": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 25
+     }
+    ],
+    "17,5": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 26
+     }
+    ],
+    "17,6": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 27
+     }
+    ],
+    "17,7": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 28
+     }
+    ],
+    "17,8": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 29
+     }
+    ],
+    "17,9": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 30
+     }
+    ],
+    "17,10": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 31
+     }
+    ],
+    "17,11": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 32
+     }
+    ],
+    "17,12": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 33
+     }
+    ],
+    "17,13": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 34
+     }
+    ],
+    "17,14": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 35
+     }
+    ],
+    "17,15": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 36
+     }
+    ],
+    "17,16": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 37
+     }
+    ],
+    "17,17": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 38
+     }
+    ],
+    "17,18": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 39
+     }
+    ],
+    "17,19": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 40
+     }
+    ],
+    "17,20": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 41
+     }
+    ],
+    "17,21": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 42
+     }
+    ],
+    "17,22": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 43
+     }
+    ],
+    "25,1": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 45
+     }
+    ],
+    "25,2": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 46
+     }
+    ],
+    "25,3": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 47
+     }
+    ],
+    "25,4": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 48
+     }
+    ],
+    "25,5": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 49
+     }
+    ],
+    "25,6": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 50
+     }
+    ],
+    "25,7": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 51
+     }
+    ],
+    "25,8": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 52
+     }
+    ],
+    "25,9": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 53
+     }
+    ],
+    "25,10": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 54
+     }
+    ],
+    "25,11": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 55
+     }
+    ],
+    "25,12": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 56
+     }
+    ],
+    "25,13": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 57
+     }
+    ],
+    "25,14": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 58
+     }
+    ],
+    "25,15": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 59
+     }
+    ],
+    "25,16": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 60
+     }
+    ],
+    "25,17": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 61
+     }
+    ],
+    "25,18": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 62
+     }
+    ],
+    "25,19": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 63
+     }
+    ],
+    "25,20": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 64
+     }
+    ],
+    "18,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
       "ox": 0,
-      "z": 20
+      "z": 65
+     }
+    ],
+    "19,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 66
+     }
+    ],
+    "20,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 67
+     }
+    ],
+    "21,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 68
+     }
+    ],
+    "22,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 69
+     }
+    ],
+    "23,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 70
+     }
+    ],
+    "24,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 71
+     }
+    ],
+    "25,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 72
+     }
+    ],
+    "26,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 73
+     }
+    ],
+    "27,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 74
+     }
+    ],
+    "28,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 75
+     }
+    ],
+    "29,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 76
+     }
+    ],
+    "30,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 77
+     }
+    ],
+    "31,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 78
+     }
+    ],
+    "32,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 79
+     }
+    ],
+    "33,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 80
+     }
+    ],
+    "34,22": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 81
+     }
+    ],
+    "17,141": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 82
+     }
+    ],
+    "17,142": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 83
+     }
+    ],
+    "17,143": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 84
+     }
+    ],
+    "17,144": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 85
+     }
+    ],
+    "17,145": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 86
+     }
+    ],
+    "17,146": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 87
+     }
+    ],
+    "17,147": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 88
+     }
+    ],
+    "17,148": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 89
+     }
+    ],
+    "17,149": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 90
+     }
+    ],
+    "17,150": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 91
+     }
+    ],
+    "17,151": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 92
+     }
+    ],
+    "17,152": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 93
+     }
+    ],
+    "17,153": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 94
+     }
+    ],
+    "17,154": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 95
+     }
+    ],
+    "17,155": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 96
+     }
+    ],
+    "17,156": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 97
+     }
+    ],
+    "17,157": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 98
+     }
+    ],
+    "17,158": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 99
+     }
+    ],
+    "17,159": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 100
+     }
+    ],
+    "25,159": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 101
+     }
+    ],
+    "18,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 102
+     }
+    ],
+    "19,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 103
+     }
+    ],
+    "20,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 104
+     }
+    ],
+    "21,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 105
+     }
+    ],
+    "22,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 106
+     }
+    ],
+    "23,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 107
+     }
+    ],
+    "24,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 108
+     }
+    ],
+    "25,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 109
+     }
+    ],
+    "26,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 110
+     }
+    ],
+    "27,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 111
+     }
+    ],
+    "28,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 112
+     }
+    ],
+    "29,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 113
+     }
+    ],
+    "30,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 114
+     }
+    ],
+    "31,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 115
+     }
+    ],
+    "32,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 116
+     }
+    ],
+    "33,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 117
+     }
+    ],
+    "34,141": [
+     {
+      "kind": "shape",
+      "shape": "ladder",
+      "tint": "#2a2017",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "ox": 0,
+      "z": 118
+     }
+    ],
+    "25,21": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 136
+     }
+    ],
+    "25,158": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 137
+     }
+    ],
+    "25,156": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 138
+     },
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 144
+     }
+    ],
+    "25,157": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 139
+     },
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 140
+     }
+    ],
+    "25,153": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 141
+     },
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 151
+     }
+    ],
+    "25,154": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 142
+     }
+    ],
+    "25,155": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 143
+     }
+    ],
+    "25,147": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 145
+     },
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 157
+     }
+    ],
+    "25,148": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 146
+     }
+    ],
+    "25,149": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 147
+     }
+    ],
+    "25,150": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 148
+     }
+    ],
+    "25,151": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 149
+     }
+    ],
+    "25,152": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 150
+     }
+    ],
+    "25,142": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 152
+     }
+    ],
+    "25,143": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 153
+     }
+    ],
+    "25,144": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 154
+     }
+    ],
+    "25,145": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 155
+     }
+    ],
+    "25,146": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 156
+     }
+    ],
+    "22,128": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 158
+     }
+    ],
+    "22,129": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 159
+     }
+    ],
+    "22,130": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 160
+     }
+    ],
+    "22,131": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 161
+     }
+    ],
+    "22,132": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 162
+     }
+    ],
+    "22,133": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 163
+     },
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 164
+     }
+    ],
+    "22,140": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 165
+     }
+    ],
+    "22,139": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 166
+     }
+    ],
+    "22,138": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 167
+     }
+    ],
+    "22,137": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 168
+     }
+    ],
+    "22,136": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 169
+     }
+    ],
+    "22,135": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 170
+     }
+    ],
+    "22,134": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 171
      }
     ]
    },
-   "climb": {},
+   "climb": {
+    "17,0": {
+     "kind": "cliff"
+    },
+    "17,1": {
+     "kind": "cliff"
+    },
+    "17,2": {
+     "kind": "cliff"
+    },
+    "17,3": {
+     "kind": "cliff"
+    },
+    "17,4": {
+     "kind": "cliff"
+    },
+    "17,5": {
+     "kind": "cliff"
+    },
+    "17,6": {
+     "kind": "cliff"
+    },
+    "17,7": {
+     "kind": "cliff"
+    },
+    "17,8": {
+     "kind": "cliff"
+    },
+    "17,9": {
+     "kind": "cliff"
+    },
+    "17,10": {
+     "kind": "cliff"
+    },
+    "17,11": {
+     "kind": "cliff"
+    },
+    "17,12": {
+     "kind": "cliff"
+    },
+    "17,13": {
+     "kind": "cliff"
+    },
+    "17,14": {
+     "kind": "cliff"
+    },
+    "17,15": {
+     "kind": "cliff"
+    },
+    "17,16": {
+     "kind": "cliff"
+    },
+    "17,17": {
+     "kind": "cliff"
+    },
+    "17,18": {
+     "kind": "cliff"
+    },
+    "17,19": {
+     "kind": "cliff"
+    },
+    "17,20": {
+     "kind": "cliff"
+    },
+    "17,21": {
+     "kind": "cliff"
+    },
+    "17,22": {
+     "kind": "cliff"
+    },
+    "25,0": {
+     "kind": "cliff"
+    },
+    "25,1": {
+     "kind": "cliff"
+    },
+    "25,2": {
+     "kind": "cliff"
+    },
+    "25,3": {
+     "kind": "cliff"
+    },
+    "25,4": {
+     "kind": "cliff"
+    },
+    "25,5": {
+     "kind": "cliff"
+    },
+    "25,6": {
+     "kind": "cliff"
+    },
+    "25,7": {
+     "kind": "cliff"
+    },
+    "25,8": {
+     "kind": "cliff"
+    },
+    "25,9": {
+     "kind": "cliff"
+    },
+    "25,10": {
+     "kind": "cliff"
+    },
+    "25,11": {
+     "kind": "cliff"
+    },
+    "25,12": {
+     "kind": "cliff"
+    },
+    "25,13": {
+     "kind": "cliff"
+    },
+    "25,14": {
+     "kind": "cliff"
+    },
+    "25,15": {
+     "kind": "cliff"
+    },
+    "25,16": {
+     "kind": "cliff"
+    },
+    "25,17": {
+     "kind": "cliff"
+    },
+    "25,18": {
+     "kind": "cliff"
+    },
+    "25,19": {
+     "kind": "cliff"
+    },
+    "25,20": {
+     "kind": "cliff"
+    },
+    "18,22": {
+     "kind": "ladder"
+    },
+    "19,22": {
+     "kind": "ladder"
+    },
+    "20,22": {
+     "kind": "ladder"
+    },
+    "21,22": {
+     "kind": "ladder"
+    },
+    "22,22": {
+     "kind": "ladder"
+    },
+    "23,22": {
+     "kind": "ladder"
+    },
+    "24,22": {
+     "kind": "ladder"
+    },
+    "25,22": {
+     "kind": "ladder"
+    },
+    "26,22": {
+     "kind": "ladder"
+    },
+    "27,22": {
+     "kind": "ladder"
+    },
+    "28,22": {
+     "kind": "ladder"
+    },
+    "29,22": {
+     "kind": "ladder"
+    },
+    "30,22": {
+     "kind": "ladder"
+    },
+    "31,22": {
+     "kind": "ladder"
+    },
+    "32,22": {
+     "kind": "ladder"
+    },
+    "33,22": {
+     "kind": "ladder"
+    },
+    "34,22": {
+     "kind": "ladder"
+    },
+    "17,141": {
+     "kind": "cliff"
+    },
+    "17,142": {
+     "kind": "cliff"
+    },
+    "17,143": {
+     "kind": "cliff"
+    },
+    "17,144": {
+     "kind": "cliff"
+    },
+    "17,145": {
+     "kind": "cliff"
+    },
+    "17,146": {
+     "kind": "cliff"
+    },
+    "17,147": {
+     "kind": "cliff"
+    },
+    "17,148": {
+     "kind": "cliff"
+    },
+    "17,149": {
+     "kind": "cliff"
+    },
+    "17,150": {
+     "kind": "cliff"
+    },
+    "17,151": {
+     "kind": "cliff"
+    },
+    "17,152": {
+     "kind": "cliff"
+    },
+    "17,153": {
+     "kind": "cliff"
+    },
+    "17,154": {
+     "kind": "cliff"
+    },
+    "17,155": {
+     "kind": "cliff"
+    },
+    "17,156": {
+     "kind": "cliff"
+    },
+    "17,157": {
+     "kind": "cliff"
+    },
+    "17,158": {
+     "kind": "cliff"
+    },
+    "17,159": {
+     "kind": "cliff"
+    },
+    "25,159": {
+     "kind": "cliff"
+    },
+    "18,141": {
+     "kind": "ladder"
+    },
+    "19,141": {
+     "kind": "ladder"
+    },
+    "20,141": {
+     "kind": "ladder"
+    },
+    "21,141": {
+     "kind": "ladder"
+    },
+    "22,141": {
+     "kind": "ladder"
+    },
+    "23,141": {
+     "kind": "ladder"
+    },
+    "24,141": {
+     "kind": "ladder"
+    },
+    "25,141": {
+     "kind": "ladder"
+    },
+    "26,141": {
+     "kind": "ladder"
+    },
+    "27,141": {
+     "kind": "ladder"
+    },
+    "28,141": {
+     "kind": "ladder"
+    },
+    "29,141": {
+     "kind": "ladder"
+    },
+    "30,141": {
+     "kind": "ladder"
+    },
+    "31,141": {
+     "kind": "ladder"
+    },
+    "32,141": {
+     "kind": "ladder"
+    },
+    "33,141": {
+     "kind": "ladder"
+    },
+    "34,141": {
+     "kind": "ladder"
+    },
+    "25,142": {
+     "kind": "cliff"
+    },
+    "25,143": {
+     "kind": "cliff"
+    },
+    "25,144": {
+     "kind": "cliff"
+    },
+    "25,145": {
+     "kind": "cliff"
+    },
+    "25,146": {
+     "kind": "cliff"
+    },
+    "25,147": {
+     "kind": "cliff"
+    },
+    "25,148": {
+     "kind": "cliff"
+    },
+    "25,149": {
+     "kind": "cliff"
+    },
+    "25,150": {
+     "kind": "cliff"
+    },
+    "25,151": {
+     "kind": "cliff"
+    },
+    "25,152": {
+     "kind": "cliff"
+    },
+    "25,153": {
+     "kind": "cliff"
+    },
+    "25,154": {
+     "kind": "cliff"
+    },
+    "25,155": {
+     "kind": "cliff"
+    },
+    "25,156": {
+     "kind": "cliff"
+    },
+    "25,157": {
+     "kind": "cliff"
+    },
+    "25,158": {
+     "kind": "cliff"
+    }
+   },
    "hazard": {},
    "markers": {
     "33,19": {
      "kind": "door",
-     "tag": "Trailor Int"
+     "tag": "Trailer Int"
     },
     "27,151": {
      "kind": "pedestal",
@@ -2685303,7 +2688218,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -2685319,16 +2688234,16 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1793566211091,
-   "editedFrom": 1793560166614
+   "savedAt": 1794064324160,
+   "editedFrom": 1793841791086
   },
   {
    "id": "trpm18a",
-   "name": "Trailor Park M18",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M18",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 200,
    "rows": 46,
@@ -2714910,12 +2717825,13 @@
      "accepts": ""
     }
    },
-   "savedAt": 1793621733944
+   "savedAt": 1794064324160,
+   "editedFrom": 1793621733944
   },
   {
    "id": "trpm19a",
-   "name": "Trailor Park M19",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M19",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2736492,7 +2739408,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -2736508,11 +2739424,11 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "editedFrom": 1793955289012,
-   "savedAt": 1793957615291
+   "editedFrom": 1793957615291,
+   "savedAt": 1794064324160
   },
   {
    "id": "vcfrm13",
@@ -2757955,8 +2760871,8 @@
   },
   {
    "id": "trpm20a",
-   "name": "Trailor Park M20",
-   "floor": "Trailor Park",
+   "name": "Trailer Park M20",
+   "floor": "Trailer Park",
    "section": "Middle",
    "cols": 160,
    "rows": 46,
@@ -2781464,7 +2784380,7 @@
     },
     "E2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     },
     "S1": {
      "open": false,
@@ -2781480,10 +2784396,11 @@
     },
     "W2": {
      "open": true,
-     "accepts": "Trailor Park"
+     "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1794036306074
+   "savedAt": 1794064324160,
+   "editedFrom": 1794036306074
   }
  ],
  "stamps": [

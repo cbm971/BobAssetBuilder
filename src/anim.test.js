@@ -440,6 +440,9 @@ describe("floor end scenes and text layers", () => {
     expect(floorEndAnim([any, tp], "Sewer")).toBe(any);
     expect(floorEndAnim([tp, placed], "Sewer")).toBe(null);
     expect(floorEndAnim([placed], "Trailor Park")).toBe(null);
+    // The floor was renamed Trailer Park (2026-11-07): the old spelling still finds its scene.
+    expect(floorEndAnim([any, tp], "Trailer Park")).toBe(tp);
+    expect(floorEndAnim([any, { ...tp, floor: "Trailer Park" }], "Trailor Park").floor).toBe("Trailer Park");
     expect(floorEndAnim(null, "x")).toBe(null);
   });
   test("a text layer survives migrate with its words and look, clamped; a floor scene keeps its floor", () => {

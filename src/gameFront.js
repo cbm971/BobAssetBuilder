@@ -335,7 +335,7 @@ export const normalizeGameOptions = (o) => {
 // look's: the Tree Tops 2 NPC who says it wears the Bob Li starter look itself (2026-10-31).
 // `picked` is every pickup (a record from before it was counted starts at the items already found), repeats and all (no lock reads it: Super Bob is 500 UNIQUE items, `found`); `kills` is every hostile
 // defeated and `rangedKills` the ones whose last blow was a shot or a throw (Agent Bob 1,000, Bob The Alien 500).
-export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, picked: 0, games: 0 });
+export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, floorKills: {}, picked: 0, games: 0 });
 export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
 export const normalizeGameRecord = (r) => {
   const b = newGameRecord();
@@ -350,7 +350,10 @@ export const normalizeGameRecord = (r) => {
     if (f && v && typeof v === "object") for (const who of Object.keys(v)) { const k = Math.round(Number(v[who])); if (who && k >= 1 && k <= DIFFICULTIES.length) o[who] = k; }
     if (Object.keys(o).length) fd[f] = o;
   }
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), picked: r.picked === undefined ? ids(r.found).length : n(r.picked), games: n(r.games) };
+  // floorKills: enemies defeated on each floor, by floorKey (so either spelling of a floor is one count).
+  const fk = {};
+  if (r.floorKills && typeof r.floorKills === "object") for (const f of Object.keys(r.floorKills)) { const k = floorKey(f), v = n(r.floorKills[f]); if (k && v) fk[k] = (fk[k] || 0) + v; }
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), floorKills: fk, picked: r.picked === undefined ? ids(r.found).length : n(r.picked), games: n(r.games) };
 };
 // Returns the SAME object when nothing changed, so a caller can skip the write. A pickup of something
 // already found changes nothing but the count of pickups.
@@ -359,7 +362,8 @@ export const recordMet = (rec, dialogueName) => {
   const k = normName(dialogueName), had = rec.met || [];
   return !k || had.includes(k) ? rec : { ...rec, met: [...had, k] };
 };
-export const recordDefeated = (rec, id, ranged) => (!id ? rec : { ...rec, kills: rec.kills + 1, rangedKills: (rec.rangedKills || 0) + (ranged ? 1 : 0), defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
+// `floor`: the floor the kill happened on (the level's Floor, or the run's inside a room) — floorKills.
+export const recordDefeated = (rec, id, ranged, floor) => (!id ? rec : { ...rec, kills: rec.kills + 1, ...(floorKey(floor) ? { floorKills: { ...(rec.floorKills || {}), [floorKey(floor)]: ((rec.floorKills || {})[floorKey(floor)] || 0) + 1 } } : {}), rangedKills: (rec.rangedKills || 0) + (ranged ? 1 : 0), defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
 export const recordFloorDone = (rec, floor, score, lookName, diffId) => {
   const who = normName(lookName), had = (rec.floorsWith && rec.floorsWith[floor]) || [];
   const floorsWith = !floor || !who || had.includes(who) ? rec.floorsWith || {} : { ...(rec.floorsWith || {}), [floor]: [...had, who] };
@@ -391,7 +395,7 @@ export const floorMark = (floor) => { const m = String(floor || "").trim().match
 // A floor with a DRAWN picture instead of its letter (gameShell.js FloorMedal): the Trailor Park is a
 // little trailer and Vietnam an army helmet (Blake, 2026-10-25: "an outline of a small simple
 // identifyable Trailor", "That will be an outline of a helmet"). Either spelling of Trailor counts.
-export const FLOOR_ICONS = { trailorpark: "trailer", vietnam: "helmet" };
+export const FLOOR_ICONS = { trailerpark: "trailer", vietnam: "helmet" };
 export const floorIcon = (floor) => FLOOR_ICONS[floorKey(floor)] || null;
 // Floors the card shows a medal for even before a run can start on them (Blake, 2026-10-25: make the
 // Vietnam medal "even though there isn't enough to route to vietnam yet"). App.js gameFloors adds
@@ -429,10 +433,10 @@ export const lookFloorMedals = (rec, lookName, floors) => {
 // A lock's name is matched with its spaces taken out, so "VietBob" (how he wrote it) and the look's
 // saved "Viet Bob" are one fighter, and a rename either way keeps the lock.
 export const STARTER_LOCKS = [
-  { name: "bobby", floor: "Trailor Park" },
+  { name: "bobby", floor: "Trailer Park" },
   { name: "bobert", items: 50 },
-  { name: "roberta", floor: "Trailor Park", as: "rob" },
-  { name: "rob", floor: "Trailor Park", diff: "hard" }, // Blake (2026-10-18): Rob is locked until the Trailor Park is beaten on Hard, by anyone
+  { name: "roberta", floor: "Trailer Park", as: "rob" },
+  { name: "rob", floor: "Trailer Park", diff: "hard" }, // Blake (2026-10-18): Rob is locked until the Trailor Park is beaten on Hard, by anyone
   { name: "viet bob", floor: "Vietnam", diff: "hard" }, // Blake (2026-10-24): "lock the VietBob Character behind beating the vietnam level on Hard"
   { name: "bob li", met: "Bob Li" }, // Blake (2026-10-24): open once the "Bob Li" conversation has been met in a game (record.met)
   { name: "robbie", items: 100 }, // Blake (2026-10-25): lock Robbie behind 100 items found (same rule as Bobert's 50)
@@ -440,10 +444,10 @@ export const STARTER_LOCKS = [
   { name: "super bob", items: 500 }, // Blake (2026-11-06): "It should require picking up 500 unique items" — distinct items found, like Robert's 200; repeats never count
   { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
-  { name: "the general", ranged: 1000 }, // Blake (2026-11-07): "lock the General behind killing 1,000 enemies with ranged weapons"
+  { name: "the general", kills: 500, on: "Vietnam" }, // Blake (2026-11-07): "the general should be unlocked by defeating 500 enemies in Vietnam" (was 1,000 ranged kills, earlier the same day)
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
-const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");
+const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailor/g, "trailer");
 const floorWasDone = (rec, floor, as) => {
   const k = floorKey(floor);
   if (!as) return (rec.floors || []).some((f) => floorKey(f) === k);
@@ -470,6 +474,7 @@ export const starterLock = (look, rec, assets) => {
   if (lock.met) return r.met.some((m) => lockKey(m) === lockKey(lock.met)) ? null : { need: "Meet " + lock.met };
   if (lock.picks) return r.picked >= lock.picks ? null : { need: "Collect " + lock.picks + " Items", have: r.picked, of: lock.picks };
   if (lock.ranged) return r.rangedKills >= lock.ranged ? null : { need: "Defeat " + lock.ranged.toLocaleString("en-US") + " Enemies With Ranged Weapons", have: r.rangedKills, of: lock.ranged };
+  if (lock.kills && lock.on) { const have = r.floorKills[floorKey(lock.on)] || 0; return have >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies in " + lock.on, have, of: lock.kills }; }
   if (lock.kills) return r.kills >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies", have: r.kills, of: lock.kills };
   if (lock.items) {
     const have = itemsFoundCount(r, assets);
