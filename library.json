@@ -3040575,6 +3040575,79 @@
    ]
   },
   {
+   "id": "auq81fb",
+   "name": "Pony Tail",
+   "savedAt": 1794076265942,
+   "pieces": [
+    {
+     "id": "1wnozcg",
+     "kind": "tri",
+     "x": 81,
+     "y": 106,
+     "w": 19,
+     "h": 62,
+     "color": "#c8a23c",
+     "mirror": false,
+     "fx": {
+      "opacity": 1,
+      "glow": 0,
+      "glowColor": "#ffd76b",
+      "bright": 1
+     },
+     "rot": 180
+    },
+    {
+     "id": "eqegd2x",
+     "kind": "tri",
+     "x": 86.5,
+     "y": 106.5,
+     "w": 19,
+     "h": 62,
+     "color": "#c8a23c",
+     "mirror": false,
+     "fx": {
+      "opacity": 1,
+      "glow": 0,
+      "glowColor": "#ffd76b",
+      "bright": 1
+     },
+     "rot": 180
+    },
+    {
+     "id": "i3ipy0h",
+     "kind": "roundrect",
+     "x": 80.5,
+     "y": 66,
+     "w": 25,
+     "h": 46.5,
+     "color": "#c8a23c",
+     "mirror": false,
+     "fx": {
+      "opacity": 1,
+      "glow": 0,
+      "glowColor": "#ffd76b",
+      "bright": 1
+     }
+    },
+    {
+     "id": "t03l5ru",
+     "kind": "rect",
+     "x": 84,
+     "y": 60,
+     "w": 18.5,
+     "h": 7.5,
+     "color": "#b0504f",
+     "mirror": false,
+     "fx": {
+      "opacity": 1,
+      "glow": 0,
+      "glowColor": "#ffd76b",
+      "bright": 1
+     }
+    }
+   ]
+  },
+  {
    "id": "d531wue",
    "name": "Dog Leg",
    "savedAt": 1785573638384,
