@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
@@ -14427,6 +14427,7 @@ export default function AssetStudio({ game = false } = {}) {
   const animLeaveRef = useRef(null);
   // A placed stage's element, by its key, handed back while nothing it draws has changed (animStageEl).
   const animStageCache = useRef(new Map());
+  const animLookOpenCache = useRef(new Map()); // 🎬 Character layers: a look re-put-together with its 👄 mouth open, per pose (animLookArt)
   const [lMarkerCat, setLMarkerCat] = useState("");      // door's accepted destination category (free text)
   // 🎯 OBJECTIVE marker (2026-10-17): the text shown at the top of the screen when you walk into
   // the room holding it, and the room tag that clears it — walking into any room tagged with it
@@ -22174,7 +22175,11 @@ export default function AssetStudio({ game = false } = {}) {
   // flag. Everything else (skin, hats, anything without a recognized slot) keeps the old simple
   // behindBody/front split. Shared by the Dress Bob preview and the final composed character so
   // testing and the real export always match.
-  const layerBodyAndOverlays = (body, overlays, ang) => {
+  // opts.mouthOpen: a 🎬 Character layer talking, on an open beat — the 👄 Talking mouth blocks
+  // (piece.talkMouth) are drawn. Every other caller leaves it off, so those blocks never show in
+  // Dress Bob, a baked look, or play: the mouth they open is drawn over the shut one.
+  const layerBodyAndOverlays = (body, overlays, ang, opts) => {
+    const mouthOpen = !!(opts && opts.mouthOpen);
     // _src tags which asset a piece came from. A cutter must only punch a hole through the
     // garment it belongs to (the mask it was drawn on), never through the body under it — so
     // every finished-look render site groups pieces by _src and masks each group separately.
@@ -22206,6 +22211,7 @@ export default function AssetStudio({ game = false } = {}) {
       const a = fitFor(a0);
       for (const p of bake(a, ang)) {
         if (hatEquipped && p.hideIfHat) continue; // covered by the hat — skip it entirely instead of letting it show/fade through
+        if (p.talkMouth && !mouthOpen) continue; // 👄 only on a talking Character layer's open beats
         p._src = a0.id; // which asset this piece came from -- scopes its cutter holes (see cutterRuns)
         p._slot = a.slot; // internal marker only — lets the crouch-pose reorder below (and nothing else) know which piece is a shirt/jacket
         if (a.slot === "shoes") { p.limb = "leg"; p._isShoe = true; } // shoes always follow the leg — no manual flagging needed, and see the foot-arc handling in the walk/climb animation below
@@ -23362,6 +23368,23 @@ export default function AssetStudio({ game = false } = {}) {
     return hatsUnderArms(bake(a, pose));
   };
   const animPlayerActor = (pose) => { const b = livePlayerBlocks(pose); return b ? hatsUnderArms(b) : null; };
+  // 🎬 A CHARACTER LAYER'S drawing: the saved look put together from its own components (the way
+  // Playtest draws a composed look, so shut and open beats can never differ in anything but the
+  // mouth), with the 👄 Talking mouth blocks in on a talking layer's open beat (layerBodyAndOverlays'
+  // mouthOpen). Remembered per look record, pose and beat, so a scene re-renders at 60 fps without
+  // re-dressing anyone; a re-saved look is a new record and is redone. A bare body is just baked.
+  const animLookArt = (lookId, pose, open) => {
+    const a = findA(lookId);
+    if (!a) return null;
+    if (a.type !== "character" || !a.components || !a.components.body) return hatsUnderArms(bake(a, pose));
+    const m = animLookOpenCache.current, k = lookId + "|" + pose + "|" + (open ? 1 : 0), hit = m.get(k);
+    if (hit && hit.src === a) return hit.art;
+    const c = a.components;
+    const look = assembleLook(c.body, c.skin || null, c.weapon || null, c.equipment || {}, { id: a.id, name: a.name, type: "character" }, { mouthOpen: !!open });
+    const art = hatsUnderArms(look.angles[pose] || []);
+    m.set(k, { src: a, art });
+    return art;
+  };
   // ONE STAGE: every layer of `anim` as it is at (si, t), in a box the stage's size. Used by the
   // editor, by the Level Creator to show where a 🎬 marker's stage stands, and in play. The turn is
   // outermost and the mirror inside it (rotate then scaleX), the way a placed object draws, so a
@@ -23378,7 +23401,7 @@ export default function AssetStudio({ game = false } = {}) {
     let sig = null;
     if (o.cache) {
       // A free rope's sway runs on the clock too (animRopeShape), so while one swings the picture moves.
-      const fr = anim.layers.map((l) => { if (l.kind === "rope") { const rv = vals[l.id]; return rv.swing && !rv.hold && rv.drop > 0.02 ? (o.clock || 0).toFixed(3) : 0; } if (l.kind !== "prop" || !vals[l.id].play) return 0; const pa = findA(l.propId); const n = pa && pa.frames ? pa.frames.length : 1; return n > 1 ? Math.floor((o.clock || 0) * (pa.animFps || 6)) % n : 0; }).join(",");
+      const fr = anim.layers.map((l) => { if (l.kind === "look") return vals[l.id].talk && animTalkOpen(o.clock || 0) ? 1 : 0; if (l.kind === "rope") { const rv = vals[l.id]; return rv.swing && !rv.hold && rv.drop > 0.02 ? (o.clock || 0).toFixed(3) : 0; } if (l.kind !== "prop" || !vals[l.id].play) return 0; const pa = findA(l.propId); const n = pa && pa.frames ? pa.frames.length : 1; return n > 1 ? Math.floor((o.clock || 0) * (pa.animFps || 6)) % n : 0; }).join(",");
       sig = si + "|" + t.toFixed(3) + "|" + fr + "|" + (o.flip ? 1 : 0) + "|" + (o.left || 0) + "|" + (o.top || 0) + "|" + cellPx;
       const hit = o.cache.get(o.key);
       if (hit && hit.anim === anim && hit.sig === sig) return hit.el;
@@ -23424,6 +23447,24 @@ export default function AssetStudio({ game = false } = {}) {
         const hx = (hip.x / W) * rw, hy = (hip.y / H) * rh;
         kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - hx, top: v.y * cellPx - hy, width: rw, height: rh, transformOrigin: hx + "px " + hy + "px", transform: tf, opacity }} data-ly={ly}>
           {renderPieceRuns({ pieces: posed, cacheKey: o.key + "a", keyPrefix: o.key + "a", alphaOf: spriteAlphaOf(o.alphaRoot || null, null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
+        </div>);
+      } else if (l.kind === "look") {
+        // 🧑 A CHARACTER: a saved look that is not you, posed like the actor about its hip, `size`
+        // cells tall, zoomed by sx/sy about that hip, its 👄 mouth on the talk beat (animTalkOpen).
+        const pose = ANIM_POSES.includes(v.pose) ? v.pose : "front";
+        const open = !!v.talk && animTalkOpen(o.clock || 0);
+        const art = l.lookId ? animLookArt(l.lookId, pose, open) : null;
+        const k = (+l.size || ANIM_LOOK_SIZE) / PLAYER_H_CELLS;
+        const rw = cellPx * PLAYER_RENDER_W_CELLS * k, rh = cellPx * PLAYER_H_CELLS * k;
+        const sx = Math.max(0.01, +(v.sx ?? 1) || 1), sy = Math.max(0.01, +(v.sy ?? 1) || 1);
+        const ltf = tf + (Math.abs(sx - 1) > 1e-4 || Math.abs(sy - 1) > 1e-4 ? " scale(" + sx.toFixed(4) + "," + sy.toFixed(4) + ")" : "");
+        if (!art || !art.length) { if (o.editor) kids.push(<div key={l.id} className={cls + " animNoActor"} style={{ left: v.x * cellPx - rw * 0.2, top: v.y * cellPx - rh * (188 / H), width: rw * 0.4, height: rh, transformOrigin: (rw * 0.2) + "px " + (rh * 188 / H) + "px", transform: ltf, opacity }} data-ly={ly} />); continue; }
+        const hip = animActorHip(art);
+        const posed = animActorBlocks(art, v);
+        const hx = (hip.x / W) * rw, hy = (hip.y / H) * rh;
+        const lk = o.key + "l" + l.id + (open ? "o" : "s");
+        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - hx, top: v.y * cellPx - hy, width: rw, height: rh, transformOrigin: hx + "px " + hy + "px", transform: ltf, opacity }} data-ly={ly}>
+          {renderPieceRuns({ pieces: posed, cacheKey: lk, keyPrefix: lk, alphaOf: spriteAlphaOf(findA(l.lookId) || null, null), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
         </div>);
       } else if (l.kind === "cloth") {
         // 🛏 A blanket is drawn in stage cells over the whole stage; only the cloth itself takes a click.
@@ -23948,7 +23989,7 @@ export default function AssetStudio({ game = false } = {}) {
   // rebuildLook (below) can re-bake an ALREADY-SAVED look from its embedded components after one
   // of those components is edited — same code path, so a re-baked look and a freshly dressed one
   // can never drift apart. `base` supplies everything identity-ish (id/name/enemy fields).
-  const assembleLook = (body, skin, weapon, equipment, base) => {
+  const assembleLook = (body, skin, weapon, equipment, base, opts) => {
     body = applySkinTone(body, skin && skin.tone); // the worn skin's tone recolours the body's flesh before anything is layered/baked
     const overlays = [skin, ...SLOT_ORDER.map((s) => equipment[s])].filter(Boolean);
     const out = { ...base, angles: blankAngles(), hand: {}, shoulder: {}, stats: { ...(skin?.stats || DEFAULT_STATS()) }, defense: 0 };
@@ -23984,7 +24025,7 @@ export default function AssetStudio({ game = false } = {}) {
     }
     for (const ang of ANGLES) { const r = bodyRig(body, ang); out.hand[ang] = r.hand; out.shoulder[ang] = r.shoulder; }
     for (const ang of ANGLES) {
-      let arr = layerBodyAndOverlays(body, overlays, ang);
+      let arr = layerBodyAndOverlays(body, overlays, ang, opts);
       // Merged, not appended: the Dress Bob preview has always drawn the weapon through
       // mergeWeaponBlocks, so a plain concat here baked a look whose behind-the-arm and
       // behind-the-body weapon pieces sat on top of the body the preview showed them under.
@@ -26918,7 +26959,7 @@ export default function AssetStudio({ game = false } = {}) {
               <div className="animLayers">
                 {d.layers.slice().reverse().map((l) => (
                   <div key={l.id} className={"animLayerRow" + (sel && l.id === sel.id ? " on" : "")} onClick={() => setAnimSel(l.id)}>
-                    <span className="animLayerName">{l.kind === "actor" ? "🧍 " : l.kind === "cloth" ? "🛏 " : l.kind === "rope" ? "🪢 " : l.kind === "text" ? "🔤 " : "🌿 "}{l.name}</span>
+                    <span className="animLayerName">{l.kind === "actor" ? "🧍 " : l.kind === "look" ? "🧑 " : l.kind === "cloth" ? "🛏 " : l.kind === "rope" ? "🪢 " : l.kind === "text" ? "🔤 " : "🌿 "}{l.name}</span>
                     <button className="rotbtn" title="Forward" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, 1)); }}>▲</button>
                     <button className="rotbtn" title="Back" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, -1)); }}>▼</button>
                     {l.kind !== "actor" && <button className="rotbtn" title="Remove" onClick={(e) => { e.stopPropagation(); put(animRemoveLayer(d, l.id)); }}>🗑</button>}
@@ -26929,13 +26970,17 @@ export default function AssetStudio({ game = false } = {}) {
                 <option value="">＋ Prop layer…</option>
                 {placeGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>{placeIcon(a)} {a.name}</option>)}</optgroup>)}
               </select>
+              <select className="big" value="" onChange={(e) => { const la = findA(e.target.value); if (!la) return; const l = { id: uid(), kind: "look", name: la.name, lookId: la.id, size: ANIM_LOOK_SIZE }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>
+                <option value="">＋ 🧑 Character…</option>
+                {looks.map((a) => <option key={a.id} value={a.id}>{a.type === "body" ? "🧍 " : "🧩 "}{a.name}</option>)}
+              </select>
               <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "cloth", name: "Blanket", len: 6, bed: Math.max(0, d.h - 2) }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🛏 Blanket</button>
               <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "rope", name: "Rope", from: "", hookX: 0.5, hookY: 1 }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🪢 Rope</button>
               <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "text", name: "Text", title: "", text: "", size: 1, tilt: 0, wide: Math.round(d.w * 0.6), color: ANIM_TEXT_COLOR }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🔤 Text</button>
             </div>
             {sel && (
               <div className="card">
-                <div className="ct">{sel.kind === "actor" ? "🧍" : sel.kind === "cloth" ? "🛏" : sel.kind === "rope" ? "🪢" : sel.kind === "text" ? "🔤" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
+                <div className="ct">{sel.kind === "actor" ? "🧍" : sel.kind === "look" ? "🧑" : sel.kind === "cloth" ? "🛏" : sel.kind === "rope" ? "🪢" : sel.kind === "text" ? "🔤" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
                 <label className="catfield">Name <input value={sel.name} onChange={(e) => put(animSetLayer(d, sel.id, { name: e.target.value }))} /></label>
                 <div className="animRowF"><span className="wslab">Move</span><div className="seg"><button className={animAll ? "" : "on"} onClick={() => setAnimAll(false)}>This key</button><button className={animAll ? "on" : ""} onClick={() => setAnimAll(true)}>All keys</button></div></div>
                 {sel.kind === "prop" && <>
@@ -26946,6 +26991,15 @@ export default function AssetStudio({ game = false } = {}) {
                     </select>
                   </div>
                   {sliderRow("Size", sel.size || 3, 0.5, ANIM_PROP_SIZE_MAX, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { size: v })))}
+                </>}
+                {sel.kind === "look" && <>
+                  <div className="animRowF">
+                    <select value={sel.lookId || ""} onChange={(e) => put(animSetLayer(d, sel.id, { lookId: e.target.value }))}>
+                      {!findA(sel.lookId) && <option value={sel.lookId || ""}>❓ missing look</option>}
+                      {looks.map((a) => <option key={a.id} value={a.id}>{a.type === "body" ? "🧍 " : "🧩 "}{a.name}</option>)}
+                    </select>
+                  </div>
+                  {sliderRow("Size", sel.size || ANIM_LOOK_SIZE, 1, ANIM_LOOK_SIZE_MAX, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { size: v })))}
                 </>}
                 {sel.kind === "cloth" ? <>
                   {sliderRow("Length", sel.len || 6, 0.5, 30, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { len: v })))}
@@ -26999,11 +27053,15 @@ export default function AssetStudio({ game = false } = {}) {
                 {sliderRow("Turn", Math.round(selV.rot || 0), -180, 180, 1, "°", (v) => setV({ rot: v }))}
                 {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
                 </>}
-                {sel.kind === "cloth" || sel.kind === "rope" || sel.kind === "text" ? null : sel.kind === "actor" ? <>
+                {sel.kind === "cloth" || sel.kind === "rope" || sel.kind === "text" ? null : sel.kind === "actor" || sel.kind === "look" ? <>
                   <div className="animRowF"><div className="seg">{ANIM_POSES.map((p) => <button key={p} className={selV.pose === p ? "on" : ""} onClick={() => setV({ pose: p })}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div></div>
                   {sliderRow("Legs", Math.round(selV.legs || 0), 0, 135, 1, "°", (v) => setV({ legs: v }))}
                   {sliderRow("Arms", Math.round(selV.arms || 0), 0, 180, 1, "°", (v) => setV({ arms: v }))}
                   {sliderRow("Sit", Math.round((selV.sit || 0) * 100), 0, 100, 5, "%", (v) => setV({ sit: v / 100 }))}
+                  {sel.kind === "look" && <>
+                    {sliderRow("Zoom", Math.round((selV.sx ?? 1) * 100), 10, 300, 1, "%", (v) => setV({ sx: v / 100, sy: v / 100 }))}
+                    <label className="chk"><input type="checkbox" checked={!!selV.talk} onChange={(e) => setV({ talk: e.target.checked })} /> 👄 Talking</label>
+                  </>}
                 </> : (() => {
                   const pa = findA(sel.propId);
                   const n = pa && pa.frames ? pa.frames.length : 1;
@@ -30288,8 +30346,12 @@ export default function AssetStudio({ game = false } = {}) {
     const art = bake({ ...holdPreview, angles: wfit.states.rest || blankAngles() }, angle).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
     return attachWeaponBlocks(enemyArtFacesRight(asset) ? art : mirrorHeldArt(art, gh.x), arm, gh, holdArm ? 0 : (arm.rot || 0));
   })();
-  const frontPieces = pieces.filter((p) => !p.behindBody);
-  const behindPieces = pieces.filter((p) => p.behindBody);
+  // 👄 A skin's Talking mouth blocks show on the canvas only while one of them is selected (pick it in
+  // the block list): they are drawn over the shut mouth, and only a talking 🎬 Character opens it.
+  const talkView = pieces.some((p) => p.talkMouth && (p.id === selId || groupIds.includes(p.id)));
+  const canvasPieces = talkView ? pieces : pieces.filter((p) => !p.talkMouth);
+  const frontPieces = canvasPieces.filter((p) => !p.behindBody);
+  const behindPieces = canvasPieces.filter((p) => p.behindBody);
   const lrow = (p) => (
     <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); if (!groupIds.includes(p.id) && groupIds.length) setGroupIds([]); return; } const ng = toggleGroupMember(groupIds, p.id); setGroupIds(ng); if (ng.includes(p.id)) setSelId(p.id); else if (selId === p.id) setSelId(ng[ng.length - 1] || null); }}>
       <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color, ...(p.kind === "emoji" ? { fontFamily: ART_EMOJI_FONT } : {}) }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "stadium" ? "⬭" : p.kind === "tri" ? "▲" : "")}</span>
@@ -31133,6 +31195,7 @@ export default function AssetStudio({ game = false } = {}) {
               {!effEdit && asset.type === "equipment" && (asset.slot === "pants" || asset.slot === "under_bottom") && <label className="chk"><input type="checkbox" checked={!!sel.behindLegs} onChange={(e) => updSelAll({ behindLegs: e.target.checked })} /> Behind legs </label>}
               {asset.type === "weapon" && !sel.isHitbox && <label className="chk"><input type="checkbox" checked={!!sel.behindArm} onChange={(e) => updSelAll({ behindArm: e.target.checked })} /> Behind the arm</label>}
               {asset.type === "skin" && <label className="chk"><input type="checkbox" checked={!!sel.hideIfHat} onChange={(e) => updSelAll({ hideIfHat: e.target.checked })} /> Hide if hat</label>}
+              {asset.type === "skin" && <label className="chk"><input type="checkbox" checked={!!sel.talkMouth} onChange={(e) => updSelAll({ talkMouth: e.target.checked || undefined })} /> 👄 Talking mouth</label>}
               {!effEdit && asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot) && <label className="chk"><input type="checkbox" checked={!!sel.overArms} onChange={(e) => updSelAll({ overArms: e.target.checked })} /> Over arms only </label>}
               {/* A VEHICLE'S BLOCKS (2026-10-31). 🛞 spins about the middle of the biggest wheel block it sits
                   in (wheelHubs), so a tyre, its hubcap and its lug nuts are all flagged and turn as one;
@@ -31326,9 +31389,9 @@ export default function AssetStudio({ game = false } = {}) {
           {pieces.length > 0 && (
             <div className="card"><div className="ct">Layers — top is front</div>
               <div className="layers">
-                {frontPieces.slice().reverse().map(lrow)}
+                {pieces.filter((p) => !p.behindBody).reverse().map(lrow)}
                 {showGuide && <div className="bodydiv">— BODY (one layer) —</div>}
-                {behindPieces.slice().reverse().map(lrow)}
+                {pieces.filter((p) => p.behindBody).reverse().map(lrow)}
               </div>
             </div>
           )}

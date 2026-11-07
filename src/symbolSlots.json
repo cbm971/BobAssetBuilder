@@ -161,6 +161,8 @@
   { "k": "😀", "l": "Emoji tool", "g": "Level editor", "d": "mdi:emoticon-outline" },
   { "k": "🛏", "l": "Blanket", "g": "Level editor", "d": "gi:bed" },
   { "k": "🪢", "l": "Rope", "g": "Level editor", "d": "gi:rope-coil" },
+  { "k": "🧑", "l": "Character", "g": "Level editor", "d": "gi:character" },
+  { "k": "👄", "l": "Talking mouth", "g": "Level editor", "d": "gi:lips" },
 
   { "k": "🔷", "l": "Shapes", "g": "Art editor", "d": "mdi:shape" },
   { "k": "🔤", "l": "Text", "g": "Art editor", "d": "mdi:format-text" },

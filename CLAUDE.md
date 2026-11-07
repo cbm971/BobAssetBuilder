@@ -800,6 +800,15 @@ plus traps it does not cover:
   to y: `rise` is the one field that moves at an EVEN speed (`ANIM_LINEAR_FIELDS`, a crawl must not
   stall at other layers' keys), `tilt` leans it back. **Every state's first key must carry every
   layer**: one left out falls back to its default spot (the sky dropped out of the windows).
+  A **🧑 Character layer** (`kind: "look"`, `lookId`, `size` cells tall, 2026-11-07) is a saved look that
+  is NOT you, posed like the actor about its hip, `sx/sy` a zoom about the hip, `talk` = its mouth moves
+  (`animTalkOpen`, an uneven 9 fps beat, beat 0 shut). The mouth is the skin's **👄 Talking mouth** blocks
+  (`piece.talkMouth`, a skin checkbox): `layerBodyAndOverlays(..., { mouthOpen })` draws them only on an
+  open beat (`animLookArt`, re-composed from the look's components); everywhere else they never show, and
+  the asset editor hides them unless one is selected. Blake asked for the General as "an actual character
+  ... using Bobs body type" instead of the necked close-up: the briefing (now `gnrlbr2`) shows **The
+  General** `thgnrl1` (Starter look: General Skin `gnrlskn` on BoB, General's Cap `gnrlcap`, General's
+  Jacket `gnrljkt`, his White Dress Shirt / Military Fatigues / Army Boots). `gnrlcu1` stays, unused.
   The 🎬 editor: only DRAWN pieces take a click (`.animStage.ed` css, `elementsFromPoint` over
   `data-ly`); a drag on the SELECTED layer's pieces moves it even under another; nothing changes
   before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys

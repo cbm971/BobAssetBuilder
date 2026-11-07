@@ -16,7 +16,8 @@
  *     eState: <state id>,                            "Walk up + E": the state E starts (see animReachAt)
  *     layers: [{ id, name, kind: "actor" } | { id, name, kind: "prop", propId, size }
  *              | { id, name, kind: "cloth", len, bed } | { id, name, kind: "rope", from, hookX, hookY }
- *              | { id, name, kind: "text", title, text, size, tilt, wide, color }],   back to front
+ *              | { id, name, kind: "text", title, text, size, tilt, wide, color }
+ *              | { id, name, kind: "look", lookId, size }],   back to front
  *     states: [{ id, name, dur, wait, loop, prompt, promptLayer, promptLift, fadeIn, fadeOut, sound, soundVol,
  *                keys: [{ id, t, v: { <layerId>: { x, y, rot, show, flip, pose, legs, arms, sit, play } } }] }] }
  *
@@ -62,6 +63,14 @@
  *          back (the crawl Blake asked for, 2026-10-17: "text is going up in a layer in front of him
  *          kind of like it's star wars"); 0 is a flat caption.
  *
+ *   look   A CHARACTER (a "look" layer): one saved look — a dressed character or a body — that is
+ *          NOT you, drawn and posed exactly like the actor (x,y = the hip; pose, legs, arms, sit, rot,
+ *          flip, show), `size` cells tall (7 = your size; bigger is a close-up), sx/sy a zoom about
+ *          the hip, and talk = its mouth moves (see animTalkOpen: the skin's 👄 Talking mouth blocks
+ *          show on the open beats). Blake (2026-11-07): the General's close-up should be "an actual
+ *          character ... using Bobs body type", a playable look, with the mouth animated as before —
+ *          not a one-off drawing with a neck.
+ *
  * KEYS. A state is a few keys along its own timeline. Numbers ease from one key to the next; the
  * rest (flip, pose, play) switch AT the key. A key that leaves a layer out carries that layer's
  * values over from the key before it, so adding a prop to an old animation never moves anything.
@@ -80,7 +89,20 @@ export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "ar
 export const ANIM_LINEAR_FIELDS = ["rise"];
 // A text layer's look when it is made: the yellow of the crawl it was asked for.
 export const ANIM_TEXT_COLOR = "#ffe81f";
-export const ANIM_STEP_FIELDS = ["flip", "pose", "play", "hold"];
+export const ANIM_STEP_FIELDS = ["flip", "pose", "play", "hold", "talk"];
+// 👄 A TALKING MOUTH: open or shut at this moment of the clock (seconds). A fixed, uneven beat at
+// ANIM_TALK_FPS, so it reads as words rather than a metronome, and the same moment always looks
+// the same (a still frame in the editor, a screenshot, a replay).
+export const ANIM_TALK_FPS = 9;
+// Beat 0 is SHUT, so a paused editor (clock 0) shows the face at rest.
+export const ANIM_TALK_BEATS = [0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1];
+export const animTalkOpen = (clock) => {
+  const i = Math.floor(Math.max(0, num(clock, 0)) * ANIM_TALK_FPS) % ANIM_TALK_BEATS.length;
+  return ANIM_TALK_BEATS[i] === 1;
+};
+// A Character layer's height when it is made: yours.
+export const ANIM_LOOK_SIZE = 7;
+export const ANIM_LOOK_SIZE_MAX = 80;
 // A prop layer's Size (cells, its longer side). Past the 1–30 the editor first offered: a Chinook's
 // rotors are 30 m tip to tip, and at the ~55% scale that keeps the whole helicopter on screen over a
 // man who can reach its rope, that is 54 cells.
@@ -106,6 +128,7 @@ export const animLayerDefaults = (anim, layer) => {
   if (layer && layer.kind === "cloth") return { x: w / 2 - 3, fx: w / 2 + 3, y: h - 1, cover: 2.8, lift: 0, show: 1 };
   if (layer && layer.kind === "rope") return { x: w / 2, y: 1, drop: Math.max(1, h - 3), swing: 0, hold: false, show: 1 };
   if (layer && layer.kind === "text") return { x: w / 2, y: h, rise: 0, show: 1 };
+  if (layer && layer.kind === "look") return { x: w / 2, y: h - ANIM_STAND_HIP_CELLS * (num(layer.size, ANIM_LOOK_SIZE) / 7), rot: 0, show: 1, flip: false, pose: "front", legs: 0, arms: 0, sit: 0, talk: false, sx: 1, sy: 1 };
   return { x: w / 2, y: h, rot: 0, show: 1, sx: 1, sy: 1, flip: false, play: true };
 };
 // A prop layer's CSS transform for its box `hPx` tall. The turn stays about the box's middle and
@@ -145,7 +168,7 @@ export const migrateAnim = (a0, mkId) => {
   if (typeof a.floor !== "string") a.floor = "";
   if (!ANIM_ENDINGS.some((t) => t.key === a.ending)) a.ending = "play";
   if (!a.angles || typeof a.angles !== "object") a.angles = { front: [], back: [], side: [], up: [], crouch: [] };
-  let layers = (Array.isArray(a.layers) ? a.layers : []).filter((l) => l && l.id && (l.kind === "actor" || l.kind === "prop" || l.kind === "cloth" || l.kind === "rope" || l.kind === "text"));
+  let layers = (Array.isArray(a.layers) ? a.layers : []).filter((l) => l && l.id && (l.kind === "actor" || l.kind === "prop" || l.kind === "cloth" || l.kind === "rope" || l.kind === "text" || l.kind === "look"));
   const actors = layers.filter((l) => l.kind === "actor");
   if (actors.length > 1) layers = layers.filter((l) => l.kind !== "actor" || l === actors[0]);
   if (!actors.length) layers = [{ id: mkId ? mkId() : "actor", kind: "actor", name: "Bob" }, ...layers];
@@ -155,6 +178,7 @@ export const migrateAnim = (a0, mkId) => {
   a.layers = layers.map((l) => (l.kind === "prop" ? { ...l, name: l.name || "Prop", propId: l.propId || "", size: clamp(num(l.size, 3), 0.5, ANIM_PROP_SIZE_MAX) }
     : l.kind === "cloth" ? { ...l, name: l.name || "Blanket", len: clamp(num(l.len, 6), 0.5, 80), bed: clamp(num(l.bed, a.h - 2), 0, a.h) }
     : l.kind === "rope" ? { ...l, name: l.name || "Rope", from: typeof l.from === "string" && propIds.has(l.from) ? l.from : "", hookX: clamp(num(l.hookX, 0.5), 0, 1), hookY: clamp(num(l.hookY, 1), 0, 1) }
+    : l.kind === "look" ? { ...l, name: l.name || "Character", lookId: typeof l.lookId === "string" ? l.lookId : "", size: clamp(num(l.size, ANIM_LOOK_SIZE), 1, ANIM_LOOK_SIZE_MAX) }
     : l.kind === "text" ? { ...l, name: l.name || "Text", title: typeof l.title === "string" ? l.title : "", text: typeof l.text === "string" ? l.text : "", size: clamp(num(l.size, 1), 0.2, 6), tilt: clamp(num(l.tilt, 0), 0, 75), wide: clamp(num(l.wide, Math.round(a.w * 0.6)), 1, 80), color: typeof l.color === "string" && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : ANIM_TEXT_COLOR }
     : { ...l, name: l.name || "Bob" }));
   const ids = new Set(a.layers.map((l) => l.id));

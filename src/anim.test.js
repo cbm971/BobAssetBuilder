@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape, floorEndAnim, animScreenFit } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape, floorEndAnim, animScreenFit, animTalkOpen, ANIM_TALK_BEATS, ANIM_TALK_FPS, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -505,4 +505,27 @@ describe("shortening a state", () => {
     for (const l of a.layers) expect(a.states[0].keys[0].v[l.id]).toBeTruthy();
     expect(animCutStart(a0, 0, 0, mkId)).toEqual(a0);
   });
+});
+
+// 🧑 A Character layer (Blake 2026-11-07: the General as "an actual character ... using Bobs body
+// type", mouth animated like the close-up was).
+test("a Character layer keeps its look and size, poses like the actor, and talks on the beat", () => {
+  const mkId = (() => { let i = 0; return () => "id" + i++; })();
+  const a = migrateAnim({ w: 48, h: 20, layers: [{ id: "g", kind: "look", lookId: "thgnrl1", size: 36 }, { id: "z", kind: "look", size: 999 }], states: [{ dur: 2, keys: [{ t: 0, v: { g: { talk: true, sx: 1 } } }, { t: 2, v: { g: { talk: false, sx: 1.2 } } }] }] }, mkId);
+  const g = a.layers.find((l) => l.id === "g"), z = a.layers.find((l) => l.id === "z");
+  expect(g).toMatchObject({ kind: "look", lookId: "thgnrl1", size: 36 });
+  expect(z.size).toBe(ANIM_LOOK_SIZE_MAX);
+  expect(z.lookId).toBe("");
+  expect(a.layers.filter((l) => l.kind === "actor").length).toBe(1); // the player is still added
+  const at = (t) => animLayerAt(a, a.states[0], g, t);
+  expect(at(0).pose).toBe("front");
+  expect(at(1).talk).toBe(true);          // talk switches AT a key, like flip and pose
+  expect(at(2).talk).toBe(false);
+  expect(at(1).sx).toBeGreaterThan(1);    // the zoom eases
+  expect(ANIM_LOOK_SIZE).toBe(7);
+  // Beat 0 is shut (a paused editor shows the face at rest); the beat has both, and repeats.
+  expect(animTalkOpen(0)).toBe(false);
+  expect(ANIM_TALK_BEATS.some((b) => b === 1)).toBe(true);
+  const loop = ANIM_TALK_BEATS.length / ANIM_TALK_FPS;
+  for (const t of [0.05, 0.3, 0.71, 1.2]) expect(animTalkOpen(t + loop)).toBe(animTalkOpen(t));
 });
