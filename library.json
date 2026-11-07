@@ -1067238,7 +1067238,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "fbb1m9i",
@@ -1067254,7 +1067255,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "fq32axm",
@@ -1067265,7 +1067267,8 @@
          "h": 14,
          "color": "#504134",
          "mirror": false,
-         "hideIfHat": true
+         "hideIfHat": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "7yuvvau",
@@ -1067276,7 +1067279,8 @@
          "h": 8,
          "color": "#504134",
          "mirror": false,
-         "hideIfHat": true
+         "hideIfHat": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "2kygs9j",
@@ -1067286,7 +1067290,8 @@
          "w": 6,
          "h": 12,
          "color": "#504134",
-         "mirror": true
+         "mirror": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "s34k899",
@@ -1067302,7 +1067307,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "hp2h4l8",
@@ -1067318,7 +1067324,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "iprfln4",
@@ -1067335,7 +1067342,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "hysrpdx",
@@ -1067352,7 +1067360,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "9flfztn",
@@ -1067369,7 +1067378,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "29nirbr",
@@ -1067386,7 +1067396,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "om0uxke",
@@ -1067402,7 +1067413,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "lwdc520",
@@ -1067418,7 +1067430,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1.05
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "w6ntpki",
@@ -1067434,7 +1067447,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "fgy6i1l",
@@ -1067452,7 +1067466,8 @@
           "bright": 1
          },
          "rot": 193,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "cq2b31t",
@@ -1067470,7 +1067485,8 @@
           "bright": 1
          },
          "rot": 193,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "rq73ic7",
@@ -1067488,7 +1067504,8 @@
           "bright": 1
          },
          "rot": 13,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "t6tx9jz",
@@ -1067506,7 +1067523,8 @@
           "bright": 1
          },
          "rot": 13,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         }
        ],
        "crouch": [
@@ -1067524,7 +1067542,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "ipurb91",
@@ -1067540,7 +1067559,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "panpbso",
@@ -1067551,7 +1067571,8 @@
          "h": 14,
          "color": "#504134",
          "mirror": false,
-         "hideIfHat": true
+         "hideIfHat": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "8kehrvv",
@@ -1067562,7 +1067583,8 @@
          "h": 8,
          "color": "#504134",
          "mirror": false,
-         "hideIfHat": true
+         "hideIfHat": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "myojod1",
@@ -1067572,7 +1067594,8 @@
          "w": 6,
          "h": 12,
          "color": "#504134",
-         "mirror": true
+         "mirror": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "9ujmkh8",
@@ -1067588,7 +1067611,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "4079gwa",
@@ -1067604,7 +1067628,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "yf098ib",
@@ -1067621,7 +1067646,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "e0rivql",
@@ -1067638,7 +1067664,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "nkicq1f",
@@ -1067655,7 +1067682,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "hy1n8q3",
@@ -1067672,7 +1067700,8 @@
           "glowColor": "#ffd76b",
           "bright": 1
          },
-         "outline": true
+         "outline": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "oe4tuu8",
@@ -1067688,7 +1067717,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "ocqz8ei",
@@ -1067704,7 +1067734,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "s92inue",
@@ -1067720,7 +1067751,8 @@
           "glow": 0,
           "glowColor": "#ffd76b",
           "bright": 1
-         }
+         },
+         "_src": "rvymf5r"
         },
         {
          "id": "ff09frv",
@@ -1067738,7 +1067770,8 @@
           "bright": 1
          },
          "rot": 193,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "370k5de",
@@ -1067756,7 +1067789,8 @@
           "bright": 1
          },
          "rot": 193,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "r4tee4k",
@@ -1067774,7 +1067808,8 @@
           "bright": 1
          },
          "rot": 13,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         },
         {
          "id": "0tfc3bs",
@@ -1067792,7 +1067827,8 @@
           "bright": 1
          },
          "rot": 13,
-         "behindBody": true
+         "behindBody": true,
+         "_src": "rvymf5r"
         }
        ]
       }
@@ -1068716,7 +1068752,9 @@
           "w": 80,
           "h": 22,
           "color": "#b0504f",
-          "mirror": false
+          "mirror": false,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "zs37wkb",
@@ -1068726,7 +1068764,9 @@
           "w": 35,
           "h": 16,
           "color": "#b0504f",
-          "mirror": false
+          "mirror": false,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "meoiht7",
@@ -1068737,7 +1068777,9 @@
           "h": 7,
           "color": "#b0504f",
           "mirror": true,
-          "rot": 181
+          "rot": 181,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "tom9n2p",
@@ -1068748,7 +1068790,9 @@
           "h": 24,
           "color": "#b0504f",
           "mirror": false,
-          "outline": true
+          "outline": true,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "jclcxns",
@@ -1068765,7 +1068809,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 0.6
-          }
+          },
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          }
         ],
         "crouch": [
@@ -1068777,7 +1068823,9 @@
           "w": 80,
           "h": 22,
           "color": "#b0504f",
-          "mirror": false
+          "mirror": false,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "at55ugp",
@@ -1068787,7 +1068835,9 @@
           "w": 35,
           "h": 16,
           "color": "#b0504f",
-          "mirror": false
+          "mirror": false,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "0ds79y7",
@@ -1068798,7 +1068848,9 @@
           "h": 7,
           "color": "#b0504f",
           "mirror": true,
-          "rot": 181
+          "rot": 181,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "ig3ndkl",
@@ -1068809,7 +1068861,9 @@
           "h": 24,
           "color": "#b0504f",
           "mirror": false,
-          "outline": true
+          "outline": true,
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          },
          {
           "id": "cksiw3e",
@@ -1068826,7 +1068880,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 0.6
-          }
+          },
+          "_src": "869zysv",
+          "_slot": "under_bottom"
          }
         ]
        },
@@ -1069249,16 +1069305,16 @@
       "name": "Pink Dress",
       "type": "equipment",
       "slot": "jacket",
-      "guideId": "oipvf3l",
+      "guideId": "telfv37",
       "angles": {
        "front": [
         {
-         "id": "pkd00o",
+         "id": "pkd01s",
          "kind": "poly",
-         "x": 58,
-         "y": 140,
-         "w": 84,
-         "h": 84,
+         "x": 52,
+         "y": 144,
+         "w": 96,
+         "h": 82,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069269,16 +1069325,12 @@
          },
          "points": [
           [
-           0.083,
+           0.073,
            0
           ],
           [
-           0.917,
+           0.927,
            0
-          ],
-          [
-           0.964,
-           0.369
           ],
           [
            1,
@@ -1069287,19 +1069339,15 @@
           [
            0,
            1
-          ],
-          [
-           0.036,
-           0.369
           ]
          ]
         },
         {
-         "id": "pkd00p",
+         "id": "pkd01t",
          "kind": "rect",
-         "x": 78,
-         "y": 86,
-         "w": 6,
+         "x": 74,
+         "y": 88,
+         "w": 7,
          "h": 16,
          "color": "#f08cb4",
          "mirror": true,
@@ -1069311,12 +1069359,12 @@
          }
         },
         {
-         "id": "pkd00q",
+         "id": "pkd01u",
          "kind": "rect",
-         "x": 65,
+         "x": 59,
          "y": 104,
-         "w": 70,
-         "h": 38,
+         "w": 82,
+         "h": 42,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069327,12 +1069375,12 @@
          }
         },
         {
-         "id": "pkd00r",
+         "id": "pkd01v",
          "kind": "circle",
-         "x": 66,
-         "y": 90,
-         "w": 33,
-         "h": 33,
+         "x": 62,
+         "y": 92,
+         "w": 38,
+         "h": 28,
          "color": "#f08cb4",
          "mirror": true,
          "fx": {
@@ -1069343,11 +1069391,11 @@
          }
         },
         {
-         "id": "pkd00s",
+         "id": "pkd01w",
          "kind": "rect",
-         "x": 65,
-         "y": 137,
-         "w": 70,
+         "x": 59,
+         "y": 141,
+         "w": 82,
          "h": 5,
          "color": "#f4f4f4",
          "mirror": false,
@@ -1069359,11 +1069407,11 @@
          }
         },
         {
-         "id": "pkd00t",
+         "id": "pkd01x",
          "kind": "halfcircle",
-         "x": 58,
-         "y": 220,
-         "w": 14,
+         "x": 52,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069376,11 +1069424,11 @@
          "rot": 180
         },
         {
-         "id": "pkd00u",
+         "id": "pkd01y",
          "kind": "halfcircle",
-         "x": 72,
-         "y": 220,
-         "w": 14,
+         "x": 68,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069393,11 +1069441,11 @@
          "rot": 180
         },
         {
-         "id": "pkd00v",
+         "id": "pkd01z",
          "kind": "halfcircle",
-         "x": 86,
-         "y": 220,
-         "w": 14,
+         "x": 84,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069412,12 +1069460,12 @@
        ],
        "side": [
         {
-         "id": "pkd000",
+         "id": "pkd014",
          "kind": "poly",
-         "x": 60,
-         "y": 140,
-         "w": 80,
-         "h": 84,
+         "x": 54,
+         "y": 144,
+         "w": 92,
+         "h": 82,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069428,16 +1069476,12 @@
          },
          "points": [
           [
-           0.113,
+           0.054,
            0
           ],
           [
-           0.887,
+           0.946,
            0
-          ],
-          [
-           0.975,
-           0.452
           ],
           [
            1,
@@ -1069446,20 +1069490,16 @@
           [
            0,
            1
-          ],
-          [
-           0.025,
-           0.452
           ]
          ]
         },
         {
-         "id": "pkd001",
+         "id": "pkd015",
          "kind": "rect",
-         "x": 97,
-         "y": 86,
+         "x": 109.5,
+         "y": 87.5,
          "w": 7,
-         "h": 16,
+         "h": 14,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069470,12 +1069510,12 @@
          }
         },
         {
-         "id": "pkd002",
+         "id": "pkd016",
          "kind": "rect",
-         "x": 69,
+         "x": 59,
          "y": 100,
-         "w": 62,
-         "h": 42,
+         "w": 82,
+         "h": 46,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069486,12 +1069526,12 @@
          }
         },
         {
-         "id": "pkd003",
+         "id": "pkd017",
          "kind": "circle",
-         "x": 111,
-         "y": 89,
-         "w": 22,
-         "h": 33,
+         "x": 116,
+         "y": 92,
+         "w": 24,
+         "h": 26,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069502,11 +1069542,11 @@
          }
         },
         {
-         "id": "pkd004",
+         "id": "pkd018",
          "kind": "rect",
-         "x": 69,
-         "y": 137,
-         "w": 62,
+         "x": 59,
+         "y": 141,
+         "w": 82,
          "h": 5,
          "color": "#f4f4f4",
          "mirror": false,
@@ -1069518,11 +1069558,11 @@
          }
         },
         {
-         "id": "pkd005",
+         "id": "pkd019",
          "kind": "halfcircle",
-         "x": 60,
-         "y": 220,
-         "w": 13.3,
+         "x": 54,
+         "y": 222,
+         "w": 15.3,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069535,11 +1069575,11 @@
          "rot": 180
         },
         {
-         "id": "pkd006",
+         "id": "pkd01a",
          "kind": "halfcircle",
-         "x": 73.3,
-         "y": 220,
-         "w": 13.3,
+         "x": 69.3,
+         "y": 222,
+         "w": 15.3,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069552,11 +1069592,11 @@
          "rot": 180
         },
         {
-         "id": "pkd007",
+         "id": "pkd01b",
          "kind": "halfcircle",
-         "x": 86.7,
-         "y": 220,
-         "w": 13.3,
+         "x": 84.7,
+         "y": 222,
+         "w": 15.3,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069567,16 +1069607,83 @@
           "bright": 1
          },
          "rot": 180
+        },
+        {
+         "id": "y53ifad",
+         "kind": "halfcircle",
+         "x": 115,
+         "y": 222,
+         "w": 15.3,
+         "h": 8,
+         "color": "#f4f4f4",
+         "mirror": true,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         },
+         "rot": 180
+        },
+        {
+         "id": "3ijw0kr",
+         "kind": "halfcircle",
+         "x": 130.5,
+         "y": 222,
+         "w": 15.3,
+         "h": 8,
+         "color": "#f4f4f4",
+         "mirror": true,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         },
+         "rot": 180
+        },
+        {
+         "id": "8mhnzrj",
+         "kind": "halfcircle",
+         "x": 100,
+         "y": 222,
+         "w": 15.3,
+         "h": 8,
+         "color": "#f4f4f4",
+         "mirror": true,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         },
+         "rot": 180
+        },
+        {
+         "id": "4q817v2",
+         "kind": "rect",
+         "x": 69.5,
+         "y": 88,
+         "w": 7,
+         "h": 14,
+         "color": "#f08cb4",
+         "mirror": false,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         }
         }
        ],
        "back": [
         {
-         "id": "pkd008",
+         "id": "pkd01c",
          "kind": "poly",
-         "x": 58,
-         "y": 140,
-         "w": 84,
-         "h": 84,
+         "x": 52,
+         "y": 144,
+         "w": 96,
+         "h": 82,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069587,16 +1069694,12 @@
          },
          "points": [
           [
-           0.083,
+           0.073,
            0
           ],
           [
-           0.917,
+           0.927,
            0
-          ],
-          [
-           0.964,
-           0.369
           ],
           [
            1,
@@ -1069605,19 +1069708,15 @@
           [
            0,
            1
-          ],
-          [
-           0.036,
-           0.369
           ]
          ]
         },
         {
-         "id": "pkd009",
+         "id": "pkd01d",
          "kind": "rect",
-         "x": 78,
-         "y": 86,
-         "w": 6,
+         "x": 74,
+         "y": 88,
+         "w": 7,
          "h": 16,
          "color": "#f08cb4",
          "mirror": true,
@@ -1069629,12 +1069728,12 @@
          }
         },
         {
-         "id": "pkd00a",
+         "id": "pkd01e",
          "kind": "rect",
-         "x": 65,
+         "x": 59,
          "y": 100,
-         "w": 70,
-         "h": 42,
+         "w": 82,
+         "h": 46,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069645,11 +1069744,11 @@
          }
         },
         {
-         "id": "pkd00b",
+         "id": "pkd01f",
          "kind": "rect",
-         "x": 65,
-         "y": 137,
-         "w": 70,
+         "x": 59,
+         "y": 141,
+         "w": 82,
          "h": 5,
          "color": "#f4f4f4",
          "mirror": false,
@@ -1069661,12 +1069760,12 @@
          }
         },
         {
-         "id": "pkd00c",
+         "id": "pkd01g",
          "kind": "tri",
-         "x": 87,
-         "y": 133,
-         "w": 13,
-         "h": 13,
+         "x": 86,
+         "y": 137,
+         "w": 14,
+         "h": 14,
          "color": "#f4f4f4",
          "mirror": true,
          "fx": {
@@ -1069678,11 +1069777,11 @@
          "rot": 90
         },
         {
-         "id": "pkd00d",
+         "id": "pkd01h",
          "kind": "halfcircle",
-         "x": 58,
-         "y": 220,
-         "w": 14,
+         "x": 52,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069695,11 +1069794,11 @@
          "rot": 180
         },
         {
-         "id": "pkd00e",
+         "id": "pkd01i",
          "kind": "halfcircle",
-         "x": 72,
-         "y": 220,
-         "w": 14,
+         "x": 68,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069712,11 +1069811,11 @@
          "rot": 180
         },
         {
-         "id": "pkd00f",
+         "id": "pkd01j",
          "kind": "halfcircle",
-         "x": 86,
-         "y": 220,
-         "w": 14,
+         "x": 84,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069731,12 +1069830,12 @@
        ],
        "up": [
         {
-         "id": "pkd00w",
+         "id": "pkd020",
          "kind": "poly",
-         "x": 58,
-         "y": 140,
-         "w": 84,
-         "h": 84,
+         "x": 52,
+         "y": 144,
+         "w": 96,
+         "h": 82,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069747,16 +1069846,12 @@
          },
          "points": [
           [
-           0.083,
+           0.073,
            0
           ],
           [
-           0.917,
+           0.927,
            0
-          ],
-          [
-           0.964,
-           0.369
           ],
           [
            1,
@@ -1069765,19 +1069860,15 @@
           [
            0,
            1
-          ],
-          [
-           0.036,
-           0.369
           ]
          ]
         },
         {
-         "id": "pkd00x",
+         "id": "pkd021",
          "kind": "rect",
-         "x": 78,
-         "y": 86,
-         "w": 6,
+         "x": 74,
+         "y": 88,
+         "w": 7,
          "h": 16,
          "color": "#f08cb4",
          "mirror": true,
@@ -1069789,12 +1069880,12 @@
          }
         },
         {
-         "id": "pkd00y",
+         "id": "pkd022",
          "kind": "rect",
-         "x": 65,
+         "x": 59,
          "y": 104,
-         "w": 70,
-         "h": 38,
+         "w": 82,
+         "h": 42,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069805,12 +1069896,12 @@
          }
         },
         {
-         "id": "pkd00z",
+         "id": "pkd023",
          "kind": "circle",
-         "x": 66,
-         "y": 90,
-         "w": 33,
-         "h": 33,
+         "x": 62,
+         "y": 92,
+         "w": 38,
+         "h": 28,
          "color": "#f08cb4",
          "mirror": true,
          "fx": {
@@ -1069821,11 +1069912,11 @@
          }
         },
         {
-         "id": "pkd010",
+         "id": "pkd024",
          "kind": "rect",
-         "x": 65,
-         "y": 137,
-         "w": 70,
+         "x": 59,
+         "y": 141,
+         "w": 82,
          "h": 5,
          "color": "#f4f4f4",
          "mirror": false,
@@ -1069837,11 +1069928,11 @@
          }
         },
         {
-         "id": "pkd011",
+         "id": "pkd025",
          "kind": "halfcircle",
-         "x": 58,
-         "y": 220,
-         "w": 14,
+         "x": 52,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069854,11 +1069945,11 @@
          "rot": 180
         },
         {
-         "id": "pkd012",
+         "id": "pkd026",
          "kind": "halfcircle",
-         "x": 72,
-         "y": 220,
-         "w": 14,
+         "x": 68,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069871,11 +1069962,11 @@
          "rot": 180
         },
         {
-         "id": "pkd013",
+         "id": "pkd027",
          "kind": "halfcircle",
-         "x": 86,
-         "y": 220,
-         "w": 14,
+         "x": 84,
+         "y": 222,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1069890,12 +1069981,12 @@
        ],
        "crouch": [
         {
-         "id": "pkd00g",
+         "id": "pkd01k",
          "kind": "poly",
-         "x": 58,
-         "y": 148,
-         "w": 84,
-         "h": 52,
+         "x": 52,
+         "y": 174,
+         "w": 96,
+         "h": 44,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069906,16 +1069997,12 @@
          },
          "points": [
           [
-           0.143,
+           0.073,
            0
           ],
           [
-           0.857,
+           0.927,
            0
-          ],
-          [
-           0.952,
-           0.442
           ],
           [
            1,
@@ -1069924,20 +1070011,16 @@
           [
            0,
            1
-          ],
-          [
-           0.048,
-           0.442
           ]
          ],
          "overArms": true
         },
         {
-         "id": "pkd00h",
+         "id": "pkd01l",
          "kind": "rect",
-         "x": 78,
-         "y": 103,
-         "w": 6,
+         "x": 74,
+         "y": 120,
+         "w": 7,
          "h": 12,
          "color": "#f08cb4",
          "mirror": true,
@@ -1069949,12 +1070032,12 @@
          }
         },
         {
-         "id": "pkd00i",
+         "id": "pkd01m",
          "kind": "rect",
-         "x": 69,
-         "y": 122,
-         "w": 62,
-         "h": 26,
+         "x": 59,
+         "y": 134,
+         "w": 82,
+         "h": 40,
          "color": "#f08cb4",
          "mirror": false,
          "fx": {
@@ -1069965,12 +1070048,12 @@
          }
         },
         {
-         "id": "pkd00j",
+         "id": "pkd01n",
          "kind": "circle",
-         "x": 68,
-         "y": 108,
-         "w": 32,
-         "h": 32,
+         "x": 62,
+         "y": 122,
+         "w": 38,
+         "h": 26,
          "color": "#f08cb4",
          "mirror": true,
          "fx": {
@@ -1069981,11 +1070064,11 @@
          }
         },
         {
-         "id": "pkd00k",
+         "id": "pkd01o",
          "kind": "rect",
-         "x": 69,
-         "y": 143,
-         "w": 62,
+         "x": 59,
+         "y": 170,
+         "w": 82,
          "h": 5,
          "color": "#f4f4f4",
          "mirror": false,
@@ -1069997,11 +1070080,11 @@
          }
         },
         {
-         "id": "pkd00l",
+         "id": "pkd01p",
          "kind": "halfcircle",
-         "x": 58,
-         "y": 196,
-         "w": 14,
+         "x": 52,
+         "y": 214,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1070015,11 +1070098,11 @@
          "overArms": true
         },
         {
-         "id": "pkd00m",
+         "id": "pkd01q",
          "kind": "halfcircle",
-         "x": 72,
-         "y": 196,
-         "w": 14,
+         "x": 68,
+         "y": 214,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1070033,11 +1070116,11 @@
          "overArms": true
         },
         {
-         "id": "pkd00n",
+         "id": "pkd01r",
          "kind": "halfcircle",
-         "x": 86,
-         "y": 196,
-         "w": 14,
+         "x": 84,
+         "y": 214,
+         "w": 16,
          "h": 8,
          "color": "#f4f4f4",
          "mirror": true,
@@ -1071030,8 +1071113,8 @@
          {
           "id": "pkd015",
           "kind": "rect",
-          "x": 96,
-          "y": 88,
+          "x": 109.5,
+          "y": 87.5,
           "w": 7,
           "h": 14,
           "color": "#f08cb4",
@@ -1071153,6 +1071236,81 @@
            "bright": 1
           },
           "rot": 180,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
+         },
+         {
+          "id": "y53ifad",
+          "kind": "halfcircle",
+          "x": 115,
+          "y": 222,
+          "w": 15.3,
+          "h": 8,
+          "color": "#f4f4f4",
+          "mirror": true,
+          "fx": {
+           "opacity": 1,
+           "glow": 0,
+           "glowColor": "#ffd76b",
+           "bright": 1
+          },
+          "rot": 180,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
+         },
+         {
+          "id": "3ijw0kr",
+          "kind": "halfcircle",
+          "x": 130.5,
+          "y": 222,
+          "w": 15.3,
+          "h": 8,
+          "color": "#f4f4f4",
+          "mirror": true,
+          "fx": {
+           "opacity": 1,
+           "glow": 0,
+           "glowColor": "#ffd76b",
+           "bright": 1
+          },
+          "rot": 180,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
+         },
+         {
+          "id": "8mhnzrj",
+          "kind": "halfcircle",
+          "x": 100,
+          "y": 222,
+          "w": 15.3,
+          "h": 8,
+          "color": "#f4f4f4",
+          "mirror": true,
+          "fx": {
+           "opacity": 1,
+           "glow": 0,
+           "glowColor": "#ffd76b",
+           "bright": 1
+          },
+          "rot": 180,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
+         },
+         {
+          "id": "4q817v2",
+          "kind": "rect",
+          "x": 69.5,
+          "y": 88,
+          "w": 7,
+          "h": 14,
+          "color": "#f08cb4",
+          "mirror": false,
+          "fx": {
+           "opacity": 1,
+           "glow": 0,
+           "glowColor": "#ffd76b",
+           "bright": 1
+          },
           "_src": "pnkdrs1",
           "_slot": "jacket"
          }
@@ -1071358,7 +1071516,9 @@
             0,
             1
            ]
-          ]
+          ],
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd021",
@@ -1071374,7 +1071534,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd022",
@@ -1071390,7 +1071552,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd023",
@@ -1071406,7 +1071570,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd024",
@@ -1071422,7 +1071588,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd025",
@@ -1071439,7 +1071607,9 @@
            "glowColor": "#ffd76b",
            "bright": 1
           },
-          "rot": 180
+          "rot": 180,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd026",
@@ -1071456,7 +1071626,9 @@
            "glowColor": "#ffd76b",
            "bright": 1
           },
-          "rot": 180
+          "rot": 180,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd027",
@@ -1071473,7 +1071645,9 @@
            "glowColor": "#ffd76b",
            "bright": 1
           },
-          "rot": 180
+          "rot": 180,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          }
         ],
         "crouch": [
@@ -1071510,7 +1071684,9 @@
             1
            ]
           ],
-          "overArms": true
+          "overArms": true,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd01l",
@@ -1071526,7 +1071702,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd01m",
@@ -1071542,7 +1071720,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd01n",
@@ -1071558,7 +1071738,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd01o",
@@ -1071574,7 +1071756,9 @@
            "glow": 0,
            "glowColor": "#ffd76b",
            "bright": 1
-          }
+          },
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd01p",
@@ -1071592,7 +1071776,9 @@
            "bright": 1
           },
           "rot": 180,
-          "overArms": true
+          "overArms": true,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd01q",
@@ -1071610,7 +1071796,9 @@
            "bright": 1
           },
           "rot": 180,
-          "overArms": true
+          "overArms": true,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          },
          {
           "id": "pkd01r",
@@ -1071628,7 +1071816,9 @@
            "bright": 1
           },
           "rot": 180,
-          "overArms": true
+          "overArms": true,
+          "_src": "pnkdrs1",
+          "_slot": "jacket"
          }
         ]
        },
@@ -1071838,8 +1072028,8 @@
          {
           "id": "pkd001",
           "kind": "rect",
-          "x": 97,
-          "y": 86,
+          "x": 75,
+          "y": 84.5,
           "w": 7,
           "h": 16,
           "color": "#f08cb4",
@@ -1071949,6 +1072139,22 @@
            "bright": 1
           },
           "rot": 180
+         },
+         {
+          "id": "1hbjuo8",
+          "kind": "rect",
+          "x": 107,
+          "y": 85.5,
+          "w": 7,
+          "h": 16,
+          "color": "#f08cb4",
+          "mirror": false,
+          "fx": {
+           "opacity": 1,
+           "glow": 0,
+           "glowColor": "#ffd76b",
+           "bright": 1
+          }
          }
         ],
         "back": [
@@ -1072435,7 +1072641,7 @@
         ]
        }
       },
-      "lastFit": "oipvf3l",
+      "lastFit": "telfv37",
       "confirmedFits": [
        "telfv37",
        "oipvf3l"
@@ -1072465,15 +1072671,15 @@
       ],
       "value": 12,
       "rank": "rare",
-      "savedAt": 1794039400937,
-      "editedFrom": 1794038642607
+      "savedAt": 1794076824766,
+      "editedFrom": 1794039400937
      }
     }
    },
    "angles": {
     "front": [
      {
-      "id": "k47ptf3",
+      "id": "kuk37xx",
       "kind": "tri",
       "x": 60.5,
       "y": 82,
@@ -1072492,7 +1072698,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "7s6k2f3",
+      "id": "hj8mu24",
       "kind": "tri",
       "x": 65.5,
       "y": 83.5,
@@ -1072511,7 +1072717,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "gwyvzhw",
+      "id": "7ixtbjz",
       "kind": "roundrect",
       "x": 70.5,
       "y": 43.5,
@@ -1072530,7 +1072736,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "lr8z4w8",
+      "id": "geccr02",
       "kind": "rect",
       "x": 80,
       "y": 38.5,
@@ -1072549,7 +1072755,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "bw396mb",
+      "id": "puiaza9",
       "kind": "rect",
       "x": 72,
       "y": 34,
@@ -1072561,7 +1072767,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "f0te2l3",
+      "id": "fqbmfo1",
       "kind": "rect",
       "x": 72,
       "y": 34,
@@ -1072574,7 +1072780,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "zvx4xwo",
+      "id": "g2nuzms",
       "kind": "rect",
       "x": 102,
       "y": 188,
@@ -1072586,7 +1072792,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "v8c7bq5",
+      "id": "vu703uh",
       "kind": "rect",
       "x": 70,
       "y": 188,
@@ -1072599,7 +1072805,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "bubwih5",
+      "id": "yhu803q",
       "kind": "rect",
       "x": 60,
       "y": 88,
@@ -1072611,7 +1072817,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "754i2kb",
+      "id": "na7gy2u",
       "kind": "rect",
       "x": 60,
       "y": 88,
@@ -1072624,7 +1072830,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "5ut0044",
+      "id": "bxlhq0g",
       "kind": "circle",
       "x": 96,
       "y": 134,
@@ -1072635,7 +1072841,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "u2519qq",
+      "id": "72f6brb",
       "kind": "circle",
       "x": 67,
       "y": 107,
@@ -1072646,7 +1072852,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "hhh07tf",
+      "id": "ebc5gz6",
       "kind": "circle",
       "x": 127,
       "y": 107,
@@ -1072658,7 +1072864,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "9pjdii4",
+      "id": "3wa4nne",
       "kind": "rect",
       "x": 97,
       "y": 53,
@@ -1072669,7 +1072875,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "aaupmig",
+      "id": "iqhntdl",
       "kind": "roundrect",
       "x": 93.5,
       "y": 71.5,
@@ -1072686,7 +1072892,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "yw3d9gh",
+      "id": "edip3gh",
       "kind": "roundrect",
       "x": 80,
       "y": 72.5,
@@ -1072703,7 +1072909,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "zlu9uc0",
+      "id": "h42z8wm",
       "kind": "rect",
       "x": 78,
       "y": 27,
@@ -1072715,7 +1072921,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "25al0vm",
+      "id": "7hok8xl",
       "kind": "rect",
       "x": 72,
       "y": 30,
@@ -1072727,7 +1072933,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "8jofeeo",
+      "id": "89qsdew",
       "kind": "rect",
       "x": 72,
       "y": 36,
@@ -1072738,7 +1072944,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "ijf7y9t",
+      "id": "dm3mqmm",
       "kind": "rect",
       "x": 122,
       "y": 36,
@@ -1072750,7 +1072956,7 @@
       "_m": true
      },
      {
-      "id": "0nnwqps",
+      "id": "e23dawk",
       "kind": "rect",
       "x": 79,
       "y": 54,
@@ -1072767,7 +1072973,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "p1syanq",
+      "id": "81q0i36",
       "kind": "rect",
       "x": 109,
       "y": 54,
@@ -1072785,7 +1072991,7 @@
       "_m": true
      },
      {
-      "id": "j1rtmpf",
+      "id": "oe01xwu",
       "kind": "rect",
       "x": 82,
       "y": 54,
@@ -1072802,7 +1073008,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "96c2b2r",
+      "id": "1snw343",
       "kind": "rect",
       "x": 112,
       "y": 54,
@@ -1072820,7 +1073026,7 @@
       "_m": true
      },
      {
-      "id": "mf4vz48",
+      "id": "kf4t6h1",
       "kind": "rect",
       "x": 86,
       "y": 76,
@@ -1072838,7 +1073044,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "mf9m272",
+      "id": "ftzbal4",
       "kind": "rect",
       "x": 93,
       "y": 76,
@@ -1072856,7 +1073062,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "oou5jw5",
+      "id": "swv2ucj",
       "kind": "rect",
       "x": 99,
       "y": 76,
@@ -1072874,7 +1073080,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "eki26j1",
+      "id": "oguzt8e",
       "kind": "rect",
       "x": 105,
       "y": 76,
@@ -1072892,7 +1073098,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "5at7xz0",
+      "id": "sw2eg1x",
       "kind": "rect",
       "x": 69,
       "y": 28.5,
@@ -1072909,7 +1073115,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "80vrpdp",
+      "id": "1td9gh8",
       "kind": "rect",
       "x": 73,
       "y": 26,
@@ -1072926,7 +1073132,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "esojtaf",
+      "id": "i2gud9c",
       "kind": "rect",
       "x": 80,
       "y": 22.5,
@@ -1072943,7 +1073149,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "vkftp97",
+      "id": "xajts4b",
       "kind": "rect",
       "x": 60,
       "y": 165,
@@ -1072955,7 +1073161,7 @@
       "_src": "869zysv"
      },
      {
-      "id": "bv1m38z",
+      "id": "8rchw2r",
       "kind": "circle",
       "x": 83,
       "y": 180,
@@ -1072967,7 +1073173,7 @@
       "_src": "869zysv"
      },
      {
-      "id": "met17e2",
+      "id": "owjb4wr",
       "kind": "tri",
       "x": 82,
       "y": 186,
@@ -1072980,7 +1073186,7 @@
       "_src": "869zysv"
      },
      {
-      "id": "gxch7sy",
+      "id": "e6xf3gz",
       "kind": "tri",
       "x": 59,
       "y": 186,
@@ -1072994,7 +1073200,7 @@
       "_m": true
      },
      {
-      "id": "ha0mm04",
+      "id": "qj2bt76",
       "kind": "rect",
       "x": 86,
       "y": 166,
@@ -1073007,7 +1073213,7 @@
       "_src": "869zysv"
      },
      {
-      "id": "cnu1d5y",
+      "id": "na07xkk",
       "kind": "emoji",
       "x": 65,
       "y": 167,
@@ -1073026,7 +1073232,7 @@
       "_src": "869zysv"
      },
      {
-      "id": "76k8ou2",
+      "id": "v5jnjom",
       "kind": "emoji",
       "x": 126,
       "y": 167,
@@ -1073046,7 +1073252,7 @@
       "_m": true
      },
      {
-      "id": "2wpp8xd",
+      "id": "6hycufh",
       "kind": "poly",
       "x": 52,
       "y": 144,
@@ -1073082,7 +1073288,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "1758kbu",
+      "id": "kpdbvx1",
       "kind": "rect",
       "x": 74,
       "y": 88,
@@ -1073100,7 +1073306,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "wjp547b",
+      "id": "cfvei2b",
       "kind": "rect",
       "x": 119,
       "y": 88,
@@ -1073114,12 +1073320,12 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "e27sakw",
+      "id": "o3buxxs",
       "kind": "rect",
       "x": 59,
       "y": 104,
@@ -1073137,7 +1073343,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "fdihsow",
+      "id": "zv68wtu",
       "kind": "circle",
       "x": 62,
       "y": 92,
@@ -1073155,7 +1073361,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "980rl63",
+      "id": "lpr8bzd",
       "kind": "circle",
       "x": 100,
       "y": 92,
@@ -1073169,12 +1073375,12 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "afcgvdt",
+      "id": "kcsq9ob",
       "kind": "rect",
       "x": 59,
       "y": 141,
@@ -1073192,7 +1073398,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "3b2u2on",
+      "id": "r10t35a",
       "kind": "halfcircle",
       "x": 52,
       "y": 222,
@@ -1073211,7 +1073417,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "wi0hz3x",
+      "id": "lka7o2x",
       "kind": "halfcircle",
       "x": 132,
       "y": 222,
@@ -1073226,12 +1073432,12 @@
        "bright": 1
       },
       "rot": 180,
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "oczwliz",
+      "id": "xpru124",
       "kind": "halfcircle",
       "x": 68,
       "y": 222,
@@ -1073250,7 +1073456,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "fpt7ply",
+      "id": "kjsy6yp",
       "kind": "halfcircle",
       "x": 116,
       "y": 222,
@@ -1073265,12 +1073471,12 @@
        "bright": 1
       },
       "rot": 180,
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "ayz4iqj",
+      "id": "hxsjypd",
       "kind": "halfcircle",
       "x": 84,
       "y": 222,
@@ -1073289,7 +1073495,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "529hzpi",
+      "id": "x4dle0g",
       "kind": "halfcircle",
       "x": 100,
       "y": 222,
@@ -1073304,12 +1073510,12 @@
        "bright": 1
       },
       "rot": 180,
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "6sclfqv",
+      "id": "mirk4a4",
       "kind": "rect",
       "x": 136,
       "y": 86,
@@ -1073326,7 +1073532,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "frtrdyu",
+      "id": "eupa9gi",
       "kind": "rect",
       "x": 44,
       "y": 86,
@@ -1073346,7 +1073552,7 @@
     ],
     "back": [
      {
-      "id": "of0tcqi",
+      "id": "sb2b9wh",
       "kind": "rect",
       "x": 72,
       "y": 34,
@@ -1073357,7 +1073563,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "9i2hzhn",
+      "id": "zlu69rk",
       "kind": "rect",
       "x": 72,
       "y": 34,
@@ -1073369,7 +1073575,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "a0zvef8",
+      "id": "skkzvkm",
       "kind": "rect",
       "x": 60,
       "y": 88,
@@ -1073381,7 +1073587,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "5tzh4xe",
+      "id": "nksa84h",
       "kind": "rect",
       "x": 60,
       "y": 88,
@@ -1073394,7 +1073600,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "0vbbyn9",
+      "id": "ya3dfpl",
       "kind": "rect",
       "x": 102,
       "y": 188,
@@ -1073406,7 +1073612,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "ug16kp5",
+      "id": "kwopd55",
       "kind": "rect",
       "x": 70,
       "y": 188,
@@ -1073419,7 +1073625,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "ti341nv",
+      "id": "quqd4mc",
       "kind": "rect",
       "x": 83,
       "y": 168,
@@ -1073431,7 +1073637,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "comlywm",
+      "id": "ywk1o47",
       "kind": "tri",
       "x": 89,
       "y": 152,
@@ -1073443,7 +1073649,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "p4lvtmi",
+      "id": "byyejgk",
       "kind": "tri",
       "x": 93,
       "y": 175,
@@ -1073454,7 +1073660,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "v3fff1y",
+      "id": "ql15q7j",
       "kind": "tri",
       "x": 71,
       "y": 184,
@@ -1073465,7 +1073671,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "rghjljw",
+      "id": "ej805jg",
       "kind": "halfcircle",
       "x": 70.5,
       "y": 41,
@@ -1073483,7 +1073689,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "atw7n72",
+      "id": "ol8onsq",
       "kind": "rect",
       "x": 78,
       "y": 27,
@@ -1073495,7 +1073701,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "129y9l4",
+      "id": "xi5hwzm",
       "kind": "rect",
       "x": 72,
       "y": 30,
@@ -1073507,7 +1073713,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "d1i14ur",
+      "id": "vsas3ml",
       "kind": "rect",
       "x": 69,
       "y": 28.5,
@@ -1073524,7 +1073730,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "qsk15am",
+      "id": "82tx7ur",
       "kind": "rect",
       "x": 73,
       "y": 26,
@@ -1073541,7 +1073747,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "l3cbqbq",
+      "id": "2j1xywu",
       "kind": "rect",
       "x": 80,
       "y": 22.5,
@@ -1073558,7 +1073764,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "hg9q027",
+      "id": "cno8w7k",
       "kind": "tri",
       "x": 89.5,
       "y": 85.5,
@@ -1073577,7 +1073783,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "zv7dxvv",
+      "id": "8p25jb8",
       "kind": "tri",
       "x": 93.5,
       "y": 86,
@@ -1073596,7 +1073802,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "ap9m97d",
+      "id": "tf6an7n",
       "kind": "roundrect",
       "x": 90,
       "y": 56,
@@ -1073615,7 +1073821,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "1trvuqs",
+      "id": "xmfcol7",
       "kind": "rect",
       "x": 93.5,
       "y": 52,
@@ -1073634,7 +1073840,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "8wag0j0",
+      "id": "9towbik",
       "kind": "rect",
       "x": 60,
       "y": 165,
@@ -1073646,7 +1073852,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "ndj7oay",
+      "id": "xnlev3p",
       "kind": "circle",
       "x": 83,
       "y": 182,
@@ -1073658,7 +1073864,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "pqpynhl",
+      "id": "2fvn898",
       "kind": "tri",
       "x": 82,
       "y": 186,
@@ -1073671,7 +1073877,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "yy25lrq",
+      "id": "fmakn2d",
       "kind": "tri",
       "x": 59,
       "y": 186,
@@ -1073685,7 +1073891,7 @@
       "_m": true
      },
      {
-      "id": "y1do92p",
+      "id": "8kz2520",
       "kind": "emoji",
       "x": 65,
       "y": 167,
@@ -1073704,7 +1073910,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "s9pnl22",
+      "id": "ee8kd6l",
       "kind": "emoji",
       "x": 126,
       "y": 167,
@@ -1073724,7 +1073930,7 @@
       "_m": true
      },
      {
-      "id": "0q1xfew",
+      "id": "ppdu6bb",
       "kind": "poly",
       "x": 52,
       "y": 144,
@@ -1073760,7 +1073966,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "dhlj395",
+      "id": "a0xki0m",
       "kind": "rect",
       "x": 74,
       "y": 88,
@@ -1073778,7 +1073984,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "mog75da",
+      "id": "zbe3d3s",
       "kind": "rect",
       "x": 119,
       "y": 88,
@@ -1073792,12 +1073998,12 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "mxlrymf",
+      "id": "5jayuou",
       "kind": "rect",
       "x": 59,
       "y": 100,
@@ -1073815,7 +1074021,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "lh8fdfm",
+      "id": "kb1faa4",
       "kind": "rect",
       "x": 59,
       "y": 141,
@@ -1073833,7 +1074039,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "p9q4ahy",
+      "id": "x84h370",
       "kind": "tri",
       "x": 86,
       "y": 137,
@@ -1073852,7 +1074058,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "m8dczhh",
+      "id": "vexn13x",
       "kind": "tri",
       "x": 100,
       "y": 137,
@@ -1073867,12 +1074073,12 @@
        "bright": 1
       },
       "rot": 90,
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "1sloura",
+      "id": "bfniycg",
       "kind": "halfcircle",
       "x": 52,
       "y": 222,
@@ -1073891,7 +1074097,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "zlvsp29",
+      "id": "w8o42ku",
       "kind": "halfcircle",
       "x": 132,
       "y": 222,
@@ -1073906,12 +1074112,12 @@
        "bright": 1
       },
       "rot": 180,
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "sz24qf4",
+      "id": "pyhdws1",
       "kind": "halfcircle",
       "x": 68,
       "y": 222,
@@ -1073930,7 +1074136,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "j9sle0c",
+      "id": "dxml8kc",
       "kind": "halfcircle",
       "x": 116,
       "y": 222,
@@ -1073945,12 +1074151,12 @@
        "bright": 1
       },
       "rot": 180,
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "edxysof",
+      "id": "eyuic9f",
       "kind": "halfcircle",
       "x": 84,
       "y": 222,
@@ -1073969,7 +1074175,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "mgy07q2",
+      "id": "0n3d04d",
       "kind": "halfcircle",
       "x": 100,
       "y": 222,
@@ -1073984,12 +1074190,12 @@
        "bright": 1
       },
       "rot": 180,
+      "_m": true,
       "_src": "pnkdrs1",
-      "_slot": "jacket",
-      "_m": true
+      "_slot": "jacket"
      },
      {
-      "id": "ydmsspn",
+      "id": "4ftp8r4",
       "kind": "rect",
       "x": 139,
       "y": 88,
@@ -1074006,7 +1074212,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "4pg36ex",
+      "id": "d65lzv6",
       "kind": "rect",
       "x": 41,
       "y": 88,
@@ -1074026,7 +1074232,7 @@
     ],
     "side": [
      {
-      "id": "u57n3xy",
+      "id": "vo1zofr",
       "kind": "rect",
       "x": 77,
       "y": 188,
@@ -1074038,7 +1074244,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "b7zhmzr",
+      "id": "xni72cu",
       "kind": "rect",
       "x": 60,
       "y": 88,
@@ -1074049,7 +1074255,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "cog7vc6",
+      "id": "wwplw5t",
       "kind": "rect",
       "x": 73,
       "y": 35,
@@ -1074060,7 +1074266,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "f3uwri3",
+      "id": "3ga5gr1",
       "kind": "circle",
       "x": 131,
       "y": 173,
@@ -1074071,7 +1074277,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "0cyvhd6",
+      "id": "175ridm",
       "kind": "circle",
       "x": 130,
       "y": 102,
@@ -1074082,7 +1074288,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "nooynqz",
+      "id": "y3xqstq",
       "kind": "circle",
       "x": 135,
       "y": 171,
@@ -1074093,7 +1074299,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "rx4wtwk",
+      "id": "xf1vox8",
       "kind": "rect",
       "x": 97.5,
       "y": 40,
@@ -1074110,7 +1074316,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "dvfmw91",
+      "id": "frnduv9",
       "kind": "halfcircle",
       "x": 67,
       "y": 39.5,
@@ -1074128,7 +1074334,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "n6glrix",
+      "id": "cjh87qt",
       "kind": "roundrect",
       "x": 122.5,
       "y": 68.5,
@@ -1074145,7 +1074351,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "omhzciy",
+      "id": "fn6q6ge",
       "kind": "roundrect",
       "x": 106.5,
       "y": 70.5,
@@ -1074162,7 +1074368,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "4c77plf",
+      "id": "yr8j0x1",
       "kind": "rect",
       "x": 78,
       "y": 27,
@@ -1074174,7 +1074380,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "1hwhu42",
+      "id": "smmkeqh",
       "kind": "rect",
       "x": 72,
       "y": 30,
@@ -1074186,7 +1074392,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "vc7408p",
+      "id": "4yd4tci",
       "kind": "rect",
       "x": 115.5,
       "y": 51.5,
@@ -1074203,7 +1074409,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "l59vtue",
+      "id": "s3ace5c",
       "kind": "rect",
       "x": 119.5,
       "y": 52,
@@ -1074220,7 +1074426,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "5fwgrqm",
+      "id": "8cc603y",
       "kind": "rect",
       "x": 118,
       "y": 73.5,
@@ -1074238,7 +1074444,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "b5x2pyy",
+      "id": "a26isvv",
       "kind": "rect",
       "x": 124.5,
       "y": 73.5,
@@ -1074256,7 +1074462,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "bv8wnns",
+      "id": "nj5jxa9",
       "kind": "rect",
       "x": 69,
       "y": 28,
@@ -1074273,7 +1074479,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "83h9i1y",
+      "id": "82sguim",
       "kind": "rect",
       "x": 73,
       "y": 26,
@@ -1074290,7 +1074496,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "ky371zu",
+      "id": "m6hxetw",
       "kind": "rect",
       "x": 76,
       "y": 22.5,
@@ -1074307,7 +1074513,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "jldmh7p",
+      "id": "7urfii4",
       "kind": "tri",
       "x": 47.5,
       "y": 84.5,
@@ -1074326,7 +1074532,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "w2e0ygj",
+      "id": "z93zi6r",
       "kind": "tri",
       "x": 51,
       "y": 86,
@@ -1074345,7 +1074551,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "dk8m6lx",
+      "id": "q8hfj7a",
       "kind": "roundrect",
       "x": 59,
       "y": 58.5,
@@ -1074364,7 +1074570,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "7ul399s",
+      "id": "okun3wa",
       "kind": "rect",
       "x": 67.5,
       "y": 55.5,
@@ -1074383,7 +1074589,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "exu4rme",
+      "id": "o47hgke",
       "kind": "rect",
       "x": 129,
       "y": 65,
@@ -1074401,7 +1074607,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "aggtkoy",
+      "id": "eplca8s",
       "kind": "rect",
       "x": 60,
       "y": 168,
@@ -1074413,7 +1074619,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "z91pbwn",
+      "id": "v0iram0",
       "kind": "emoji",
       "x": 89,
       "y": 173,
@@ -1074432,7 +1074638,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "ltl92og",
+      "id": "4yg9y6c",
       "kind": "poly",
       "x": 54,
       "y": 144,
@@ -1074468,10 +1074674,10 @@
       "_slot": "jacket"
      },
      {
-      "id": "ziqf90c",
+      "id": "b6ywben",
       "kind": "rect",
-      "x": 96,
-      "y": 88,
+      "x": 109.5,
+      "y": 87.5,
       "w": 7,
       "h": 14,
       "color": "#f08cb4",
@@ -1074486,7 +1074692,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "luym3wd",
+      "id": "odnwsmc",
       "kind": "rect",
       "x": 59,
       "y": 100,
@@ -1074504,7 +1074710,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "559n7l1",
+      "id": "uqsose7",
       "kind": "circle",
       "x": 116,
       "y": 92,
@@ -1074522,7 +1074728,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "bynsif9",
+      "id": "m9wjxhg",
       "kind": "rect",
       "x": 59,
       "y": 141,
@@ -1074540,7 +1074746,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "6ozr2zd",
+      "id": "iydqc39",
       "kind": "halfcircle",
       "x": 54,
       "y": 222,
@@ -1074559,7 +1074765,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "u4qplqm",
+      "id": "3q2j4am",
       "kind": "halfcircle",
       "x": 69.3,
       "y": 222,
@@ -1074578,7 +1074784,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "kh2mofx",
+      "id": "09extta",
       "kind": "halfcircle",
       "x": 84.7,
       "y": 222,
@@ -1074597,7 +1074803,82 @@
       "_slot": "jacket"
      },
      {
-      "id": "mlf2sgv",
+      "id": "6ve02ga",
+      "kind": "halfcircle",
+      "x": 115,
+      "y": 222,
+      "w": 15.3,
+      "h": 8,
+      "color": "#f4f4f4",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 180,
+      "_src": "pnkdrs1",
+      "_slot": "jacket"
+     },
+     {
+      "id": "hc990qk",
+      "kind": "halfcircle",
+      "x": 130.5,
+      "y": 222,
+      "w": 15.3,
+      "h": 8,
+      "color": "#f4f4f4",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 180,
+      "_src": "pnkdrs1",
+      "_slot": "jacket"
+     },
+     {
+      "id": "1y99f9r",
+      "kind": "halfcircle",
+      "x": 100,
+      "y": 222,
+      "w": 15.3,
+      "h": 8,
+      "color": "#f4f4f4",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 180,
+      "_src": "pnkdrs1",
+      "_slot": "jacket"
+     },
+     {
+      "id": "oieg11x",
+      "kind": "rect",
+      "x": 69.5,
+      "y": 88,
+      "w": 7,
+      "h": 14,
+      "color": "#f08cb4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_src": "pnkdrs1",
+      "_slot": "jacket"
+     },
+     {
+      "id": "h6i9x5v",
       "kind": "rect",
       "x": 84,
       "y": 96,
@@ -1074615,7 +1074896,7 @@
     ],
     "up": [
      {
-      "id": "p84e67y",
+      "id": "u6t43fd",
       "kind": "tri",
       "x": 60.5,
       "y": 82,
@@ -1074634,7 +1074915,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "1aanw80",
+      "id": "gwfv3da",
       "kind": "tri",
       "x": 65.5,
       "y": 83.5,
@@ -1074653,7 +1074934,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "iwgpw07",
+      "id": "8zubv2j",
       "kind": "roundrect",
       "x": 70.5,
       "y": 43.5,
@@ -1074672,7 +1074953,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "bjzynkg",
+      "id": "6p04dxz",
       "kind": "rect",
       "x": 80,
       "y": 38.5,
@@ -1074691,7 +1074972,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "3albv6m",
+      "id": "3elr1ho",
       "kind": "rect",
       "x": 60,
       "y": 88,
@@ -1074702,7 +1074983,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "4i6jqfb",
+      "id": "fs06jkp",
       "kind": "rect",
       "x": 60,
       "y": 88,
@@ -1074714,7 +1074995,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "galkm4j",
+      "id": "ydy97nw",
       "kind": "rect",
       "x": 72,
       "y": 34,
@@ -1074725,7 +1075006,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "x9ps0wy",
+      "id": "w16sa3a",
       "kind": "rect",
       "x": 72,
       "y": 34,
@@ -1074737,7 +1075018,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "m2b8cbj",
+      "id": "d4sezzo",
       "kind": "rect",
       "x": 102,
       "y": 188,
@@ -1074748,7 +1075029,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "zws8pk7",
+      "id": "bl66a1n",
       "kind": "rect",
       "x": 70,
       "y": 188,
@@ -1074760,7 +1075041,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "18wl4mg",
+      "id": "9167nqj",
       "kind": "circle",
       "x": 96,
       "y": 134,
@@ -1074771,7 +1075052,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "21xe4z7",
+      "id": "hlw3vtt",
       "kind": "circle",
       "x": 67,
       "y": 107,
@@ -1074782,7 +1075063,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "gsyax3p",
+      "id": "j7gmwew",
       "kind": "circle",
       "x": 127,
       "y": 107,
@@ -1074794,7 +1075075,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "0vxsv62",
+      "id": "g2as0t0",
       "kind": "circle",
       "x": 99,
       "y": 181,
@@ -1074805,7 +1075086,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "etyk09k",
+      "id": "2q2rfgy",
       "kind": "circle",
       "x": 93,
       "y": 181,
@@ -1074816,7 +1075097,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "sa0ov62",
+      "id": "q3dtdj7",
       "kind": "circle",
       "x": 97,
       "y": 178,
@@ -1074827,7 +1075108,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "uulw8xa",
+      "id": "8omdlr9",
       "kind": "rect",
       "x": 97,
       "y": 53,
@@ -1074838,7 +1075119,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "4fmj40l",
+      "id": "rv1bhmv",
       "kind": "roundrect",
       "x": 93.5,
       "y": 71.5,
@@ -1074855,7 +1075136,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "2cw4lwh",
+      "id": "pjm6h33",
       "kind": "roundrect",
       "x": 80,
       "y": 72.5,
@@ -1074872,7 +1075153,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "1e1o9h5",
+      "id": "srucqsr",
       "kind": "rect",
       "x": 78,
       "y": 27,
@@ -1074884,7 +1075165,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "kdzc2sw",
+      "id": "c2awzgd",
       "kind": "rect",
       "x": 72,
       "y": 30,
@@ -1074896,7 +1075177,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "zeptpl8",
+      "id": "o02rptf",
       "kind": "rect",
       "x": 72,
       "y": 36,
@@ -1074907,7 +1075188,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "gmf7b2p",
+      "id": "k3714po",
       "kind": "rect",
       "x": 122,
       "y": 36,
@@ -1074919,7 +1075200,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "f85a01f",
+      "id": "j9ji8eq",
       "kind": "rect",
       "x": 79,
       "y": 54,
@@ -1074936,7 +1075217,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "baf5yu1",
+      "id": "28n3vfv",
       "kind": "rect",
       "x": 109,
       "y": 54,
@@ -1074954,7 +1075235,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "oq82312",
+      "id": "bw562fb",
       "kind": "rect",
       "x": 82,
       "y": 54,
@@ -1074971,7 +1075252,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "spvd022",
+      "id": "9486f6x",
       "kind": "rect",
       "x": 112,
       "y": 54,
@@ -1074989,7 +1075270,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "7axdm9x",
+      "id": "855pot9",
       "kind": "rect",
       "x": 86,
       "y": 76,
@@ -1075007,7 +1075288,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "7s7tp4z",
+      "id": "bezmzc5",
       "kind": "rect",
       "x": 93,
       "y": 76,
@@ -1075025,7 +1075306,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "hx3m0e0",
+      "id": "mt6q7eg",
       "kind": "rect",
       "x": 99,
       "y": 76,
@@ -1075043,7 +1075324,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "sqbrgv2",
+      "id": "ft2kx1o",
       "kind": "rect",
       "x": 105,
       "y": 76,
@@ -1075061,7 +1075342,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "ipqhqiy",
+      "id": "jhiqhsz",
       "kind": "rect",
       "x": 69,
       "y": 28.5,
@@ -1075078,7 +1075359,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "1ajy5lg",
+      "id": "jr3s2uu",
       "kind": "rect",
       "x": 73,
       "y": 26,
@@ -1075095,7 +1075376,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "19unucx",
+      "id": "smf58zz",
       "kind": "rect",
       "x": 80,
       "y": 22.5,
@@ -1075112,7 +1075393,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "gsx93hx",
+      "id": "f0ogkv5",
       "kind": "rect",
       "x": 60,
       "y": 165,
@@ -1075124,7 +1075405,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "e34sech",
+      "id": "7hg4ac8",
       "kind": "circle",
       "x": 83,
       "y": 182,
@@ -1075136,7 +1075417,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "lx5huwn",
+      "id": "b0nyees",
       "kind": "tri",
       "x": 82,
       "y": 186,
@@ -1075149,7 +1075430,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "rsy6vde",
+      "id": "avi16mb",
       "kind": "tri",
       "x": 59,
       "y": 186,
@@ -1075163,7 +1075444,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "i6vm7kh",
+      "id": "x4h1wol",
       "kind": "rect",
       "x": 86,
       "y": 166,
@@ -1075176,7 +1075457,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "z4gjx1l",
+      "id": "vqpv4s2",
       "kind": "emoji",
       "x": 65,
       "y": 167,
@@ -1075195,7 +1075476,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "qzzl4b9",
+      "id": "mneioad",
       "kind": "emoji",
       "x": 126,
       "y": 167,
@@ -1075215,7 +1075496,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "o2vivm2",
+      "id": "owdrr0y",
       "kind": "poly",
       "x": 52,
       "y": 144,
@@ -1075251,7 +1075532,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "m84buli",
+      "id": "2iqra1h",
       "kind": "rect",
       "x": 74,
       "y": 88,
@@ -1075269,7 +1075550,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "pla8nwl",
+      "id": "o2jtyuk",
       "kind": "rect",
       "x": 119,
       "y": 88,
@@ -1075288,7 +1075569,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "o1ksnka",
+      "id": "14hfzui",
       "kind": "rect",
       "x": 59,
       "y": 104,
@@ -1075306,7 +1075587,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "xxy45t6",
+      "id": "rqb1hxn",
       "kind": "circle",
       "x": 62,
       "y": 92,
@@ -1075324,7 +1075605,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "cms95vg",
+      "id": "nbbsy4x",
       "kind": "circle",
       "x": 100,
       "y": 92,
@@ -1075343,7 +1075624,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "mnacmtu",
+      "id": "5x40wph",
       "kind": "rect",
       "x": 59,
       "y": 141,
@@ -1075361,7 +1075642,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "babeeuh",
+      "id": "t68oorn",
       "kind": "halfcircle",
       "x": 52,
       "y": 222,
@@ -1075380,7 +1075661,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "5ml6tqp",
+      "id": "ntyhe36",
       "kind": "halfcircle",
       "x": 132,
       "y": 222,
@@ -1075400,7 +1075681,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "ca8wb2b",
+      "id": "7ad7e4r",
       "kind": "halfcircle",
       "x": 68,
       "y": 222,
@@ -1075419,7 +1075700,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "o27g9gw",
+      "id": "yt9sz3i",
       "kind": "halfcircle",
       "x": 116,
       "y": 222,
@@ -1075439,7 +1075720,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "sgzpbsy",
+      "id": "60mnj2x",
       "kind": "halfcircle",
       "x": 84,
       "y": 222,
@@ -1075458,7 +1075739,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "o74qmor",
+      "id": "f11gbhv",
       "kind": "halfcircle",
       "x": 100,
       "y": 222,
@@ -1075478,7 +1075759,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "3obcgqp",
+      "id": "p9ld2vk",
       "kind": "rect",
       "x": 134,
       "y": 36,
@@ -1075493,7 +1075774,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "sd65dpp",
+      "id": "d4p326y",
       "kind": "rect",
       "x": 48,
       "y": 36,
@@ -1075511,7 +1075792,7 @@
     ],
     "crouch": [
      {
-      "id": "yho3r20",
+      "id": "3sgsncl",
       "kind": "tri",
       "x": 60,
       "y": 113.5,
@@ -1075530,7 +1075811,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "p9p29bj",
+      "id": "7h8e509",
       "kind": "tri",
       "x": 65,
       "y": 115,
@@ -1075549,7 +1075830,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "2zpszce",
+      "id": "p9d3vas",
       "kind": "roundrect",
       "x": 70,
       "y": 75,
@@ -1075568,7 +1075849,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "sadmlwc",
+      "id": "huichha",
       "kind": "rect",
       "x": 79.5,
       "y": 70,
@@ -1075587,7 +1075868,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "kltvu8t",
+      "id": "o4i84j5",
       "kind": "rect",
       "x": 60,
       "y": 118,
@@ -1075598,7 +1075879,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "u18gnf3",
+      "id": "8tpyvmj",
       "kind": "rect",
       "x": 60,
       "y": 118,
@@ -1075610,7 +1075891,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "kzc8ad8",
+      "id": "1et4wc0",
       "kind": "rect",
       "x": 72,
       "y": 70,
@@ -1075621,7 +1075902,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "0pdfzxh",
+      "id": "g7sbf7q",
       "kind": "rect",
       "x": 72,
       "y": 70,
@@ -1075633,7 +1075914,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "uslozjg",
+      "id": "maoki1t",
       "kind": "rect",
       "x": 105,
       "y": 171,
@@ -1075645,7 +1075926,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "bbil2ax",
+      "id": "qrdjdez",
       "kind": "rect",
       "x": 64,
       "y": 171,
@@ -1075658,7 +1075939,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "wmoupof",
+      "id": "4vm6eel",
       "kind": "circle",
       "x": 99,
       "y": 181,
@@ -1075669,7 +1075950,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "z33tbef",
+      "id": "84yc6ln",
       "kind": "circle",
       "x": 96,
       "y": 180,
@@ -1075680,7 +1075961,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "xexqqk0",
+      "id": "lq9baya",
       "kind": "circle",
       "x": 68,
       "y": 126,
@@ -1075691,7 +1075972,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "xz2y6cy",
+      "id": "6wo3vt8",
       "kind": "circle",
       "x": 126,
       "y": 126,
@@ -1075703,7 +1075984,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "45lmaek",
+      "id": "tv2b95u",
       "kind": "circle",
       "x": 96,
       "y": 159,
@@ -1075714,7 +1075995,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "c6ycsr5",
+      "id": "zu7qnmc",
       "kind": "rect",
       "x": 96,
       "y": 85,
@@ -1075725,7 +1076006,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "79k8kbv",
+      "id": "589v5nd",
       "kind": "roundrect",
       "x": 93,
       "y": 103,
@@ -1075742,7 +1076023,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "mtj8z57",
+      "id": "bwsg9ch",
       "kind": "roundrect",
       "x": 79.5,
       "y": 104,
@@ -1075759,7 +1076040,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "jb46549",
+      "id": "z0uklsu",
       "kind": "rect",
       "x": 77.5,
       "y": 58.5,
@@ -1075771,7 +1076052,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "8ar2kc6",
+      "id": "kcb6ll7",
       "kind": "rect",
       "x": 71.5,
       "y": 61.5,
@@ -1075783,7 +1076064,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "svjffft",
+      "id": "s5y3w4q",
       "kind": "rect",
       "x": 71.5,
       "y": 67.5,
@@ -1075794,7 +1076075,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "fl1zv1w",
+      "id": "1eeqh2t",
       "kind": "rect",
       "x": 122.5,
       "y": 67.5,
@@ -1075806,7 +1076087,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "5ffo9ni",
+      "id": "ejoa1g1",
       "kind": "rect",
       "x": 78.5,
       "y": 85.5,
@@ -1075823,7 +1076104,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "z7zormx",
+      "id": "ch3pxh8",
       "kind": "rect",
       "x": 109.5,
       "y": 85.5,
@@ -1075841,7 +1076122,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "sub3gwf",
+      "id": "s0zi9iz",
       "kind": "rect",
       "x": 81.5,
       "y": 85.5,
@@ -1075858,7 +1076139,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "fz5c0xj",
+      "id": "qtx056q",
       "kind": "rect",
       "x": 112.5,
       "y": 85.5,
@@ -1075876,7 +1076157,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "wxh8hlq",
+      "id": "ywaxbkt",
       "kind": "rect",
       "x": 85.5,
       "y": 107.5,
@@ -1075894,7 +1076175,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "n4te1ea",
+      "id": "uvmps3u",
       "kind": "rect",
       "x": 92.5,
       "y": 107.5,
@@ -1075912,7 +1076193,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "233zl67",
+      "id": "6q9wu3y",
       "kind": "rect",
       "x": 98.5,
       "y": 107.5,
@@ -1075930,7 +1076211,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "uout5zx",
+      "id": "fsgbe9c",
       "kind": "rect",
       "x": 104.5,
       "y": 107.5,
@@ -1075948,7 +1076229,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "s165t2w",
+      "id": "mud3y5g",
       "kind": "rect",
       "x": 68.5,
       "y": 60,
@@ -1075965,7 +1076246,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "rio3bos",
+      "id": "szuf1rb",
       "kind": "rect",
       "x": 72.5,
       "y": 57.5,
@@ -1075982,7 +1076263,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "coithtr",
+      "id": "jixcdv3",
       "kind": "rect",
       "x": 79.5,
       "y": 54,
@@ -1075999,7 +1076280,7 @@
       "_src": "rvymf5r"
      },
      {
-      "id": "n8n1l2t",
+      "id": "im83i99",
       "kind": "rect",
       "x": 74,
       "y": 120,
@@ -1076017,7 +1076298,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "jw47st5",
+      "id": "io09sz2",
       "kind": "rect",
       "x": 119,
       "y": 120,
@@ -1076036,7 +1076317,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "nw4reas",
+      "id": "wdqumbb",
       "kind": "rect",
       "x": 59,
       "y": 134,
@@ -1076054,7 +1076335,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "c6muwwk",
+      "id": "thw0czz",
       "kind": "circle",
       "x": 62,
       "y": 122,
@@ -1076072,7 +1076353,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "9i8q1p7",
+      "id": "0cq4pnc",
       "kind": "circle",
       "x": 100,
       "y": 122,
@@ -1076091,7 +1076372,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "oe6lmai",
+      "id": "esl5dqc",
       "kind": "rect",
       "x": 59,
       "y": 170,
@@ -1076109,7 +1076390,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "btmtrcb",
+      "id": "wthjwsi",
       "kind": "rect",
       "x": 60,
       "y": 170,
@@ -1076121,7 +1076402,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "de8y5xs",
+      "id": "wkt52tw",
       "kind": "circle",
       "x": 83,
       "y": 182,
@@ -1076133,7 +1076414,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "1s5olbc",
+      "id": "ibmiyrw",
       "kind": "tri",
       "x": 79,
       "y": 191,
@@ -1076146,7 +1076427,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "x1ph8vk",
+      "id": "v0ap1lk",
       "kind": "tri",
       "x": 62,
       "y": 191,
@@ -1076160,7 +1076441,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "ojwza5o",
+      "id": "l6s9e6l",
       "kind": "rect",
       "x": 87,
       "y": 171,
@@ -1076173,7 +1076454,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "o8pv04z",
+      "id": "9f2p76y",
       "kind": "emoji",
       "x": 65,
       "y": 167,
@@ -1076192,7 +1076473,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "1rc5268",
+      "id": "nogedl3",
       "kind": "emoji",
       "x": 126,
       "y": 167,
@@ -1076212,7 +1076493,7 @@
       "_slot": "under_bottom"
      },
      {
-      "id": "ra7mv5v",
+      "id": "7u0564h",
       "kind": "rect",
       "x": 140,
       "y": 124,
@@ -1076228,7 +1076509,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "be4ar5z",
+      "id": "efe8isa",
       "kind": "rect",
       "x": 42,
       "y": 124,
@@ -1076245,7 +1076526,7 @@
       "_src": "telfv37"
      },
      {
-      "id": "cxfub5m",
+      "id": "gu1rrto",
       "kind": "poly",
       "x": 52,
       "y": 174,
@@ -1076282,7 +1076563,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "5kmjl6t",
+      "id": "gxvnd4k",
       "kind": "halfcircle",
       "x": 52,
       "y": 214,
@@ -1076302,7 +1076583,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "qhhzzfu",
+      "id": "gvjl6y9",
       "kind": "halfcircle",
       "x": 132,
       "y": 214,
@@ -1076323,7 +1076604,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "z5f1myk",
+      "id": "ka07ndc",
       "kind": "halfcircle",
       "x": 68,
       "y": 214,
@@ -1076343,7 +1076624,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "45401fe",
+      "id": "g80zshz",
       "kind": "halfcircle",
       "x": 116,
       "y": 214,
@@ -1076364,7 +1076645,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "ymyltfa",
+      "id": "px0l9k5",
       "kind": "halfcircle",
       "x": 84,
       "y": 214,
@@ -1076384,7 +1076665,7 @@
       "_slot": "jacket"
      },
      {
-      "id": "8u9kchy",
+      "id": "rcmyiwd",
       "kind": "halfcircle",
       "x": 100,
       "y": 214,
@@ -1076467,7 +1076748,8 @@
      "tag": "Heal"
     }
    ],
-   "savedAt": 1794076742549
+   "savedAt": 1794076824812,
+   "editedFrom": 1794076742549
   },
   {
    "id": "jy8zbxd",
@@ -1431706,16 +1431988,16 @@
    "name": "Pink Dress",
    "type": "equipment",
    "slot": "jacket",
-   "guideId": "oipvf3l",
+   "guideId": "telfv37",
    "angles": {
     "front": [
      {
-      "id": "pkd00o",
+      "id": "pkd01s",
       "kind": "poly",
-      "x": 58,
-      "y": 140,
-      "w": 84,
-      "h": 84,
+      "x": 52,
+      "y": 144,
+      "w": 96,
+      "h": 82,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1431726,16 +1432008,12 @@
       },
       "points": [
        [
-        0.083,
+        0.073,
         0
        ],
        [
-        0.917,
+        0.927,
         0
-       ],
-       [
-        0.964,
-        0.369
        ],
        [
         1,
@@ -1431744,19 +1432022,15 @@
        [
         0,
         1
-       ],
-       [
-        0.036,
-        0.369
        ]
       ]
      },
      {
-      "id": "pkd00p",
+      "id": "pkd01t",
       "kind": "rect",
-      "x": 78,
-      "y": 86,
-      "w": 6,
+      "x": 74,
+      "y": 88,
+      "w": 7,
       "h": 16,
       "color": "#f08cb4",
       "mirror": true,
@@ -1431768,12 +1432042,12 @@
       }
      },
      {
-      "id": "pkd00q",
+      "id": "pkd01u",
       "kind": "rect",
-      "x": 65,
+      "x": 59,
       "y": 104,
-      "w": 70,
-      "h": 38,
+      "w": 82,
+      "h": 42,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1431784,12 +1432058,12 @@
       }
      },
      {
-      "id": "pkd00r",
+      "id": "pkd01v",
       "kind": "circle",
-      "x": 66,
-      "y": 90,
-      "w": 33,
-      "h": 33,
+      "x": 62,
+      "y": 92,
+      "w": 38,
+      "h": 28,
       "color": "#f08cb4",
       "mirror": true,
       "fx": {
@@ -1431800,11 +1432074,11 @@
       }
      },
      {
-      "id": "pkd00s",
+      "id": "pkd01w",
       "kind": "rect",
-      "x": 65,
-      "y": 137,
-      "w": 70,
+      "x": 59,
+      "y": 141,
+      "w": 82,
       "h": 5,
       "color": "#f4f4f4",
       "mirror": false,
@@ -1431816,11 +1432090,11 @@
       }
      },
      {
-      "id": "pkd00t",
+      "id": "pkd01x",
       "kind": "halfcircle",
-      "x": 58,
-      "y": 220,
-      "w": 14,
+      "x": 52,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1431833,11 +1432107,11 @@
       "rot": 180
      },
      {
-      "id": "pkd00u",
+      "id": "pkd01y",
       "kind": "halfcircle",
-      "x": 72,
-      "y": 220,
-      "w": 14,
+      "x": 68,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1431850,11 +1432124,11 @@
       "rot": 180
      },
      {
-      "id": "pkd00v",
+      "id": "pkd01z",
       "kind": "halfcircle",
-      "x": 86,
-      "y": 220,
-      "w": 14,
+      "x": 84,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1431869,12 +1432143,12 @@
     ],
     "side": [
      {
-      "id": "pkd000",
+      "id": "pkd014",
       "kind": "poly",
-      "x": 60,
-      "y": 140,
-      "w": 80,
-      "h": 84,
+      "x": 54,
+      "y": 144,
+      "w": 92,
+      "h": 82,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1431885,16 +1432159,12 @@
       },
       "points": [
        [
-        0.113,
+        0.054,
         0
        ],
        [
-        0.887,
+        0.946,
         0
-       ],
-       [
-        0.975,
-        0.452
        ],
        [
         1,
@@ -1431903,20 +1432173,16 @@
        [
         0,
         1
-       ],
-       [
-        0.025,
-        0.452
        ]
       ]
      },
      {
-      "id": "pkd001",
+      "id": "pkd015",
       "kind": "rect",
-      "x": 97,
-      "y": 86,
+      "x": 109.5,
+      "y": 87.5,
       "w": 7,
-      "h": 16,
+      "h": 14,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1431927,12 +1432193,12 @@
       }
      },
      {
-      "id": "pkd002",
+      "id": "pkd016",
       "kind": "rect",
-      "x": 69,
+      "x": 59,
       "y": 100,
-      "w": 62,
-      "h": 42,
+      "w": 82,
+      "h": 46,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1431943,12 +1432209,12 @@
       }
      },
      {
-      "id": "pkd003",
+      "id": "pkd017",
       "kind": "circle",
-      "x": 111,
-      "y": 89,
-      "w": 22,
-      "h": 33,
+      "x": 116,
+      "y": 92,
+      "w": 24,
+      "h": 26,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1431959,11 +1432225,11 @@
       }
      },
      {
-      "id": "pkd004",
+      "id": "pkd018",
       "kind": "rect",
-      "x": 69,
-      "y": 137,
-      "w": 62,
+      "x": 59,
+      "y": 141,
+      "w": 82,
       "h": 5,
       "color": "#f4f4f4",
       "mirror": false,
@@ -1431975,11 +1432241,11 @@
       }
      },
      {
-      "id": "pkd005",
+      "id": "pkd019",
       "kind": "halfcircle",
-      "x": 60,
-      "y": 220,
-      "w": 13.3,
+      "x": 54,
+      "y": 222,
+      "w": 15.3,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1431992,11 +1432258,11 @@
       "rot": 180
      },
      {
-      "id": "pkd006",
+      "id": "pkd01a",
       "kind": "halfcircle",
-      "x": 73.3,
-      "y": 220,
-      "w": 13.3,
+      "x": 69.3,
+      "y": 222,
+      "w": 15.3,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432009,11 +1432275,11 @@
       "rot": 180
      },
      {
-      "id": "pkd007",
+      "id": "pkd01b",
       "kind": "halfcircle",
-      "x": 86.7,
-      "y": 220,
-      "w": 13.3,
+      "x": 84.7,
+      "y": 222,
+      "w": 15.3,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432024,16 +1432290,83 @@
        "bright": 1
       },
       "rot": 180
+     },
+     {
+      "id": "y53ifad",
+      "kind": "halfcircle",
+      "x": 115,
+      "y": 222,
+      "w": 15.3,
+      "h": 8,
+      "color": "#f4f4f4",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 180
+     },
+     {
+      "id": "3ijw0kr",
+      "kind": "halfcircle",
+      "x": 130.5,
+      "y": 222,
+      "w": 15.3,
+      "h": 8,
+      "color": "#f4f4f4",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 180
+     },
+     {
+      "id": "8mhnzrj",
+      "kind": "halfcircle",
+      "x": 100,
+      "y": 222,
+      "w": 15.3,
+      "h": 8,
+      "color": "#f4f4f4",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 180
+     },
+     {
+      "id": "4q817v2",
+      "kind": "rect",
+      "x": 69.5,
+      "y": 88,
+      "w": 7,
+      "h": 14,
+      "color": "#f08cb4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
      }
     ],
     "back": [
      {
-      "id": "pkd008",
+      "id": "pkd01c",
       "kind": "poly",
-      "x": 58,
-      "y": 140,
-      "w": 84,
-      "h": 84,
+      "x": 52,
+      "y": 144,
+      "w": 96,
+      "h": 82,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1432044,16 +1432377,12 @@
       },
       "points": [
        [
-        0.083,
+        0.073,
         0
        ],
        [
-        0.917,
+        0.927,
         0
-       ],
-       [
-        0.964,
-        0.369
        ],
        [
         1,
@@ -1432062,19 +1432391,15 @@
        [
         0,
         1
-       ],
-       [
-        0.036,
-        0.369
        ]
       ]
      },
      {
-      "id": "pkd009",
+      "id": "pkd01d",
       "kind": "rect",
-      "x": 78,
-      "y": 86,
-      "w": 6,
+      "x": 74,
+      "y": 88,
+      "w": 7,
       "h": 16,
       "color": "#f08cb4",
       "mirror": true,
@@ -1432086,12 +1432411,12 @@
       }
      },
      {
-      "id": "pkd00a",
+      "id": "pkd01e",
       "kind": "rect",
-      "x": 65,
+      "x": 59,
       "y": 100,
-      "w": 70,
-      "h": 42,
+      "w": 82,
+      "h": 46,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1432102,11 +1432427,11 @@
       }
      },
      {
-      "id": "pkd00b",
+      "id": "pkd01f",
       "kind": "rect",
-      "x": 65,
-      "y": 137,
-      "w": 70,
+      "x": 59,
+      "y": 141,
+      "w": 82,
       "h": 5,
       "color": "#f4f4f4",
       "mirror": false,
@@ -1432118,12 +1432443,12 @@
       }
      },
      {
-      "id": "pkd00c",
+      "id": "pkd01g",
       "kind": "tri",
-      "x": 87,
-      "y": 133,
-      "w": 13,
-      "h": 13,
+      "x": 86,
+      "y": 137,
+      "w": 14,
+      "h": 14,
       "color": "#f4f4f4",
       "mirror": true,
       "fx": {
@@ -1432135,11 +1432460,11 @@
       "rot": 90
      },
      {
-      "id": "pkd00d",
+      "id": "pkd01h",
       "kind": "halfcircle",
-      "x": 58,
-      "y": 220,
-      "w": 14,
+      "x": 52,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432152,11 +1432477,11 @@
       "rot": 180
      },
      {
-      "id": "pkd00e",
+      "id": "pkd01i",
       "kind": "halfcircle",
-      "x": 72,
-      "y": 220,
-      "w": 14,
+      "x": 68,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432169,11 +1432494,11 @@
       "rot": 180
      },
      {
-      "id": "pkd00f",
+      "id": "pkd01j",
       "kind": "halfcircle",
-      "x": 86,
-      "y": 220,
-      "w": 14,
+      "x": 84,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432188,12 +1432513,12 @@
     ],
     "up": [
      {
-      "id": "pkd00w",
+      "id": "pkd020",
       "kind": "poly",
-      "x": 58,
-      "y": 140,
-      "w": 84,
-      "h": 84,
+      "x": 52,
+      "y": 144,
+      "w": 96,
+      "h": 82,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1432204,16 +1432529,12 @@
       },
       "points": [
        [
-        0.083,
+        0.073,
         0
        ],
        [
-        0.917,
+        0.927,
         0
-       ],
-       [
-        0.964,
-        0.369
        ],
        [
         1,
@@ -1432222,19 +1432543,15 @@
        [
         0,
         1
-       ],
-       [
-        0.036,
-        0.369
        ]
       ]
      },
      {
-      "id": "pkd00x",
+      "id": "pkd021",
       "kind": "rect",
-      "x": 78,
-      "y": 86,
-      "w": 6,
+      "x": 74,
+      "y": 88,
+      "w": 7,
       "h": 16,
       "color": "#f08cb4",
       "mirror": true,
@@ -1432246,12 +1432563,12 @@
       }
      },
      {
-      "id": "pkd00y",
+      "id": "pkd022",
       "kind": "rect",
-      "x": 65,
+      "x": 59,
       "y": 104,
-      "w": 70,
-      "h": 38,
+      "w": 82,
+      "h": 42,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1432262,12 +1432579,12 @@
       }
      },
      {
-      "id": "pkd00z",
+      "id": "pkd023",
       "kind": "circle",
-      "x": 66,
-      "y": 90,
-      "w": 33,
-      "h": 33,
+      "x": 62,
+      "y": 92,
+      "w": 38,
+      "h": 28,
       "color": "#f08cb4",
       "mirror": true,
       "fx": {
@@ -1432278,11 +1432595,11 @@
       }
      },
      {
-      "id": "pkd010",
+      "id": "pkd024",
       "kind": "rect",
-      "x": 65,
-      "y": 137,
-      "w": 70,
+      "x": 59,
+      "y": 141,
+      "w": 82,
       "h": 5,
       "color": "#f4f4f4",
       "mirror": false,
@@ -1432294,11 +1432611,11 @@
       }
      },
      {
-      "id": "pkd011",
+      "id": "pkd025",
       "kind": "halfcircle",
-      "x": 58,
-      "y": 220,
-      "w": 14,
+      "x": 52,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432311,11 +1432628,11 @@
       "rot": 180
      },
      {
-      "id": "pkd012",
+      "id": "pkd026",
       "kind": "halfcircle",
-      "x": 72,
-      "y": 220,
-      "w": 14,
+      "x": 68,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432328,11 +1432645,11 @@
       "rot": 180
      },
      {
-      "id": "pkd013",
+      "id": "pkd027",
       "kind": "halfcircle",
-      "x": 86,
-      "y": 220,
-      "w": 14,
+      "x": 84,
+      "y": 222,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432347,12 +1432664,12 @@
     ],
     "crouch": [
      {
-      "id": "pkd00g",
+      "id": "pkd01k",
       "kind": "poly",
-      "x": 58,
-      "y": 148,
-      "w": 84,
-      "h": 52,
+      "x": 52,
+      "y": 174,
+      "w": 96,
+      "h": 44,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1432363,16 +1432680,12 @@
       },
       "points": [
        [
-        0.143,
+        0.073,
         0
        ],
        [
-        0.857,
+        0.927,
         0
-       ],
-       [
-        0.952,
-        0.442
        ],
        [
         1,
@@ -1432381,20 +1432694,16 @@
        [
         0,
         1
-       ],
-       [
-        0.048,
-        0.442
        ]
       ],
       "overArms": true
      },
      {
-      "id": "pkd00h",
+      "id": "pkd01l",
       "kind": "rect",
-      "x": 78,
-      "y": 103,
-      "w": 6,
+      "x": 74,
+      "y": 120,
+      "w": 7,
       "h": 12,
       "color": "#f08cb4",
       "mirror": true,
@@ -1432406,12 +1432715,12 @@
       }
      },
      {
-      "id": "pkd00i",
+      "id": "pkd01m",
       "kind": "rect",
-      "x": 69,
-      "y": 122,
-      "w": 62,
-      "h": 26,
+      "x": 59,
+      "y": 134,
+      "w": 82,
+      "h": 40,
       "color": "#f08cb4",
       "mirror": false,
       "fx": {
@@ -1432422,12 +1432731,12 @@
       }
      },
      {
-      "id": "pkd00j",
+      "id": "pkd01n",
       "kind": "circle",
-      "x": 68,
-      "y": 108,
-      "w": 32,
-      "h": 32,
+      "x": 62,
+      "y": 122,
+      "w": 38,
+      "h": 26,
       "color": "#f08cb4",
       "mirror": true,
       "fx": {
@@ -1432438,11 +1432747,11 @@
       }
      },
      {
-      "id": "pkd00k",
+      "id": "pkd01o",
       "kind": "rect",
-      "x": 69,
-      "y": 143,
-      "w": 62,
+      "x": 59,
+      "y": 170,
+      "w": 82,
       "h": 5,
       "color": "#f4f4f4",
       "mirror": false,
@@ -1432454,11 +1432763,11 @@
       }
      },
      {
-      "id": "pkd00l",
+      "id": "pkd01p",
       "kind": "halfcircle",
-      "x": 58,
-      "y": 196,
-      "w": 14,
+      "x": 52,
+      "y": 214,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432472,11 +1432781,11 @@
       "overArms": true
      },
      {
-      "id": "pkd00m",
+      "id": "pkd01q",
       "kind": "halfcircle",
-      "x": 72,
-      "y": 196,
-      "w": 14,
+      "x": 68,
+      "y": 214,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1432490,11 +1432799,11 @@
       "overArms": true
      },
      {
-      "id": "pkd00n",
+      "id": "pkd01r",
       "kind": "halfcircle",
-      "x": 86,
-      "y": 196,
-      "w": 14,
+      "x": 84,
+      "y": 214,
+      "w": 16,
       "h": 8,
       "color": "#f4f4f4",
       "mirror": true,
@@ -1433469,8 +1433778,8 @@
       {
        "id": "pkd015",
        "kind": "rect",
-       "x": 96,
-       "y": 88,
+       "x": 109.5,
+       "y": 87.5,
        "w": 7,
        "h": 14,
        "color": "#f08cb4",
@@ -1433580,6 +1433889,73 @@
         "bright": 1
        },
        "rot": 180
+      },
+      {
+       "id": "y53ifad",
+       "kind": "halfcircle",
+       "x": 115,
+       "y": 222,
+       "w": 15.3,
+       "h": 8,
+       "color": "#f4f4f4",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 180
+      },
+      {
+       "id": "3ijw0kr",
+       "kind": "halfcircle",
+       "x": 130.5,
+       "y": 222,
+       "w": 15.3,
+       "h": 8,
+       "color": "#f4f4f4",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 180
+      },
+      {
+       "id": "8mhnzrj",
+       "kind": "halfcircle",
+       "x": 100,
+       "y": 222,
+       "w": 15.3,
+       "h": 8,
+       "color": "#f4f4f4",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 180
+      },
+      {
+       "id": "4q817v2",
+       "kind": "rect",
+       "x": 69.5,
+       "y": 88,
+       "w": 7,
+       "h": 14,
+       "color": "#f08cb4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
       }
      ],
      "back": [
@@ -1434247,8 +1434623,8 @@
       {
        "id": "pkd001",
        "kind": "rect",
-       "x": 97,
-       "y": 86,
+       "x": 75,
+       "y": 84.5,
        "w": 7,
        "h": 16,
        "color": "#f08cb4",
@@ -1434358,6 +1434734,22 @@
         "bright": 1
        },
        "rot": 180
+      },
+      {
+       "id": "1hbjuo8",
+       "kind": "rect",
+       "x": 107,
+       "y": 85.5,
+       "w": 7,
+       "h": 16,
+       "color": "#f08cb4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
       }
      ],
      "back": [
@@ -1434844,7 +1435236,7 @@
      ]
     }
    },
-   "lastFit": "oipvf3l",
+   "lastFit": "telfv37",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -1434874,8 +1435266,8 @@
    ],
    "value": 12,
    "rank": "rare",
-   "savedAt": 1794039400937,
-   "editedFrom": 1794038642607
+   "savedAt": 1794076824766,
+   "editedFrom": 1794039400937
   },
   {
    "id": "py6z71t",
