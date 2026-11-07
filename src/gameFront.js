@@ -440,6 +440,7 @@ export const STARTER_LOCKS = [
   { name: "super bob", items: 500 }, // Blake (2026-11-06): "It should require picking up 500 unique items" — distinct items found, like Robert's 200; repeats never count
   { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
+  { name: "the general", ranged: 1000 }, // Blake (2026-11-07): "lock the General behind killing 1,000 enemies with ranged weapons"
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");
@@ -468,7 +469,7 @@ export const starterLock = (look, rec, assets) => {
   const r = normalizeGameRecord(rec);
   if (lock.met) return r.met.some((m) => lockKey(m) === lockKey(lock.met)) ? null : { need: "Meet " + lock.met };
   if (lock.picks) return r.picked >= lock.picks ? null : { need: "Collect " + lock.picks + " Items", have: r.picked, of: lock.picks };
-  if (lock.ranged) return r.rangedKills >= lock.ranged ? null : { need: "Defeat " + lock.ranged + " Enemies With Ranged Weapons", have: r.rangedKills, of: lock.ranged };
+  if (lock.ranged) return r.rangedKills >= lock.ranged ? null : { need: "Defeat " + lock.ranged.toLocaleString("en-US") + " Enemies With Ranged Weapons", have: r.rangedKills, of: lock.ranged };
   if (lock.kills) return r.kills >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies", have: r.kills, of: lock.kills };
   if (lock.items) {
     const have = itemsFoundCount(r, assets);

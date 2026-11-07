@@ -806,9 +806,12 @@ plus traps it does not cover:
   (`piece.talkMouth`, a skin checkbox): `layerBodyAndOverlays(..., { mouthOpen })` draws them only on an
   open beat (`animLookArt`, re-composed from the look's components); everywhere else they never show, and
   the asset editor hides them unless one is selected. Blake asked for the General as "an actual character
-  ... using Bobs body type" instead of the necked close-up: the briefing (now `gnrlbr2`) shows **The
-  General** `thgnrl1` (Starter look: General Skin `gnrlskn` on BoB, General's Cap `gnrlcap`, General's
-  Jacket `gnrljkt`, his White Dress Shirt / Military Fatigues / Army Boots). `gnrlcu1` stays, unused.
+  ... using Bobs body type" instead of the necked close-up. The briefing (`gnrlbr2`) shows **The General
+  (Briefing)** `gnrlbf1` (Army folder: General Skin `gnrlskn` on BoB, General's Cap `gnrlcap`, General's
+  Jacket `gnrljkt`, his White Dress Shirt / Military Fatigues / Army Boots), NOT the playable Starter
+  **The General** `thgnrl1`: he re-dressed that one and the cutscene changed with it ("I don't want him
+  to have the starter look in the cut scene"). `thgnrl1` is locked behind 1,000 ranged kills
+  (STARTER_LOCKS). `gnrlcu1` stays, unused.
   The 🎬 editor: only DRAWN pieces take a click (`.animStage.ed` css, `elementsFromPoint` over
   `data-ly`); a drag on the SELECTED layer's pieces moves it even under another; nothing changes
   before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys

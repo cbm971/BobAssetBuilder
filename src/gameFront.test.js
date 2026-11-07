@@ -356,13 +356,22 @@ describe("locked starters", () => {
     r = recordDefeated(r, "dog");
     expect(starterLock(look("Agent Bob"), r, assets)).toBeNull();
   });
+  test("The General opens at 1,000 enemies defeated with ranged weapons; melee kills do not count", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 999; i++) r = recordDefeated(r, "dog", true);
+    for (let i = 0; i < 50; i++) r = recordDefeated(r, "dog", false);
+    expect(starterLock(look("The General"), r, assets)).toEqual({ need: "Defeat 1,000 Enemies With Ranged Weapons", have: 999, of: 1000 });
+    expect(starterLock(look("The General (Briefing)"), r, assets)).toBeNull();
+    r = recordDefeated(r, "dog", true);
+    expect(starterLock(look("The General"), r, assets)).toBeNull();
+  });
   test("Roberta opens only on Trailor Park finished AS Rob", () => {
     let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob");
     expect(starterLock(look("Roberta"), r, assets).need).toBe("Complete Trailor Park as Rob");
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob", "the general"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();
