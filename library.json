@@ -1386837,22 +1386837,32 @@
     "oipvf3l"
    ],
    "statBoosts": {
-    "hp": 1,
+    "hp": 4,
     "speed": 0,
-    "agility": 1,
+    "agility": 0,
     "intelligence": 0,
     "strength": 0
    },
-   "defense": 1,
-   "effects": [],
+   "defense": 0,
+   "effects": [
+    {
+     "id": "72c957s",
+     "type": "tagLuck",
+     "chance": 0.1,
+     "animByBody": {},
+     "lastFit": "default",
+     "tag": "Heal"
+    }
+   ],
    "categories": [
     "T1",
-    "Jacket",
-    ""
+    "Odd",
+    "Dress"
    ],
    "value": 12,
    "rank": "rare",
-   "savedAt": 1794038642607
+   "savedAt": 1794039400937,
+   "editedFrom": 1794038642607
   },
   {
    "id": "py6z71t",
