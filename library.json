@@ -3069252,9 +3069252,10 @@
     "carRadio": 0.05
    },
    "musicVol": 0.05,
-   "savedAt": 1793672817071,
-   "editedFrom": 1793672812368,
-   "menuMusic": "7o54mwd"
+   "savedAt": 1794099212316,
+   "editedFrom": 1793672817071,
+   "menuMusic": "7o54mwd",
+   "menuMusicVol": 0.25
   },
   {
    "id": "symbolboard",
