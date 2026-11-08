@@ -458,7 +458,7 @@ export const STARTER_LOCKS = [
   { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
   { name: "the general", kills: 500, on: "Vietnam" }, // Blake (2026-11-07): "the general should be unlocked by defeating 500 enemies in Vietnam" (was 1,000 ranged kills, earlier the same day)
-  { name: "bobena", kills: 50 }, // Blake (2026-11-07): "lock Bobena behind Kill 50 enemies"
+  { name: "bobena", enemies: 50 }, // Blake (2026-11-07): "50 unique enemies. Like the stats show how many enemies you have met"
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailor/g, "trailer");
@@ -480,6 +480,12 @@ export const itemsFoundCount = (rec, assets) => {
   const items = new Set(unlockPool(assets, "items").map((a) => a.id));
   return (rec.found || []).filter((id) => items.has(id)).length;
 };
+// Enemies defeated that are enemies (the Unlocks screen's Enemies tab), not every id in `defeated`.
+export const enemiesDefeatedCount = (rec, assets) => {
+  const pool = unlockPool(assets, "enemies");
+  const enemies = new Set(pool.map((a) => a.id));
+  return (rec.defeated || []).filter((id) => (enemies.size ? enemies.has(id) : true)).length;
+};
 // null when the look is open; otherwise { need, have, of } — `need` is the line its card shows.
 export const starterLock = (look, rec, assets) => {
   const lock = look && STARTER_LOCKS.find((l) => lockKey(l.name) === lockKey(look.name));
@@ -490,6 +496,11 @@ export const starterLock = (look, rec, assets) => {
   if (lock.ranged) return r.rangedKills >= lock.ranged ? null : { need: "Defeat " + lock.ranged.toLocaleString("en-US") + " Enemies With Ranged Weapons", have: r.rangedKills, of: lock.ranged };
   if (lock.kills && lock.on) { const have = r.floorKills[floorKey(lock.on)] || 0; return have >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies in " + lock.on, have, of: lock.kills }; }
   if (lock.kills) return r.kills >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies", have: r.kills, of: lock.kills };
+  if (lock.enemies || lock.uniqueEnemies) {
+    const needCount = lock.enemies || lock.uniqueEnemies;
+    const have = enemiesDefeatedCount(r, assets);
+    return have >= needCount ? null : { need: "Defeat " + needCount + " Unique Enemies", have, of: needCount };
+  }
   if (lock.items) {
     const have = itemsFoundCount(r, assets);
     return have >= lock.items ? null : { need: "Unlock " + lock.items + " Items", have, of: lock.items };

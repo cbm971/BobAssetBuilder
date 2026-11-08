@@ -563,7 +563,7 @@ plus traps it does not cover:
   a game (`record.met`, dialogue names, written by openTalk; the Tree Tops 2 NPC who says it, at 38,130,
   wears the Bob Li starter look `7vh0ltj` since 2026-10-31, not Chun Bobette), Robbie = 100 items found (same count as Bobert), Robert = 200 items found, Super Bob = 500 items COLLECTED (`record.picked`, every pickup, repeats included),
   Bob The Alien = 500 kills whose last blow was a shot or throw (`record.rangedKills`, from `ep.lastHitRanged`;
-  counted from 2026-10-31 on), Agent Bob = 1,000 kills (`record.kills`), The General = 500 enemies defeated in Vietnam (`record.floorKills`), Bobena = 50 kills (`record.kills`). Locked boxes show as a silhouette under
+  counted from 2026-10-31 on), Agent Bob = 1,000 kills (`record.kills`), The General = 500 enemies defeated in Vietnam (`record.floorKills`), Bobena = 50 unique enemies defeated (`record.defeated`, Enemies-tab ids). Locked boxes show as a silhouette under
   a padlock, can be lit but not picked; the P1 card names what opens them. **Order** (`starterRoster`):
   every open fighter first (Bob, then A-Z), then the locked ones A-Z; an unlock moves a fighter up into
   its alphabetical place. `selectGridCols` is always **6** to a row (Blake, 2026-11-07; 5 before). **A box NEVER changes size with the roster** (Blake, 2026-11-07: adding Bobena opened a 4th row and shrank every box; "The boxes should not change size when you add rows"): `selectBoxPx(vw, vh)` is the 3-row size from the screen alone, and past `SELECT_GRID_ROWS_SHOWN` rows the roster scrolls (the lit box kept in view). Never divide the box by the row count again. The P1 card's dead space on the right lists the look's ABILITIES (`lookAbilityNames`, names only; hidden under 1280px wide),

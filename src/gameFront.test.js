@@ -6,6 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
+  enemiesDefeatedCount,
   starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, selectBoxPx, keepsSavedOutfit, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
 } from "./gameFront";
 import fs from "fs";
@@ -365,13 +366,17 @@ describe("locked starters", () => {
     r = recordDefeated(r, "dog", true);
     expect(starterLock(look("Bob The Alien"), r, assets)).toBeNull();
   });
-  test("Bobena opens at 50 enemies defeated", () => {
+  test("Bobena opens at 50 UNIQUE enemies defeated; repeats never count", () => {
+    const manyEnemies = Array.from({ length: 60 }, (_, i) => ({ id: "e" + i, type: "enemy", name: "Enemy " + i }));
+    const allAssets = [...assets, ...manyEnemies];
     let r = newGameRecord();
-    for (let i = 0; i < 49; i++) r = recordDefeated(r, "dog", i % 2 === 0);
-    expect(starterLock(look("Bobena"), r, assets)).toEqual({ need: "Defeat 50 Enemies", have: 49, of: 50 });
-    expect(starterLock(look(" bobena "), r, assets)).toEqual({ need: "Defeat 50 Enemies", have: 49, of: 50 });
-    r = recordDefeated(r, "dog");
-    expect(starterLock(look("Bobena"), r, assets)).toBeNull();
+    for (let i = 0; i < 100; i++) r = recordDefeated(r, "e" + (i % 20)); // 100 kills of 20 unique enemies
+    expect(starterLock(look("Bobena"), r, allAssets)).toEqual({ need: "Defeat 50 Unique Enemies", have: 20, of: 50 });
+    for (let i = 20; i < 49; i++) r = recordDefeated(r, "e" + i);
+    expect(starterLock(look("Bobena"), r, allAssets)).toEqual({ need: "Defeat 50 Unique Enemies", have: 49, of: 50 });
+    expect(starterLock(look(" bobena "), r, allAssets)).toEqual({ need: "Defeat 50 Unique Enemies", have: 49, of: 50 });
+    r = recordDefeated(r, "e49");
+    expect(starterLock(look("Bobena"), r, allAssets)).toBeNull();
   });
   test("Agent Bob opens at 1,000 enemies defeated, however", () => {
     let r = newGameRecord();
