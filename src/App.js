@@ -7643,6 +7643,47 @@ export const flyLegBlocks = (blocks, pose) => {
 // ...and the arms: every weapon arm raised to pose.arm about its own shoulder, a twin's sign flipped so
 // both read the same way on screen, and sleeves riding the nearest arm rigidly — the ladder's rule.
 export const flyArmTarget = (a, pose, facesRight = true) => armRaiseAbsFacing(a.armPivot, pose.arm, facesRight) * armMirrorTwist(a);
+// 🪑 SITTING IN AN OPEN CAR (2026-11-07, Blake: "the seating position is ugly in the jeep, it is as if
+// you are only a head due in part to the jeep having no doors"). It was your Side drawing cut off at
+// the hips and stood on the seat: a bust with its arm hanging, nothing on the seat and nothing at the
+// wheel. Now you SIT: your legs swing forward from the hip toward the pedals and your arms reach
+// forward for the wheel, so the open side shows a body sitting in the car. Your own pieces, none
+// redrawn: the leg pieces (shoes and trouser legs with them) turn as one about the hip joint, the arms
+// are raised by the rule the flying pose uses. A knee bend was tried first: Bob's leg is as wide as it
+// is long, so a folded thigh drew the same square as a standing leg. The underside of the thigh
+// (seatY) is what rests on the seat.
+//   hip/foot   canvas y of the top of the legs and the bottom of the feet
+//   hx, r      the middle of the legs and half their thickness; the hip joint is (hx, hip + r)
+//   legRot     degrees the legs turn about it (forward is the art's own front)
+export const VEH_SEAT_ARM_DEG = 40;   // the arms raised from hanging: forward and down, to the wheel
+export const VEH_SEAT_LEG_DEG = 72;   // the legs raised from hanging: forward and a little down, to the pedals
+export const seatedRiderPose = (blocks, facesRight = true) => {
+  const vis = (blocks || []).filter((pc) => !pc.isHitbox && !pc.isMuzzle && !pc._isWeapon);
+  // The leg is the body's own CONNECTED chain (legChain, as the walk finds it): a piece flagged Leg
+  // up in the torso (Bobbett has one at her shoulder) is not a leg and stays with the body.
+  const { legIds } = identifyLimbs(vis);
+  const flagged = vis.filter((pc) => legIds.has(pc.id) && !pc._isShoe), own = flagged.filter((pc) => !pc._slot);
+  const chain = legChain(own.length ? own : flagged);
+  const stray = new Set(own.filter((pc) => !chain.includes(pc)).map((pc) => pc.id));
+  const legs = vis.filter((pc) => legIds.has(pc.id) && !stray.has(pc.id)), real = legs.filter((pc) => !pc._isShoe);
+  if (!chain.length) return null;
+  const cb = chain.map(pieceDrawnBounds), lb = legs.map(pieceDrawnBounds);
+  const hip = Math.min(...real.map((pc) => pieceDrawnBounds(pc).y)), foot = Math.max(...lb.map((b) => b.y + b.h));
+  const lx0 = Math.min(...cb.map((b) => b.x)), lx1 = Math.max(...cb.map((b) => b.x + b.w));
+  if (!(foot > hip) || !(lx1 > lx0)) return null;
+  const r = Math.min(lx1 - lx0, Math.max(...cb.map((b) => b.w))) / 2, hx = (lx0 + lx1) / 2;
+  const dir = facesRight ? 1 : -1, seatY = hip + 2 * r;
+  const anchorOf = armAnchorFinder(vis);
+  const raise = (a) => armRaiseAbsFacing(a.armPivot, VEH_SEAT_ARM_DEG, facesRight) * armMirrorTwist(a);
+  const inLegs = new Set(legs.map((pc) => pc.id));
+  const body = vis.filter((pc) => !inLegs.has(pc.id)).map((pc) => {
+    if (pc.role === "weaponArm") return { ...pc, rot: raise(pc) };
+    if (pc.limb !== "arm" || pc._isShoe) return pc;
+    const a = anchorOf(pc);
+    return a ? rigidArmFollow(pc, a, raise(a)) : pc;
+  }).filter((pc) => pieceDrawnBounds(pc).y < seatY);
+  return { body, legs, hip, foot, hx, r, seatY, legRot: -VEH_SEAT_LEG_DEG * dir };
+};
 export const flyPoseBlocks = (blocks, pose, facesRight = true) => {
   const out = flyLegBlocks(blocks, pose);
   const anchorOf = armAnchorFinder(out);
@@ -22589,7 +22630,13 @@ export default function AssetStudio({ game = false } = {}) {
   // The driver, cut from your Side blocks: `seated` false is the head (cut at the gun arm's shoulder,
   // the arms left out), true the body from the hips up (cut where the legs start, identifyLimbs; the
   // arms kept). `mx` is the x it is centred on: the head's middle, or the hips.
-  const vehCutRider = (blocks, seated) => {
+  const vehCutRider = (blocks, seated, facesRight = true) => {
+    const sp = seated ? seatedRiderPose(blocks, facesRight) : null;
+    if (sp) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity;
+      for (const pc of sp.body) { if (pc.isCutter) continue; const b = pieceDrawnBounds(pc); x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); }
+      if (x1 > x0 && sp.seatY > y0) return { pieces: sp.body, x0, y0, x1, y1: sp.seatY, mx: sp.hx, fold: sp };
+    }
     let cutY, hipX = null;
     if (seated) {
       const { legIds } = identifyLimbs(blocks);
@@ -22613,25 +22660,33 @@ export default function AssetStudio({ game = false } = {}) {
     const blocks = livePlayerBlocks("side");
     if (!blocks || !blocks.length) return null;
     const slot = seated ? "seat" : "head", c = vehHeadCache.current && vehHeadCache.current[slot];
-    if (c && c.blocks === blocks) return c.cut;
-    const cut = vehCutRider(blocks, seated);
-    vehHeadCache.current = { ...(vehHeadCache.current || {}), [slot]: { blocks, cut } };
+    const fr = playerArtFacesRight(findA(playerId));
+    if (c && c.blocks === blocks && c.fr === fr) return c.cut;
+    const cut = vehCutRider(blocks, seated, fr);
+    vehHeadCache.current = { ...(vehHeadCache.current || {}), [slot]: { blocks, fr, cut } };
     return cut;
   };
   // 🧍 A passenger, the same cut from THEIR Side drawing (a follower riding with you).
   const vehUnitRider = (ea, seated) => {
     const slot = "u" + (seated ? "s|" : "h|") + ea.id, c = vehHeadCache.current && vehHeadCache.current[slot];
     if (c && c.blocks === ea) return c.cut;
-    const cut = vehCutRider(hatsUnderArms(bake(ea, enemyPoseKey(ea, "side"))), seated);
+    const cut = vehCutRider(hatsUnderArms(bake(ea, enemyPoseKey(ea, "side"))), seated, enemyArtFacesRight(ea));
     vehHeadCache.current = { ...(vehHeadCache.current || {}), [slot]: { blocks: ea, cut } };
     return cut;
   };
   // The driver on a 200x260 plane at scale `sc`, the bottom of the cut (the neck, or the seat) at
   // (cx, neck) in the car's own frame, clipped there (a few px of slack round the rest, for the outlines).
+  // A seated rider (hd.fold, seatedRiderPose) is two layers on the same plane: the legs turned forward
+  // about the hip, then the body with its arms at the wheel over them.
   const vehHeadEl = (hd, cx, neck, sc, mirror, key = "vhead", alphaOf = null, cacheKey = "vehhead") => {
-    const mid = hd.mx, sl = 3;
-    return <div key={key} style={{ position: "absolute", left: cx - mid * sc, top: neck - hd.y1 * sc, width: W * sc, height: H * sc, pointerEvents: "none", clipPath: "inset(" + Math.max(0, hd.y0 * sc - sl) + "px " + Math.max(0, (W - hd.x1) * sc - sl) + "px " + (H - hd.y1) * sc + "px " + Math.max(0, hd.x0 * sc - sl) + "px)", transform: mirror ? "scaleX(-1)" : undefined, transformOrigin: mid * sc + "px 0" }}>
-      {renderPieceRuns({ pieces: hd.pieces, cacheKey, keyPrefix: key, alphaOf: alphaOf || spriteAlphaOf(mergeEquip(findA(playerId), equipped.current, equippedBodyIdFor(findA(playerId))), null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
+    const mid = hd.mx, sl = 3, fd = hd.fold;
+    const alpha = alphaOf || spriteAlphaOf(mergeEquip(findA(playerId), equipped.current, equippedBodyIdFor(findA(playerId))), null);
+    const runs = (pieces, k) => renderPieceRuns({ pieces, cacheKey: cacheKey + k, keyPrefix: key + k, alphaOf: alpha, drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
+    const layer = (k, pieces, clip, transform, origin) => <div key={k} style={{ position: "absolute", left: 0, top: 0, width: W * sc, height: H * sc, clipPath: clip, transform, transformOrigin: origin }}>{runs(pieces, k)}</div>;
+    const bodyClip = "inset(" + Math.max(0, hd.y0 * sc - sl) + "px " + Math.max(0, (W - hd.x1) * sc - sl) + "px " + (H - hd.y1) * sc + "px " + Math.max(0, hd.x0 * sc - sl) + "px)";
+    return <div key={key} style={{ position: "absolute", left: cx - mid * sc, top: neck - hd.y1 * sc, width: W * sc, height: H * sc, pointerEvents: "none", transform: mirror ? "scaleX(-1)" : undefined, transformOrigin: mid * sc + "px 0" }}>
+      {fd && layer("l", fd.legs, "inset(" + fd.hip * sc + "px -50% -50% -50%)", "rotate(" + fd.legRot + "deg)", fd.hx * sc + "px " + (fd.hip + fd.r) * sc + "px")}
+      {layer("b", hd.pieces, bodyClip)}
     </div>;
   };
   // A prop drawn standing on (x, y) in the car's frame, `hgt` px tall: the hood fire, the wreck's smoke.

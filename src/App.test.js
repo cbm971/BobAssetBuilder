@@ -717,6 +717,8 @@ import {
   advanceFlyPose,
   clearFlyPose,
   flyPoseBlocks,
+  seatedRiderPose,
+  VEH_SEAT_LEG_DEG,
   incomingUnitDamage,
   guardReduceOf,
   swingComingAt,
@@ -13370,6 +13372,29 @@ describe("a unit plays by the player's rules", () => {
     expect(norm(posed.find((p) => p.role === "weaponArm").rot)).toBeCloseTo(180, 6);
     expect(posed.length).toBe(side.length + 1);
     expect(norm(flyPoseBlocks(side, flyPose(0, 0, 0), true).find((p) => p.role === "weaponArm").rot)).toBeCloseTo(norm(-hover.arm), 6);
+  });
+
+  test("🪑 an open car's driver SITS: legs forward from the hip, arms to the wheel, a stray Leg flag stays on the body", () => {
+    const side = newAsset("body").angles.side;
+    const sp = seatedRiderPose(side, true);
+    const leg = side.find((p) => p.limb === "leg");
+    // the legs are the drawn leg, turned forward about the hip joint (the art's front: anticlockwise facing right)
+    expect(sp.legs.map((p) => p.id)).toContain(leg.id);
+    expect(sp.body.some((p) => p.id === leg.id)).toBe(false);
+    expect(sp.hip).toBeCloseTo(leg.y, 6);
+    expect(sp.legRot).toBe(-VEH_SEAT_LEG_DEG);
+    expect(seatedRiderPose(side, false).legRot).toBe(VEH_SEAT_LEG_DEG);
+    // the underside of the level thigh is what rests on the seat
+    expect(sp.seatY).toBeCloseTo(sp.hip + 2 * sp.r, 6);
+    // the arm is raised off hanging, toward the wheel
+    const arm0 = side.find((p) => p.role === "weaponArm"), arm1 = sp.body.find((p) => p.role === "weaponArm");
+    expect(arm1.rot || 0).not.toBe(arm0.rot || 0);
+    // Bobbett's piece flagged Leg at her shoulder is not a leg: the hip is still where the leg starts
+    const stray = { ...leg, id: "stray", x: leg.x, y: 99, w: 7, h: 40 };
+    const sp2 = seatedRiderPose([...side, stray], true);
+    expect(sp2.hip).toBeCloseTo(leg.y, 6);
+    expect(sp2.body.some((p) => p.id === "stray")).toBe(true);
+    expect(sp2.legs.some((p) => p.id === "stray")).toBe(false);
   });
 
   test("🦸 Fly reaches both sides: the player loop and the unit loop both fly, in the same pose", () => {
