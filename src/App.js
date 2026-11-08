@@ -17675,6 +17675,8 @@ export default function AssetStudio({ game = false } = {}) {
               else if (dep.vy > 0 && topdownAt(dPart.lv, dep.x - dPart.ox, dFeet - dPart.oy, dw, CW, CH)) { dep.vy = 0; dep.restedDead = true; } // a 🚶 Top-down plane is a floor to a corpse too: a body killed on the crossing lies where it fell instead of sliding down the road
               const dFloorY = unitFloorY(dPart, dep.x + dw / 2, dep.y + dh / 2, lv, seams, CW);
               if (dep.y > dFloorY - dh) { dep.y = dFloorY - dh; dep.vy = 0; dep.restedDead = true; } // level floor
+              // 🚶 Lying on a top-down plane: drawn depth-sorted against you like a living unit (topdownDepthZ), not on CORPSE_Z.
+              if (dep.restedDead) dep.tdDead = !!topdownAt(dPart.lv, dep.x - dPart.ox, dep.y + dh - dPart.oy, dw, CW, CH);
             }
             continue; // defeated: nothing else about it updates
           }
@@ -28690,8 +28692,15 @@ export default function AssetStudio({ game = false } = {}) {
                     // 🦸 FLYING: the built-in pose (flyPose) — hover, climb, come down or the
                     // superhero dive along, blended from where the flight is. Legs and arms here; the
                     // body's tip is the wrapper's rotate (see `lean`) and the hover's bob is on `top`.
-                    // A shot, swing, throw or block still takes the arm in the branches below.
-                    blocks = flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));
+                    // A shot, swing, throw or block still takes the arm in the branches below — and
+                    // then the flight leaves the arms ALONE (legs only, the Stomp fall's rule): the
+                    // swing is layered on top of whatever rotation the arm already has, so on a dive
+                    // with the arms raised 170° overhead its 150° windup carried the arm right round
+                    // behind you and the blow read as struck backwards (Blake, 2026-11-08: "when
+                    // flying fast and swinging your arms seem to attack backwards"). The hit box was
+                    // always in front; it is measured off the arm as drawn, not the flight's.
+                    const flyArmsBusy = p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking;
+                    blocks = flyArmsBusy ? flyLegBlocks(blocks, flyPoseOf(p)) : flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));
                   } else if (blocks && p.hsFall && angle === "side") {
                     // 👢 STOMPING (headStompPose): falling with a Stomp armed, arms flung up and legs
                     // locked together under you — instead of the jump's leg split below, so the pose
@@ -29174,8 +29183,14 @@ export default function AssetStudio({ game = false } = {}) {
                     const dEph = enemyStandH(ea, LV_CELL), dTop = eTop + eph - dEph;
                     const deadFootAnchor = poseGroundFrac(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"), deadPose) * dEph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
+                    // A BODY ON A 🚶 PLANE IS DEPTH-SORTED LIKE THE LIVING (Blake, 2026-11-08: "downed enemies in a
+                    // room with top down climbing appear in front of player even when higher than player").
+                    // CORPSE_Z put every body over you; while you both lie/stand on a plane, its feet line
+                    // against yours decides, as topdownDepthZ does for a living unit — higher = behind you.
+                    const dPl = player.current;
+                    const deadZ = (ep && ep.tdDead && dPl && dPl.topdown) ? (topdownDepthZ(standingLineY(dPl, LV_CELL * (dPl.crouch ? PLAYER_CROUCH_H_CELLS : PLAYER_H_CELLS)), U.off.y + ep.y + dEph, LV_CELL) ?? CORPSE_Z) : CORPSE_Z;
                     return (
-                      <div key={uKey} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: dTop + deadFootAnchor, width: eRenderW, height: dEph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (dEph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                      <div key={uKey} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: dTop + deadFootAnchor, width: eRenderW, height: dEph, pointerEvents: "none", zIndex: deadZ, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (dEph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
                         {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + uKey + "_s" + stripped.length, keyPrefix: "dead" + uKey + "_", alphaOf: spriteAlphaOf(ea, null), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );

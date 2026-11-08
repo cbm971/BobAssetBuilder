@@ -13397,13 +13397,26 @@ describe("a unit plays by the player's rules", () => {
     expect(sp2.legs.some((p) => p.id === "stray")).toBe(false);
   });
 
+  test("🚶 a defeated body on a top-down plane is depth-sorted against you, not drawn over you", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("if (dep.restedDead) dep.tdDead = !!topdownAt(dPart.lv, dep.x - dPart.ox, dep.y + dh - dPart.oy, dw, CW, CH);");
+    expect(src).toContain("zIndex: deadZ, transform: deadFlip");
+    expect(src).not.toContain("zIndex: CORPSE_Z, transform: deadFlip");
+    // higher on the screen than you = behind you; lower = in front
+    expect(topdownDepthZ(540, 450, 30)).toBeLessThan(5000);
+    expect(topdownDepthZ(540, 630, 30)).toBeGreaterThan(5000);
+    expect(topdownDepthZ(540, 630, 30)).toBeLessThan(CORPSE_Z);
+  });
+
   test("🦸 Fly reaches both sides: the player loop and the unit loop both fly, in the same pose", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     // (a 🦸 Flies creature you play as steers its own flight first; anyone else flies by the item's flyState)
     expect(src).toContain("const fly = pCreatureFlies");
     expect(src).toContain(": flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);");
     expect(src).toContain("ep.vy = flyEaseVy(ep.vy, flyTgtAir ? flyHoverVy(flyTgtFeet - (ep.y + newEph), eRise) : -eRise, dtMul);");
-    expect(src).toContain("blocks = flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));");
+    expect(src).toContain("blocks = flyArmsBusy ? flyLegBlocks(blocks, flyPoseOf(p)) : flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));");
+    // a swing in flight starts from the arm as drawn, not from the dive's raised arms (it read as struck backwards)
+    expect(src).toContain("const flyArmsBusy = p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking;");
     expect(src).toContain("eBlocks = flyLegBlocks(eBlocks, flyPoseOf(ep));");
     expect(src).toContain("eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, ePose, eFacesRight));");
     // ...and a Fly item's old designed frames are never played: only the glide loops an animation
