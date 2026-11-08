@@ -2,7 +2,7 @@
 import {
   VEHICLE_STATES, vehicleStateOf, vehicleHalvesOf, vehicleTakeHit, VEHICLE_FUSE_FRAMES, VEHICLE_WEAK_MULT, vehicleSideFacing,
   wheelHubs, spinWheelPieces, wheelTurnDeg, spinStepOf, wheelContactFracs, hoodFirePoint, hoodFireBox, vehicleStatePieces,
-  autoVehicleDamage, isGlassColor,
+  autoVehicleDamage, isGlassColor, VEH_MAX_TILT,
   vehicleStep, VEH_STEP_UP, VEH_MAX_SPEED, VEH_BODY_SLACK, vehicleCrashDamage, vehicleClearanceOf,
   carBearsDown, vehicleDodgeKind, vehicleDodgeChance,
   VEH_SEAT_FRAC, vehicleSeatsPlayer, vehicleDrivable, vehiclePassengerOffsets, VEH_PASSENGER_SEATS, followerCanBoard, VEH_BOARD_MAX_SPEED, vehicleSpeedOf, vehiclePower, vehicleHalveHpOnce, VEHICLE_DEFAULT_HP } from "./vehicle";
@@ -268,7 +268,7 @@ describe("driving", () => {
     const v = newCar(100, 600); drive(v, w, 300);
     expect(v.x + v.w).toBeLessThanOrEqual(900);
   });
-  test("over a cliff it falls, and nothing steers it in the air", () => {
+  test("over a cliff it falls nose first, nothing steers it in the air, and it rocks down onto both wheels", () => {
     const cliff = worldOf((x) => ({ y: x < 2400 ? 600 : 900, slope: false }), 1e9);
     const v = newCar(100, 600);
     let air = 0, vxAtTakeoff = null;
@@ -276,10 +276,11 @@ describe("driving", () => {
       // the pedal down to the edge, then both pedals mashed in the air: neither does anything there
       vehicleStep(v, !air ? { gas: true } : i % 2 ? { gas: true } : { brake: true }, cliff);
       if (!v.onGround) { air++; if (vxAtTakeoff == null) vxAtTakeoff = v.vx; else expect(v.vx).toBeCloseTo(vxAtTakeoff, 5); }
-      if (air && v.onGround) break;
+      if (air && v.onGround && !v.hang) break;
     }
     expect(air).toBeGreaterThan(5);
     expect(v.onGround).toBe(true);
+    expect(v.yL).toBeCloseTo(900, 5); expect(v.yR).toBeCloseTo(900, 5);
     expect(v.y).toBeCloseTo(840, 0);
   });
   // Blake 2026-11-01: "I went over a ramp ... my vehichle merged into the ground".
@@ -390,6 +391,28 @@ describe("driving", () => {
       for (let i = 0; i < 3000 && slow.x < 2600; i++) { vehicleStep(slow, { gas: i % 3 === 0 }, w); expect(buried(slow, surf)).toBe(false); if (slow.x + slow.w * slow.wr > b && slow.x + slow.w * slow.wl < c) expect(Math.max(slow.yL, slow.yR)).toBeLessThanOrEqual(400.5); }
     }
   });
+  // Blake 2026-11-07: "I still dislike how the car auto flattens out as soon as it gets air ... You added some
+  // stupid arcady bunny hop mechanism", "Get rid of that arcadey bullshit".
+  test("no launch: off a ramp the car rises only as fast as the ramp threw it, the back wheel on the flat never leaves it, and in the air it keeps pitching as it left", () => {
+    // a 150 px ramp up 60 px (a 0.4 slope), and past its top the ground 200 px down
+    const surf = (x) => (x < 1200 ? { y: 1050, slope: false } : x < 1350 ? { y: 1050 - ((x - 1200) / 150) * 60, slope: true } : { y: 1250, slope: false });
+    const w = withGround(surf, 1e9);
+    const v = { x: 300, y: 1050 - 154, w: 445, h: 154, vx: 0, vy: 0, face: 1, onGround: true, yL: 1050, yR: 1050, wl: 0.19, wr: 0.82, tilt: 0, stopT: 0, turnT: 0, clear: 40, wheelR: 30 };
+    let prevGap = null, prevRate = null, flew = 0, tookOff = 0;
+    for (let i = 0; i < 600 && v.x < 3200; i++) {
+      const was = v.onGround, sp = Math.abs(v.vx);
+      vehicleStep(v, { gas: true }, w);
+      if (v.x + v.wl * v.w < 1195) expect(v.yL).toBeCloseTo(1050, 5); // the back wheel on the street stays on it
+      if (was && !v.onGround) { tookOff++; expect(-v.vy).toBeLessThanOrEqual(sp * 0.4 + 0.01); }
+      if (!v.onGround && Math.abs(v.tilt) < VEH_MAX_TILT - 0.01) {
+        const gap = v.yR - v.yL;
+        if (prevGap != null) { const rate = gap - prevGap; if (prevRate != null) expect(rate).toBeCloseTo(prevRate, 6); prevRate = rate; }
+        prevGap = gap; flew++;
+      } else { prevGap = null; prevRate = null; }
+    }
+    expect(tookOff).toBe(1);
+    expect(flew).toBeGreaterThan(10);
+  });
   test("full-size car (wheelbase > ramp and > manhole, with sunken inner lip like M5/M6/M15) gets real air at speed, and creeping its front wheel dips into the shaft and climbs out", () => {
     // Mirrors Trailor Park M6/M15: 150 px ramp (1200..1350, y 1050->990), 30 px flat lip (1350..1380, y 990),
     // 150 px open shaft (1380..1530), 30 px sunken inner lip (1530..1560, y 1050->1020), far ramp (1560..1680, y 1000->1050).
@@ -404,7 +427,7 @@ describe("driving", () => {
     };
     const w = withGround(surf, 1e9);
     const mustang = (x, face) => ({ x, y: 1050 - 154, w: 445, h: 154, vx: 0, vy: 0, face, onGround: true, yL: 1050, yR: 1050, wl: 0.19, wr: 0.82, tilt: 0, stopT: 0, turnT: 0 });
-    for (const [startX, face, done] of [[300, 1, (v) => v.x > 2200], [2400, -1, (v) => v.x < 500]]) {
+    for (const [startX, face, done, top] of [[300, 1, (v) => v.x > 2200, 60], [2400, -1, (v) => v.x < 500, 50]]) {
       const fast = mustang(startX, face);
       let air = 0, peakRise = 0;
       for (let i = 0; i < 500 && !done(fast); i++) {
@@ -414,7 +437,7 @@ describe("driving", () => {
         peakRise = Math.max(peakRise, 1050 - (fast.y + fast.h));
       }
       expect(air).toBeGreaterThan(35);
-      expect(peakRise).toBeGreaterThan(85);
+      expect(peakRise).toBeGreaterThan(top); // above the top of the ramp it left (60 px going right, the far ramp's 50 px going left)
     }
     for (const [startX, face, done] of [[650, 1, (v) => v.x > 1800], [1800, -1, (v) => v.x < 700]]) {
       const slow = mustang(startX, face);
@@ -425,6 +448,20 @@ describe("driving", () => {
       }
       expect(done(slow)).toBe(true);
     }
+  });
+  test("in the air, a wheel carried sideways into a rising ramp lands on it, never inside it", () => {
+    // M20's scrap heap: hopping up it, the School Bus's back wheel went 15 px into the ramp under it
+    const surf = (x) => (x < 1000 ? { y: 600, slope: false } : x < 1400 ? { y: 600 - (x - 1000) * 0.5, slope: true } : { y: 400, slope: false });
+    const w = withGround(surf, 1e9);
+    const v = { ...newCar(700, 600), onGround: false, yL: 590, yR: 590, y: 530, vx: 8, vy: -3 };
+    let landedOnRamp = false;
+    for (let i = 0; i < 200; i++) {
+      vehicleStep(v, { gas: true }, w);
+      expect(buried(v, surf)).toBe(false);
+      if (v.onGround && v.x + v.wr * v.w > 1000 && v.x + v.wr * v.w < 1400) landedOnRamp = true;
+    }
+    expect(landedOnRamp).toBe(true);
+    expect(v.x).toBeGreaterThan(1400);
   });
   test("nose down off the foot of a ramp, the flat ahead is not a wall", () => {
     const surf = (x) => (x < 1000 ? { y: 300, slope: false } : x < 1300 ? { y: 300 + (x - 1000), slope: true } : { y: 600, slope: false });
