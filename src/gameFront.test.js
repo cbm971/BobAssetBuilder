@@ -365,6 +365,14 @@ describe("locked starters", () => {
     r = recordDefeated(r, "dog", true);
     expect(starterLock(look("Bob The Alien"), r, assets)).toBeNull();
   });
+  test("Bobena opens at 50 enemies defeated", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 49; i++) r = recordDefeated(r, "dog", i % 2 === 0);
+    expect(starterLock(look("Bobena"), r, assets)).toEqual({ need: "Defeat 50 Enemies", have: 49, of: 50 });
+    expect(starterLock(look(" bobena "), r, assets)).toEqual({ need: "Defeat 50 Enemies", have: 49, of: 50 });
+    r = recordDefeated(r, "dog");
+    expect(starterLock(look("Bobena"), r, assets)).toBeNull();
+  });
   test("Agent Bob opens at 1,000 enemies defeated, however", () => {
     let r = newGameRecord();
     for (let i = 0; i < 999; i++) r = recordDefeated(r, "dog", i % 2 === 0);
@@ -392,7 +400,7 @@ describe("locked starters", () => {
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob", "the general"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob", "the general", "bobena"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();

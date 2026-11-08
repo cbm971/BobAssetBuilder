@@ -458,6 +458,7 @@ export const STARTER_LOCKS = [
   { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
   { name: "the general", kills: 500, on: "Vietnam" }, // Blake (2026-11-07): "the general should be unlocked by defeating 500 enemies in Vietnam" (was 1,000 ranged kills, earlier the same day)
+  { name: "bobena", kills: 50 }, // Blake (2026-11-07): "lock Bobena behind Kill 50 enemies"
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailor/g, "trailer");
