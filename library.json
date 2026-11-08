@@ -534236,13 +534236,13 @@
    "captureMax": 0,
    "explodeChar": "💥",
    "landChar": "🔥",
-   "value": 8,
+   "value": 9,
    "rank": "common",
    "sounds": {
     "hit": "j8bdd8g"
    },
-   "savedAt": 1793454712895,
-   "editedFrom": 1792543845109,
+   "savedAt": 1794108672952,
+   "editedFrom": 1793454712895,
    "boomerang": false,
    "pickupCount": 3
   },
@@ -1744862,10 +1744862,10 @@
    "captureMax": 0,
    "explodeChar": "💥",
    "landChar": "🔥",
-   "value": 9,
+   "value": 8,
    "rank": "poor",
-   "savedAt": 1793458364468,
-   "editedFrom": 1793454712895,
+   "savedAt": 1794108680291,
+   "editedFrom": 1793458364468,
    "sounds": {
     "hit": "ynj37i2"
    },
