@@ -25945,14 +25945,13 @@ export default function AssetStudio({ game = false } = {}) {
       const drawn = pieces.filter((pc) => !pc.isCutter);
       let bb = null;
       if (drawn.length) {
-        const bounds = drawn.map(pieceDrawnBounds);
-        const top = Math.min(...bounds.map((t) => t.y)), foot = Math.max(...bounds.map((t) => t.y + t.h));
+        const top = Math.min(...drawn.map((pc) => pc.y)), foot = Math.max(...drawn.map((pc) => pc.y + pc.h));
         const shs = a.shoulder || (rig && rig.shoulder); // a composed look may not carry its rig; the saved look does
         const sh = shs && (shs[pose] || shs.front);
         const neck = sh && sh.y > top + 4 ? sh.y : top + (foot - top) * 0.3;
-        const above = bounds.filter((t) => t.y < neck - 1);
+        const above = drawn.filter((pc) => pc.y < neck - 1).map(textPieceBox);
         if (above.length) {
-          const x0 = Math.min(...above.map((t) => t.x)), x1 = Math.max(...above.map((t) => t.x + t.w));
+          const x0 = Math.min(...above.map((pc) => pc.x)), x1 = Math.max(...above.map((pc) => pc.x + pc.w));
           bb = { x: x0, y: top, w: Math.max(1, x1 - x0), h: Math.max(1, neck - top) };
         }
       }
