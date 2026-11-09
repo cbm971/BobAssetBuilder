@@ -1683,8 +1683,12 @@ export const chillDpsOf = (body) => (body && (body.chill || 0) > 0 ? body.chillD
 export const tickChill = (body, dtMul) => { if (body && (body.chill || 0) > 0) body.chill = Math.max(0, body.chill - dtMul); return body; };
 // Walk speed AND jump height multiplier (1 = not chilled). A jump's height goes with its launch
 // velocity SQUARED, so the velocity takes the square root (chillJumpVMult) to land at half height.
-export const chillMoveMult = (body) => (body && (body.chill || 0) > 0 ? ICE_SLOW_MULT : 1);
-export const chillJumpVMult = (body) => Math.sqrt(chillMoveMult(body));
+export const chillMoveMult = (body, effects) => {
+  if (!body || !((body.chill || 0) > 0)) return 1;
+  const m = effects ? coldDamageMult(effects) : (body.chillMult ?? 1);
+  return 1 - (1 - ICE_SLOW_MULT) * m;
+};
+export const chillJumpVMult = (body, effects) => Math.sqrt(chillMoveMult(body, effects));
 // What a hit carries onto whoever it lands on. `src` is a weapon (a swing, a bite) or a projectile
 // (which copied these fields off its gun as it left the barrel: shotStatusOf).
 export const afflictBody = (body, src, igniteDpsDef = DEFAULT_IGNITE_DPS) => {
@@ -1769,8 +1773,19 @@ export const pushImmuneCallout = (boomsList, targetKey, hitX, hitY, box) => {
 //             jacket AND a hat: each one multiplies what is left (40% and 25% together take 55% off).
 // The chances stack the same way: two 20% items give 1 - 0.8 x 0.8 = 36%, never past 100%.
 // Lucky is rolled first, then reflect, so a hit is either lucky, reflected or taken, never two.
-export const DEFAULT_LUCKY_CHANCE = 0.2, DEFAULT_REFLECT_CHANCE = 0.25, DEFAULT_FIRE_RESIST = 0.4;
-export const FIRE_RESIST_MAX = 0.95; // one item never adds up to Fire Immunity; that ability is its own
+export const DEFAULT_LUCKY_CHANCE = 0.2, DEFAULT_REFLECT_CHANCE = 0.25, DEFAULT_FIRE_RESIST = 0.4, DEFAULT_COLD_RESIST = 0.4;
+export const FIRE_RESIST_MAX = 0.95, COLD_RESIST_MAX = 0.95; // one item never adds up to Fire Immunity; that ability is its own
+export const shotIsIce = (pr) => !!pr && (pr.iceDamage || 0) > 0;
+export const coldDamageMult = (effects) => {
+  let m = 1;
+  for (const e of effects || []) if (e && e.type === "coldResist") m *= 1 - Math.max(0, Math.min(COLD_RESIST_MAX, Number(e.resist ?? DEFAULT_COLD_RESIST) || 0));
+  return m;
+};
+export const coldResistedHit = (dmg, pr, effects) => {
+  if (!shotIsIce(pr)) return dmg;
+  const m = coldDamageMult(effects);
+  return m >= 1 ? dmg : Math.max(1, Math.round(dmg * m));
+};
 const clampChance = (v) => Math.max(0, Math.min(1, Number(v) || 0));
 export const stackedChance = (effects, type, def) => {
   let miss = 1;
@@ -6147,6 +6162,15 @@ export const EFFECT_TYPES = {
     noAnim: true,
     params: [
       { key: "resist", label: "Resist", min: 0.05, max: FIRE_RESIST_MAX, step: 0.05, def: DEFAULT_FIRE_RESIST, fmt: (v) => briefPct(v) },
+    ],
+  },
+  coldResist: {
+    label: "Cold Resistance", icon: "❄️",
+    blurb: "Ice weapons hurt and slow you less: the freeze drain, the speed and jump slow, and the hit of an ice weapon are all cut by the percent you set. Several items stack (a 40% jacket and a 25% hat take 55% off). Worn by a 👹 Enemy it works on THEM. No animation of its own.",
+    brief: (p) => briefPct(p.resist) + " less ice damage and slow",
+    noAnim: true,
+    params: [
+      { key: "resist", label: "Resist", min: 0.05, max: COLD_RESIST_MAX, step: 0.05, def: DEFAULT_COLD_RESIST, fmt: (v) => briefPct(v) },
     ],
   },
   extraLives: {
@@ -15961,7 +15985,7 @@ export default function AssetStudio({ game = false } = {}) {
     const crouchGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "crouchGuard") || null;
     const crouchGuardReduce = crouchGuardEffect ? (crouchGuardEffect.reduce ?? 0.5) : null; // null = not worn, skip the crouch check entirely
     const pFireImmune = fireImmune(playerAsset?.effects), pBlastImmune = blastImmune(playerAsset?.effects); // 🧯 / 🪖
-    const pFireMult = fireDamageMult(playerAsset?.effects); // 🚒 what is left of a burn (1 = no resistance worn)
+    const pFireMult = fireDamageMult(playerAsset?.effects), pColdMult = coldDamageMult(playerAsset?.effects); // 🚒 / ❄️ what is left of a burn or chill (1 = no resistance worn)
     // Tackle carries one number — how long whoever you barge into stays on the floor. null when
     // it isn't worn, so the per-enemy contact test below is skipped outright rather than run 60
     // times a second for every player who owns no football kit.
@@ -16897,6 +16921,7 @@ export default function AssetStudio({ game = false } = {}) {
       // value at 2× base and only went up from there, so even Speed 1 was already faster than
       // an unscaled character, which is what "sends you to the moon" was actually describing.
       // (playerWalkSpeed — the same function a dressed look walking as a unit is moved by.)
+      p.chillMult = pColdMult;
       const speed = playerWalkSpeed(pstats.speed, crouch) * chillMoveMult(p) * dtMul; // ❄️ half while chilled · px per 60fps-frame — dtMul makes this real-time, not per-rendered-frame
       // Jump height is specified directly in BLOCKS, not as a multiplier: 1 block at Agility 1,
       // rising half a block per point (1.5 at 2, 2 at 3, ... 3 at baseline 5, 5.5 at 10).
@@ -17566,7 +17591,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (p.onFire > 0) p.onFire -= dtMul;
       // ❄️ ICE: the burn's twin, by the same per-second pool and the same two windows (a door, the
       // 🐱 get-up). Fire Immunity has nothing to say about it. See chillBody.
-      const pIceDps = chillDpsOf(p);
+      const pIceDps = chillDpsOf(p) * pColdMult;
       tickChill(p, dtMul);
       if (pIceDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && playerHP.current > 0 && !vehDriven) {
         p.chillPool = (p.chillPool || 0) + pIceDps * (dtMul / 60);
@@ -18046,6 +18071,7 @@ export default function AssetStudio({ game = false } = {}) {
           const huntDy = hostile && huntFeet != null ? huntFeet - myFeetY : 0;
           // A dressed look walks by YOUR rule, crawling at half speed while it ducks, as you do; an
           // animal keeps its own scale (unitMoveSpeed).
+          ep.chillMult = coldDamageMult(ea.effects);
           const aiSpeed = unitMoveSpeed(ea, ep.crouch) * chillMoveMult(ep) * dtMul; // ❄️ your half speed, on it
           // A tackler's charge used to SPRINT (x1.7) because units walked at a third of your pace and
           // could never otherwise reach you. A dressed look now walks at yours, and you have no
@@ -18581,7 +18607,7 @@ export default function AssetStudio({ game = false } = {}) {
           } else { ep.burnPool = 0; }
           if (ep.onFire > 0) ep.onFire -= dtMul;
           // ❄️ ICE on a unit: your pool, your two windows (a talker, the 🐱 get-up), its fire's flash.
-          const eIceDps = chillDpsOf(ep);
+          const eIceDps = chillDpsOf(ep) * (ep.chillMult ?? 1);
           tickChill(ep, dtMul);
           if (eIceDps > 0 && !unitTalkImmune(ep) && !unitUntouchable(ep)) {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
@@ -18673,7 +18699,7 @@ export default function AssetStudio({ game = false } = {}) {
               // Returns true like the block does: one swing, one clash.
               if (!bodyBlow && whipLiveOn(k) && meleeClash(p.face, p.x + pw / 2, pw, ep.face, atkCX, epw)) { clashApart(ep, ea, atkCX); return true; }
               const crit = Math.random() < critChance(eIntel);
-              const dmg = incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor));
+              const dmg = coldResistedHit(incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor)), hitEw, playerAsset?.effects);
               const critNote = crit ? "💥 Critical! " : "";
               if (shrugsHit("player", playerAsset?.effects, dmg, k, p.x + pw / 2, p.y)) return true; // 🐞 / 🪞 the blow is spent, as a block spends it
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
@@ -18697,7 +18723,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (unitHitImmune(bEp)) return false; // mid-revive or in its i-frames: the swing finds nobody, exactly as the player's i-frames read just above
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
               const crit = Math.random() < critChance(eIntel);
-              const uDmg = incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor));
+              const uDmg = coldResistedHit(incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)), hitEw, bEa.effects);
               if (shrugsHit(key, bEa.effects, uDmg, k, unitCenterX(bEa, bEp, CW), bEp ? bEp.y : 0)) return true; // 🐞 / 🪞
               enemyHP.current[key] = Math.max(0, cur - uDmg);
               if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
@@ -19607,7 +19633,7 @@ export default function AssetStudio({ game = false } = {}) {
                       : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
                     const isCrit = Math.random() < critChance(intelligence);
                     // ...through the unit's own armour, the way their swing at you goes through yours.
-                    const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor));
+                    const dmg = coldResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor)), !unarmedSwing ? playtestWeapon : null, ea.effects);
                     if (shrugsHit(k, ea.effects, dmg, "player", eHitLeft + epw / 2, hitTop)) { p.swingHits[k] = true; continue; } // 🐞 / 🪞 struck, for nothing: still one hit per body per stroke
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
                     if (ep) { ep.lastHitByFx = null; ep.lastHitRanged = false; } // the last blow was yours
@@ -20070,7 +20096,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // The shooter's crit, off its Intelligence, rolled where the round lands — yours is.
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), sNote = sCrit ? "💥 Critical! " : "";
-                const dmg = fireResistedHit(incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor), pr, playerAsset?.effects); // 🚒
+                const dmg = coldResistedHit(fireResistedHit(incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor), pr, playerAsset?.effects), pr, playerAsset?.effects); // 🚒 / ❄️
                 if (!shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, p.x + pw / 2, p.y)) { // 🐞 / 🪞 — either way the round is spent below
                 playerHP.current = playerHpAfterHit(playerHP.current, dmg);
                 p.invuln = PLAYER_INVULN_FRAMES; p.invulnPair = pr.pair || null;
@@ -20099,7 +20125,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
-                const aDmg = fireResistedHit(incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects); // 🚒
+                const aDmg = coldResistedHit(fireResistedHit(incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects), pr, ea.effects); // 🚒 / ❄️
                 if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg); // 🔫 bullet: starts no i-frames
                 ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
@@ -20178,7 +20204,7 @@ export default function AssetStudio({ game = false } = {}) {
               const isCrit = Math.random() < critChance(pr.critInt ?? intelligence); // a friendly unit's round crits off ITS Intelligence
               if (ep) { ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true; }
               if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
-              const dmg = fireResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects); // 🚒
+              const dmg = coldResistedHit(fireResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects), pr, ea.effects); // 🚒 / ❄️
               if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🔫 bullet: starts no i-frames
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }

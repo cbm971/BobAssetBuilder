@@ -362,6 +362,11 @@ import {
   fireDamageMult,
   fireResistedHit,
   FIRE_RESIST_MAX,
+  coldDamageMult,
+  coldResistedHit,
+  COLD_RESIST_MAX,
+  DEFAULT_COLD_RESIST,
+  shotIsIce,
   shotIsFlame,
   throwIsExplosive,
   igniteDpsOf,
@@ -14885,6 +14890,32 @@ describe("🐞 Lucky, 🪞 Reflect and 🚒 Fire Resistance", () => {
       expect(typeof EFFECT_TYPES[k].brief({ chance: 0.2, resist: 0.4 })).toBe("string");
     }
     expect(EFFECT_TYPES.luckyDodge.brief({ chance: 0.2 })).toBe("20% chance a hit does no damage");
+    expect(EFFECT_TYPES.coldResist.label).toBe("Cold Resistance");
+    expect(EFFECT_TYPES.coldResist.noAnim).toBe(true);
+    expect(EFFECT_TYPES.coldResist.brief({ resist: DEFAULT_COLD_RESIST })).toBe("40% less ice damage and slow");
+    expect(coldDamageMult([])).toBe(1);
+    expect(coldDamageMult([{ type: "coldResist", resist: 0.4 }])).toBeCloseTo(0.6);
+    expect(coldDamageMult([{ type: "coldResist", resist: 0.4 }, { type: "coldResist", resist: 0.25 }])).toBeCloseTo(0.45);
+    expect(coldDamageMult([{ type: "coldResist", resist: 1 }])).toBeCloseTo(1 - COLD_RESIST_MAX);
+    expect(shotIsIce({ iceDamage: 4 })).toBe(true);
+    expect(shotIsIce({ iceDamage: 0, ignite: 4 })).toBe(false);
+    expect(coldResistedHit(6, { iceDamage: 4 }, [{ type: "coldResist", resist: 0.5 }])).toBe(3);
+    expect(coldResistedHit(1, { iceDamage: 4 }, [{ type: "coldResist", resist: 0.5 }])).toBe(1);
+    expect(coldResistedHit(6, { iceDamage: 0 }, [{ type: "coldResist", resist: 0.5 }])).toBe(6);
+    expect(chillMoveMult({ chill: 5 }, [{ type: "coldResist", resist: 0.4 }])).toBeCloseTo(0.7);
+    expect(chillMoveMult({ chill: 5, chillMult: 0.5 })).toBeCloseTo(0.75);
+    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "../asset-data/library.json"), "utf8"));
+    for (const id of ["spbeani", "spushat", "spcyhat", "sppkhood", "spbrjkt", "sporjkt", "sprdcot", "sppkjkt"]) {
+      const eq = lib.assets.find((a) => a && a.id === id);
+      expect(eq).toBeDefined();
+      expect(eq.confirmedFits).toContain("oipvf3l");
+      expect(eq.variants && eq.variants.oipvf3l).toBeDefined();
+      for (const ang of ["front", "back", "side", "up", "crouch"]) {
+        expect((eq.variants.oipvf3l[ang] || []).length).toBeGreaterThan(0);
+      }
+      expect((eq.effects || []).some((e) => e.type === "coldResist")).toBe(true);
+      expect(editorReachIssues(eq)).toEqual([]);
+    }
   });
   test("every hit site asks shrugsHit before it takes HP off, on the player and on units", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
