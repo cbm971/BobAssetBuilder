@@ -3202172,7 +3202172,7 @@
      "choices": [
       {
        "id": "cken0001",
-       "text": "What was that, little dude?",
+       "text": "Mmph mmmph rmph mph!",
        "to": "nken0002",
        "act": "",
        "tone": "",
@@ -3202180,7 +3202180,7 @@
       },
       {
        "id": "cken0002",
-       "text": "(Nod solemnly like you understood every word)",
+       "text": "(Nod)",
        "to": "nken0003",
        "act": "",
        "tone": "good",
@@ -3202199,11 +3202199,11 @@
     "nken0002": {
      "id": "nken0002",
      "speaker": "Kenney",
-     "text": "Mmph-mph! (He points down the street toward the purple pedestal and gives you a muffled thumbs-up.)",
+     "text": "Mmph-mph! Mph",
      "choices": [
       {
        "id": "cken0004",
-       "text": "Want to watch my back out there?",
+       "text": "Ummm wanna go on an adventure?",
        "to": "",
        "act": "friendly",
        "tone": "good",
@@ -3202222,7 +3202222,7 @@
     "nken0003": {
      "id": "nken0003",
      "speaker": "Kenney",
-     "text": "Mmph-hmph! (He chuckles through his parka hood and shares a spare bandage from his pocket.)",
+     "text": "mph! Mph",
      "choices": [
       {
        "id": "cken0006",
@@ -3202237,7 +3202237,7 @@
     "nken0004": {
      "id": "nken0004",
      "speaker": "Kenney",
-     "text": "Mmph?! Mmmph!! (He looks up nervously at the sky and pulls his orange hood drawstrings even tighter.)",
+     "text": "Mmph?! Mmmph!! ",
      "choices": [
       {
        "id": "cken0007",
@@ -3202250,8 +3202250,8 @@
      ]
     }
    },
-   "once": false,
-   "savedAt": 1794182665605
+   "savedAt": 1794310875240,
+   "editedFrom": 1794182665605
   },
   {
    "id": "dlgkil1",
