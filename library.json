@@ -3203446,20 +3203446,20 @@
    "nodes": {
     "nstn0001": {
      "id": "nstn0001",
-     "speaker": "Stanly",
-     "text": "Dude, this bus has been parked here for twenty minutes, and something weird is ALWAYS happening in this trailer park.",
+     "speaker": "Stan",
+     "text": "Oh my God, they killed Kenny!",
      "choices": [
       {
        "id": "cstn0001",
-       "text": "What's up with your friend in the orange hood?",
-       "to": "nstn0002",
+       "text": "The guy with the orange hood?",
+       "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
        "id": "cstn0002",
-       "text": "Want to tag along and get out of here?",
+       "text": "You bastards!",
        "to": "nstn0003",
        "act": "",
        "tone": "good",
@@ -3203467,30 +3203467,7 @@
       },
       {
        "id": "cstn0003",
-       "text": "Good luck with the bus, kid.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "nstn0002": {
-     "id": "nstn0002",
-     "speaker": "Stanly",
-     "text": "Oh, Kenney? Don't worry about him. Even if a rabid squirrel or a falling satellite takes him out, he'll just be standing back at this sign tomorrow morning like nothing happened.",
-     "choices": [
-      {
-       "id": "cstn0004",
-       "text": "Come with me, it's safer.",
-       "to": "nstn0003",
-       "act": "",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "cstn0005",
-       "text": "That makes zero sense.",
+       "text": "Oh no!",
        "to": "",
        "act": "",
        "tone": "",
@@ -3203500,8 +3203477,8 @@
     },
     "nstn0003": {
      "id": "nstn0003",
-     "speaker": "Stanly",
-     "text": "Ugh, fine. Anything beats freezing at this bus stop listening to Cartmen all day.",
+     "speaker": "Stan",
+     "text": "We'll get you bastards!!!!!",
      "choices": [
       {
        "id": "cstn0006",
@@ -3203512,10 +3203489,16 @@
        "shopTag": ""
       }
      ]
+    },
+    "noywh3kq": {
+     "id": "noywh3kq",
+     "speaker": "Stan",
+     "text": "Oh nevermind he's right there. ",
+     "choices": []
     }
    },
-   "once": false,
-   "savedAt": 1794182665602
+   "savedAt": 1794310586890,
+   "editedFrom": 1794182665602
   },
   {
    "id": "dlgtree1",
