@@ -3201451,7 +3201451,7 @@
      "choices": [
       {
        "id": "ccrt0001",
-       "text": "Relax, chubby.",
+       "text": "Chill, Fatass.",
        "to": "ncrt0002",
        "act": "",
        "tone": "bad",
@@ -3201529,8 +3201529,8 @@
      ]
     }
    },
-   "once": false,
-   "savedAt": 1794182665604
+   "savedAt": 1794310802943,
+   "editedFrom": 1794182665604
   },
   {
    "id": "dlgdir1",
