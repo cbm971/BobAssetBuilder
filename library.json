@@ -3202260,89 +3202260,44 @@
    "nodes": {
     "nkil0001": {
      "id": "nkil0001",
-     "speaker": "Kile",
-     "text": "Don't listen to Cartmen, mister! He's trying to charge us five bucks a head just to stand near the bus stop sign!",
+     "speaker": "Kyle",
+     "text": "For the last time fatass I was not on Epstiens Island!",
      "choices": [
       {
        "id": "ckil0001",
-       "text": "Why do you hang out with him then?",
-       "to": "nkil0002",
-       "act": "",
-       "tone": "",
+       "text": "Where you on the island?",
+       "to": "",
+       "act": "hostile",
+       "tone": "bad",
        "shopTag": ""
       },
       {
        "id": "ckil0002",
-       "text": "Got any supplies Cartmen hasn't found?",
-       "to": "nkil0003",
-       "act": "",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "ckil0003",
-       "text": "Sounds like smart business to me.",
-       "to": "nkil0004",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      }
-     ]
-    },
-    "nkil0002": {
-     "id": "nkil0002",
-     "speaker": "Kile",
-     "text": "Because there are only four kids on this block and the driver left the bus in neutral! You know, I think I learned something today... wait, no, take this first-aid stash before Cartmen trades it.",
-     "choices": [
-      {
-       "id": "ckil0004",
-       "text": "(Patch up your scrapes)",
-       "to": "",
-       "act": "heal",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "ckil0005",
-       "text": "See ya around.",
+       "text": "Who are you talking to?",
        "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
-      }
-     ]
-    },
-    "nkil0003": {
-     "id": "nkil0003",
-     "speaker": "Kile",
-     "text": "Yeah! I hid a stash of snacks and drinks behind the sign so he wouldn't eat it all.",
-     "choices": [
+      },
       {
-       "id": "ckil0006",
-       "text": "Let's see what you've got.",
+       "id": "cma5icei",
+       "text": "What do you have for sale?",
        "to": "",
        "act": "shop",
        "tone": "good",
-       "shopTag": "Heal"
-      },
-      {
-       "id": "ckil0007",
-       "text": "Maybe later.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
+       "shopTag": "T1",
+       "points": 50
       }
      ]
     },
-    "nkil0004": {
-     "id": "nkil0004",
-     "speaker": "Kile",
-     "text": "Ugh, not you too! Don't encourage him!",
+    "n4p8q743": {
+     "id": "n4p8q743",
+     "speaker": "Kyle",
+     "text": "Adolf Cartman over here!",
      "choices": [
       {
-       "id": "ckil0008",
-       "text": "Whatever.",
+       "id": "cp1v21w8",
+       "text": "...",
        "to": "",
        "act": "",
        "tone": "",
@@ -3202351,8 +3202306,8 @@
      ]
     }
    },
-   "once": false,
-   "savedAt": 1794182665603
+   "savedAt": 1794310740146,
+   "editedFrom": 1794182665603
   },
   {
    "id": "dlgliq1",
@@ -3203463,7 +3203418,8 @@
        "to": "nstn0003",
        "act": "",
        "tone": "good",
-       "shopTag": ""
+       "shopTag": "",
+       "points": 100
       },
       {
        "id": "cstn0003",
@@ -3203497,8 +3203453,8 @@
      "choices": []
     }
    },
-   "savedAt": 1794310586890,
-   "editedFrom": 1794182665602
+   "savedAt": 1794310758835,
+   "editedFrom": 1794310586890
   },
   {
    "id": "dlgtree1",
