@@ -8,7 +8,7 @@ import {
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
   enemiesDefeatedCount,
   starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, selectBoxPx, keepsSavedOutfit, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
-  GAME_FLOORS, gameRunFloor, orderGameFloors,
+  GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, carryToNextFloor,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -507,6 +507,52 @@ describe("the character select's player card", () => {
     expect(orderGameFloors(["Vietnam", "Trailer Park"])).toEqual(["Trailer Park", "Vietnam"]);
     expect(orderGameFloors(["Moon", "vietnam", "Trailor Park", "Mars"])).toEqual(["Trailor Park", "vietnam", "Moon", "Mars"]);
     expect(orderGameFloors([])).toEqual([]);
+  });
+  test("a finished floor goes on into the next floor in play order; after the last one the game ends", () => {
+    expect(gameNextFloor("Trailer Park")).toBe("Vietnam");
+    expect(gameNextFloor(" trailor park ")).toBe("Vietnam");   // either spelling
+    expect(gameNextFloor("Vietnam")).toBe("");
+    expect(gameNextFloor("Moon")).toBe("");
+    expect(gameNextFloor("")).toBe("");
+  });
+  test("the next floor's save is the same game carried to the START of that floor's run", () => {
+    const score = { total: 4200, secs: { a: 30, b: 45 }, cleared: { a: true }, spent: { "obj|o1": true } };
+    const end = makeGameSave(null, {
+      id: "g1", startedAt: 100, seed: "77", runFloor: "Trailer Park", nodeKey: "n7", levelId: "tpm9", levelName: "Trailer Park M9", floor: "Trailer Park", gateKey: "E1",
+      lookId: "bob", lookName: "Bob", weaponId: "gun1", throwId: "gren", throwCount: 2, equipped: { hat: "h1", shirt: null }, hp: 31, wallet: 250,
+      livesUsed: 1, difficulty: "hard", deaths: 2, oneUps: 1, score, objectives: { list: [{ id: "o1", text: "Get to the chopper" }], done: ["o1"] },
+      talkSpent: ["sign1"], playSecs: 75,
+    });
+    const next = carryToNextFloor(end, "Vietnam", 999);
+    expect(next.id).toBe("g1");
+    expect(next.startedAt).toBe(100);
+    expect(next.savedAt).toBe(999);
+    expect(next.seed).toBe("77");
+    expect(next.runFloor).toBe("Vietnam");
+    expect(next.floor).toBe("Vietnam");
+    expect(gameRunFloor(next)).toBe("Vietnam");
+    for (const k of ["lookId", "lookName", "weaponId", "throwId", "throwCount", "equipped", "hp", "wallet", "livesUsed", "difficulty", "deaths", "oneUps", "playSecs"]) expect(next[k]).toEqual(end[k]);
+    // the score's total and play time carry; its per-level books move off the run slots the next floor reuses
+    expect(next.score.total).toBe(4200);
+    expect(scorePlaySecs(next.score)).toBe(75);
+    expect(next.score.secs).toEqual({ "Trailer Park|a": 30, "Trailer Park|b": 45 });
+    expect(next.nodeKey).toBeNull();
+    expect(next.levelId).toBeNull();
+    expect(next.levelName).toBe("");
+    expect(next.gateKey).toBeNull();
+    expect(next.objectives).toEqual({ list: [], done: [] });
+    expect(next.talkSpent).toEqual([]);
+    expect(next.score.cleared).toEqual({ "Trailer Park|a": true });
+    expect(next.score.spent).toEqual({ "obj|o1": true });
+    // a third floor files only the second floor's new entries; the first floor's keep their name
+    const third = carryToNextFloor({ ...next, score: { ...next.score, secs: { ...next.score.secs, a: 12 } } }, "Moon", 1000);
+    expect(third.score.secs).toEqual({ "Trailer Park|a": 30, "Trailer Park|b": 45, "Vietnam|a": 12 });
+    // no level to resume at: the rebuilt run starts at its beginning (the floor's Intro)
+    const run = { nodes: { n7: { level: { id: "tpm9" } }, s1: { level: { id: "vtnms1a" } } } };
+    expect(resumeNodeKey(run, next)).toBeNull();
+    expect(resumeNodeKey(run, end)).toBe("n7");
+    // ...and it is the same save, so it replaces the finished floor's row instead of adding one
+    expect(upsertGameSave([end], next)).toEqual([next]);
   });
   test("Vietnam gets a medal before a run can start there, once, after the intro floors", () => {
     expect(withPlannedFloors(["Trailor Park"])).toEqual(["Trailor Park", "Vietnam"]);

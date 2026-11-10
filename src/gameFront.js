@@ -428,6 +428,32 @@ export const orderGameFloors = (floors) => {
   const rank = (f) => { const i = GAME_FLOORS.findIndex((g) => floorKey(g) === floorKey(f)); return i < 0 ? GAME_FLOORS.length : i; };
   return (floors || []).map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).map((x) => x.f);
 };
+// THE FLOORS ARE CHAINED (Blake, 2026-11-10: "Yes, chain floors"). A floor's end — the Trailer Park's
+// helicopter rope and the General's briefing — no longer ends the game: the Floor Complete card's
+// Continue goes on into the next floor in GAME_FLOORS. gameNextFloor is that floor: "" after the
+// last one, and "" for a floor that is not in the list (a floor he is still building ends as before).
+export const gameNextFloor = (floor) => {
+  const i = GAME_FLOORS.findIndex((g) => floorKey(g) === floorKey(floor));
+  return i < 0 || i + 1 >= GAME_FLOORS.length ? "" : GAME_FLOORS[i + 1];
+};
+// The save a finished floor leaves for the next: the SAME game (its id, seed, fighter, difficulty,
+// lives, money, score, HP, what is worn and held) at the START of the next floor's run. No level to
+// resume at, so resumeNodeKey finds none and the run begins at the floor's Intro, arrival scene and
+// all; none of the old floor's objectives or spent signs come along. The SCORE's total carries, but
+// its per-level books (seconds and clears, App.js scoreLevelClear) are kept by run slot — "run1",
+// "run2" — and every floor's run starts again at run1, so the finished floor's entries are filed
+// under its name: the play time still sums them all, and the new floor's levels pay their clears.
+export const fileScoreUnderFloor = (score, floor) => {
+  if (!score || typeof score !== "object") return score;
+  const tag = (book) => { const o = {}; for (const k of Object.keys(book || {})) o[k.includes("|") ? k : floor + "|" + k] = book[k]; return o; };
+  return { ...score, secs: tag(score.secs), cleared: tag(score.cleared) };
+};
+export const carryToNextFloor = (save, nextFloor, now = Date.now()) => makeGameSave(save, {
+  ...save, savedAt: now, runFloor: nextFloor, floor: nextFloor,
+  score: fileScoreUnderFloor(save.score, gameRunFloor(save)),
+  nodeKey: null, levelId: null, levelName: "", gateKey: null,
+  objectives: { list: [], done: [] }, talkSpent: [],
+});
 export const withPlannedFloors = (floors) => {
   const out = [...(floors || [])];
   for (const f of PLANNED_FLOORS) if (!out.some((g) => floorKey(g) === floorKey(f))) out.push(f);

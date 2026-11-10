@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed, GAME_FLOORS, gameRunFloor, orderGameFloors } from "./gameFront";
+import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed, GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, carryToNextFloor } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
@@ -12569,6 +12569,9 @@ export const vertSeamLinesUp = (top, bottom, side) => {
 // Levels after the first still join purely by gates, so a gate that names another floor still
 // leads there. No floor = the old pick among every Intro. `runFloors` is the list to choose from.
 const sameFloor = (a, b) => placeKey(a) === placeKey(b);
+// The banner a floor's end flashes: the game goes on into the next floor in GAME_FLOORS (gameFront.js
+// gameNextFloor); only after the last one is there nothing built to go on to.
+const floorDoneFlash = (floor) => gameNextFloor(floor) ? "🏁 Floor complete!" : "🏁 Floor complete! The next floor is not built yet — this is where it would start.";
 export const runFloors = (levels) => {
   const out = [];
   for (const l of levels || []) {
@@ -16586,7 +16589,7 @@ export default function AssetStudio({ game = false } = {}) {
         if (!nx.done) return;
         bobAudio.talk(null);
         c.ended = true;
-        flash("🏁 Floor complete! The next floor is not built yet — this is where it would start.");
+        flash(floorDoneFlash(lv.floor));
         setTimeout(() => { if (animLeaveRef.current) animLeaveRef.current(); }, 1800);
         return;
       }
@@ -16612,7 +16615,7 @@ export default function AssetStudio({ game = false } = {}) {
           return;
         }
         c.ended = true;
-        flash("🏁 Floor complete! The next floor is not built yet — this is where it would start.");
+        flash(floorDoneFlash(lv.floor));
         setTimeout(() => { if (animLeaveRef.current) animLeaveRef.current(); }, 1800);
         return;
       }
@@ -17534,7 +17537,7 @@ export default function AssetStudio({ game = false } = {}) {
           const gk = gateLeavingThrough(lv, edge, cx, cy, LV_CELL);
           if (gk && !seamGateLeaving(lv, seams, edge, cx, cy, LV_CELL)) {
             gateNag.current = nowT;
-            flash(runNodeLive.key === runNow.exitKey && edge === "E" ? "🏁 Floor complete! The next floor is not built yet — this is where it would start."
+            flash(runNodeLive.key === runNow.exitKey && edge === "E" ? floorDoneFlash(lv.floor)
               : runNodeLive.key === runNow.startKey && edge === "W" ? "🏁 The run starts here — there is nothing behind you."
               : "🚧 " + CONN_LABEL[gk] + " gate leads nowhere yet: no saved level attaches here (it accepts \"" + (lv.conns[gk].accepts || lv.floor) + "\").");
           }
@@ -25635,6 +25638,7 @@ export default function AssetStudio({ game = false } = {}) {
   // difficulty with the lives it has lost so far (gameFront.js DIFFICULTIES).
   const GAME_CUR_NONE = { saveId: null, startedAt: 0, gates: {}, loc: null, difficulty: "medium", deaths: 0, oneUps: 0 };
   const gameCur = useRef(GAME_CUR_NONE);
+  const gameNextSave = useRef(null); // the save a finished floor leaves for the next one (gameFinishFloor); the Floor Complete card's Continue loads it
   const gameArtCache = useRef(new Map());
   const gameReady = game && !libraryLoading && gameLevelsIn;
   useEffect(() => {
@@ -25846,13 +25850,32 @@ export default function AssetStudio({ game = false } = {}) {
     if (play) togglePlaytest();
     setScreen("game"); setGameView("menu");
   };
+  // The floor after `floor` when a run for it can be laid from his levels (its first level is on that
+  // floor), else "" and the game ends there as before.
+  const gameNextFloorReady = (floor, seed) => {
+    const nx = gameNextFloor(floor);
+    if (!nx) return "";
+    const r = buildRun(runPool(), seed || "next", { floor: nx, attempts: 1 });
+    const st = r.startKey && r.nodes[r.startKey];
+    return st && st.level && sameFloor(st.level.floor, nx) ? nx : "";
+  };
   const gameFinishFloor = () => {
     const sc = scoreRef.current, run = runRef.current;
     const node = run && run.nodes[run.curKey];
     const floor = (node && node.level && node.level.floor) || (level && level.floor) || "";
     const look = findA(playerId);
     putGameRecord(recordFloorDone(gameRecordRef.current, floor, sc.total, look ? look.name : "", gameCur.current.difficulty)); // who finished it, and on what, unlocks Roberta and Rob (gameFront.js STARTER_LOCKS)
-    if (gameCur.current.saveId) putGameSaves(dropGameSave(gameSavesRef.current, gameCur.current.saveId)); // the run is over: nothing left to load
+    // THE FLOORS ARE CHAINED (Blake, 2026-11-10: "Yes, chain floors"). With a next floor whose run can
+    // be laid, the game goes on: the save becomes that floor's start, carrying the fighter, gear, HP,
+    // money, score and lives (gameFront.js carryToNextFloor), taken HERE before togglePlaytest resets
+    // them. After the last floor (or with nothing built there) the run is over and the save goes.
+    const next = gameCur.current.saveId ? gameNextFloorReady((run && run.floor) || floor, run && run.seed) : ""; // the RUN's floor: a side level on the way may name another
+    gameNextSave.current = null;
+    if (next) {
+      const carry = carryToNextFloor(gameSnapshot({ nodeKey: null, levelId: null, levelName: "", floor: next, gateKey: null }), next);
+      putGameSaves(upsertGameSave(gameSavesRef.current, carry));
+      gameNextSave.current = carry;
+    } else if (gameCur.current.saveId) putGameSaves(dropGameSave(gameSavesRef.current, gameCur.current.saveId)); // the run is over: nothing left to load
     setGameFloorDone({ floor, score: sc.total, secs: scorePlaySecs(sc) });
     gameCur.current = GAME_CUR_NONE;
     gameSetPaused(false);
@@ -26288,7 +26311,7 @@ export default function AssetStudio({ game = false } = {}) {
           saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px, frac) => gameArt(gameDressed(look), px, frac)} renderHead={gameHead}
           statIcon={(k, px) => sym(k, null, px)} abilitiesOf={lookAbilityNames} floors={gameFloors} sceneFor={menuSceneFor}
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
-          floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }}
+          floorDone={gameFloorDone} onFloorDoneContinue={() => { const nx = gameNextSave.current; gameNextSave.current = null; setGameFloorDone(null); if (nx) gameLoadGame(nx); else setGameView("menu"); }}
           gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
         {unlockBannerEl}
       </div>
