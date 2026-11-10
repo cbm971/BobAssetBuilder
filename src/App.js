@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed } from "./gameFront";
+import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed, GAME_FLOORS, gameRunFloor, orderGameFloors } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
@@ -3661,10 +3661,25 @@ export const shopNetPrice = (buyPrice, tradeIn) => Math.round(buyPrice) - Math.r
 //   * MONEY IS NOT STOCK. A note worth 20 sold at a markup is a strictly-losing trade and there
 //     is no reading of it that makes sense; leaving it in would put a row in the shop that only
 //     ever costs you money to press.
+// A SHOP TAG CAN NAME SEVERAL TAGS (Blake, 2026-11-10, Vietnam S1's PX: a shop that sells "Army or
+// Drink or Food"). One box per choice was all a shopkeeper had, so a stall could only ever sell one
+// tag's worth. The box now reads the way a 💎 Pedestal's two boxes and its AND/OR switch read, typed
+// out: "Army or Drink or Food" (also "Army, Drink" or "Army / Drink") is any of them, "Jacket and
+// Army" (or "Jacket & Army") is items carrying all of them. A tag with no "or"/"and" in it is the one
+// tag, exactly as before — none of his tags has either word inside it.
+export const shopTagFilter = (tag) => {
+  const t = String(tag || "").trim();
+  if (!t) return { cats: [], logic: "or" };
+  const OR = /\s+or\s+|\s*[,/|]\s*/i, AND = /\s+and\s+|\s*[&+]\s*/i;
+  const parts = (re) => t.split(re).map((s) => s.trim()).filter(Boolean);
+  if (OR.test(t)) return { cats: parts(OR), logic: "or" };
+  if (AND.test(t)) return { cats: parts(AND), logic: "and" };
+  return { cats: [t], logic: "or" };
+};
 export const shopStock = (assets, tag) => {
-  const t = (tag || "").trim();
-  if (!t) return [];
-  return (assets || []).filter((a) => HAS_CATEGORIES(a) && !isMoneyItem(a) && itemMatchesPedestal(a, [t], "or"));
+  const f = shopTagFilter(tag);
+  if (!f.cats.length) return [];
+  return (assets || []).filter((a) => HAS_CATEGORIES(a) && !isMoneyItem(a) && itemMatchesPedestal(a, f.cats, f.logic));
 };
 // Sorted for the shelf: dearest last, so a row of prices reads as a ladder. Ties keep name order
 // rather than library order — two identically-priced hats jumping around between visits reads as
@@ -25553,7 +25568,8 @@ export default function AssetStudio({ game = false } = {}) {
     const own = level && !level.isRoom && level.conns && runRole(level) !== "side" ? level.floor : "";
     const intro = pool.find((l) => l && !l.isRoom && l.conns && runRole(l) === "intro");
     const is = (f, g) => String(f || "").trim().toLowerCase() === String(g || "").trim().toLowerCase();
-    return fl.find((f) => is(f, own)) || fl.find((f) => intro && is(f, intro.floor)) || fl[0] || "";
+    // Off any street floor, floor 1 (GAME_FLOORS), as 🏁 always rolled while it held the only Intro.
+    return fl.find((f) => is(f, own)) || fl.find((f) => placeKey(f) === placeKey(GAME_FLOORS[0])) || fl.find((f) => intro && is(f, intro.floor)) || fl[0] || "";
   };
   const rollGenerate = (seedText, floor) => {
     const typed = (seedText || "").trim(), seed = typed || newRunSeed();
@@ -25721,7 +25737,7 @@ export default function AssetStudio({ game = false } = {}) {
     const prev = gameSavesRef.current.find((s) => s.id === gameCur.current.saveId) || null;
     const ao = activeObjective.current || { list: [], done: new Set() };
     return makeGameSave(prev, {
-      id: gameCur.current.saveId, startedAt: gameCur.current.startedAt, seed: run ? run.seed : "", ...loc,
+      id: gameCur.current.saveId, startedAt: gameCur.current.startedAt, seed: run ? run.seed : "", runFloor: run ? run.floor || "" : "", ...loc,
       lookId: playerId, lookName: look ? look.name : "", weaponId: playtestWeaponId, throwId: playtestThrowId, throwCount: throwCarry.current,
       equipped: eq, hp: playerHP.current, wallet: wallet.current, livesUsed: livesUsed.current, score: scoreRef.current,
       difficulty: gameCur.current.difficulty, deaths: gameCur.current.deaths, oneUps: gameCur.current.oneUps || 0,
@@ -25769,7 +25785,9 @@ export default function AssetStudio({ game = false } = {}) {
   const beginGameRun = (b) => {
     lastRunSeedRef.current = String(b.seed || "");
     const pool = runPool();
-    const run = buildRun(pool, b.seed);
+    // The game NAMES its floor (gameRunFloor): a save's own, else floor 1. With no floor buildRun picks
+    // among every Intro, and since Vietnam S1 (2026-11-10) that is two floors, not one.
+    const run = buildRun(pool, b.seed, { floor: gameRunFloor(b.save) });
     if (!run.startKey) { setGameNote("No level can start a run yet."); setScreen("game"); setGameView("menu"); return; }
     run.editorLevel = level; run.pool = pool;
     if (b.save) {
@@ -26047,7 +26065,9 @@ export default function AssetStudio({ game = false } = {}) {
     if (!game || !gameLevelsIn) return [];
     const out = [];
     for (const l of levelLib) { const f = l && runRole(l) === "intro" ? String(l.floor || "").trim() : ""; if (f && !out.includes(f)) out.push(f); }
-    return withPlannedFloors(out);
+    // In PLAY order (GAME_FLOORS), not library order: Vietnam has an Intro too since 2026-11-10, and
+    // the Trailer Park medal stays first whichever of the two was saved first.
+    return withPlannedFloors(orderGameFloors(out));
   }, [game, gameLevelsIn, levelLib]);
   const menuSceneCache = useRef(new Map());
   const menuSceneFor = (view) => {
@@ -27279,7 +27299,7 @@ export default function AssetStudio({ game = false } = {}) {
                       const n = st ? shopStock(allAssets, st).length : 0;
                       return (
                         <>
-                          <input className="dlgShopTag" list="catsuggest" value={c.shopTag || ""} onChange={(e) => patchChoice(nid, ci, { shopTag: e.target.value })} placeholder="Shop tag" maxLength={24} title={"He puts " + SHOP_SHELF_SIZE + " items carrying this tag on his shelf, picked at random once per Playtest and priced from each one's own 💵 Value"} />
+                          <input className="dlgShopTag" list="catsuggest" value={c.shopTag || ""} onChange={(e) => patchChoice(nid, ci, { shopTag: e.target.value })} placeholder="Shop tag" maxLength={48} title={"He puts " + SHOP_SHELF_SIZE + " items carrying this tag on his shelf, picked at random once per Playtest and priced from each one's own 💵 Value. Several tags: Army or Drink or Food (any of them), Jacket and Army (all of them)"} />
                           <span className="hint2">{!st ? "⚠ no tag" : n ? "🛒 " + Math.min(SHOP_SHELF_SIZE, n) + " of " + n : "⚠ none tagged"}</span>
                         </>
                       );
@@ -27949,7 +27969,7 @@ export default function AssetStudio({ game = false } = {}) {
               its own button plus a seed box out in the toolbar; the seed now lives in 🎲 Generate. */}
           {play
             ? <button className="save playon" onClick={() => togglePlaytest(null)}>■ Stop</button>
-            : <span className="save splitPlay"><button onClick={() => togglePlaytest(null)}>▶ Playtest</button><button onClick={() => startRun("")}>🏁 Play run</button></span>}
+            : <span className="save splitPlay"><button onClick={() => togglePlaytest(null)}>▶ Playtest</button><button onClick={() => startRun("", genDefaultFloor())}>🏁 Play run</button></span>}
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 

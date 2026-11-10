@@ -611,6 +611,7 @@ import {
   shopTradeInValue,
   shopNetPrice,
   shopStock,
+  shopTagFilter,
   shopStockSorted,
   shopPriceOrder,
   rollShopStock,
@@ -9640,6 +9641,23 @@ describe("what a shopkeeper has on the shelf", () => {
 
   test("props and bodies are not merchandise", () => {
     expect(shopStock(lib, "T1").every(HAS_CATEGORIES)).toBe(true);
+  });
+
+  test("one tag box can name several tags: 'or' is any of them, 'and' is all of them", () => {
+    // Blake, 2026-11-10: Vietnam S1's PX sells "Army or Drink or Food".
+    expect(shopTagFilter("Army or Drink or Food")).toEqual({ cats: ["Army", "Drink", "Food"], logic: "or" });
+    expect(shopTagFilter(" Army, Drink / Food ")).toEqual({ cats: ["Army", "Drink", "Food"], logic: "or" });
+    expect(shopTagFilter("Jacket and Army")).toEqual({ cats: ["Jacket", "Army"], logic: "and" });
+    expect(shopTagFilter("Jacket & Army")).toEqual({ cats: ["Jacket", "Army"], logic: "and" });
+    // a single tag is still the one tag, words inside it included
+    expect(shopTagFilter("Craft Services")).toEqual({ cats: ["Craft Services"], logic: "or" });
+    expect(shopTagFilter("Organ")).toEqual({ cats: ["Organ"], logic: "or" });
+    expect(shopTagFilter("  ")).toEqual({ cats: [], logic: "or" });
+    expect(shopStock(lib, "T2 or hat").map((a) => a.id)).toEqual(["e1", "w2"]);
+    expect(shopStock(lib, "T1 and hat").map((a) => a.id)).toEqual(["e1"]);
+    expect(shopStock(lib, "T2 and hat")).toEqual([]);
+    // money stays off the shelf whichever way it is asked for
+    expect(shopStock(lib, "T1 or T2").map((a) => a.id)).toEqual(["w1", "e1", "i1", "w2"]);
   });
 
   test("the shelf reads as a price ladder, and holds still between visits", () => {

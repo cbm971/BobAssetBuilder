@@ -8,6 +8,7 @@ import {
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
   enemiesDefeatedCount,
   starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, selectBoxPx, keepsSavedOutfit, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
+  GAME_FLOORS, gameRunFloor, orderGameFloors,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -493,6 +494,19 @@ describe("the character select's player card", () => {
     expect(floorIcon("trailer park")).toBe("trailer");
     expect(floorIcon(" Vietnam ")).toBe("helmet");
     expect(floorIcon("Sewer")).toBeNull();
+  });
+  test("the game names the floor its run is for: the save's own, else floor 1 (Vietnam has an Intro too)", () => {
+    expect(GAME_FLOORS[0]).toBe("Trailer Park");
+    expect(gameRunFloor(null)).toBe("Trailer Park");
+    expect(gameRunFloor({ seed: "7" })).toBe("Trailer Park");   // a save made before runFloor existed
+    expect(gameRunFloor({ runFloor: "Vietnam" })).toBe("Vietnam");
+    expect(makeGameSave(null, { seed: "7", runFloor: "Vietnam" }).runFloor).toBe("Vietnam");
+    expect(makeGameSave(null, { seed: "7" }).runFloor).toBe("");
+  });
+  test("intro floors line up in play order, whatever order the library holds them in", () => {
+    expect(orderGameFloors(["Vietnam", "Trailer Park"])).toEqual(["Trailer Park", "Vietnam"]);
+    expect(orderGameFloors(["Moon", "vietnam", "Trailor Park", "Mars"])).toEqual(["Trailor Park", "vietnam", "Moon", "Mars"]);
+    expect(orderGameFloors([])).toEqual([]);
   });
   test("Vietnam gets a medal before a run can start there, once, after the intro floors", () => {
     expect(withPlannedFloors(["Trailor Park"])).toEqual(["Trailor Park", "Vietnam"]);

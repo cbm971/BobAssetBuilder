@@ -275,6 +275,7 @@ export const makeGameSave = (prev, s) => ({
   levelId: s.levelId || null,
   levelName: s.levelName || "",
   floor: s.floor || "",
+  runFloor: s.runFloor || "",   // the floor the RUN is for (buildRun opts.floor), so Load Game rebuilds that floor's run
   gateKey: s.gateKey || null,
   lookId: s.lookId || "",
   lookName: s.lookName || "",
@@ -414,6 +415,19 @@ export const floorIcon = (floor) => FLOOR_ICONS[floorKey(floor)] || null;
 // Vietnam medal "even though there isn't enough to route to vietnam yet"). App.js gameFloors adds
 // each one after the intro floors when no intro level names it.
 export const PLANNED_FLOORS = ["Vietnam"];
+// THE ORDER THE FLOORS ARE PLAYED IN. Floor 1 is the Trailer Park, then Vietnam. Until Vietnam S1
+// (2026-11-10) the Trailer Park held the ONLY Intro level, so a run built with no floor named (New
+// Game, and a save rebuilt by Load Game) always started there. buildRun's "no floor" picks among
+// every Intro, so with Vietnam's own Intro a New Game would have started in Vietnam on some seeds.
+// The game names its floor now: a save's own `runFloor`, else floor 1. A save made before this has
+// no runFloor and rebuilds exactly as it was made (floor 1's Intro and Exit were the only ones then).
+export const GAME_FLOORS = ["Trailer Park", "Vietnam"];
+export const gameRunFloor = (save) => String((save && save.runFloor) || "").trim() || GAME_FLOORS[0];
+// Floors in play order (GAME_FLOORS), any other floor after them in the order given.
+export const orderGameFloors = (floors) => {
+  const rank = (f) => { const i = GAME_FLOORS.findIndex((g) => floorKey(g) === floorKey(f)); return i < 0 ? GAME_FLOORS.length : i; };
+  return (floors || []).map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).map((x) => x.f);
+};
 export const withPlannedFloors = (floors) => {
   const out = [...(floors || [])];
   for (const f of PLANNED_FLOORS) if (!out.some((g) => floorKey(g) === floorKey(f))) out.push(f);
