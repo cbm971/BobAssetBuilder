@@ -532,3 +532,30 @@ test("a Character layer keeps its look and size, poses like the actor, and talks
   const loop = ANIM_TALK_BEATS.length / ANIM_TALK_FPS;
   for (const t of [0.05, 0.3, 0.71, 1.2]) expect(animTalkOpen(t + loop)).toBe(animTalkOpen(t));
 });
+
+// 🎬 "Walk in" (2026-11-10, the ambush that ends Vietnam). The cut starts by itself when you reach the
+// spot its actor starts on — there is no E to press at an ambush.
+describe("a Walk in animation starts when you reach its actor's spot", () => {
+  const { ANIM_TRIGGERS, ANIM_WALK_CELLS, animWalkedIn } = require("./anim");
+  test("it is a trigger a record can carry, and survives migrate", () => {
+    expect(ANIM_TRIGGERS.map((t) => t.key)).toEqual(["start", "reach", "walk", "floor"]);
+    expect(migrateAnim({ id: "w", trigger: "walk" }, mkId).trigger).toBe("walk");
+  });
+  test("within a cell of the spot it starts; further off it waits", () => {
+    const cell = 30;
+    expect(animWalkedIn(undefined, 0, cell)).toBe(true);
+    expect(animWalkedIn(undefined, -ANIM_WALK_CELLS * cell, cell)).toBe(true);
+    expect(animWalkedIn(undefined, ANIM_WALK_CELLS * cell, cell)).toBe(true);
+    expect(animWalkedIn(undefined, -ANIM_WALK_CELLS * cell - 1, cell)).toBe(false);
+    expect(animWalkedIn(-200, -120, cell)).toBe(false);   // still walking up to it
+  });
+  test("a body thrown clean across the line in one frame still sets it off", () => {
+    expect(animWalkedIn(-90, 75, 30)).toBe(true);
+    expect(animWalkedIn(90, -75, 30)).toBe(true);
+    expect(animWalkedIn(undefined, 75, 30)).toBe(false);  // the first frame inside has no "last frame" to have crossed from
+  });
+  test("a broken measurement never starts a cutscene", () => {
+    expect(animWalkedIn(0, NaN, 30)).toBe(false);
+    expect(animWalkedIn(0, undefined, 30)).toBe(false);
+  });
+});

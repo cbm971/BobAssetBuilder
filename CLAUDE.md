@@ -574,8 +574,8 @@ plus traps it does not cover:
   zoomed out enough to show his head and shoulders, no padlock, never selectable. **Back sits beside
   START, under Easy** (his placement). Then **Easy 4 / Medium 2 / Hard 1 lives**
   (`DIFFICULTIES`). A death no 🐱 Extra Life catches costs one (`gameDeathRef`, called from
-  `playerDefeated`; counted in the save as `deaths`); the last one freezes the loop and shows
-  **Game Over** (Retry = same look and difficulty on a fresh seed via `freshRunSeed`; the save is deleted). A run life is the
+  `playerDefeated`; counted in the save as `deaths`); the last one shows
+  **Game Over** once the body has fallen over (💀 `deathFrame`, see Blake's decisions; it used to freeze the loop on its feet for 1.1 s) (Retry = same look and difficulty on a fresh seed via `freshRunSeed`; the save is deleted). A run life is the
   editor's death (back where you entered, full HP), never the 🐱 get-up. **The HUD draws run lives
   as the PLAYER'S HEAD** (`.hudHeads`, `gameHead`: the front drawing cut at the rig's shoulder line,
   hat included, from the LIVE kit-merged body), and the difficulty boxes draw the lit fighter's head; the 🐱 symbol is ONLY the Extra Lives ability, on its own row ABOVE the heads.
@@ -832,7 +832,9 @@ plus traps it does not cover:
   **Shortening a state never leaves keys past its end**: Length is set on Enter/blur (typing 30 over 44
   passes 3), ⇔ Stretch scales every key (`animSetLength`), otherwise the tail is cut with a key at the
   new end holding that frame; ✂ Start / ✂ End cut at the playhead (`animCutStart`/`animCutEnd`).
-  "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
+  "Level start" begins in the play effect, "Walk up + E" last in the E chain, "Walk in"
+  (`animWalkedIn`, 2026-11-10: no E, it starts once when you reach the spot its actor starts on; until
+  then the stage shows state 0's first frame with no actor) right after that chain, all
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
   the top of the loop). "You take over" puts your standing hip on the actor's last hip and clears
   the queued gate spawn. A finished stage hands back its cached element (`animStageCache`).
@@ -1078,6 +1080,8 @@ plus traps it does not cover:
 - **Play-loop & S1 TV stutter guards (`src/App.js`, 2026-11-06):** `underwearSeepCuts` uses precomputed local-space shape/cutter samplers, AABB-clamped grid bounds, and `SEEP_CUT_CACHE`; `playerLookCache` and `enemyGearLookCache` are keyed without `playRunId` so composed looks survive across runs; `cutRef.current` runs `prePromoteFront()` and `warmRunAhead()` so opening cutscenes (`wakebed` on S1) finish Front layer promotion and `n2` warming before the player walks past the TV; `xrayRegionRef` caches the active `connectedFrontRegion` Set and promotes its cells once on entry; `gameHead` and `hudWeaponArt` cache their rendered JSX elements; and `!game` skips rendering hidden studio chrome (`.bar`, `.catbar`, `.ltools`, `.statusrow`, `.lside`).
 - **Rock-crawling hill formations (`vcfrm13`, Forest M13, 2026-11-06):** `vehicleStep` calls `wallAt(bumperX, leadY, VEH_STEP_UP, wallH)` using the previous frame's wheel Y while `bumperX` extends `1 - wr` (`2.52` cols on the size-12 Army Jeep `wlysjp1`) ahead of the lead wheel, and `isHillFormationCell` only exempts flat plateau cells within `HILL_NEAR = 2` cols of a ramp and within `2.5` rows (`75` px) above `leadY`. So (a) a continuous `run: 1` (45°) ramp cannot exceed 2–3 rows without a terrace before `bumperX` hits a backing block `> 75` px above `leadY`, and (b) the top step of an uphill climb onto a flat shelf of `>= 3` cols must use `run: 3` so the remaining rise when `bumperX` reaches `C_lastRamp + 3` is `< VEH_STEP_UP` (`10` px).
 - **Cutscene text names Bob in the third person (2026-11-10):** "on the cut scene after the Vietnam levels, make sure Bob is only refered to in the 3rd person". The General's Briefing (`gnrlbr2`, the scene between Trailer Park and Vietnam) says "That is where Bob comes in", "found Bob", "His cholesterol", "He is a specimen" and "Only Bob can stop the Vietkong ..."; never "you" in its crawl or its last line.
+- **Every death falls over (2026-11-10/11):** "when the player dies i want them to fall over before it says game over", then "Every death should fall over" (he said he is still debating respawn deaths; ask before changing). `playerDefeated` no longer respawns or ends the run itself: it spends the life and sets `p.dying`; the loop's 💀 pause line runs `deathFrame` (world paused like a cutscene, body drops to the floor by the corpse rule, turned by `playerDeathFallDeg` with `fallOverLiftPx`), and after `PLAYER_DEATH_FRAMES` it is the walk back to the gate on full HP, or `gameGameOver`. HP stays 0 during the fall, so `gameSnapshot` saves `hp: null` (= full) mid-fall. `gameDeathRef` no longer freezes the loop or times Game Over. The 🐱 Extra Life get-up is untouched.
+- **Vietnam E1 (`vtnme1a`) ends in the Jungle Ambush (`vcambs1`, 2026-11-11):** the floor's Exit (W2 open, no east gate). "Walk in" cutscene at cols 110-153: his Bush props shake, four of his Viatnamese looks come out both sides, Bob falls on his back (the same quarter turn a death uses), fade, ending "Leave the floor". Nothing Front stands inside the stage (Front draws over it) and no unit spawns in the last 60 columns; the two nearest are guards so nobody is chasing him into the scene. Cutscene looks cannot hold weapons, so the VC come out unarmed.
 
 ## Working style
 

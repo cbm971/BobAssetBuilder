@@ -13674,8 +13674,9 @@ describe("a fast fall lands on a thin floor instead of dropping through it", () 
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/>= (feetNow|eFeet|dFeet) - CH \* 0\.5/);
     expect(src).not.toMatch(/feetBottom <= hillTop \+ CH \* 0\.5/);
-    // the player, a walking unit, a corpse, and a 🦸 Flies creature coming down onto a floor
-    expect((src.match(/landingReach\((p|ep|dep)\.vy, dtMul, CH\)/g) || []).length).toBe(4);
+    // the player, a walking unit, a corpse, a 🦸 Flies creature coming down onto a floor, and (2026-11-10)
+    // a player who died in the air coming down to lie where a corpse would (deathFrame)
+    expect((src.match(/landingReach\((p|ep|dep)\.vy, dtMul, CH\)/g) || []).length).toBe(5);
   });
 });
 
@@ -16140,6 +16141,51 @@ describe("💵 Money = Power (clothing ability, 2026-11-11)", () => {
       }
       expect(moneyPowerOn(eq.effects)).toBe(true);
       expect(editorReachIssues(eq)).toEqual([]);
+    }
+  });
+});
+
+// 💀 A DEATH FALLS OVER (2026-11-10). Every death no Extra Life catches topples the body onto its
+// back before the walk back to the gate or Game Over; these are the two rules the render turns it by.
+describe("a dying player falls over", () => {
+  const { PLAYER_DEATH_FALL_FRAMES, PLAYER_DEATH_REST_FRAMES, PLAYER_DEATH_FRAMES, playerDeathFallDeg, fallOverLiftPx, layFlatLiftPx: flat, LAY_FLAT_ROT_DEG } = require("./App");
+  const BOX_W = 30 * 7 * (200 / 260), BOX_H = 30 * 7;
+  const body = [{ id: "t", kind: "rect", x: 62, y: 70, w: 76, h: 110, c: "#888" }, { id: "l", kind: "rect", x: 70, y: 180, w: 60, h: 70, c: "#444" }];
+  test("it starts upright, ends flat on its back, and never turns back on the way", () => {
+    expect(playerDeathFallDeg(0)).toBeCloseTo(0, 8);
+    expect(playerDeathFallDeg(PLAYER_DEATH_FALL_FRAMES)).toBe(LAY_FLAT_ROT_DEG);
+    expect(playerDeathFallDeg(PLAYER_DEATH_FALL_FRAMES + 500)).toBe(LAY_FLAT_ROT_DEG);
+    let last = 0;
+    for (let t = 0; t <= PLAYER_DEATH_FALL_FRAMES; t += 0.5) { const d = playerDeathFallDeg(t); expect(Math.abs(d)).toBeGreaterThanOrEqual(Math.abs(last)); last = d; }
+  });
+  test("it speeds up as it goes, the way something tipping over does", () => {
+    expect(Math.abs(playerDeathFallDeg(PLAYER_DEATH_FALL_FRAMES / 2))).toBeLessThan(45);
+  });
+  test("a broken clock reads as not yet fallen", () => {
+    expect(playerDeathFallDeg(undefined)).toBeCloseTo(0, 8);
+    expect(playerDeathFallDeg(NaN)).toBeCloseTo(0, 8);
+    expect(playerDeathFallDeg(-5)).toBeCloseTo(0, 8);
+  });
+  test("the fall and the beat lying there take about the 1.1 s the old freeze held", () => {
+    expect(PLAYER_DEATH_FRAMES).toBe(PLAYER_DEATH_FALL_FRAMES + PLAYER_DEATH_REST_FRAMES);
+    expect(PLAYER_DEATH_FRAMES / 60).toBeGreaterThan(1);
+    expect(PLAYER_DEATH_FRAMES / 60).toBeLessThan(1.5);
+  });
+  test("the lift keeps the feet on the floor: none upright, the lay-flat lift when flat, growing between", () => {
+    expect(fallOverLiftPx(body, BOX_W, BOX_H, 0)).toBeCloseTo(0, 8);
+    expect(fallOverLiftPx(body, BOX_W, BOX_H, LAY_FLAT_ROT_DEG)).toBeCloseTo(flat(body, BOX_W, BOX_H), 6);
+    expect(fallOverLiftPx(body, BOX_W, BOX_H, 90)).toBeCloseTo(flat(body, BOX_W, BOX_H), 6);   // either sign of the angle
+    let last = -1;
+    for (let d = 0; d <= 90; d += 5) { const l = fallOverLiftPx(body, BOX_W, BOX_H, -d); expect(l).toBeGreaterThan(last); last = l; }
+  });
+  test("the body's lowest corner sits on the ground line at every angle of the fall", () => {
+    // Turn the art's left foot corner about the wrapper's bottom-centre and lift: it must come out
+    // level with where the feet stood (the foot gap above the wrapper's bottom), never under it.
+    const { poseArtLeftFrac: leftFrac, poseFootGapFrac: gapFrac, layFlatBodyBlocks: bodyOf } = require("./App");
+    const A = BOX_W / 2 - leftFrac(bodyOf(body)) * BOX_W, g = gapFrac(body) * BOX_H;
+    for (let d = 0; d <= 90; d += 10) {
+      const a = (d * Math.PI) / 180, cornerUp = -A * Math.sin(a) + g * Math.cos(a) + fallOverLiftPx(body, BOX_W, BOX_H, -d);
+      expect(cornerUp).toBeCloseTo(g, 6);
     }
   });
 });

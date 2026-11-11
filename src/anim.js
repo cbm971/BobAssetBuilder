@@ -9,7 +9,8 @@
  * THE DATA — an animation is an ASSET (type "anim"), so it saves, syncs, exports and restores with
  * every other asset and needed no new saved kind:
  *   { id, type: "anim", name, w, h,                  the stage, in level cells
- *     trigger: "start" | "reach" | "floor",          plays as the level starts / when you walk up and press E /
+ *     trigger: "start" | "reach" | "walk" | "floor", plays as the level starts / when you walk up and press E /
+ *                                                    by itself when you walk into it (see animWalkedIn) /
  *                                                    as the floor is done, over the whole screen (see floorEndAnim)
  *     floor: "Trailer Park",                         "floor" only: which floor's end it closes ("" = any)
  *     ending: "play" | "leave",                      you take over where the actor ends / the floor is done
@@ -81,7 +82,7 @@
  */
 
 export const ANIM_POSES = ["side", "front", "back", "crouch"];
-export const ANIM_TRIGGERS = [{ key: "start", label: "Level start" }, { key: "reach", label: "Walk up + E" }, { key: "floor", label: "Floor end" }];
+export const ANIM_TRIGGERS = [{ key: "start", label: "Level start" }, { key: "reach", label: "Walk up + E" }, { key: "walk", label: "Walk in" }, { key: "floor", label: "Floor end" }];
 export const ANIM_ENDINGS = [{ key: "play", label: "You take over" }, { key: "leave", label: "Leave the floor" }];
 export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "arms", "sit", "fx", "cover", "lift", "drop", "swing", "rise"];
 // Numbers that move at an EVEN speed from one key to the next instead of easing in and out (see the
@@ -368,6 +369,22 @@ export const animEntryOffset = (off, el) => {
   if (!off) return { x: 0, y: 0 };
   const k = 1 - ease(clamp(num(el, 0) / ANIM_ENTRY_SECONDS, 0, 1));
   return { x: num(off.x, 0) * k, y: num(off.y, 0) * k };
+};
+
+// ── "WALK IN" (Blake, 2026-11-10, the ambush that ends Vietnam: "the player walks by some bushes
+// then the bushes shake and in the animation all of the sudden multiple VK come out of the Bushes
+// and ambush Bob"). Nobody presses E to be ambushed, so this one starts by itself. Until then its
+// stage shows the first frame of its first state with no actor (the bushes, standing still) and YOU
+// do the walking; the moment you reach the spot its actor starts on, the cut begins from state 0
+// with the actor eased in from where you stood (animEntryOffset), and plays once.
+// "Reach": within ANIM_WALK_CELLS of that spot across, at any height inside the stage — or having
+// CROSSED it since the last frame (`prevDx`, undefined on the first frame inside), so a body thrown
+// through by a blast in one long frame cannot step over the line.
+export const ANIM_WALK_CELLS = 1;
+export const animWalkedIn = (prevDx, dx, cell) => {
+  if (typeof dx !== "number" || !isFinite(dx)) return false;
+  if (Math.abs(dx) <= ANIM_WALK_CELLS * num(cell, 1)) return true;
+  return typeof prevDx === "number" && isFinite(prevDx) && prevDx * dx < 0;
 };
 
 // ── 🪢 A ROPE. Where a point of a PROP layer is drawn, in stage cells: the point (fx, fy) as

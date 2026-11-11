@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
@@ -7540,6 +7540,25 @@ export const LAY_FLAT_ROT_DEG = -90;
 export const LAY_FLAT_ROT_CSS = "rotate(" + LAY_FLAT_ROT_DEG + "deg)";
 export const layFlatLiftPx = (blocks, boxW, boxH) =>
   boxW / 2 - poseArtLeftFrac(layFlatBodyBlocks(blocks)) * boxW + poseFootGapFrac(blocks) * boxH;
+// 💀 A DEATH FALLS OVER (Blake, 2026-11-10: "when the player dies i want them to fall over before it
+// says game over"; then "Every death should fall over"). A death no 🐱 Extra Life catches used to
+// teleport you to the gate, or on the last life freeze you on your feet for a beat and cut to Game
+// Over. Now the body topples onto its back — the same quarter turn a tackle lays you out with
+// (LAY_FLAT_ROT_DEG), but TURNED there over PLAYER_DEATH_FALL_FRAMES, speeding up like anything that
+// tips over — lies for PLAYER_DEATH_REST_FRAMES, and only then is it the walk back or Game Over.
+// The two together are about the 1.1 s the old freeze held. Frames are 60ths (dtMul).
+export const PLAYER_DEATH_FALL_FRAMES = 24;
+export const PLAYER_DEATH_REST_FRAMES = 48;
+export const PLAYER_DEATH_FRAMES = PLAYER_DEATH_FALL_FRAMES + PLAYER_DEATH_REST_FRAMES;
+export const playerDeathFallDeg = (t) => { const u = Math.max(0, Math.min(1, (+t || 0) / PLAYER_DEATH_FALL_FRAMES)); return LAY_FLAT_ROT_DEG * u * u; };
+// layFlatLiftPx for a body only PART of the way over. The turn is about the wrapper's bottom-centre,
+// which sends the art's left foot corner under the floor: by (half the box less the art's left
+// margin) x sin, plus the empty canvas under the feet x (1 - cos). At 90 that is layFlatLiftPx to
+// the pixel and at 0 it is nothing, so a fall ends exactly where a tackled body lies.
+export const fallOverLiftPx = (blocks, boxW, boxH, deg) => {
+  const a = (Math.min(90, Math.abs(+deg || 0)) * Math.PI) / 180;
+  return (boxW / 2 - poseArtLeftFrac(layFlatBodyBlocks(blocks)) * boxW) * Math.sin(a) + poseFootGapFrac(blocks) * boxH * (1 - Math.cos(a));
+};
 // Arms swing during a plain walk, opposite phase to the legs. applyLimbSwing deliberately never
 // rotates arms (every other arm motion — melee, aim-hold, the climb reach — is an absolute pose
 // SET by the render code), so the walk cycle had no arm motion at all: the weapon arm hung dead
@@ -16243,6 +16262,7 @@ export default function AssetStudio({ game = false } = {}) {
     // worn every time it re-runs (a pedestal pickup bumps equipGen), so a cat head picked up
     // mid-run counts from the moment it is on.
     const playerDefeated = (p, deathMsg) => {
+      if (p.dying) return false; // already falling: a second hit on the same frame is not a second death (it cost a second life)
       sndMoment(basePlayerAsset, "death", "playerDeath", p.x, p.y); // the one door every player death goes through
       sndSeen.hp = null; // ...and the HP it hands back (a respawn, an extra life) is not a hurt
       const left = extraLivesLeft(playerAsset?.effects, livesUsed.current);
@@ -16254,14 +16274,54 @@ export default function AssetStudio({ game = false } = {}) {
         return true;
       }
       // THE GAME's difficulty (Easy 3 lives, Medium 2, Hard 1): this death costs one of them, and
-      // the last one ends the run — gameDeathRef freezes the loop and brings up Game Over, so there
-      // is no walk back to the start to make. Outside the game it is always false.
-      if (gameDeathRef.current()) return false;
-      if (studioOneUps.current > 0) studioOneUps.current -= 1; // 🍄 the studio's head row, spent the way a run's is (outside a run it is the only one)
-      flash(deathMsg);
+      // the last one ends the run (gameDeathRef says which). Outside the game it is always false.
+      // 💀 EITHER WAY THE BODY FALLS OVER FIRST (see PLAYER_DEATH_FALL_FRAMES): the life is spent
+      // here, at once, and what the death leads to — the walk back to the gate on full HP, or Game
+      // Over — waits for deathFrame to finish the fall. HP stays at 0 until then (the HUD shows it).
+      const over = gameDeathRef.current();
+      if (!over && studioOneUps.current > 0) studioOneUps.current -= 1; // 🍄 the studio's head row, spent the way a run's is (outside a run it is the only one)
+      p.dying = { t: 0, over, msg: deathMsg, began: false, rested: false, ended: false };
+      return false;
+    };
+    // 💀 ONE FRAME OF A DEATH (the loop calls this and returns, as it does for a cutscene: the world
+    // is paused under it, so nothing chews on the body and no timer runs). The first frame lets go
+    // of everything — ladder, crouch, swing, stun — and stands the box back to full height about its
+    // feet, the corpse rule (a ducking body laid out in its crouch box was drawn squashed). A body
+    // that died in the air comes down the way a unit's corpse does (the same gravity and landing,
+    // a 🚶 plane counted as a floor), so nobody topples over in mid-air and hangs there. The render
+    // turns it by playerDeathFallDeg(t). When the time is up: Game Over if that was the last life,
+    // else the walk back to the gate you came in by, on full HP — exactly what a death did before.
+    const deathFrame = (p, dtMul) => {
+      const d = p.dying, pw = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, ph = CH * PLAYER_H_CELLS;
+      if (!d.began) {
+        d.began = true;
+        d.rested = !!p.topdown || !!p.vehicle || (!!p.onGround && !p.climbing);
+        if (p.crouch) p.y -= ph - CH * PLAYER_CROUCH_H_CELLS;
+        p.crouch = false; p.walking = false; p.climbing = false; p.climbJump = false; p.climbJumpKind = null; p.flying = false;
+        p.stomp = null; p.aiming = false; p.firing = null; p.stun = 0; p.down = 0; p.knock = null; p.hsAir = null; p.hsFall = false;
+        p.transitioning = null; p.invuln = 0; p.vx = 0; p.vy = Math.max(0, p.vy || 0);
+        if (!p.topdown) p.onGround = true; // drawn standing, not mid-jump, while it goes over
+      }
+      d.t += dtMul;
+      if (!d.rested) {
+        p.vy = Math.min(60, (p.vy || 0) + 0.175 * dtMul);
+        p.y += p.vy * dtMul;
+        const feet = p.y + ph;
+        const part = worldPartAt(worldParts, p.x + pw / 2, p.y + ph / 2, CW);
+        const floor = cellsHitW(p.x, p.y, pw, ph).filter((h) => h.r * CH >= feet - landingReach(p.vy, dtMul, CH));
+        if (floor.length) { p.y = Math.min(...floor.map((h) => h.r * CH)) - ph; p.vy = 0; d.rested = true; }
+        else if (topdownAt(part.lv, p.x - part.ox, feet - part.oy, pw, CW, CH)) { p.vy = 0; d.rested = true; }
+        const floorY = unitFloorY(part, p.x + pw / 2, p.y + ph / 2, lv, seams, CW);
+        if (p.y > floorY - ph) { p.y = floorY - ph; p.vy = 0; d.rested = true; }
+      }
+      if (d.ended || d.t < PLAYER_DEATH_FRAMES || !d.rested) return;
+      d.ended = true;
+      if (d.over) { gameGameOverRef.current(); return; } // still lying there until the screen changes
+      p.dying = null;
+      flash(d.msg);
       respawnAtEntry(p);
       playerHP.current = maxPlayerHP(playerAsset);
-      return false;
+      sndSeen.hp = null; // the HP a respawn hands back is not a hurt, and 0 → full is not one either
     };
     // 🐞 LUCKY / 🪞 REFLECT, asked by EVERY hit site, player and unit alike, after the hit's damage is
     // worked out and before any of it lands (see hitFate). `wearer` is "player" or the struck unit's
@@ -16588,6 +16648,7 @@ export default function AssetStudio({ game = false } = {}) {
     let lastDoorKey = null;
     let lastTalkSig = "";   // "npc:12,40" / "sign:8,3" / "" — so the 💬 prompt only hits React state when it CHANGES
     let lastAnimSig = "";   // the 🎬 "Walk up + E" stage you stand in ("" none), on the same rule
+    const walkInDx = {};    // 🎬 "Walk in" stages you are inside: how far (px) you were from the actor's spot last frame (animWalkedIn)
     // 🎬 ONE FRAME OF A CUTSCENE (the loop calls this and returns: the world is paused under it). The
     // animation's clock runs, E moves a waiting state on, and the hidden body is kept on the actor so
     // the camera frames the scene. At the end you are put where the actor stands, in your own standing
@@ -16733,6 +16794,8 @@ export default function AssetStudio({ game = false } = {}) {
       // want is one you do not want to sit through the opening of either.
       p.rerollHold = nextRerollHold(p.rerollHold, !!RK.reload && !!runNow, dtMul);
       if (p.rerollHold >= REROLL_HOLD_FRAMES) { p.rerollHold = 0; rerollRunRef.current(); }
+      // 💀 A DEATH PAUSES IT TOO, for the fall (deathFrame): only the body moves, and the camera stays on it.
+      if (p.dying) { deathFrame(p, dtMul); updateCamera(p, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS, dtMul); commitFrame(); raf = requestAnimationFrame(loop); return; }
       // 🎬 A CUTSCENE PAUSES IT ON THE SAME TERMS: one return, above everything, so nobody walks up
       // and shoots a sleeping man. Only the animation's clock runs (cutFrame), and the camera keeps
       // following the hidden body, which cutFrame keeps on the actor.
@@ -20492,6 +20555,31 @@ export default function AssetStudio({ game = false } = {}) {
         const { b, ev } = reachCut, hipX = (p.x + pw / 2 - b.x) / CW, hipY = (p.y + ph - CH * PLAYER_H_CELLS * (1 - ANIM_HIP_FALLBACK.y / H) - b.y) / CH; // from the feet: a crouch is shorter
         beginCut(lv, reachCut.mk, reachCut.m, reachCut.an, reachCut.at, ev ? { x: hipX - ev.x, y: hipY - ev.y } : null);
         lastAnimSig = "";
+      }
+      // 🎬 A "Walk in" ANIMATION (animWalkedIn) starts by itself, once, the moment you reach the spot
+      // its actor starts on: no E, no prompt — an ambush. Not at the wheel (a car has no actor) and
+      // not through a door. The actor starts from where you stand, like a "Walk up + E" one.
+      if (lv.markers && !cutRef.current && !p.dying && !p.transitioning && !vehDriven) {
+        for (const mk in lv.markers) {
+          const m = lv.markers[mk];
+          if (!m || m.kind !== "anim") continue;
+          const an = findAnim(m.animId);
+          if (!an || an.trigger !== "walk") continue;
+          const ik = animInstKey(lv, mk);
+          if (animInst.current[ik]) continue;
+          const [mr, mc] = mk.split(",").map(Number);
+          const b = animStageBox(mr, mc, an, CW);
+          if (!(p.x + pw > b.x && p.x < b.x + b.w && p.y + ph > b.y && p.y < b.y + b.h)) { delete walkInDx[ik]; continue; }
+          const actorL = an.layers.find((l) => l.kind === "actor");
+          let ev = actorL ? animLayerAt(an, an.states[0], actorL, 0) : null;
+          if (ev && m.flip) ev = animMirrorValues(ev, an.w);
+          const dx = ev ? p.x + pw / 2 - (b.x + ev.x * CW) : 0, was = walkInDx[ik];
+          walkInDx[ik] = dx;
+          if (!animWalkedIn(was, dx, CW)) continue;
+          const hipX = (p.x + pw / 2 - b.x) / CW, hipY = (p.y + ph - CH * PLAYER_H_CELLS * (1 - ANIM_HIP_FALLBACK.y / H) - b.y) / CH; // from the feet, as above
+          beginCut(lv, mk, m, an, 0, ev ? { x: hipX - ev.x, y: hipY - ev.y } : null);
+          break;
+        }
       }
       // Press E to start talking. openTalk resolves which tree (a saved one by id, or the sign's
       // own typed line) and is shared with nothing else, so there is exactly one way in.
@@ -25768,7 +25856,9 @@ export default function AssetStudio({ game = false } = {}) {
     return makeGameSave(prev, {
       id: gameCur.current.saveId, startedAt: gameCur.current.startedAt, seed: run ? run.seed : "", runFloor: run ? run.floor || "" : "", ...loc,
       lookId: playerId, lookName: look ? look.name : "", weaponId: playtestWeaponId, throwId: playtestThrowId, throwCount: throwCarry.current,
-      equipped: eq, hp: playerHP.current, wallet: wallet.current, livesUsed: livesUsed.current, score: scoreRef.current,
+      // 💀 Mid-fall (the checkpoint a death writes at once) HP is 0 and the walk back will fill it:
+      // null is "full" to a load, where a saved 0 would have come back as 1 HP.
+      equipped: eq, hp: player.current && player.current.dying ? null : playerHP.current, wallet: wallet.current, livesUsed: livesUsed.current, score: scoreRef.current,
       difficulty: gameCur.current.difficulty, deaths: gameCur.current.deaths, oneUps: gameCur.current.oneUps || 0,
       objectives: { list: ao.list || [], done: [...(ao.done || [])] }, talkSpent: [...(talkSpentSigns.current || [])],
       playSecs: scorePlaySecs(scoreRef.current),
@@ -25910,15 +26000,16 @@ export default function AssetStudio({ game = false } = {}) {
   // A death the 🐱 Extra Lives did not catch (playerDefeated, in the loop). It costs a life of the
   // run's difficulty; while one is left the loop does its ordinary walk back to the gate, and the
   // count goes into the checkpoint at once so a reload cannot hand the life back. The last one ends
-  // the run: the loop is frozen where you fell (gamePauseRef) for a beat, then Game Over.
+  // the run. Either way the loop plays the fall first (deathFrame, 💀): on the last life IT calls
+  // gameGameOver when the body has lain there a beat — this used to freeze the loop on its feet
+  // (gamePauseRef) and time the screen itself, which is why there was nothing to see.
   gameDeathRef.current = () => {
     const cur = gameCur.current;
     if (!game || !cur.saveId) return false;
     const before = cur.deaths || 0;
     cur.deaths = before + 1;
     if (!deathEndsRun(cur.difficulty, before, cur.oneUps)) { setTimeout(() => gameCheckpointRef.current(), 300); return false; }
-    gamePauseRef.current = true; keys.current = {};
-    setTimeout(() => gameGameOverRef.current(), 1100);
+    keys.current = {};
     return true;
   };
   const gameGameOver = () => {
@@ -29026,6 +29117,9 @@ export default function AssetStudio({ game = false } = {}) {
                   // visual: physics, hitbox, and grip all still run off p.y untouched.
                   const climbLift = (p.climbing && p.climbKind && p.climbKind !== "ladder") ? LV_CELL : 0;
                   const downed = (p.down || 0) > 0;
+                  // 💀 Dying: how far over the body has gone (playerDeathFallDeg), null when alive. The
+                  // same pivot and lift as lying down below, at every angle on the way (fallOverLiftPx).
+                  const dyingDeg = p.dying ? playerDeathFallDeg(p.dying.t) : null;
                   // A floored player LIES DOWN rather than just standing there unable to move — the
                   // same LAY_FLAT_ROT_DEG pivot about the feet a tackled enemy gets, then lifted
                   // back onto the floor line, which rotating about that point would otherwise leave
@@ -29043,7 +29137,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
                   const stompDip = p.stomp ? stompDipPx(p.stomp.t, p.stomp.dur) : 0; // the weight landing on the stamping foot
                   const flyBob = (p.flying && !creatureFlies(basePlayerAsset)) ? flyPoseOf(p).bob : 0; // the hover's gentle bob — the sprite only, never the hitbox
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...((downed || p.hsFall || doorT < 1) ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (dyingDeg != null ? [flip, shrink, "translateY(" + (-fallOverLiftPx(blocks, renderW, ph, dyingDeg)).toFixed(2) + "px)", "rotate(" + dyingDeg.toFixed(1) + "deg)"] : downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...((dyingDeg != null || downed || p.hsFall || doorT < 1) ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   const pStatusCss = bodyStatusFilter(p); // 🔥 the burn's glow / ❄️ the white rim, for the whole of each
                   if (pStatusCss) style.filter = pStatusCss;
                   else if (doorT < 1) style.filter = "brightness(" + (0.35 + 0.65 * doorT).toFixed(2) + ")"; // dimmer the deeper into the doorway you are
