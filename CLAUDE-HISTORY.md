@@ -5859,3 +5859,11 @@ Asked for a junkyard Trailer Park level, then: "I need another level that uses b
 **Found in the game:** the first cut joined the lanes with 1-cell trapdoor ladders (M19's pattern). Climbing up worked; climbing down did not, because the down step tests the whole 2.18-cell body box against the deck beside the hole, and holding S on the deck only crouched. Rebuilt as three 4-cell shafts with 2-wide ladders like his sewer manholes, at real gaps in the art (the girder was shortened to x 18..60 on crane rails spanning the prop's full 50 cells; the I-beam became 6 wide), and the roof ladder moved beside the roof's end. Measured: walking into a shaft drops you to the street; W climbs to y 361 and a step lands on the deck; A+S from the lip grabs and S descends to the street; a running jump at Agility 5 stays in the air 10+ cells, well past a 4-cell shaft.
 
 **Also:** a bg slope cell with no `more` underlay draws its empty half black (M14's hill faces carry `more:[{c:"#386aff"}]`). And, as with M19's IndexedDB trap, a revised record spliced into library.json with a newer savedAt did not replace the test browser's localStorage copy on reload; I wrote the served copy into localStorage to test. M21 is new to every other copy.
+
+
+---
+
+## 2026-11-11 — 💵 Money = Power (`EFFECT_TYPES.moneyPower`)
+
+- **Blake:** "On Bob can you make an ability where the more money you have the more damage you have? It should scale so $10 is 1.25 damage and $20 is 1.5 and it caps at $40 and 2X damage. It's called Money = Power"
+- **Rule (`moneyPowerMultiplier(effects, money)`):** When `moneyPowerOn(effects)` (`wearsEffect(effects, "moneyPower")`), multiplies damage by `1 + Math.min(40, Math.max(0, money)) / 40` (`MONEY_POWER_CAP = 40`, `MONEY_POWER_MAX_MULT = 2`). Applied to ranged shots, melee swings, bare-handed punches/pistol-whips, creature bites, thrown impact damage (carried onto cluster bomblets via `dmgMult`), tail swings, head stomps, foot stomps, and `enemyAttackDamage` / `playerWeaponDps` / HUD DPS.

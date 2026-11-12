@@ -1944,10 +1944,10 @@ export const formatDps = (dps) => { const d = Math.max(0, dps || 0); return d >=
 // the swap callout (pickupChangeRows) can never quote two different numbers for the same gun.
 // `merged` is the player with their kit on (mergeEquip); `buffs` is activeBuffSum, `timed` the live
 // timed item buffs (a 🧪 Tag Damage potion counts while it runs).
-export const playerWeaponDps = (merged, weapon, buffs, timed, nowMs) => {
+export const playerWeaponDps = (merged, weapon, buffs, timed, nowMs, money = 0) => {
   const st = (merged && merged.stats) || {}, b = buffs || {};
   const effects = withTimedTagBoosts(merged && merged.effects, timed || [], nowMs || 0);
-  const perHit = enemyAttackDamage({ ...merged, effects, stats: { ...st, strength: (st.strength ?? 5) + (b.strength || 0) } }, weapon);
+  const perHit = enemyAttackDamage({ ...merged, effects, stats: { ...st, strength: (st.strength ?? 5) + (b.strength || 0) } }, weapon, money);
   return weaponDpsOver(weapon, perHit, (st.intelligence ?? 5) + (b.intelligence || 0), merged && merged.effects);
 };
 // --- Undo: an entry is the asset AND the cursor saying which slot of it is on screen ---------
@@ -4665,6 +4665,18 @@ export const tagDamageMultiplier = (effects, weaponCategories) => {
   }
   return mult;
 };
+// 💵 MONEY = POWER (Blake, 2026-11-11: "make an ability where the more money you have the more
+// damage you have? It should scale so $10 is 1.25 damage and $20 is 1.5 and it caps at $40 and 2X
+// damage. It's called Money = Power"). Linear from ×1 at $0 (+0.25 per $10) up to ×2 at $40+.
+// Applied once when worn (`wearsEffect`), like ⏩ Double Shot and 🧲 Homing Shot.
+export const MONEY_POWER_CAP = 40;
+export const MONEY_POWER_MAX_MULT = 2;
+export const moneyPowerOn = (effects) => wearsEffect(effects, "moneyPower");
+export const moneyPowerMultiplier = (effects, money) => {
+  if (!moneyPowerOn(effects)) return 1;
+  const m = Math.max(0, Math.min(MONEY_POWER_CAP, Number(money) || 0));
+  return 1 + (m / MONEY_POWER_CAP) * (MONEY_POWER_MAX_MULT - 1);
+};
 // A clothing "Long Shot" ability stretches how far your SHOTS fly: every ranged weapon fired
 // while the item is worn has its flight distance multiplied. Range is also what shapes the
 // trajectory (no drop over the first half of it, quadratic drop over the second — see
@@ -5889,14 +5901,15 @@ export const enemyThrowVelocity = (gapPx, maxRangePx, g, face) =>
 //     multiplier your shot and swing already carry (it did nothing on an enemy before).
 //   * bare-handed: UNARMED_DAMAGE × strengthMultiplier(Str) — an enemy's fists are worth exactly what yours are.
 // A CREATURE'S MELEE IS 2x ITS STRENGTH, and that is the whole rule — see creatureMeleeDamage.
-export const enemyAttackDamage = (ea, weapon) => {
+export const enemyAttackDamage = (ea, weapon, money = ea && ea.wallet) => {
   const str = ea?.stats?.strength ?? 5;
+  const moneyMult = moneyPowerMultiplier(ea && ea.effects, money);
   if (weapon) {
-    const base = (weapon.damage ?? 5) * tagDamageMultiplier(ea && ea.effects, itemTagList(weapon));
+    const base = (weapon.damage ?? 5) * tagDamageMultiplier(ea && ea.effects, itemTagList(weapon)) * moneyMult;
     return isRanged(weapon.wtype) ? playerRangedDamage(base) : playerMeleeDamage(base, str);
   }
-  if (isCreatureUnit(ea)) return creatureMeleeDamage(str);          // jaws/claws: Strength IS the damage
-  return playerMeleeDamage(UNARMED_DAMAGE, str);                    // a PERSON's fists — still yours
+  if (isCreatureUnit(ea)) return Math.max(1, Math.round(creatureMeleeDamage(str) * moneyMult));          // jaws/claws: Strength IS the damage
+  return playerMeleeDamage(UNARMED_DAMAGE * moneyMult, str);                    // a PERSON's fists — still yours
 };
 // WHAT A CREATURE HITS FOR: twice its Strength, and nothing else feeds in.
 // A drawn creature — anything built in the Enemy creator, so every animal — cannot hold a weapon,
@@ -6210,6 +6223,14 @@ export const EFFECT_TYPES = {
     label: "Homing Shot", icon: "🧲",
     blurb: "Your shots chase the nearest enemy, with any ranged weapon: each round bends toward whoever is closest and keeps after them until it lands, or the ground or a wall stops it. Worn by a 👹 Enemy it works on THEM, so its shots chase you. No animation of its own.",
     brief: () => "shots chase the nearest enemy",
+    noAnim: true,
+    params: [],
+  },
+  // 💵 Blake, 2026-11-11: "Money = Power" — scales damage with wallet ($10 = ×1.25, $20 = ×1.5, caps at $40 = ×2).
+  moneyPower: {
+    label: "Money = Power", icon: "💵",
+    blurb: "The more money you hold, the harder you hit: +25% damage per $10 in your wallet ($10 is ×1.25, $20 is ×1.5), capping at ×2 damage at $40. Boosts every weapon and attack you throw. No animation of its own.",
+    brief: () => "more money deals more damage · up to ×2 at $40",
     noAnim: true,
     params: [],
   },
@@ -15594,7 +15615,7 @@ export default function AssetStudio({ game = false } = {}) {
      keeps it. Anything that behaves differently in a shop than it does at a pedestal is a bug. */
   const playNowMs = () => ((typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now());
   // A weapon's DPS in the player's hands right now (playerWeaponDps) — what the swap callout, the pickup banner and the HUD quote.
-  const playerDpsOf = (w) => { const base = findA(playerId), now = playNowMs(); return playerWeaponDps(mergeEquip(base, equipped.current, equippedBodyIdFor(base)), w, activeBuffSum(itemBuffs.current, now), itemBuffs.current, now); };
+  const playerDpsOf = (w) => { const base = findA(playerId), now = playNowMs(); return playerWeaponDps(mergeEquip(base, equipped.current, equippedBodyIdFor(base)), w, activeBuffSum(itemBuffs.current, now), itemBuffs.current, now, wallet.current); };
   // Which tags mean a KIND of garment (see equipKindTags), cached against the library's own
   // identity. Every "what comes off" question goes through this — a pedestal prompt asks it inside
   // the render body, which runs 60x a second in Playtest, and walking 120 assets there would be a
@@ -16981,7 +17002,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
             const isCrit = Math.random() < critChance(pstats.intelligence);
-            const dmg = incomingUnitDamage(playerMeleeDamage(tailSwing.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
+            const dmg = incomingUnitDamage(playerMeleeDamage(tailSwing.damage * moneyPowerMultiplier(playerAsset?.effects, wallet.current), pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
             if (shrugsHit(k, ea.effects, dmg, "player", b.x + b.w / 2, b.y)) continue; // 🐞 / 🪞
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
@@ -17163,6 +17184,7 @@ export default function AssetStudio({ game = false } = {}) {
           x: p.x + pw / 2, y: p.y + ph * 0.4, vx: boomT ? boomT.vx : vx, vy: boomT ? boomT.vy : vy, rot: 0,
           spin: (p.face || 1) * 8, asset: carriedThrow, pieces: fly.pieces.length ? fly.pieces : null,
           cwPx: fly.canvasWPx, chPx: fly.canvasHPx, wPx: fly.wPx, hPx: fly.hPx,
+          dmgMult: moneyPowerMultiplier(playerAsset?.effects, wallet.current),
           ...(boomT ? { boomerang: true, owner: "player", out: true, sp: BOOMERANG_THROW_SPEED_CELLS * CW, aim0: boomT.aim0, spinDir: p.face || 1, rangePx: rangeBlocks * CW, traveled: 0 } : {}),
         });
         sndMoment(carriedThrow, "throw", null, p.x + pw / 2, p.y + ph * 0.4); // 🔊 the throwable's Throw
@@ -17565,7 +17587,7 @@ export default function AssetStudio({ game = false } = {}) {
           if (ea && !unitHitImmune(ep)) { // 🐱 mid-revive or in its i-frames it is not there to hurt, as the swing and the foot-stamp skip it
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             const isCrit = Math.random() < critChance(pstats.intelligence);
-            const dmg = incomingUnitDamage(playerMeleeDamage(headStompEffect.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, under.x + under.w / 2, false);
+            const dmg = incomingUnitDamage(playerMeleeDamage(headStompEffect.damage * moneyPowerMultiplier(playerAsset?.effects, wallet.current), pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, under.x + under.w / 2, false);
             const shrugged = shrugsHit(k, ea.effects, dmg, "player", under.x + under.w / 2, under.y); // 🐞 / 🪞 — you still bounce off the head below
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - (shrugged ? 0 : dmg));
             if (ep && !shrugged) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
@@ -19290,7 +19312,7 @@ export default function AssetStudio({ game = false } = {}) {
             char: playtestWeapon.projectile?.char || DEFAULT_SHOT_CHAR, tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
-            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon))), // 🏹 worn Tag Damage × a 🧪 timed one still running
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)) * moneyPowerMultiplier(playerAsset?.effects, wallet.current)), // 🏹 worn Tag Damage × a 🧪 timed one still running × 💵 Money = Power
             stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon), // ❄️ its ice rides the round too
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, homing: shotHomes(playtestWeapon, playerAsset?.effects), snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
@@ -19644,11 +19666,12 @@ export default function AssetStudio({ game = false } = {}) {
                     // untouched by any of this. An animal you are playing as BITES, at the same
                     // 2x Strength the AI bites you with, because a creature's jaws should not be
                     // worth a different number depending on who is holding the controls.
+                    const moneyMult = moneyPowerMultiplier(playerAsset?.effects, wallet.current);
                     const base = (!unarmedSwing && playtestWeapon)
-                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)), strength)
+                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)) * moneyMult, strength)
                       : isCreatureUnit(basePlayerAsset)
-                      ? creatureMeleeDamage(strength)
-                      : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
+                      ? Math.max(1, Math.round(creatureMeleeDamage(strength) * moneyMult))
+                      : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon) * moneyMult, strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
                     const isCrit = Math.random() < critChance(intelligence);
                     // ...through the unit's own armour, the way their swing at you goes through yours.
                     const dmg = coldResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor)), !unarmedSwing ? playtestWeapon : null, ea.effects);
@@ -19706,7 +19729,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
             const isCrit = Math.random() < critChance(pstats.intelligence);
-            const dmg = incomingUnitDamage(stompDamage(pstats.strength) * smallStompMul * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
+            const dmg = incomingUnitDamage(Math.round(stompDamage(pstats.strength) * smallStompMul * moneyPowerMultiplier(playerAsset?.effects, wallet.current)) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
             if (shrugsHit(k, ea.effects, dmg, "player", b.x + b.w / 2, b.y)) { p.stomp.hits[k] = true; continue; } // 🐞 / 🪞
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
@@ -19777,7 +19800,8 @@ export default function AssetStudio({ game = false } = {}) {
           // below branches on it once, here, and the landing payloads branch on it again — a
           // hostile's grenade hits you and your allies, yours hits the hostiles, and neither ever
           // hits the side that threw it.
-          const impactDmg = throwImpactDamage(g.asset);
+          const rawImpactDmg = throwImpactDamage(g.asset);
+          const impactDmg = rawImpactDmg > 0 && (g.dmgMult ?? 1) !== 1 ? Math.max(1, Math.round(rawImpactDmg * (g.dmgMult ?? 1))) : rawImpactDmg;
           const struck = [];
           if (!offLevel && impactDmg > 0) {
             const impactRadPx = THROW_IMPACT_RADIUS_CELLS * CW;
@@ -19902,6 +19926,7 @@ export default function AssetStudio({ game = false } = {}) {
                 spin: (cv.vx >= 0 ? 1 : -1) * 10, asset: a, pieces: bombFly.pieces.length ? bombFly.pieces : null,
                 cwPx: bombFly.canvasWPx, chPx: bombFly.canvasHPx, wPx: bombFly.wPx, hPx: bombFly.hPx,
                 noCluster: true,
+                dmgMult: g.dmgMult,
                 foe: g.foe,   // a bomblet belongs to whoever threw the parent; without this an enemy's cluster bomb bursts into grenades that hunt its own side
               });
             }
@@ -30040,7 +30065,7 @@ export default function AssetStudio({ game = false } = {}) {
                 }
                 // ATK lives here only (Blake: "you don't need Atk at the top and the weapon in the bottom right").
                 const atkEffects = withTimedTagBoosts(merged?.effects, itemBuffs.current, playNowMs()); // a 🧪 timed Tag Damage shows in ATK while it runs
-                const atk = { v: enemyAttackDamage({ ...merged, effects: atkEffects, stats: { ...st, strength: strNow } }, playtestWeapon), d: (buffs.strength || 0) + (atkEffects !== merged?.effects ? 1 : 0) };
+                const atk = { v: enemyAttackDamage({ ...merged, effects: atkEffects, stats: { ...st, strength: strNow } }, playtestWeapon, wallet.current), d: (buffs.strength || 0) + (atkEffects !== merged?.effects || moneyPowerMultiplier(atkEffects, wallet.current) > 1 ? 1 : 0) };
                 // The figure shown is what that damage adds up to over 10 s with the fire rate, the
                 // magazine and the reload in it (weaponDpsOver) — one hit's damage said nothing about
                 // a fast gun next to a slow one. d still tints it off the Strength buff.

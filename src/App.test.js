@@ -16055,3 +16055,68 @@ describe("⚡ New Game S1 TV walk & play-loop frame-time guards (2026-11-06)", (
     expect(src).toContain('{!game && <aside className="lside">');
   });
 });
+
+import {
+  MONEY_POWER_CAP,
+  MONEY_POWER_MAX_MULT,
+  moneyPowerOn,
+  moneyPowerMultiplier,
+} from "./App";
+
+describe("💵 Money = Power (clothing ability, 2026-11-11)", () => {
+  test("in EFFECT_TYPES registry with label Money = Power, noAnim, and brief", () => {
+    expect(EFFECT_TYPES.moneyPower).toBeDefined();
+    expect(EFFECT_TYPES.moneyPower.label).toBe("Money = Power");
+    expect(EFFECT_TYPES.moneyPower.icon).toBe("💵");
+    expect(EFFECT_TYPES.moneyPower.noAnim).toBe(true);
+    expect(EFFECT_TYPES.moneyPower.params).toEqual([]);
+    expect(EFFECT_TYPES.moneyPower.brief({})).toBe("more money deals more damage · up to ×2 at $40");
+    expect(effectBrief({ type: "moneyPower" })).toEqual({
+      kind: "ability",
+      icon: "💵",
+      label: "Money = Power",
+      desc: "more money deals more damage · up to ×2 at $40",
+    });
+    expect(itemAbilityNames({ type: "equipment", slot: "hat", effects: [{ type: "moneyPower" }] })).toEqual(["Money = Power"]);
+  });
+
+  test("scales linearly from ×1 at $0 to ×1.25 at $10, ×1.5 at $20, and caps at $40 and ×2", () => {
+    const fx = [{ type: "moneyPower" }];
+    expect(MONEY_POWER_CAP).toBe(40);
+    expect(MONEY_POWER_MAX_MULT).toBe(2);
+    expect(moneyPowerOn(fx)).toBe(true);
+    expect(moneyPowerOn([{ type: "doubleShot" }])).toBe(false);
+    expect(moneyPowerMultiplier([], 40)).toBe(1);
+    expect(moneyPowerMultiplier(null, 40)).toBe(1);
+    expect(moneyPowerMultiplier(fx, 0)).toBe(1);
+    expect(moneyPowerMultiplier(fx, -10)).toBe(1);
+    expect(moneyPowerMultiplier(fx, 10)).toBeCloseTo(1.25);
+    expect(moneyPowerMultiplier(fx, 20)).toBeCloseTo(1.5);
+    expect(moneyPowerMultiplier(fx, 30)).toBeCloseTo(1.75);
+    expect(moneyPowerMultiplier(fx, 40)).toBeCloseTo(2.0);
+    expect(moneyPowerMultiplier(fx, 50)).toBeCloseTo(2.0);
+    expect(moneyPowerMultiplier(fx, 200)).toBeCloseTo(2.0);
+    // Wearing two items with Money = Power still caps at ×2 at $40
+    expect(moneyPowerMultiplier([{ type: "moneyPower" }, { type: "moneyPower" }], 20)).toBeCloseTo(1.5);
+    expect(moneyPowerMultiplier([{ type: "moneyPower" }, { type: "moneyPower" }], 100)).toBeCloseTo(2.0);
+  });
+
+  test("scales ranged, melee, unarmed and DPS figures with wallet money", () => {
+    const wearer = { type: "character", stats: { strength: 5, intelligence: 0 }, effects: [{ type: "moneyPower" }] };
+    const gun = { type: "weapon", wtype: "ranged", damage: 8, fireRate: 1, clipSize: 0 };
+    const blade = { type: "weapon", wtype: "melee", damage: 8 };
+    expect(enemyAttackDamage(wearer, gun, 0)).toBe(8);
+    expect(enemyAttackDamage(wearer, gun, 10)).toBe(10);   // 8 × 1.25
+    expect(enemyAttackDamage(wearer, gun, 20)).toBe(12);   // 8 × 1.5
+    expect(enemyAttackDamage(wearer, gun, 40)).toBe(16);   // 8 × 2
+    expect(enemyAttackDamage(wearer, gun, 100)).toBe(16);  // capped at $40 / ×2
+    expect(enemyAttackDamage(wearer, blade, 0)).toBe(8);
+    expect(enemyAttackDamage(wearer, blade, 10)).toBe(10);
+    expect(enemyAttackDamage(wearer, blade, 20)).toBe(12);
+    expect(enemyAttackDamage(wearer, blade, 40)).toBe(16);
+    expect(enemyAttackDamage(wearer, null, 0)).toBe(2);    // UNARMED_DAMAGE = 2
+    expect(enemyAttackDamage(wearer, null, 20)).toBe(3);   // 2 × 1.5
+    expect(enemyAttackDamage(wearer, null, 40)).toBe(4);   // 2 × 2
+    expect(playerWeaponDps(wearer, gun, {}, [], 0, 40)).toBeCloseTo(playerWeaponDps(wearer, gun, {}, [], 0, 0) * 2);
+  });
+});
