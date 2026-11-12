@@ -16119,4 +16119,27 @@ describe("💵 Money = Power (clothing ability, 2026-11-11)", () => {
     expect(enemyAttackDamage(wearer, null, 40)).toBe(4);   // 2 × 2
     expect(playerWeaponDps(wearer, gun, {}, [], 0, 40)).toBeCloseTo(playerWeaponDps(wearer, gun, {}, [], 0, 0) * 2);
   });
+
+  test("Money Glasses (mnyglas) and Fancy Little Top Hat (fcythat) ship fitted to BoB and Bobbett with Money = Power and zero editorReachIssues", () => {
+    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "../asset-data/library.json"), "utf8"));
+    for (const [id, name] of [["mnyglas", "Money Glasses"], ["fcythat", "Fancy Little Top Hat"]]) {
+      const eq = lib.assets.find((a) => a && a.id === id);
+      expect(eq).toBeDefined();
+      expect(eq.name).toBe(name);
+      expect(eq.type).toBe("equipment");
+      expect(eq.slot).toBe("hat");
+      expect(eq.ignoreHideIfHat).toBe(true);
+      expect(eq.confirmedFits).toEqual(expect.arrayContaining(["telfv37", "oipvf3l"]));
+      for (const fit of ["telfv37", "oipvf3l", "default"]) {
+        expect(eq.variants && eq.variants[fit]).toBeDefined();
+        expect(eq.variants[fit].angles).toBeUndefined();
+        for (const ang of ["front", "back", "side", "up", "crouch"]) {
+          expect(Array.isArray(eq.variants[fit][ang])).toBe(true);
+          expect(eq.variants[fit][ang].length).toBeGreaterThan(0);
+        }
+      }
+      expect(moneyPowerOn(eq.effects)).toBe(true);
+      expect(editorReachIssues(eq)).toEqual([]);
+    }
+  });
 });

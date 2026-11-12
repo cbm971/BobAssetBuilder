@@ -1,0 +1,5160 @@
+{
+  "assetBuilderBackup": 1,
+  "exportedAt": 1794446000001,
+  "assets": [
+    {
+      "id": "mnyglas",
+      "name": "Money Glasses",
+      "type": "equipment",
+      "slot": "hat",
+      "guideId": "telfv37",
+      "ignoreHideIfHat": true,
+      "angles": {
+        "front": [
+          {
+            "id": "mgbf1",
+            "kind": "rect",
+            "x": 68,
+            "y": 52.5,
+            "w": 7,
+            "h": 4,
+            "color": "#1d1b1b",
+            "mirror": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbf2",
+            "kind": "rect",
+            "x": 94,
+            "y": 52.5,
+            "w": 12,
+            "h": 4,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbf3",
+            "kind": "rect",
+            "x": 82.5,
+            "y": 40.5,
+            "w": 4,
+            "h": 26,
+            "color": "#c8a23c",
+            "mirror": true,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbf4",
+            "kind": "poly",
+            "x": 75,
+            "y": 43.5,
+            "w": 19,
+            "h": 20,
+            "color": "#ffd76b",
+            "mirror": false,
+            "outline": true,
+            "points": [
+              [
+                0.08,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0.22
+              ],
+              [
+                0.26,
+                0.22
+              ],
+              [
+                0.26,
+                0.4
+              ],
+              [
+                0.92,
+                0.4
+              ],
+              [
+                1,
+                0.48
+              ],
+              [
+                1,
+                0.92
+              ],
+              [
+                0.92,
+                1
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                0.78
+              ],
+              [
+                0.74,
+                0.78
+              ],
+              [
+                0.74,
+                0.6
+              ],
+              [
+                0.08,
+                0.6
+              ],
+              [
+                0,
+                0.52
+              ],
+              [
+                0,
+                0.08
+              ]
+            ],
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbf5",
+            "kind": "poly",
+            "x": 106,
+            "y": 43.5,
+            "w": 19,
+            "h": 20,
+            "color": "#ffd76b",
+            "mirror": false,
+            "outline": true,
+            "points": [
+              [
+                0.08,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0.22
+              ],
+              [
+                0.26,
+                0.22
+              ],
+              [
+                0.26,
+                0.4
+              ],
+              [
+                0.92,
+                0.4
+              ],
+              [
+                1,
+                0.48
+              ],
+              [
+                1,
+                0.92
+              ],
+              [
+                0.92,
+                1
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                0.78
+              ],
+              [
+                0.74,
+                0.78
+              ],
+              [
+                0.74,
+                0.6
+              ],
+              [
+                0.08,
+                0.6
+              ],
+              [
+                0,
+                0.52
+              ],
+              [
+                0,
+                0.08
+              ]
+            ],
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbf6",
+            "kind": "rect",
+            "x": 83,
+            "y": 41,
+            "w": 3,
+            "h": 25,
+            "color": "#e6b832",
+            "mirror": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "back": [
+          {
+            "id": "mgbb1",
+            "kind": "rect",
+            "x": 68,
+            "y": 51.5,
+            "w": 6,
+            "h": 5,
+            "color": "#1d1b1b",
+            "mirror": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "side": [
+          {
+            "id": "mgbs1",
+            "kind": "rect",
+            "x": 79.5,
+            "y": 53.5,
+            "w": 7.5,
+            "h": 3.5,
+            "rot": 146,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbs2",
+            "kind": "rect",
+            "x": 85,
+            "y": 51.5,
+            "w": 29,
+            "h": 3.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbs3",
+            "kind": "rect",
+            "x": 120.5,
+            "y": 39.5,
+            "w": 4,
+            "h": 26,
+            "color": "#c8a23c",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbs4",
+            "kind": "poly",
+            "x": 113,
+            "y": 42.5,
+            "w": 19,
+            "h": 20,
+            "color": "#ffd76b",
+            "mirror": false,
+            "outline": true,
+            "points": [
+              [
+                0.08,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0.22
+              ],
+              [
+                0.26,
+                0.22
+              ],
+              [
+                0.26,
+                0.4
+              ],
+              [
+                0.92,
+                0.4
+              ],
+              [
+                1,
+                0.48
+              ],
+              [
+                1,
+                0.92
+              ],
+              [
+                0.92,
+                1
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                0.78
+              ],
+              [
+                0.74,
+                0.78
+              ],
+              [
+                0.74,
+                0.6
+              ],
+              [
+                0.08,
+                0.6
+              ],
+              [
+                0,
+                0.52
+              ],
+              [
+                0,
+                0.08
+              ]
+            ],
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbs5",
+            "kind": "rect",
+            "x": 121,
+            "y": 40,
+            "w": 3,
+            "h": 25,
+            "color": "#e6b832",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "up": [
+          {
+            "id": "mgbu1",
+            "kind": "rect",
+            "x": 68,
+            "y": 52.5,
+            "w": 7,
+            "h": 4,
+            "color": "#1d1b1b",
+            "mirror": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbu2",
+            "kind": "rect",
+            "x": 94,
+            "y": 52.5,
+            "w": 12,
+            "h": 4,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbu3",
+            "kind": "rect",
+            "x": 82.5,
+            "y": 40.5,
+            "w": 4,
+            "h": 26,
+            "color": "#c8a23c",
+            "mirror": true,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbu4",
+            "kind": "poly",
+            "x": 75,
+            "y": 43.5,
+            "w": 19,
+            "h": 20,
+            "color": "#ffd76b",
+            "mirror": false,
+            "outline": true,
+            "points": [
+              [
+                0.08,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0.22
+              ],
+              [
+                0.26,
+                0.22
+              ],
+              [
+                0.26,
+                0.4
+              ],
+              [
+                0.92,
+                0.4
+              ],
+              [
+                1,
+                0.48
+              ],
+              [
+                1,
+                0.92
+              ],
+              [
+                0.92,
+                1
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                0.78
+              ],
+              [
+                0.74,
+                0.78
+              ],
+              [
+                0.74,
+                0.6
+              ],
+              [
+                0.08,
+                0.6
+              ],
+              [
+                0,
+                0.52
+              ],
+              [
+                0,
+                0.08
+              ]
+            ],
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbu5",
+            "kind": "poly",
+            "x": 106,
+            "y": 43.5,
+            "w": 19,
+            "h": 20,
+            "color": "#ffd76b",
+            "mirror": false,
+            "outline": true,
+            "points": [
+              [
+                0.08,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0.22
+              ],
+              [
+                0.26,
+                0.22
+              ],
+              [
+                0.26,
+                0.4
+              ],
+              [
+                0.92,
+                0.4
+              ],
+              [
+                1,
+                0.48
+              ],
+              [
+                1,
+                0.92
+              ],
+              [
+                0.92,
+                1
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                0.78
+              ],
+              [
+                0.74,
+                0.78
+              ],
+              [
+                0.74,
+                0.6
+              ],
+              [
+                0.08,
+                0.6
+              ],
+              [
+                0,
+                0.52
+              ],
+              [
+                0,
+                0.08
+              ]
+            ],
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbu6",
+            "kind": "rect",
+            "x": 83,
+            "y": 41,
+            "w": 3,
+            "h": 25,
+            "color": "#e6b832",
+            "mirror": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "crouch": [
+          {
+            "id": "mgbc1",
+            "kind": "rect",
+            "x": 68,
+            "y": 83,
+            "w": 7,
+            "h": 4,
+            "color": "#1d1b1b",
+            "mirror": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbc2",
+            "kind": "rect",
+            "x": 94,
+            "y": 83,
+            "w": 12,
+            "h": 4,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbc3",
+            "kind": "rect",
+            "x": 82.5,
+            "y": 71,
+            "w": 4,
+            "h": 26,
+            "color": "#c8a23c",
+            "mirror": true,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbc4",
+            "kind": "poly",
+            "x": 75,
+            "y": 74,
+            "w": 19,
+            "h": 20,
+            "color": "#ffd76b",
+            "mirror": false,
+            "outline": true,
+            "points": [
+              [
+                0.08,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0.22
+              ],
+              [
+                0.26,
+                0.22
+              ],
+              [
+                0.26,
+                0.4
+              ],
+              [
+                0.92,
+                0.4
+              ],
+              [
+                1,
+                0.48
+              ],
+              [
+                1,
+                0.92
+              ],
+              [
+                0.92,
+                1
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                0.78
+              ],
+              [
+                0.74,
+                0.78
+              ],
+              [
+                0.74,
+                0.6
+              ],
+              [
+                0.08,
+                0.6
+              ],
+              [
+                0,
+                0.52
+              ],
+              [
+                0,
+                0.08
+              ]
+            ],
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbc5",
+            "kind": "poly",
+            "x": 106,
+            "y": 74,
+            "w": 19,
+            "h": 20,
+            "color": "#ffd76b",
+            "mirror": false,
+            "outline": true,
+            "points": [
+              [
+                0.08,
+                0
+              ],
+              [
+                1,
+                0
+              ],
+              [
+                1,
+                0.22
+              ],
+              [
+                0.26,
+                0.22
+              ],
+              [
+                0.26,
+                0.4
+              ],
+              [
+                0.92,
+                0.4
+              ],
+              [
+                1,
+                0.48
+              ],
+              [
+                1,
+                0.92
+              ],
+              [
+                0.92,
+                1
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                0.78
+              ],
+              [
+                0.74,
+                0.78
+              ],
+              [
+                0.74,
+                0.6
+              ],
+              [
+                0.08,
+                0.6
+              ],
+              [
+                0,
+                0.52
+              ],
+              [
+                0,
+                0.08
+              ]
+            ],
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "mgbc6",
+            "kind": "rect",
+            "x": 83,
+            "y": 71.5,
+            "w": 3,
+            "h": 25,
+            "color": "#e6b832",
+            "mirror": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ]
+      },
+      "groups": {
+        "front": [],
+        "back": [],
+        "side": [],
+        "up": [],
+        "crouch": []
+      },
+      "variants": {
+        "default": {
+          "front": [
+            {
+              "id": "mgbf1",
+              "kind": "rect",
+              "x": 68,
+              "y": 52.5,
+              "w": 7,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf2",
+              "kind": "rect",
+              "x": 94,
+              "y": 52.5,
+              "w": 12,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf3",
+              "kind": "rect",
+              "x": 82.5,
+              "y": 40.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf4",
+              "kind": "poly",
+              "x": 75,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf5",
+              "kind": "poly",
+              "x": 106,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf6",
+              "kind": "rect",
+              "x": 83,
+              "y": 41,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "back": [
+            {
+              "id": "mgbb1",
+              "kind": "rect",
+              "x": 68,
+              "y": 51.5,
+              "w": 6,
+              "h": 5,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "side": [
+            {
+              "id": "mgbs1",
+              "kind": "rect",
+              "x": 79.5,
+              "y": 53.5,
+              "w": 7.5,
+              "h": 3.5,
+              "rot": 146,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs2",
+              "kind": "rect",
+              "x": 85,
+              "y": 51.5,
+              "w": 29,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs3",
+              "kind": "rect",
+              "x": 120.5,
+              "y": 39.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs4",
+              "kind": "poly",
+              "x": 113,
+              "y": 42.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs5",
+              "kind": "rect",
+              "x": 121,
+              "y": 40,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "up": [
+            {
+              "id": "mgbu1",
+              "kind": "rect",
+              "x": 68,
+              "y": 52.5,
+              "w": 7,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu2",
+              "kind": "rect",
+              "x": 94,
+              "y": 52.5,
+              "w": 12,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu3",
+              "kind": "rect",
+              "x": 82.5,
+              "y": 40.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu4",
+              "kind": "poly",
+              "x": 75,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu5",
+              "kind": "poly",
+              "x": 106,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu6",
+              "kind": "rect",
+              "x": 83,
+              "y": 41,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "crouch": [
+            {
+              "id": "mgbc1",
+              "kind": "rect",
+              "x": 68,
+              "y": 83,
+              "w": 7,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc2",
+              "kind": "rect",
+              "x": 94,
+              "y": 83,
+              "w": 12,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc3",
+              "kind": "rect",
+              "x": 82.5,
+              "y": 71,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc4",
+              "kind": "poly",
+              "x": 75,
+              "y": 74,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc5",
+              "kind": "poly",
+              "x": 106,
+              "y": 74,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc6",
+              "kind": "rect",
+              "x": 83,
+              "y": 71.5,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ]
+        },
+        "telfv37": {
+          "front": [
+            {
+              "id": "mgbf1",
+              "kind": "rect",
+              "x": 68,
+              "y": 52.5,
+              "w": 7,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf2",
+              "kind": "rect",
+              "x": 94,
+              "y": 52.5,
+              "w": 12,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf3",
+              "kind": "rect",
+              "x": 82.5,
+              "y": 40.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf4",
+              "kind": "poly",
+              "x": 75,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf5",
+              "kind": "poly",
+              "x": 106,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbf6",
+              "kind": "rect",
+              "x": 83,
+              "y": 41,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "back": [
+            {
+              "id": "mgbb1",
+              "kind": "rect",
+              "x": 68,
+              "y": 51.5,
+              "w": 6,
+              "h": 5,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "side": [
+            {
+              "id": "mgbs1",
+              "kind": "rect",
+              "x": 79.5,
+              "y": 53.5,
+              "w": 7.5,
+              "h": 3.5,
+              "rot": 146,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs2",
+              "kind": "rect",
+              "x": 85,
+              "y": 51.5,
+              "w": 29,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs3",
+              "kind": "rect",
+              "x": 120.5,
+              "y": 39.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs4",
+              "kind": "poly",
+              "x": 113,
+              "y": 42.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbs5",
+              "kind": "rect",
+              "x": 121,
+              "y": 40,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "up": [
+            {
+              "id": "mgbu1",
+              "kind": "rect",
+              "x": 68,
+              "y": 52.5,
+              "w": 7,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu2",
+              "kind": "rect",
+              "x": 94,
+              "y": 52.5,
+              "w": 12,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu3",
+              "kind": "rect",
+              "x": 82.5,
+              "y": 40.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu4",
+              "kind": "poly",
+              "x": 75,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu5",
+              "kind": "poly",
+              "x": 106,
+              "y": 43.5,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbu6",
+              "kind": "rect",
+              "x": 83,
+              "y": 41,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "crouch": [
+            {
+              "id": "mgbc1",
+              "kind": "rect",
+              "x": 68,
+              "y": 83,
+              "w": 7,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc2",
+              "kind": "rect",
+              "x": 94,
+              "y": 83,
+              "w": 12,
+              "h": 4,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc3",
+              "kind": "rect",
+              "x": 82.5,
+              "y": 71,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc4",
+              "kind": "poly",
+              "x": 75,
+              "y": 74,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc5",
+              "kind": "poly",
+              "x": 106,
+              "y": 74,
+              "w": 19,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgbc6",
+              "kind": "rect",
+              "x": 83,
+              "y": 71.5,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ]
+        },
+        "oipvf3l": {
+          "front": [
+            {
+              "id": "mgff1",
+              "kind": "rect",
+              "x": 70,
+              "y": 54.5,
+              "w": 9,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgff2",
+              "kind": "rect",
+              "x": 96,
+              "y": 54.5,
+              "w": 8,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgff3",
+              "kind": "rect",
+              "x": 85.5,
+              "y": 43.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgff4",
+              "kind": "poly",
+              "x": 78.5,
+              "y": 46.5,
+              "w": 18,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgff5",
+              "kind": "poly",
+              "x": 103.5,
+              "y": 46.5,
+              "w": 18,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgff6",
+              "kind": "rect",
+              "x": 86,
+              "y": 44,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "back": [
+            {
+              "id": "mgfb1",
+              "kind": "rect",
+              "x": 68,
+              "y": 51.5,
+              "w": 6,
+              "h": 5,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "side": [
+            {
+              "id": "mgfs1",
+              "kind": "rect",
+              "x": 78.5,
+              "y": 54.5,
+              "w": 7,
+              "h": 3.5,
+              "rot": 146,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfs2",
+              "kind": "rect",
+              "x": 84,
+              "y": 52.5,
+              "w": 25.5,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfs3",
+              "kind": "rect",
+              "x": 116,
+              "y": 41.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfs4",
+              "kind": "poly",
+              "x": 109,
+              "y": 44.5,
+              "w": 18,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfs5",
+              "kind": "rect",
+              "x": 116.5,
+              "y": 42,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "up": [
+            {
+              "id": "mgfu1",
+              "kind": "rect",
+              "x": 70,
+              "y": 54.5,
+              "w": 9,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfu2",
+              "kind": "rect",
+              "x": 96,
+              "y": 54.5,
+              "w": 8,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfu3",
+              "kind": "rect",
+              "x": 85.5,
+              "y": 43.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfu4",
+              "kind": "poly",
+              "x": 78.5,
+              "y": 46.5,
+              "w": 18,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfu5",
+              "kind": "poly",
+              "x": 103.5,
+              "y": 46.5,
+              "w": 18,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfu6",
+              "kind": "rect",
+              "x": 86,
+              "y": 44,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "crouch": [
+            {
+              "id": "mgfc1",
+              "kind": "rect",
+              "x": 70,
+              "y": 76.5,
+              "w": 6,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfc2",
+              "kind": "rect",
+              "x": 93,
+              "y": 76.5,
+              "w": 14,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfc3",
+              "kind": "rect",
+              "x": 82.5,
+              "y": 65.5,
+              "w": 4,
+              "h": 26,
+              "color": "#c8a23c",
+              "mirror": true,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfc4",
+              "kind": "poly",
+              "x": 75.5,
+              "y": 68.5,
+              "w": 18,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfc5",
+              "kind": "poly",
+              "x": 106.5,
+              "y": 68.5,
+              "w": 18,
+              "h": 20,
+              "color": "#ffd76b",
+              "mirror": false,
+              "outline": true,
+              "points": [
+                [
+                  0.08,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.22
+                ],
+                [
+                  0.26,
+                  0.4
+                ],
+                [
+                  0.92,
+                  0.4
+                ],
+                [
+                  1,
+                  0.48
+                ],
+                [
+                  1,
+                  0.92
+                ],
+                [
+                  0.92,
+                  1
+                ],
+                [
+                  0,
+                  1
+                ],
+                [
+                  0,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.78
+                ],
+                [
+                  0.74,
+                  0.6
+                ],
+                [
+                  0.08,
+                  0.6
+                ],
+                [
+                  0,
+                  0.52
+                ],
+                [
+                  0,
+                  0.08
+                ]
+              ],
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "mgfc6",
+              "kind": "rect",
+              "x": 83,
+              "y": 66,
+              "w": 3,
+              "h": 25,
+              "color": "#e6b832",
+              "mirror": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ]
+        }
+      },
+      "lastFit": "telfv37",
+      "confirmedFits": [
+        "telfv37",
+        "default",
+        "oipvf3l"
+      ],
+      "statBoosts": {
+        "hp": 0,
+        "speed": 0,
+        "agility": 0,
+        "intelligence": 2,
+        "strength": 0
+      },
+      "defense": 0,
+      "effects": [
+        {
+          "id": "mpgl001",
+          "type": "moneyPower",
+          "animByBody": {},
+          "lastFit": "default"
+        }
+      ],
+      "categories": [
+        "T1",
+        "Glasses",
+        "Odd"
+      ],
+      "value": 15,
+      "rank": "rare",
+      "savedAt": 1794446000000
+    },
+    {
+      "id": "fcythat",
+      "name": "Fancy Little Top Hat",
+      "type": "equipment",
+      "slot": "hat",
+      "guideId": "telfv37",
+      "ignoreHideIfHat": true,
+      "angles": {
+        "front": [
+          {
+            "id": "thbf1",
+            "kind": "trapezoid",
+            "x": 86,
+            "y": 9,
+            "w": 28,
+            "h": 22,
+            "rot": 180,
+            "color": "#2b2b2b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbf2",
+            "kind": "rect",
+            "x": 87.5,
+            "y": 24.5,
+            "w": 25,
+            "h": 5,
+            "color": "#a8232f",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbf3",
+            "kind": "roundrect",
+            "x": 96.5,
+            "y": 23.5,
+            "w": 7,
+            "h": 6.5,
+            "color": "#ffd76b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbf4",
+            "kind": "rect",
+            "x": 98,
+            "y": 25,
+            "w": 4,
+            "h": 3.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbf5",
+            "kind": "stadium",
+            "x": 79,
+            "y": 29,
+            "w": 42,
+            "h": 5.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "back": [
+          {
+            "id": "thbb1",
+            "kind": "trapezoid",
+            "x": 86,
+            "y": 9,
+            "w": 28,
+            "h": 22,
+            "rot": 180,
+            "color": "#2b2b2b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbb2",
+            "kind": "rect",
+            "x": 87.5,
+            "y": 24.5,
+            "w": 25,
+            "h": 5,
+            "color": "#a8232f",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbb3",
+            "kind": "stadium",
+            "x": 79,
+            "y": 29,
+            "w": 42,
+            "h": 5.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "side": [
+          {
+            "id": "thbs1",
+            "kind": "trapezoid",
+            "x": 88,
+            "y": 9,
+            "w": 28,
+            "h": 22,
+            "rot": 180,
+            "color": "#2b2b2b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbs2",
+            "kind": "rect",
+            "x": 89.5,
+            "y": 24.5,
+            "w": 25,
+            "h": 5,
+            "color": "#a8232f",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbs3",
+            "kind": "roundrect",
+            "x": 106.5,
+            "y": 23.5,
+            "w": 6.5,
+            "h": 6.5,
+            "color": "#ffd76b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbs4",
+            "kind": "rect",
+            "x": 108,
+            "y": 25,
+            "w": 3.5,
+            "h": 3.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbs5",
+            "kind": "stadium",
+            "x": 80,
+            "y": 29,
+            "w": 44,
+            "h": 5.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "up": [
+          {
+            "id": "thbu1",
+            "kind": "trapezoid",
+            "x": 86,
+            "y": 9,
+            "w": 28,
+            "h": 22,
+            "rot": 180,
+            "color": "#2b2b2b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbu2",
+            "kind": "rect",
+            "x": 87.5,
+            "y": 24.5,
+            "w": 25,
+            "h": 5,
+            "color": "#a8232f",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbu3",
+            "kind": "roundrect",
+            "x": 96.5,
+            "y": 23.5,
+            "w": 7,
+            "h": 6.5,
+            "color": "#ffd76b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbu4",
+            "kind": "rect",
+            "x": 98,
+            "y": 25,
+            "w": 4,
+            "h": 3.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbu5",
+            "kind": "stadium",
+            "x": 79,
+            "y": 29,
+            "w": 42,
+            "h": 5.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ],
+        "crouch": [
+          {
+            "id": "thbc1",
+            "kind": "trapezoid",
+            "x": 86,
+            "y": 44.5,
+            "w": 28,
+            "h": 22,
+            "rot": 180,
+            "color": "#2b2b2b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbc2",
+            "kind": "rect",
+            "x": 87.5,
+            "y": 60,
+            "w": 25,
+            "h": 5,
+            "color": "#a8232f",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbc3",
+            "kind": "roundrect",
+            "x": 96.5,
+            "y": 59,
+            "w": 7,
+            "h": 6.5,
+            "color": "#ffd76b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbc4",
+            "kind": "rect",
+            "x": 98,
+            "y": 60.5,
+            "w": 4,
+            "h": 3.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          },
+          {
+            "id": "thbc5",
+            "kind": "stadium",
+            "x": 79,
+            "y": 64.5,
+            "w": 42,
+            "h": 5.5,
+            "color": "#1d1b1b",
+            "mirror": false,
+            "outline": true,
+            "fx": {
+              "opacity": 1,
+              "glow": 0,
+              "glowColor": "#ffd76b",
+              "bright": 1
+            }
+          }
+        ]
+      },
+      "groups": {
+        "front": [],
+        "back": [],
+        "side": [],
+        "up": [],
+        "crouch": []
+      },
+      "variants": {
+        "default": {
+          "front": [
+            {
+              "id": "thbf1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 23.5,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf4",
+              "kind": "rect",
+              "x": 98,
+              "y": 25,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "back": [
+            {
+              "id": "thbb1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbb2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbb3",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "side": [
+            {
+              "id": "thbs1",
+              "kind": "trapezoid",
+              "x": 88,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs2",
+              "kind": "rect",
+              "x": 89.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs3",
+              "kind": "roundrect",
+              "x": 106.5,
+              "y": 23.5,
+              "w": 6.5,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs4",
+              "kind": "rect",
+              "x": 108,
+              "y": 25,
+              "w": 3.5,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs5",
+              "kind": "stadium",
+              "x": 80,
+              "y": 29,
+              "w": 44,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "up": [
+            {
+              "id": "thbu1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 23.5,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu4",
+              "kind": "rect",
+              "x": 98,
+              "y": 25,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "crouch": [
+            {
+              "id": "thbc1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 44.5,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 60,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 59,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc4",
+              "kind": "rect",
+              "x": 98,
+              "y": 60.5,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 64.5,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ]
+        },
+        "telfv37": {
+          "front": [
+            {
+              "id": "thbf1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 23.5,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf4",
+              "kind": "rect",
+              "x": 98,
+              "y": 25,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbf5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "back": [
+            {
+              "id": "thbb1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbb2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbb3",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "side": [
+            {
+              "id": "thbs1",
+              "kind": "trapezoid",
+              "x": 88,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs2",
+              "kind": "rect",
+              "x": 89.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs3",
+              "kind": "roundrect",
+              "x": 106.5,
+              "y": 23.5,
+              "w": 6.5,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs4",
+              "kind": "rect",
+              "x": 108,
+              "y": 25,
+              "w": 3.5,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbs5",
+              "kind": "stadium",
+              "x": 80,
+              "y": 29,
+              "w": 44,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "up": [
+            {
+              "id": "thbu1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 23.5,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu4",
+              "kind": "rect",
+              "x": 98,
+              "y": 25,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbu5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "crouch": [
+            {
+              "id": "thbc1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 44.5,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 60,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 59,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc4",
+              "kind": "rect",
+              "x": 98,
+              "y": 60.5,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thbc5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 64.5,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ]
+        },
+        "oipvf3l": {
+          "front": [
+            {
+              "id": "thff1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thff2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thff3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 23.5,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thff4",
+              "kind": "rect",
+              "x": 98,
+              "y": 25,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thff5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "back": [
+            {
+              "id": "thfb1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 8,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfb2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 23.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfb3",
+              "kind": "stadium",
+              "x": 79,
+              "y": 28,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "side": [
+            {
+              "id": "thfs1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 8,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfs2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 23.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfs3",
+              "kind": "roundrect",
+              "x": 104.5,
+              "y": 22.5,
+              "w": 6.5,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfs4",
+              "kind": "rect",
+              "x": 106,
+              "y": 24,
+              "w": 3.5,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfs5",
+              "kind": "stadium",
+              "x": 78,
+              "y": 28,
+              "w": 44,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "up": [
+            {
+              "id": "thfu1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 9,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfu2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 24.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfu3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 23.5,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfu4",
+              "kind": "rect",
+              "x": 98,
+              "y": 25,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfu5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 29,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ],
+          "crouch": [
+            {
+              "id": "thfc1",
+              "kind": "trapezoid",
+              "x": 86,
+              "y": 34,
+              "w": 28,
+              "h": 22,
+              "rot": 180,
+              "color": "#2b2b2b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfc2",
+              "kind": "rect",
+              "x": 87.5,
+              "y": 49.5,
+              "w": 25,
+              "h": 5,
+              "color": "#a8232f",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfc3",
+              "kind": "roundrect",
+              "x": 96.5,
+              "y": 48.5,
+              "w": 7,
+              "h": 6.5,
+              "color": "#ffd76b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfc4",
+              "kind": "rect",
+              "x": 98,
+              "y": 50,
+              "w": 4,
+              "h": 3.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            },
+            {
+              "id": "thfc5",
+              "kind": "stadium",
+              "x": 79,
+              "y": 54,
+              "w": 42,
+              "h": 5.5,
+              "color": "#1d1b1b",
+              "mirror": false,
+              "outline": true,
+              "fx": {
+                "opacity": 1,
+                "glow": 0,
+                "glowColor": "#ffd76b",
+                "bright": 1
+              }
+            }
+          ]
+        }
+      },
+      "lastFit": "telfv37",
+      "confirmedFits": [
+        "telfv37",
+        "default",
+        "oipvf3l"
+      ],
+      "statBoosts": {
+        "hp": 1,
+        "speed": 0,
+        "agility": 0,
+        "intelligence": 2,
+        "strength": 0
+      },
+      "defense": 1,
+      "effects": [
+        {
+          "id": "mpth001",
+          "type": "moneyPower",
+          "animByBody": {},
+          "lastFit": "default"
+        }
+      ],
+      "categories": [
+        "T1",
+        "Hat",
+        "Odd"
+      ],
+      "value": 16,
+      "rank": "rare",
+      "savedAt": 1794446000001
+    }
+  ]
+}

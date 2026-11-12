@@ -998,7 +998,7 @@ plus traps it does not cover:
 - **⏩ Double Shot (clothing, 2026-10-21):** every gun round goes up through `pushShot` (player and units): two parallel
   rounds `DOUBLE_SHOT_GAP_CELLS` apart for one round of ammo. A pair shares `pair`, so your i-frames from the first let
   its twin land (`p.invulnPair`).
-- **💵 Money = Power (`EFFECT_TYPES.moneyPower`, clothing, 2026-11-11):** scales outgoing damage linearly with wallet money (`moneyPowerMultiplier(effects, money)`): ×1 at \$0, ×1.25 at \$10, ×1.5 at \$20, capping at \$40 (`MONEY_POWER_CAP`) and ×2 (`MONEY_POWER_MAX_MULT`). Applied once when worn (`moneyPowerOn`), across shots, melee swings, bare-handed punches, creature bites, throws, tail swings, stomps, and `enemyAttackDamage` / `playerWeaponDps` / HUD ATK.
+- **💵 Money = Power (`EFFECT_TYPES.moneyPower`, clothing, 2026-11-11):** scales outgoing damage linearly with wallet money (`moneyPowerMultiplier(effects, money)`): ×1 at \$0, ×1.25 at \$10, ×1.5 at \$20, capping at \$40 (`MONEY_POWER_CAP`) and ×2 (`MONEY_POWER_MAX_MULT`). Applied once when worn (`moneyPowerOn`), across shots, melee swings, bare-handed punches, creature bites, throws, tail swings, stomps, and `enemyAttackDamage` / `playerWeaponDps` / HUD ATK. Items: Money Glasses `mnyglas`, Fancy Little Top Hat `fcythat`.
 - **🍄 One Up (item effect `oneUp`, 2026-10-21):** a life of the RUN (a head on the HUD row), never a 🐱 Extra Life. In a
   game run it is `gameCur.oneUps` (saved; `runLivesLeft(diff, deaths, oneUps)`); outside a run `studioOneUps`, spent by a death.
 - **🪃 Boomerang (weapon ability, ranged + throw, 2026-10-25):** the item itself flies, spinning (`boomerangStep`): out
