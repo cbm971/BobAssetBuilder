@@ -670755,7 +670755,7 @@
       "kind": "trapezoid",
       "x": 86,
       "y": 9,
-      "w": 28,
+      "w": 28.5,
       "h": 22,
       "rot": 180,
       "color": "#2b2b2b",
@@ -670819,10 +670819,10 @@
      {
       "id": "thbf5",
       "kind": "stadium",
-      "x": 79,
-      "y": 29,
-      "w": 42,
-      "h": 5.5,
+      "x": 78,
+      "y": 31,
+      "w": 41,
+      "h": 3,
       "color": "#1d1b1b",
       "mirror": false,
       "outline": true,
@@ -670873,9 +670873,9 @@
       "id": "thbb3",
       "kind": "stadium",
       "x": 79,
-      "y": 29,
+      "y": 31,
       "w": 42,
-      "h": 5.5,
+      "h": 3,
       "color": "#1d1b1b",
       "mirror": false,
       "outline": true,
@@ -670909,8 +670909,8 @@
      {
       "id": "thbs2",
       "kind": "rect",
-      "x": 89.5,
-      "y": 24.5,
+      "x": 90,
+      "y": 25,
       "w": 25,
       "h": 5,
       "color": "#a8232f",
@@ -670925,8 +670925,8 @@
      {
       "id": "thbs3",
       "kind": "roundrect",
-      "x": 106.5,
-      "y": 23.5,
+      "x": 110,
+      "y": 24,
       "w": 6.5,
       "h": 6.5,
       "color": "#ffd76b",
@@ -670941,7 +670941,7 @@
      {
       "id": "thbs4",
       "kind": "rect",
-      "x": 108,
+      "x": 112,
       "y": 25,
       "w": 3.5,
       "h": 3.5,
@@ -670957,10 +670957,10 @@
      {
       "id": "thbs5",
       "kind": "stadium",
-      "x": 80,
-      "y": 29,
-      "w": 44,
-      "h": 5.5,
+      "x": 80.5,
+      "y": 31,
+      "w": 43,
+      "h": 3,
       "color": "#1d1b1b",
       "mirror": false,
       "outline": true,
@@ -670970,15 +670970,32 @@
        "glowColor": "#ffd76b",
        "bright": 1
       }
+     },
+     {
+      "id": "1pgvg0a",
+      "kind": "rect",
+      "x": 113.5,
+      "y": 23.5,
+      "w": 17,
+      "h": 6.5,
+      "color": "#556b2f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
      }
     ],
     "up": [
      {
-      "id": "thbu1",
+      "id": "vwh54r0",
       "kind": "trapezoid",
       "x": 86,
       "y": 9,
-      "w": 28,
+      "w": 28.5,
       "h": 22,
       "rot": 180,
       "color": "#2b2b2b",
@@ -670992,7 +671009,7 @@
       }
      },
      {
-      "id": "thbu2",
+      "id": "vvrfk4l",
       "kind": "rect",
       "x": 87.5,
       "y": 24.5,
@@ -671008,7 +671025,7 @@
       }
      },
      {
-      "id": "thbu3",
+      "id": "x4xqnky",
       "kind": "roundrect",
       "x": 96.5,
       "y": 23.5,
@@ -671024,7 +671041,7 @@
       }
      },
      {
-      "id": "thbu4",
+      "id": "r8ig0o8",
       "kind": "rect",
       "x": 98,
       "y": 25,
@@ -671040,12 +671057,12 @@
       }
      },
      {
-      "id": "thbu5",
+      "id": "akuflv5",
       "kind": "stadium",
-      "x": 79,
-      "y": 29,
-      "w": 42,
-      "h": 5.5,
+      "x": 78,
+      "y": 31,
+      "w": 41,
+      "h": 3,
       "color": "#1d1b1b",
       "mirror": false,
       "outline": true,
@@ -671059,11 +671076,11 @@
     ],
     "crouch": [
      {
-      "id": "thbc1",
+      "id": "fl7xbkk",
       "kind": "trapezoid",
       "x": 86,
-      "y": 44.5,
-      "w": 28,
+      "y": 45.5,
+      "w": 28.5,
       "h": 22,
       "rot": 180,
       "color": "#2b2b2b",
@@ -671077,10 +671094,10 @@
       }
      },
      {
-      "id": "thbc2",
+      "id": "fpx14h3",
       "kind": "rect",
       "x": 87.5,
-      "y": 60,
+      "y": 61,
       "w": 25,
       "h": 5,
       "color": "#a8232f",
@@ -671093,10 +671110,10 @@
       }
      },
      {
-      "id": "thbc3",
+      "id": "5g82c5e",
       "kind": "roundrect",
       "x": 96.5,
-      "y": 59,
+      "y": 60,
       "w": 7,
       "h": 6.5,
       "color": "#ffd76b",
@@ -671109,10 +671126,10 @@
       }
      },
      {
-      "id": "thbc4",
+      "id": "4b50mi4",
       "kind": "rect",
       "x": 98,
-      "y": 60.5,
+      "y": 61.5,
       "w": 4,
       "h": 3.5,
       "color": "#1d1b1b",
@@ -671125,12 +671142,12 @@
       }
      },
      {
-      "id": "thbc5",
+      "id": "edstdeq",
       "kind": "stadium",
-      "x": 79,
-      "y": 64.5,
-      "w": 42,
-      "h": 5.5,
+      "x": 78,
+      "y": 67.5,
+      "w": 41,
+      "h": 3,
       "color": "#1d1b1b",
       "mirror": false,
       "outline": true,
@@ -671553,7 +671570,7 @@
        "kind": "trapezoid",
        "x": 86,
        "y": 9,
-       "w": 28,
+       "w": 28.5,
        "h": 22,
        "rot": 180,
        "color": "#2b2b2b",
@@ -671617,10 +671634,10 @@
       {
        "id": "thbf5",
        "kind": "stadium",
-       "x": 79,
-       "y": 29,
-       "w": 42,
-       "h": 5.5,
+       "x": 78,
+       "y": 31,
+       "w": 41,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -671671,9 +671688,9 @@
        "id": "thbb3",
        "kind": "stadium",
        "x": 79,
-       "y": 29,
+       "y": 31,
        "w": 42,
-       "h": 5.5,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -671707,8 +671724,8 @@
       {
        "id": "thbs2",
        "kind": "rect",
-       "x": 89.5,
-       "y": 24.5,
+       "x": 90,
+       "y": 25,
        "w": 25,
        "h": 5,
        "color": "#a8232f",
@@ -671723,8 +671740,8 @@
       {
        "id": "thbs3",
        "kind": "roundrect",
-       "x": 106.5,
-       "y": 23.5,
+       "x": 110,
+       "y": 24,
        "w": 6.5,
        "h": 6.5,
        "color": "#ffd76b",
@@ -671739,7 +671756,7 @@
       {
        "id": "thbs4",
        "kind": "rect",
-       "x": 108,
+       "x": 112,
        "y": 25,
        "w": 3.5,
        "h": 3.5,
@@ -671755,10 +671772,10 @@
       {
        "id": "thbs5",
        "kind": "stadium",
-       "x": 80,
-       "y": 29,
-       "w": 44,
-       "h": 5.5,
+       "x": 80.5,
+       "y": 31,
+       "w": 43,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -671768,15 +671785,32 @@
         "glowColor": "#ffd76b",
         "bright": 1
        }
+      },
+      {
+       "id": "1pgvg0a",
+       "kind": "rect",
+       "x": 113.5,
+       "y": 23.5,
+       "w": 17,
+       "h": 6.5,
+       "color": "#556b2f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
       }
      ],
      "up": [
       {
-       "id": "thbu1",
+       "id": "vwh54r0",
        "kind": "trapezoid",
        "x": 86,
        "y": 9,
-       "w": 28,
+       "w": 28.5,
        "h": 22,
        "rot": 180,
        "color": "#2b2b2b",
@@ -671790,7 +671824,7 @@
        }
       },
       {
-       "id": "thbu2",
+       "id": "vvrfk4l",
        "kind": "rect",
        "x": 87.5,
        "y": 24.5,
@@ -671806,7 +671840,7 @@
        }
       },
       {
-       "id": "thbu3",
+       "id": "x4xqnky",
        "kind": "roundrect",
        "x": 96.5,
        "y": 23.5,
@@ -671822,7 +671856,7 @@
        }
       },
       {
-       "id": "thbu4",
+       "id": "r8ig0o8",
        "kind": "rect",
        "x": 98,
        "y": 25,
@@ -671838,12 +671872,12 @@
        }
       },
       {
-       "id": "thbu5",
+       "id": "akuflv5",
        "kind": "stadium",
-       "x": 79,
-       "y": 29,
-       "w": 42,
-       "h": 5.5,
+       "x": 78,
+       "y": 31,
+       "w": 41,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -671857,11 +671891,11 @@
      ],
      "crouch": [
       {
-       "id": "thbc1",
+       "id": "fl7xbkk",
        "kind": "trapezoid",
        "x": 86,
-       "y": 44.5,
-       "w": 28,
+       "y": 45.5,
+       "w": 28.5,
        "h": 22,
        "rot": 180,
        "color": "#2b2b2b",
@@ -671875,10 +671909,10 @@
        }
       },
       {
-       "id": "thbc2",
+       "id": "fpx14h3",
        "kind": "rect",
        "x": 87.5,
-       "y": 60,
+       "y": 61,
        "w": 25,
        "h": 5,
        "color": "#a8232f",
@@ -671891,10 +671925,10 @@
        }
       },
       {
-       "id": "thbc3",
+       "id": "5g82c5e",
        "kind": "roundrect",
        "x": 96.5,
-       "y": 59,
+       "y": 60,
        "w": 7,
        "h": 6.5,
        "color": "#ffd76b",
@@ -671907,10 +671941,10 @@
        }
       },
       {
-       "id": "thbc4",
+       "id": "4b50mi4",
        "kind": "rect",
        "x": 98,
-       "y": 60.5,
+       "y": 61.5,
        "w": 4,
        "h": 3.5,
        "color": "#1d1b1b",
@@ -671923,12 +671957,12 @@
        }
       },
       {
-       "id": "thbc5",
+       "id": "edstdeq",
        "kind": "stadium",
-       "x": 79,
-       "y": 64.5,
-       "w": 42,
-       "h": 5.5,
+       "x": 78,
+       "y": 67.5,
+       "w": 41,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -671944,10 +671978,10 @@
     "oipvf3l": {
      "front": [
       {
-       "id": "thff1",
+       "id": "2pqygm5",
        "kind": "trapezoid",
        "x": 86,
-       "y": 9,
+       "y": 34,
        "w": 28,
        "h": 22,
        "rot": 180,
@@ -671962,10 +671996,10 @@
        }
       },
       {
-       "id": "thff2",
+       "id": "46qua6j",
        "kind": "rect",
        "x": 87.5,
-       "y": 24.5,
+       "y": 49.5,
        "w": 25,
        "h": 5,
        "color": "#a8232f",
@@ -671978,10 +672012,10 @@
        }
       },
       {
-       "id": "thff3",
+       "id": "xg9yoh3",
        "kind": "roundrect",
        "x": 96.5,
-       "y": 23.5,
+       "y": 48.5,
        "w": 7,
        "h": 6.5,
        "color": "#ffd76b",
@@ -671994,10 +672028,10 @@
        }
       },
       {
-       "id": "thff4",
+       "id": "z1p2fzc",
        "kind": "rect",
        "x": 98,
-       "y": 25,
+       "y": 50,
        "w": 4,
        "h": 3.5,
        "color": "#1d1b1b",
@@ -672010,12 +672044,12 @@
        }
       },
       {
-       "id": "thff5",
+       "id": "chufsmo",
        "kind": "stadium",
-       "x": 79,
-       "y": 29,
-       "w": 42,
-       "h": 5.5,
+       "x": 78.5,
+       "y": 55.5,
+       "w": 42.5,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -672052,7 +672086,7 @@
        "x": 87.5,
        "y": 23.5,
        "w": 25,
-       "h": 5,
+       "h": 8.5,
        "color": "#a8232f",
        "mirror": false,
        "fx": {
@@ -672065,10 +672099,10 @@
       {
        "id": "thfb3",
        "kind": "stadium",
-       "x": 79,
-       "y": 28,
-       "w": 42,
-       "h": 5.5,
+       "x": 79.5,
+       "y": 30,
+       "w": 42.5,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -672084,9 +672118,9 @@
       {
        "id": "thfs1",
        "kind": "trapezoid",
-       "x": 86,
+       "x": 84.5,
        "y": 8,
-       "w": 28,
+       "w": 31,
        "h": 22,
        "rot": 180,
        "color": "#2b2b2b",
@@ -672103,9 +672137,9 @@
        "id": "thfs2",
        "kind": "rect",
        "x": 87.5,
-       "y": 23.5,
+       "y": 24.5,
        "w": 25,
-       "h": 5,
+       "h": 7,
        "color": "#a8232f",
        "mirror": false,
        "fx": {
@@ -672118,8 +672152,8 @@
       {
        "id": "thfs3",
        "kind": "roundrect",
-       "x": 104.5,
-       "y": 22.5,
+       "x": 109,
+       "y": 25,
        "w": 6.5,
        "h": 6.5,
        "color": "#ffd76b",
@@ -672134,8 +672168,8 @@
       {
        "id": "thfs4",
        "kind": "rect",
-       "x": 106,
-       "y": 24,
+       "x": 111,
+       "y": 26,
        "w": 3.5,
        "h": 3.5,
        "color": "#1d1b1b",
@@ -672150,10 +672184,10 @@
       {
        "id": "thfs5",
        "kind": "stadium",
-       "x": 78,
-       "y": 28,
-       "w": 44,
-       "h": 5.5,
+       "x": 77.5,
+       "y": 31,
+       "w": 43.5,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -672163,14 +672197,31 @@
         "glowColor": "#ffd76b",
         "bright": 1
        }
+      },
+      {
+       "id": "e6xfjb4",
+       "kind": "rect",
+       "x": 111.5,
+       "y": 24,
+       "w": 15,
+       "h": 6.5,
+       "color": "#556b2f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
       }
      ],
      "up": [
       {
-       "id": "thfu1",
+       "id": "21lcj4n",
        "kind": "trapezoid",
        "x": 86,
-       "y": 9,
+       "y": 34,
        "w": 28,
        "h": 22,
        "rot": 180,
@@ -672185,10 +672236,10 @@
        }
       },
       {
-       "id": "thfu2",
+       "id": "hlc0962",
        "kind": "rect",
        "x": 87.5,
-       "y": 24.5,
+       "y": 49.5,
        "w": 25,
        "h": 5,
        "color": "#a8232f",
@@ -672201,10 +672252,10 @@
        }
       },
       {
-       "id": "thfu3",
+       "id": "molfydh",
        "kind": "roundrect",
        "x": 96.5,
-       "y": 23.5,
+       "y": 48.5,
        "w": 7,
        "h": 6.5,
        "color": "#ffd76b",
@@ -672217,10 +672268,10 @@
        }
       },
       {
-       "id": "thfu4",
+       "id": "o5p85ro",
        "kind": "rect",
        "x": 98,
-       "y": 25,
+       "y": 50,
        "w": 4,
        "h": 3.5,
        "color": "#1d1b1b",
@@ -672233,12 +672284,12 @@
        }
       },
       {
-       "id": "thfu5",
+       "id": "lgw2pg0",
        "kind": "stadium",
-       "x": 79,
-       "y": 29,
-       "w": 42,
-       "h": 5.5,
+       "x": 78.5,
+       "y": 55.5,
+       "w": 42.5,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -672320,10 +672371,10 @@
       {
        "id": "thfc5",
        "kind": "stadium",
-       "x": 79,
-       "y": 54,
-       "w": 42,
-       "h": 5.5,
+       "x": 78.5,
+       "y": 55.5,
+       "w": 42.5,
+       "h": 3,
        "color": "#1d1b1b",
        "mirror": false,
        "outline": true,
@@ -672350,7 +672401,7 @@
     "intelligence": 2,
     "strength": 0
    },
-   "defense": 1,
+   "defense": 2,
    "effects": [
     {
      "id": "mpth001",
@@ -672366,7 +672417,8 @@
    ],
    "value": 16,
    "rank": "rare",
-   "savedAt": 1794446000001
+   "savedAt": 1794449880527,
+   "editedFrom": 1794446000001
   },
   {
    "id": "feoi2ds",
