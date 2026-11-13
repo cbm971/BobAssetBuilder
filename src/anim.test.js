@@ -519,6 +519,10 @@ test("a Character layer keeps its look and size, poses like the actor, and talks
   expect(g).toMatchObject({ kind: "look", lookId: "thgnrl1", size: 36 });
   expect(z.size).toBe(ANIM_LOOK_SIZE_MAX);
   expect(z.lookId).toBe("");
+  // 🔫 What it holds (App.js animLookHeld): kept when set, "" (empty hands) when not or not a string.
+  expect(migrateAnim({ layers: [{ id: "v", kind: "look", lookId: "x", weaponId: "vcak47r" }], states: [] }, mkId).layers.find((l) => l.id === "v").weaponId).toBe("vcak47r");
+  expect(g.weaponId).toBe("");
+  expect(migrateAnim({ layers: [{ id: "v", kind: "look", weaponId: 7 }], states: [] }, mkId).layers.find((l) => l.id === "v").weaponId).toBe("");
   expect(a.layers.filter((l) => l.kind === "actor").length).toBe(1); // the player is still added
   const at = (t) => animLayerAt(a, a.states[0], g, t);
   expect(at(0).pose).toBe("front");

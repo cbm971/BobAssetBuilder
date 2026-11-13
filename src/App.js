@@ -23606,6 +23606,29 @@ export default function AssetStudio({ game = false } = {}) {
     m.set(k, { src: a, art });
     return art;
   };
+  // 🎬🔫 WHAT A CHARACTER LAYER HOLDS (l.weaponId, 2026-11-12). Blake on the Jungle Ambush: the VC
+  // "kind of just come out of the bushes and wave their arm at Bob" — animActorBlocks strips the
+  // look's frozen gun (a man getting out of bed is not holding his rifle), so every character came
+  // out empty-handed with an arm raised at nothing. Now a layer can be handed a weapon, and it is
+  // gripped the way a unit in play grips one: the weapon's Rest drawing for this body's fit, at the
+  // fit's guide hand, swept rigidly about the shoulder by however far the key has turned the arm
+  // from where it was drawn (attachWeaponBlocks) — so "arms" 90 on a top-pivot arm is a rifle held
+  // level at the shoulder (armAimAbs), and lowering the arm points it down. Side and Crouch only:
+  // no weapon is drawn facing the camera (weaponArtPose), and a Front character keeps empty hands
+  // rather than holding a side-on gun across its chest.
+  const animLookHeld = (l, pose, art, posed) => {
+    const w = l && l.weaponId ? findA(l.weaponId) : null;
+    if (!w || w.type !== "weapon" || isThrowable(w.wtype)) return null;
+    if (pose !== "side" && pose !== "crouch") return null;
+    const arm0 = flaggedArmOf((art || []).filter((b) => b && !b._isWeapon && !b.isHitbox && !b.isMuzzle));
+    if (!arm0) return null;
+    // animActorBlocks keeps every piece's id, so the arm as drawn and the arm as turned are one piece.
+    const armNow = posed.find((b) => b.id === arm0.id && !!b._m === !!arm0._m) || arm0;
+    const fit = weaponFitFor(w, equippedBodyIdFor(findA(l.lookId)));
+    const hand = handForGuideId(fit.guideId)[pose] || DEFAULT_HAND[pose];
+    const pieces = bake({ ...w, angles: fit.states.rest || blankAngles() }, pose).filter((p) => !p.isHitbox && !p.isMuzzle);
+    return pieces.length ? attachWeaponBlocks(pieces, armNow, hand, arm0.rot || 0) : null;
+  };
   // ONE STAGE: every layer of `anim` as it is at (si, t), in a box the stage's size. Used by the
   // editor, by the Level Creator to show where a 🎬 marker's stage stands, and in play. The turn is
   // outermost and the mirror inside it (rotate then scaleX), the way a placed object draws, so a
@@ -23681,7 +23704,9 @@ export default function AssetStudio({ game = false } = {}) {
         const ltf = tf + (Math.abs(sx - 1) > 1e-4 || Math.abs(sy - 1) > 1e-4 ? " scale(" + sx.toFixed(4) + "," + sy.toFixed(4) + ")" : "");
         if (!art || !art.length) { if (o.editor) kids.push(<div key={l.id} className={cls + " animNoActor"} style={{ left: v.x * cellPx - rw * 0.2, top: v.y * cellPx - rh * (188 / H), width: rw * 0.4, height: rh, transformOrigin: (rw * 0.2) + "px " + (rh * 188 / H) + "px", transform: ltf, opacity }} data-ly={ly} />); continue; }
         const hip = animActorHip(art);
-        const posed = animActorBlocks(art, v);
+        let posed = animActorBlocks(art, v);
+        const held = animLookHeld(l, pose, art, posed);
+        if (held) posed = mergeWeaponBlocks(posed, held);
         const hx = (hip.x / W) * rw, hy = (hip.y / H) * rh;
         const lk = o.key + "l" + l.id + (open ? "o" : "s");
         kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - hx, top: v.y * cellPx - hy, width: rw, height: rh, transformOrigin: hx + "px " + hy + "px", transform: ltf, opacity }} data-ly={ly}>
@@ -27066,6 +27091,7 @@ export default function AssetStudio({ game = false } = {}) {
       animPlayStop(); setAnimT(Math.round(t * 20) / 20);
     };
     const looks = allAssets.filter((a) => a.type === "body" || a.type === "character").sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || ""));
+    const animHeldWeapons = allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype)).sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || ""));
     const actorOf = animEditorActor(animLook);
     const viewEl = playing ? animPrev.el : viewT;
     // Playing: exactly when the game shows it. Stopped on a waiting state: always, so it can be placed.
@@ -27245,6 +27271,12 @@ export default function AssetStudio({ game = false } = {}) {
                     <select value={sel.lookId || ""} onChange={(e) => put(animSetLayer(d, sel.id, { lookId: e.target.value }))}>
                       {!findA(sel.lookId) && <option value={sel.lookId || ""}>❓ missing look</option>}
                       {looks.map((a) => <option key={a.id} value={a.id}>{a.type === "body" ? "🧍 " : "🧩 "}{a.name}</option>)}
+                    </select>
+                    {/* 🔫 What this character holds (animLookHeld); Side/Crouch only. */}
+                    <select value={sel.weaponId || ""} title="What this character holds (shown in Side and Crouch)" onChange={(e) => put(animSetLayer(d, sel.id, { weaponId: e.target.value }))}>
+                      <option value="">✋ Empty hands</option>
+                      {sel.weaponId && !findA(sel.weaponId) && <option value={sel.weaponId}>❓ missing weapon</option>}
+                      {animHeldWeapons.map((a) => <option key={a.id} value={a.id}>🔫 {a.name}</option>)}
                     </select>
                   </div>
                   {sliderRow("Size", sel.size || ANIM_LOOK_SIZE, 1, ANIM_LOOK_SIZE_MAX, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { size: v })))}

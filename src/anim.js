@@ -18,7 +18,8 @@
  *     layers: [{ id, name, kind: "actor" } | { id, name, kind: "prop", propId, size }
  *              | { id, name, kind: "cloth", len, bed } | { id, name, kind: "rope", from, hookX, hookY }
  *              | { id, name, kind: "text", title, text, size, tilt, wide, color }
- *              | { id, name, kind: "look", lookId, size }],   back to front
+ *              | { id, name, kind: "look", lookId, weaponId, size }],   back to front
+ *              (a look's weaponId: the gun in its hands, "" = empty-handed — see App.js animLookHeld)
  *     states: [{ id, name, dur, wait, loop, prompt, promptLayer, promptLift, fadeIn, fadeOut, sound, soundVol,
  *                keys: [{ id, t, v: { <layerId>: { x, y, rot, show, flip, pose, legs, arms, sit, play } } }] }] }
  *
@@ -179,7 +180,7 @@ export const migrateAnim = (a0, mkId) => {
   a.layers = layers.map((l) => (l.kind === "prop" ? { ...l, name: l.name || "Prop", propId: l.propId || "", size: clamp(num(l.size, 3), 0.5, ANIM_PROP_SIZE_MAX) }
     : l.kind === "cloth" ? { ...l, name: l.name || "Blanket", len: clamp(num(l.len, 6), 0.5, 80), bed: clamp(num(l.bed, a.h - 2), 0, a.h) }
     : l.kind === "rope" ? { ...l, name: l.name || "Rope", from: typeof l.from === "string" && propIds.has(l.from) ? l.from : "", hookX: clamp(num(l.hookX, 0.5), 0, 1), hookY: clamp(num(l.hookY, 1), 0, 1) }
-    : l.kind === "look" ? { ...l, name: l.name || "Character", lookId: typeof l.lookId === "string" ? l.lookId : "", size: clamp(num(l.size, ANIM_LOOK_SIZE), 1, ANIM_LOOK_SIZE_MAX) }
+    : l.kind === "look" ? { ...l, name: l.name || "Character", lookId: typeof l.lookId === "string" ? l.lookId : "", weaponId: typeof l.weaponId === "string" ? l.weaponId : "", size: clamp(num(l.size, ANIM_LOOK_SIZE), 1, ANIM_LOOK_SIZE_MAX) }
     : l.kind === "text" ? { ...l, name: l.name || "Text", title: typeof l.title === "string" ? l.title : "", text: typeof l.text === "string" ? l.text : "", size: clamp(num(l.size, 1), 0.2, 6), tilt: clamp(num(l.tilt, 0), 0, 75), wide: clamp(num(l.wide, Math.round(a.w * 0.6)), 1, 80), color: typeof l.color === "string" && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : ANIM_TEXT_COLOR }
     : { ...l, name: l.name || "Bob" }));
   const ids = new Set(a.layers.map((l) => l.id));
