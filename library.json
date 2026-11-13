@@ -2898603,10 +2898603,18 @@
       "T1"
      ]
     },
-    "8,147": {
+    "6,155": {
      "enemyId": "eagl1x9",
      "facing": -1,
-     "ai": "guard"
+     "ai": "guard",
+     "gearTags": [
+      "Gun"
+     ]
+    },
+    "8,125": {
+     "enemyId": "eagl1x9",
+     "facing": -1,
+     "ai": "seek"
     }
    },
    "conns": {
@@ -2898643,8 +2898651,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794534908724,
-   "editedFrom": 1794182812192
+   "savedAt": 1794534974646,
+   "editedFrom": 1794534908724
   },
   {
    "id": "uw2goe0",
