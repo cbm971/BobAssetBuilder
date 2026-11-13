@@ -2529471,6 +2529471,21 @@
      "enemyId": "eagl1x9",
      "facing": -1,
      "ai": "seek"
+    },
+    "35,120": {
+     "enemyId": "qfm7xn6",
+     "facing": -1,
+     "ai": "seek",
+     "throwId": "gr3nad3",
+     "throwCount": 2
+    },
+    "35,158": {
+     "enemyId": "r4tbit3",
+     "facing": -1,
+     "ai": "guard",
+     "gearTags": [
+      "Gun"
+     ]
     }
    },
    "conns": {
@@ -2529507,7 +2529522,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1794535393586
+   "savedAt": 1794535477598,
+   "editedFrom": 1794535393586
   },
   {
    "id": "nj00zi0",
