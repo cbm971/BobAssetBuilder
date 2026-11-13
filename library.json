@@ -2898539,15 +2898539,6 @@
     "18,132": {
      "kind": "door",
      "tag": "Trailer Int"
-    },
-    "19,108": {
-     "kind": "pedestal",
-     "cats": [
-      "Rare",
-      "Hat",
-      "Trailer"
-     ],
-     "logic": "and"
     }
    },
    "enemies": {
@@ -2898611,6 +2898602,11 @@
      "gearTags": [
       "T1"
      ]
+    },
+    "8,147": {
+     "enemyId": "eagl1x9",
+     "facing": -1,
+     "ai": "guard"
     }
    },
    "conns": {
@@ -2898647,7 +2898643,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794182812192
+   "savedAt": 1794534908724,
+   "editedFrom": 1794182812192
   },
   {
    "id": "uw2goe0",
