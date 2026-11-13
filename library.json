@@ -3256758,174 +3256758,147 @@
     "ndlgholda": {
      "id": "ndlgholda",
      "speaker": "Sgt. Oakley",
-     "text": "HALT! Who goes there? Password!",
+     "text": "HALT! If you wish to persist in my tree you must answer the riddlkes three!",
      "choices": [
       {
        "id": "cdlghold1",
-       "text": "Uh... Bob?",
-       "to": "ndlgholdb",
+       "text": "Uhh no.",
+       "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
-       "id": "cdlghold2",
-       "text": "The war's over, pal. It ended in 1945.",
-       "to": "ndlgholdc",
+       "id": "c23toame",
+       "text": "That's some nice gear you got.",
+       "to": "",
+       "act": "",
+       "tone": "bad",
+       "shopTag": ""
+      },
+      {
+       "id": "ci2k5hxq",
+       "text": "I'm down.",
+       "to": "n4cxk9i5",
+       "act": "",
+       "tone": "good",
+       "shopTag": ""
+      }
+     ]
+    },
+    "n4cxk9i5": {
+     "id": "n4cxk9i5",
+     "speaker": "Sgt. Oakley",
+     "text": "What gets wetter, as it dries?",
+     "choices": [
+      {
+       "id": "c253i2pw",
+       "text": "Your mom?",
+       "to": "nu43vfd9",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
-       "id": "cdlghold3",
-       "text": "Got any supplies?",
-       "to": "ndlgholdd",
+       "id": "cg5hdi3l",
+       "text": "A towell?",
+       "to": "n0f1y5xp",
+       "act": "",
+       "tone": "good",
+       "shopTag": "",
+       "points": 100
+      },
+      {
+       "id": "cioj0ful",
+       "text": "Rain?",
+       "to": "nlogw9pq",
        "act": "",
        "tone": "",
        "shopTag": ""
+      }
+     ]
+    },
+    "nu43vfd9": {
+     "id": "nu43vfd9",
+     "speaker": "Sgt Oakley",
+     "text": "I AM GOING TO KILL YOU!",
+     "choices": [
+      {
+       "id": "c8ckn22m",
+       "text": "That's what she said",
+       "to": "",
+       "act": "hostile",
+       "tone": "good",
+       "shopTag": ""
       },
       {
-       "id": "cdlghold4",
-       "text": "I'm taking this tree.",
-       "to": "ndlgholde",
+       "id": "cr0os8jx",
+       "text": "So.. that was wrong?",
+       "to": "",
        "act": "hostile",
        "tone": "",
        "shopTag": ""
       }
      ]
     },
-    "ndlgholdb": {
-     "id": "ndlgholdb",
-     "speaker": "Sgt. Oakley",
-     "text": "Close enough. Sergeant Oakley. They told me to hold this tree in '44, and nobody ever came to relieve me.",
+    "n0f1y5xp": {
+     "id": "n0f1y5xp",
+     "speaker": "Sgt Oakley",
+     "text": "What do you need from me?",
      "choices": [
       {
-       "id": "cdlghold5",
-       "text": "'44? It's 1968.",
-       "to": "ndlgholdc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlghold6",
-       "text": "Need a hand holding it?",
-       "to": "ndlgholdf",
-       "act": "friendly",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlghold7",
-       "text": "Carry on, Sergeant.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdc": {
-     "id": "ndlgholdc",
-     "speaker": "Sgt. Oakley",
-     "text": "Over? That's exactly what the enemy would say. Count the marks on these walls. Not one of them says surrender.",
-     "choices": [
-      {
-       "id": "cdlghold8",
-       "text": "Fair enough.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlghold9",
-       "text": "Come with me and I'll prove it.",
-       "to": "ndlgholdf",
-       "act": "friendly",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdd": {
-     "id": "ndlgholdd",
-     "speaker": "Sgt. Oakley",
-     "text": "The supply drop came in '45. Never opened most of it. Take what you need, soldier. Leave a receipt.",
-     "choices": [
-      {
-       "id": "cdlghold10",
-       "text": "Let's see it.",
+       "id": "c1j2dngh",
+       "text": "Open shop",
        "to": "",
        "act": "shop",
-       "tone": "",
-       "shopTag": "Army"
+       "tone": "good",
+       "shopTag": "T1"
       },
       {
-       "id": "cdlghold11",
-       "text": "I'm a little banged up.",
-       "to": "ndlgholdg",
+       "id": "ctgwgcdd",
+       "text": "Heal me",
+       "to": "",
        "act": "heal",
-       "tone": "",
+       "tone": "good",
        "shopTag": ""
       },
       {
-       "id": "cdlghold12",
-       "text": "Never mind.",
+       "id": "cy5zyf70",
+       "text": "Nothing at all.",
        "to": "",
        "act": "",
-       "tone": "",
+       "tone": "good",
+       "shopTag": "",
+       "points": 1000
+      },
+      {
+       "id": "c3l3xvh8",
+       "text": "Follow me to glory!",
+       "to": "",
+       "act": "friendly",
+       "tone": "good",
        "shopTag": ""
       }
      ]
     },
-    "ndlgholde": {
-     "id": "ndlgholde",
-     "speaker": "Sgt. Oakley",
-     "text": "I KNEW it. A spy! FOR THE TREE!",
+    "nlogw9pq": {
+     "id": "nlogw9pq",
+     "speaker": "Sqt. Oakley",
+     "text": "WRONG!",
      "choices": [
       {
-       "id": "cdlghold13",
-       "text": "Uh oh.",
+       "id": "crcnwbsk",
+       "text": "I have brought great shame to my family",
        "to": "",
        "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdf": {
-     "id": "ndlgholdf",
-     "speaker": "Sgt. Oakley",
-     "text": "Reinforcements, finally. Lead the way. If this is a trick, I'm coming right back to my tree.",
-     "choices": [
-      {
-       "id": "cdlghold14",
-       "text": "Move out.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdg": {
-     "id": "ndlgholdg",
-     "speaker": "Sgt. Oakley",
-     "text": "Chew on this. Sap and acorn mash. Kept me going for twenty-four years.",
-     "choices": [
-      {
-       "id": "cdlghold15",
-       "text": "Thanks... I think.",
-       "to": "",
-       "act": "",
-       "tone": "",
+       "tone": "bad",
        "shopTag": ""
       }
      ]
     }
    },
-   "savedAt": 1792845804300
+   "savedAt": 1794536018874,
+   "editedFrom": 1792845804300
   },
   {
    "id": "dlgken1",
