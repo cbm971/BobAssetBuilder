@@ -2529486,6 +2529486,24 @@
      "gearTags": [
       "Gun"
      ]
+    },
+    "37,137": {
+     "enemyId": "mnky1x9",
+     "facing": -1,
+     "ai": "guard",
+     "gearTags": [
+      "Gun"
+     ]
+    },
+    "37,134": {
+     "enemyId": "mnky1x9",
+     "facing": -1,
+     "ai": "seek"
+    },
+    "37,130": {
+     "enemyId": "mnky1x9",
+     "facing": -1,
+     "ai": "seek"
     }
    },
    "conns": {
@@ -2529522,8 +2529540,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1794535477598,
-   "editedFrom": 1794535393586
+   "savedAt": 1794535551779,
+   "editedFrom": 1794535477598
   },
   {
    "id": "nj00zi0",
