@@ -3281983,27 +3281983,19 @@
     "nfbs1a": {
      "id": "nfbs1a",
      "speaker": "First Sergeant",
-     "text": "Welcome to Firebase Freedom, private. The General says you are here to stop 9/11 from happening in 50 years. I don't know what that means and I am not cleared to ask.",
+     "text": "Welcome to Vietnam! ",
      "choices": [
       {
        "id": "cfbs11",
-       "text": "Where do I start?",
+       "text": "Happy to be here",
        "to": "nfbs1b",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
-       "id": "cfbs12",
-       "text": "What's 9/11?",
-       "to": "nfbs1c",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
        "id": "cfbs13",
-       "text": "When do I go home?",
+       "text": "I wanna go home",
        "to": "nfbs1d",
        "act": "",
        "tone": "",
@@ -3282014,7 +3282006,7 @@
     "nfbs1b": {
      "id": "nfbs1b",
      "speaker": "First Sergeant",
-     "text": "Supply tent has gear if you can find your size. The PX sells the rest. Then out the east gate and into Charlie's jungle.",
+     "text": "Check the supply tent for gear if you want to ditch the civies. ",
      "choices": [
       {
        "id": "cfbs14",
@@ -3282026,37 +3282018,14 @@
       }
      ]
     },
-    "nfbs1c": {
-     "id": "nfbs1c",
-     "speaker": "First Sergeant",
-     "text": "Classified. Above my pay grade, and my pay grade is a sandwich.",
-     "choices": [
-      {
-       "id": "cfbs15",
-       "text": "Where do I start?",
-       "to": "nfbs1b",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cfbs16",
-       "text": "Fair enough.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
     "nfbs1d": {
      "id": "nfbs1d",
      "speaker": "First Sergeant",
-     "text": "Your tour is twelve months or one mission, whichever is longer.",
+     "text": "You can go home when we win.",
      "choices": [
       {
        "id": "cfbs17",
-       "text": "Where do I start?",
+       "text": "How tho?",
        "to": "nfbs1b",
        "act": "",
        "tone": "",
@@ -3282064,16 +3282033,19 @@
       },
       {
        "id": "cfbs18",
-       "text": "...",
+       "text": "What if we lose?",
        "to": "",
        "act": "",
-       "tone": "",
-       "shopTag": ""
+       "tone": "good",
+       "shopTag": "",
+       "points": 50
       }
      ]
     }
    },
-   "savedAt": 1794300705135
+   "savedAt": 1794660922324,
+   "once": true,
+   "editedFrom": 1794660893860
   },
   {
    "id": "dlgfsh1",
