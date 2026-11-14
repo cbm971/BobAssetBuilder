@@ -889966,14 +889966,15 @@
      "kind": "look",
      "name": "General",
      "lookId": "gnrlbf1",
-     "size": 36
+     "size": 36,
+     "weaponId": ""
     },
     {
      "id": "lyCrawl",
      "kind": "text",
      "name": "Crawl",
      "title": "The Draft",
-     "text": "It is a dark time for the free world. Deep in the jungles of Vietnam, the Vietkong have hatched their most fiendish plot yet.\n\nWhile on a completely unrelated experiment with LSD to see about its medical uses and ability to improve the brain's cognitive functions, our scientists found credible information to suggest that the Vietkong are planning to commit 911 roughly 50 years into the future.\n\nThat is where Bob comes in. We wanted the best and got the hero we deserve. Uncle Sam has drafted every able-bodied man in the Trailer Park, and found Bob to be somehow more able than the rest.\n\nHe got a C. on his physical. He got a B. on his IQ test. His cholesterol should be studied and his blood sugar is 50/50. He is a specimen among specimens and he is,\n\nBOB\n\nOne more thing...",
+     "text": "It is a dark time for the free world. Deep in the jungles of Vietnam, the Vietkong have hatched their most fiendish plot yet.\n\nWhile on a completely unrelated experiment with LSD to see about its medical uses and ability to improve the brain's cognitive functions, our scientists found credible information to suggest that the Vietkong are planning to commit 911 roughly 50 years into the future.\n\nThat is where Bob comes in. We wanted the best and got the hero we deserve. Uncle Sam has drafted every able bodied man in the country, and found Bob to be somehow more able than the rest.\n\nHe got a C. on his physical. He got a B. on his IQ test. His cholesterol should be studied and his blood sugar is 50/50. He is a specimen among specimens and he is,\n\nBOB\n\nOne more thing...  Bob,",
      "size": 1.1,
      "tilt": 52,
      "wide": 32,
@@ -889984,7 +889985,7 @@
      "kind": "text",
      "name": "Last line",
      "title": "",
-     "text": "Only Bob can stop the Vietkong from doing 911 in 50 years!",
+     "text": "Only you can stop 9/11 in 50 years!",
      "size": 1.3,
      "tilt": 52,
      "wide": 44,
@@ -890349,8 +890350,8 @@
          "show": 0
         },
         "lyLine": {
-         "x": 24,
-         "y": 19.4,
+         "x": 32.75,
+         "y": 20.25,
          "rise": 14.5,
          "show": 1
         },
@@ -890382,8 +890383,8 @@
      ]
     }
    ],
-   "savedAt": 1794300705135,
-   "editedFrom": 1794064324160
+   "savedAt": 1794667347706,
+   "editedFrom": 1794300705135
   },
   {
    "id": "gnrlcap",
