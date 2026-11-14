@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/BobAssetBuilder/static/js/main.7afef6c8.js",
+    "index.html": "/BobAssetBuilder/index.html",
+    "main.7afef6c8.js.map": "/BobAssetBuilder/static/js/main.7afef6c8.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.7afef6c8.js"
+  ]
+}
