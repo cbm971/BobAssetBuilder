@@ -16189,3 +16189,17 @@ describe("a dying player falls over", () => {
     }
   });
 });
+
+// The dialogue Load sheet's search (Blake, 2026-11-14): he looks for WHO speaks or WHAT is said.
+describe('dialogueSearchHit', () => {
+  const { dialogueSearchHit } = require('./App');
+  const doc = { name: 'Tree HOA', nodes: { a: { speaker: 'Tree Warden', text: 'Welcome to the HOA.', choices: [{ text: 'Blame the squirrel.', shopTag: 'Vietnam' }] } } };
+  test('nothing typed matches everything, with no snippet', () => { expect(dialogueSearchHit(doc, '  ')).toEqual({ line: '' }); });
+  test('the name alone matches without a snippet', () => { expect(dialogueSearchHit(doc, 'hoa tree')).toEqual({ line: '' }); });
+  test('a speaker, a line or an answer matches and shows why', () => {
+    expect(dialogueSearchHit(doc, 'warden').line).toBe('Tree Warden');
+    expect(dialogueSearchHit(doc, 'SQUIRREL').line).toBe('Blame the squirrel.');
+    expect(dialogueSearchHit(doc, 'tree squirrel').line).toBe('Blame the squirrel.');
+  });
+  test('every word must be found', () => { expect(dialogueSearchHit(doc, 'warden pizza')).toBe(null); expect(dialogueSearchHit({}, 'x')).toBe(null); });
+});

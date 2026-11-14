@@ -3945,6 +3945,32 @@ export const dialogueToneStyle = (tone) => DIALOGUE_TONES[tone] || TALK_TONE_NEU
 export const TALK_PICK_FLASH_MS = 420;        // ✅/❌ — long enough to read, short of a load screen
 export const TALK_PICK_FLASH_PLAIN_MS = 160;  // untagged — a blink that says "registered"
 export const talkFlashMs = (tone) => (DIALOGUE_TONES[tone] ? TALK_PICK_FLASH_MS : TALK_PICK_FLASH_PLAIN_MS);
+// FINDING A DIALOGUE TO EDIT (Blake, 2026-11-14: "add an option to search in the dialogue loading
+// area ... it's quite hard to find a piece of dialogue I want to edit. IE ... the bit with the tree
+// warden and squerell"). He remembers WHO speaks or WHAT is said, not the name the tree was saved
+// under (that one is "Tree HOA"), so the search reads the name, every speaker, every line and every
+// answer. Every word typed must be found somewhere in the tree. Returns null for no match, else
+// { line }: the first line or answer that holds a word the NAME does not, so the row can show why
+// it matched ("" when the name alone matches, or nothing was typed).
+export const dialogueSearchHit = (doc, q) => {
+  const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return { line: "" };
+  const name = String((doc && doc.name) || "").toLowerCase();
+  const parts = [];
+  for (const n of Object.values((doc && doc.nodes) || {})) {
+    if (!n) continue;
+    if (n.speaker) parts.push(String(n.speaker));
+    if (n.text) parts.push(String(n.text));
+    for (const c of Array.isArray(n.choices) ? n.choices : []) { if (c && c.text) parts.push(String(c.text)); if (c && c.shopTag) parts.push(String(c.shopTag)); }
+  }
+  const low = parts.map((p) => p.toLowerCase());
+  if (!words.every((w) => name.includes(w) || low.some((p) => p.includes(w)))) return null;
+  const w = words.find((x) => !name.includes(x));
+  if (!w) return { line: "" };
+  const i = low.findIndex((p) => p.includes(w)), at = low[i].indexOf(w), from = Math.max(0, at - 30);
+  const cut = parts[i].replace(/\s+/g, " ");
+  return { line: (from > 0 ? "…" : "") + cut.slice(from, from + 80) + (cut.length > from + 80 ? "…" : "") };
+};
 export const newDialogue = (name) => {
   const first = newDialogueNode("");
   return { id: uid(), name: name || "New dialogue", start: first.id, nodes: { [first.id]: first } };
@@ -14417,6 +14443,7 @@ export default function AssetStudio({ game = false } = {}) {
   const [dlgLib, setDlgLib] = useState([]);
   const [dlgDoc, setDlgDoc] = useState(null);
   const [dlgLoadOpen, setDlgLoadOpen] = useState(false);
+  const [dlgQ, setDlgQ] = useState("");   // the Load sheet's search box (dialogueSearchHit)
   const [dlgConfirmDel, setDlgConfirmDel] = useState(null);
   const dlgBaseline = useRef("");                        // JSON of the tree as last saved/opened, so the editor can say when there is unsaved work
   // 🔊 SOUNDS: the seventh saved kind (loadSounds). Every record of the kind — the sounds AND the one
@@ -27409,7 +27436,7 @@ export default function AssetStudio({ game = false } = {}) {
           <label className="chk" style={{ marginTop: 0, whiteSpace: "nowrap" }} title="Once this conversation ends, nobody using it can be talked to again until ▶ Playtest"><input type="checkbox" checked={dialogueIsOnce(d)} onChange={(e) => { const next = { ...d, once: true }; if (!e.target.checked) delete next.once; put(next); }} /> One time only</label>
           <span className="badge">💬 Dialogue{dirty ? " ·  unsaved" : ""}</span>
           <button className="ltbtn" onClick={() => { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); flash("New blank dialogue"); }}>✚ New</button>
-          <button className="ltbtn saveRead" onClick={() => { loadDialogues(); setDlgLoadOpen(true); }}>📂 Load ({dlgLib.length})</button>
+          <button className="ltbtn saveRead" onClick={() => { loadDialogues(); setDlgQ(""); setDlgLoadOpen(true); }}>📂 Load ({dlgLib.length})</button>
           <button className="save" onClick={saveDialogue}>💾 Save</button>
         </header>
         <div className="dlgEdit">
@@ -27502,9 +27529,10 @@ export default function AssetStudio({ game = false } = {}) {
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">Load a dialogue</div>
               {!dlgLib.length && <p className="mini">Nothing saved yet.</p>}
-              <div className="loadlist">{dlgLib.map((x) => (
+              {!!dlgLib.length && <input className="symSearch dlgSearch" value={dlgQ} onChange={(e) => setDlgQ(e.target.value)} placeholder="Search" autoFocus />}
+              <div className="loadlist dlgLoadList">{dlgLib.map((x) => [x, dialogueSearchHit(x, dlgQ)]).filter((xh) => xh[1]).map(([x, hit]) => (
                 <div key={x.id} className="dlgLoadRow">
-                  <button onClick={() => { const open = migrateDialogue(JSON.parse(JSON.stringify(x))); setDlgDoc(open); dlgBaseline.current = JSON.stringify(open); setDlgLoadOpen(false); flash("Opened \"" + x.name + "\" ✓"); }}>💬 {x.name} <span className="hint2">· {Object.keys(x.nodes || {}).length} line{Object.keys(x.nodes || {}).length === 1 ? "" : "s"}</span></button>
+                  <button onClick={() => { const open = migrateDialogue(JSON.parse(JSON.stringify(x))); setDlgDoc(open); dlgBaseline.current = JSON.stringify(open); setDlgLoadOpen(false); flash("Opened \"" + x.name + "\" ✓"); }}>💬 {x.name} <span className="hint2">· {Object.keys(x.nodes || {}).length} line{Object.keys(x.nodes || {}).length === 1 ? "" : "s"}</span>{hit.line && <span className="hint2 dlgHit">{hit.line}</span>}</button>
                   {dlgConfirmDel === x.id
                     ? <button className="ltbtn danger" onClick={() => deleteDialogue(x.id)}>Really delete?</button>
                     : <button className="ltbtn" onClick={() => setDlgConfirmDel(x.id)}>🗑</button>}
@@ -32786,7 +32814,10 @@ html,body{margin:0;padding:0;background:#0f1117}
 .dlgChoice select{background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#cfd8e8;padding:6px;font-size:12px;max-width:220px}
 .dlgShopTag{flex:0 1 190px;min-width:130px;background:#0d1119;border:1px solid #3a6b42;border-radius:6px;color:#cdf5d4;padding:6px 8px;font:inherit;font-size:12px}
 .dlgLoadRow{display:flex;gap:6px;align-items:stretch}
-.dlgLoadRow>button:first-child{flex:1;text-align:left}
+.dlgLoadRow>button:first-child{flex:1;text-align:left;min-width:0}
+.dlgSearch{display:block;width:100%;box-sizing:border-box;margin-top:8px;color:inherit;font:inherit}
+.dlgLoadList{max-height:min(60vh,520px)}
+.dlgHit{display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .equipline{color:#cfe0ff;background:#131a29;border-color:#3a5c8c;font-size:12px}
 @media(max-width:820px){.main{flex-direction:column}.stage{padding:10px;flex:none}.art{height:46vh}.side{width:auto;border-left:0;border-top:1px solid #232838;flex:1}.refpick{margin-left:0}.nm{flex:1;width:auto;min-width:0}.slotrow select{width:130px}.lmain{flex-direction:column}.lside{width:auto;border-left:0;border-top:1px solid #232838}.connlist{grid-template-columns:1fr}}
 `;
