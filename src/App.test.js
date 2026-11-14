@@ -713,6 +713,12 @@ import {
   flyKeys,
   flyEaseVy,
   flyHoverVy,
+  flyerSwoopStep,
+  FLYER_SWOOP_ALT_CELLS,
+  FLYER_SWOOP_DIVE_SPEED_MUL,
+  FLYER_SWOOP_TURN_EASE,
+  FLYER_SENSE_HEIGHT_MUL,
+  unitSenseTall,
   FLY_HOVER_GAIN,
   FLY_HINT_TEXT,
   flyPose,
@@ -10252,6 +10258,30 @@ describe("a unit walks only to a target on its own level", () => {
     expect(enemySenseHeightFrac(ENEMY_SENSE_DOWN_LENGTHS * PLAYER_BODY_LEN_PX)).toBe(0);
     expect(enemySenseHeightFrac(-ENEMY_SENSE_UP_LENGTHS * PLAYER_BODY_LEN_PX)).toBe(0);
   });
+  // 2026-11-14: "they should have much more vertical detection range if non npc flying."
+  test("a flying fighter senses far above and below it; a unit on foot and a flying NPC do not", () => {
+    const flyer = unitSenseTall(true, true), walker = unitSenseTall(false, true), npc = unitSenseTall(true, false);
+    expect(flyer).toBe(FLYER_SENSE_HEIGHT_MUL);
+    expect(walker).toBe(1);
+    expect(npc).toBe(1);
+    const farBelow = 40 * cell, farAbove = -25 * cell; // past the ordinary oval's bottom (21 cells) and top (12.25)
+    for (const tall of [walker, npc]) {
+      expect(enemyDetects(5 * cell, 1, farBelow, false, tall)).toBe(false);
+      expect(enemyDetects(5 * cell, 1, farAbove, false, tall)).toBe(false);
+      expect(enemyChasesVertically(0, farBelow, false, tall)).toBe(false);
+      expect(enemySensesUnit(5 * cell, farBelow, tall)).toBe(false);
+      expect(enemyFaceToward(-5 * cell, 1, farBelow, false, tall)).toBe(1);
+    }
+    expect(enemyDetects(5 * cell, 1, farBelow, false, flyer)).toBe(true); // an Eagle in the sky, you on the ground
+    expect(enemyDetects(5 * cell, 1, farAbove, false, flyer)).toBe(true); // ...and one under you
+    expect(enemyChasesVertically(0, farBelow, false, flyer)).toBe(true);
+    expect(enemySensesUnit(5 * cell, farBelow, flyer)).toBe(true);
+    expect(enemyFaceToward(-5 * cell, 1, farBelow, false, flyer)).toBe(-1);
+    // Taller, not wider: on its own level it is the same 28 cells, and the default is the old oval.
+    expect(enemyDetects(28 * cell, 1, 0, false, flyer)).toBe(true);
+    expect(enemyDetects(29 * cell, 1, 0, false, flyer)).toBe(false);
+    for (const dy of [-11 * cell, 0, 7 * cell, 20 * cell]) expect(enemySenseHeightFrac(dy, false, 1)).toBe(enemySenseHeightFrac(dy));
+  });
   test("a slab unit over you on the road senses you only close in, never across the level", () => {
     expect(enemyDetects(15 * cell, 1, street - slab)).toBe(true);
     expect(enemyDetects(25 * cell, 1, street - slab)).toBe(false);
@@ -13348,6 +13378,96 @@ describe("a unit plays by the player's rules", () => {
     expect(effectBrief({ type: "fly", time: 3 }).desc).toBe("press W in mid-air to fly · 3s");
     expect(EFFECT_TYPES.fly.noAnim).toBe(true); // no 🎬 Design animation: the flying pose is built in
     expect(FLY_HINT_TEXT).toBe("Press W in mid-air to fly");
+  });
+
+  // 2026-11-14: "The eagle / flying enemies just kind of hover at human height. It would be better
+  // if they sort of swooped in to attack." A flyer simulated through the loop's own flight (the
+  // eased, capped vy) and its attack rules (in reach, feet within a body, a wind-up, then a swing).
+  describe("🦅 a flying creature swoops", () => {
+    const CELL = 30, SPEED = 7.26, REACH = 27, BODY = 90, CLEAR = Math.min(BODY * 0.2, CELL * 0.75);
+    const ALT = FLYER_SWOOP_ALT_CELLS * CELL;
+    const fly = (frames, opts = {}) => {
+      const tgt = { cx: 0, feet: 1000, w: 60 };
+      const me = { cx: opts.fromX ?? -900, feet: tgt.feet - CLEAR, vy: 0, w: 70, attackT: 0, swingT: 0, reactT: 0 };
+      const roofFeet = opts.roofFeet ?? -Infinity; // the lowest its feet may rise to
+      let s = null, stalled = false; const log = [];
+      for (let i = 0; i < frames; i++) {
+        const dx = tgt.cx - me.cx, gap = Math.max(0, Math.abs(dx) - (tgt.w + me.w) / 2);
+        const st = flyerSwoopStep(s, { dx, gap, reach: REACH, above: tgt.feet - CLEAR - me.feet, speed: SPEED, cell: CELL, dt: 1, attackT: me.attackT, swingT: me.swingT, stalled });
+        s = { phase: st.phase, t: st.t, dir: st.dir, vx: st.vx };
+        me.cx += st.stepX;
+        me.vy = flyEaseVy(me.vy, flyHoverVy(tgt.feet - CLEAR - st.height - me.feet, SPEED * st.vyMul), 1);
+        stalled = false;
+        if (me.feet + me.vy < roofFeet) { me.vy = 0; stalled = true; } else me.feet += me.vy;
+        if (me.attackT > 0) me.attackT--;
+        if (me.swingT > 0) me.swingT--;
+        const gapNow = Math.max(0, Math.abs(tgt.cx - me.cx) - (tgt.w + me.w) / 2);
+        let struck = false;
+        if (gapNow <= REACH && Math.abs(me.feet - tgt.feet) < BODY && me.attackT <= 0) {
+          if (++me.reactT >= 20) { me.reactT = 0; me.attackT = 45; me.swingT = 14; struck = true; }
+        } else me.reactT = 0;
+        log.push({ i, phase: st.phase, cx: me.cx, up: tgt.feet - me.feet, stepX: st.stepX, vy: me.vy, struck });
+      }
+      return log;
+    };
+
+    test("it climbs to altitude, dives in level with its target, strikes, and climbs out again", () => {
+      const log = fly(900);
+      const strikes = log.filter((f) => f.struck).map((f) => f.i);
+      expect(strikes.length).toBeGreaterThanOrEqual(2); // it comes round again
+      const before = log.slice(0, strikes[0]);
+      expect(before[0].up).toBeLessThan(CELL); // started at the old hover height
+      expect(Math.max(...before.map((f) => f.up))).toBeGreaterThan(ALT - 2 * CELL); // reached altitude first
+      expect(before.some((f) => f.phase === "dive")).toBe(true);
+      for (const i of strikes) expect(log[i].up).toBeLessThan(BODY); // the blow is thrown at the target's height...
+      const between = log.slice(strikes[0], strikes[1]);
+      expect(between.some((f) => f.phase === "climb")).toBe(true);
+      expect(Math.max(...between.map((f) => f.up))).toBeGreaterThan(ALT - 2 * CELL); // ...and it is back up before the next
+      // most of its time is spent well over your head, not beside it
+      const high = log.filter((f) => f.i > strikes[0] && f.up > 4 * CELL).length;
+      expect(high / (log.length - strikes[0])).toBeGreaterThan(0.5);
+    });
+
+    test("nothing snaps: speed changes ease, and it is never faster than a dive", () => {
+      const log = fly(900);
+      for (let i = 1; i < log.length; i++) {
+        expect(Math.abs(log[i].stepX)).toBeLessThanOrEqual(SPEED * FLYER_SWOOP_DIVE_SPEED_MUL + 1e-9);
+        expect(Math.abs(log[i].stepX - log[i - 1].stepX)).toBeLessThanOrEqual(2 * SPEED * FLYER_SWOOP_DIVE_SPEED_MUL * FLYER_SWOOP_TURN_EASE + 1e-9);
+        expect(Math.abs(log[i].vy - log[i - 1].vy)).toBeLessThan(SPEED * 0.6);
+      }
+    });
+
+    test("the dive is a curve: steep at the top, flat as it arrives", () => {
+      const at = (gap) => flyerSwoopStep({ phase: "dive", t: 1, dir: 1, vx: 0 }, { dx: gap, gap, reach: REACH, speed: SPEED, cell: CELL, dt: 1 }).height;
+      expect(at(14 * CELL + REACH)).toBeCloseTo(ALT, 6);
+      expect(at(7 * CELL + REACH * 0.5)).toBeCloseTo(ALT / 4, 6);
+      expect(at(REACH * 0.5)).toBe(0);
+      expect(at(14 * CELL) - at(13 * CELL)).toBeGreaterThan(at(2 * CELL) - at(1 * CELL));
+    });
+
+    test("under a low roof it dives from as high as it can get instead of waiting for altitude", () => {
+      const log = fly(900, { roofFeet: 1000 - 5 * CELL });
+      expect(log.filter((f) => f.struck).length).toBeGreaterThanOrEqual(2);
+      expect(Math.max(...log.map((f) => f.up))).toBeLessThanOrEqual(5 * CELL + 1e-6);
+    });
+
+    test("right overhead it drifts back out before it dives; a blow already thrown holds the dive", () => {
+      const o = { dx: 30, gap: 0, reach: REACH, above: ALT, speed: SPEED, cell: CELL, dt: 1 };
+      expect(flyerSwoopStep({ phase: "cruise", t: 60, dir: 1, vx: 0 }, o).phase).toBe("cruise");
+      expect(flyerSwoopStep({ phase: "cruise", t: 60, dir: 1, vx: 0 }, o).stepX).toBeLessThan(0); // away from the target
+      const ready = { ...o, dx: 300, gap: 300 };
+      expect(flyerSwoopStep({ phase: "cruise", t: 60, dir: 1, vx: 0 }, ready).phase).toBe("dive");
+      expect(flyerSwoopStep({ phase: "cruise", t: 60, dir: 1, vx: 0 }, { ...ready, attackT: 20 }).phase).toBe("cruise"); // still recovering
+      expect(flyerSwoopStep({ phase: "dive", t: 30, dir: 1, vx: 0 }, { ...o, attackT: 40, swingT: 9 }).phase).toBe("dive"); // mid-swing: stay on it
+      expect(flyerSwoopStep({ phase: "dive", t: 30, dir: 1, vx: 0 }, { ...o, attackT: 30, swingT: 0 }).phase).toBe("climb");
+    });
+
+    test("the unit loop flies its creatures through it, and only its fighters see tall", () => {
+      const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+      expect(src).toContain("eSwoop = flyerSwoopStep(ep.swoop, {");
+      expect(src).toContain("const eFlyWantFeet = eSwoop ? (flyTgtFeet - hoverClearance - eSwoop.height)");
+      expect(src).toContain("const senseTall = unitSenseTall(eCreatureFlies, acts);");
+    });
   });
 
   test("🦸 The flying pose: hover, climb, come down and the superhero dive, blended", () => {
