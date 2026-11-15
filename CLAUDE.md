@@ -1089,6 +1089,18 @@ plus traps it does not cover:
 - **Vietnam E1 (`vtnme1a`) ends in the Jungle Ambush (`vcambs1`, 2026-11-11):** the floor's Exit (W2 open, no east gate). "Walk in" cutscene at cols 110-153: his Bush props shake, four of his Viatnamese looks come out both sides, Bob falls on his back (the same quarter turn a death uses), fade, ending "Leave the floor". Nothing Front stands inside the stage (Front draws over it) and no unit spawns in the last 60 columns; the two nearest are guards so nobody is chasing him into the scene. Since 2026-11-12 (take 2, his ask: "more dramatic"): a 0.9 s **Look** state after Rustle has Bob in his Front pose staring at the camera (held into the Ambush's first 0.1 s), and the VC hold rifles (Type 53 Carbine / Mosin-Nagant alternating; his VC AK-47 `vcak47r` is DELETED in his removed.json, never revive it) levelled at arms 90, lowered to 75 onto him as he lies down.
 - **A generated level must look like HIS levels, not a flat strip (2026-11-12, on E1: "floating bushes in a perfect line, low density of thin trees, you never ramp off the gravel").** Copy Forest M11: the ground rises and falls on long ramps; every earth patch meets the grass on ramp cells (earth slope + grass `more`), never stair-steps; the backdrop is overlapping wide canopies in two or three greens on trunks 2-3 cells wide, plus a few Front trees with Tree Root props; plants stand in mixed clumps of mixed sizes with their bases sunk, never evenly spaced twins. A cutscene's props get the same treatment and need Background planting around them. Clay Jars read as potions next to the Rice Sacks: use Army Crates.
 
+### His bug list of 2026-11-14 (ten items, one push)
+
+- **Off a tree top you FALL.** No side or bottom edge of a tree-top level (run row < 0) is a wall or a floor where a level lies under it: `runFallSeams` joins the level under the air past each side (`fall`, or `fallSides` on the seam already joined below) and marks every level beneath `under` (`seamUnder`: the whole bottom edge is open, not only the ladder's gate). `p.skyFall` keeps the "flung off the top of the world" respawn from firing on the way down. His Tree Tops 2 and 3 stop part-way across the level on purpose.
+- **Walking + ↑ (or ↓) is the 45°** (`aimSideHeld`: A/D count as the sideways half). Standing still, ↑ alone is straight up.
+- **The gun stays in the same hand in both facings** in the two-arm poses (`heldArmOf`, `heldArmView`, `attachHeldToArms`); units too.
+- **Ladder hands and feet move a rung per rung climbed** (`climbPhaseStep`, `LADDER_RUNG_PX`), player and units.
+- **Flying creatures swoop** (`flyerSwoopStep`, the `FLYER_SWOOP_*` constants) and flying fighters sense 3x as far up and down (`FLYER_SENSE_HEIGHT_MUL`); NPC flyers and the player's own Fly are unchanged.
+- **Followers walk single file and climb after you** (`followChain`, `followLeader`, `me.follower` in `unitClimbRoute` / `unitDropSpot`).
+- **No Floor Complete card.** A finished floor goes straight on; after the last floor a "To be continued" screen leads to the main menu.
+- **The gold pickup's slowed sound** is a phase vocoder (`stretchChannels`), built when the clip decodes.
+- **A one-paragraph crawl layer centres itself** (text-align-last), so a short closing line sits in the middle.
+
 ## Working style
 
 - Ship it. Push fixes directly, with no option menus. Try things before calling them impossible.

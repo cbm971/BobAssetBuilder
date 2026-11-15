@@ -11242,6 +11242,13 @@ describe("runs", () => {
     // a street level's own closed side is still a wall, and so is the tree's side under the street
     expect(seamGateLeaving(a.level, runSeams(run, a, CELL), "W", -1, 600, CELL)).toBe(null);
     expect(seamGateLeaving(tree.level, seams, "W", -1, 1380 + 46 * CELL + 5, CELL)).toBe(null);
+    // ...and where the tree stops short of the level's end, its whole bottom edge over a level is open:
+    // over A anywhere (not only at the ladder's gate), and over B past A's end
+    expect(seams.S.under).toBe(true); expect(seams.E.under).toBe(true);
+    expect(seamGateLeaving(tree.level, seams, "S", 100, 1385, CELL)).toBe("S1");
+    expect(seamGateLeaving(tree.level, seams, "S", 0.6 * 4800 + 100, 1385, CELL)).toBe("E2");
+    // a street level's floor is still a floor away from its sewer gate
+    expect(seamGateLeaving(a.level, runSeams(run, a, CELL), "S", 100, 1385, CELL)).toBe(null);
   });
 
   test("a blank top gate takes a level that asks for its floor by name, and bottom gates may be staggered", () => {

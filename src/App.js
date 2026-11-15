@@ -13109,7 +13109,7 @@ const runGateSeams = (run, node, cell = LV_CELL) => {
 // it. Only above the street (row < 0), only where no gate seam is, and never onto a level some other
 // side already joins (it would be mounted twice).
 const runFallSeams = (run, node, seams, cell = LV_CELL) => {
-  if (!node || !(node.row < 0) || (seams.E && seams.W)) return seams;
+  if (!node || !(node.row < 0)) return seams;
   // Where the levels round here sit in this one's pixels, by the fewest gates walked (the level
   // below first, then the street either side of it): the same offsets each seam is drawn with.
   const at = new Map([[node.key, { x: 0, y: 0 }]]), queue = [node];
@@ -13141,8 +13141,15 @@ const runFallSeams = (run, node, seams, cell = LV_CELL) => {
     const gates = {}; for (const k of keys) gates[k] = CONN_OPP[k];
     seams[side] = { key: best.n.key, level: best.n.level, off: { x: best.p.x, y: best.p.y }, gates, fall: true };
   }
+  // ...AND THROUGH THE BOTTOM, WHERE THE TREE STOPS SHORT. His Tree Tops 2 and 3 end part-way across
+  // the level; past the last branch you fell to the level's bottom edge and stood on nothing, a
+  // floor as invisible as the wall. Every level joined here that lies under this one is `under`:
+  // the whole bottom edge over it is open (seamUnder), not only the gate with the ladder in it.
+  for (const sm of Object.values(seams)) { const m = run.nodes[sm.key]; if (m && m.row === node.row + 1 && sm.off.y > 0) sm.under = true; }
   return seams;
 };
+// The joined level lying under the bottom edge at x (a tree top's `under` seams), or null.
+export const seamUnder = (seams, cx, cell = LV_CELL) => (seams && Object.values(seams).find((sm) => sm && sm.under && sm.level && cx >= sm.off.x && cx < sm.off.x + sm.level.cols * cell)) || null;
 // The seam a body leaving by `side` goes into: that side's own, or the seam of another side whose
 // level also lies under this edge (runFallSeams' `fallSides`).
 export const seamOnSide = (seams, side) => (seams && (seams[side] || Object.values(seams).find((sm) => sm && sm.fallSides && sm.fallSides[side]))) || null;
@@ -13281,6 +13288,7 @@ export const runCameraParts = (run, node, seams, cell = LV_CELL) => {
 // Up and down keep the gate rule: a hole in a street floor that is not a sewer gate still just
 // stops you, and he enters sewers and tree tops through their gates anyway.
 export const seamGateLeaving = (lv, seams, side, cx, cy, cell = LV_CELL) => {
+  if (side === "S") { const u = seamUnder(seams, cx, cell); if (u) return Object.keys(u.gates || {})[0] || null; }
   const seam = seamOnSide(seams, side); if (!seam) return null;
   if (side === "E" || side === "W") {
     const top = seam.off.y, bottom = top + seam.level.rows * cell, fall = seam.fall || !seams[side];
@@ -16213,7 +16221,7 @@ export default function AssetStudio({ game = false } = {}) {
     // seamHandoff so the swap render already reads the entered level's books (see there).
     const pointLiveRefsAt = (b) => { pedestalRolls.current = b.rolls; pedestalDepleted.current = b.depleted; enemyHP.current = b.eHP; enemyPos.current = b.ePos; enemyDrops.current = b.drops; corpseStripped.current = b.stripped; hazLife.current = b.haz; enemyGearRolls.current = b.gear; };
     const seamHandoff = (side, p, pw, leavingGate, dtMul) => {
-      const seam = seamOnSide(seams, side), nb = runNow.nodes[seam.key];
+      const seam = (side === "S" && seamUnder(seams, p.x + pw / 2, LV_CELL)) || seamOnSide(seams, side), nb = runNow.nodes[seam.key];
       // SCORE: leaving a level through a gate for the first time clears it (scoreLevelClear).
       scoreLevelClear(scoreRef.current, runNow.curKey);
       // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
@@ -16236,6 +16244,7 @@ export default function AssetStudio({ game = false } = {}) {
       runNodeLive.level = lv;
       releaseRunUnits(runNow, runNodeLive, roomState.current, unitSideOf, CW);
       p.x -= seam.off.x; p.y -= seam.off.y;
+      p.skyFall = !!(seam.under || seam.fall);   // off a tree top into the level below it: see the top-of-the-world rule
       camRef.current.x -= seam.off.x; camRef.current.y -= seam.off.y;
       // ...and the level being entered is where it already was in the run's world frame, so the
       // world origin moves the other way by the same amount: every level's wrapper, and .lgrid's
@@ -17960,7 +17969,10 @@ export default function AssetStudio({ game = false } = {}) {
       if (climbing) { p.gliding = false; p.flying = false; p.flyUsed = 0; } // a grip refills the 🦸 flight time as the ground does
       if (p.onGround || topdown || climbing) { p.hsAir = null; p.hsHits = null; p.hsFall = false; p.hsFallT = 0; } // 👢 back on something: the next time in the air starts its own record
       else if (p.hsFall) p.hsFallT = (p.hsFallT || 0) + dtMul; // the pose's arm flutter
-      if (p.y < -200) respawnAtEntry(p); // flung off the top of the world: back to the gate you came in by, like a death
+      // ...unless you are coming DOWN out of a tree top (skyFall, set at that handoff): the level you
+      // fell off is above this one, and its branches are 14 rows over this level's top edge.
+      if (p.y >= -200) p.skyFall = false;
+      else if (!p.skyFall) respawnAtEntry(p); // flung off the top of the world: back to the gate you came in by, like a death
 
       // Fire hazard: continuous damage-over-time while the player's box overlaps a fire cell.
       // dps is per SECOND, scaled by real elapsed time (dtMul/60), so it's frame-rate independent
