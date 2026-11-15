@@ -3326137,8 +3326137,9 @@
      ]
     }
    },
-   "savedAt": 1794310875240,
-   "editedFrom": 1794182665605
+   "savedAt": 1794745554678,
+   "editedFrom": 1794310875240,
+   "once": true
   },
   {
    "id": "dlgkil1",
@@ -3327333,16 +3327334,11 @@
        "shopTag": ""
       }
      ]
-    },
-    "noywh3kq": {
-     "id": "noywh3kq",
-     "speaker": "Stan",
-     "text": "Oh nevermind he's right there. ",
-     "choices": []
     }
    },
-   "savedAt": 1794310758835,
-   "editedFrom": 1794310586890
+   "savedAt": 1794745574621,
+   "editedFrom": 1794310758835,
+   "once": true
   },
   {
    "id": "dlgtree1",
