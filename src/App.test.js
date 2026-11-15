@@ -658,6 +658,35 @@ import {
   clampAreaShift,
   liftLevelArea,
   stampLevelArea,
+  POISON_DAMAGE_SECS,
+  POISON_DAMAGE_DPS,
+  POISON_TIC_FRAMES,
+  POISON_TINT_CSS,
+  DEFAULT_AURA_RANGE,
+  POISON_AURA_DPS,
+  FLAME_AURA_DPS,
+  ICE_AURA_DPS,
+  DEFAULT_SWING_SPEED_MULT,
+  DEFAULT_FIRE_RATE_MULT,
+  poisonBody,
+  poisonDpsOf,
+  tickPoison,
+  wornPoisonDps,
+  weaponPoisonDps,
+  creaturePoisonDps,
+  totalPoisonDps,
+  bodyPoisoned,
+  weaponSwingSpeedMult,
+  wornSwingSpeedMult,
+  swingSpeedMultiplier,
+  playerSwingFrames,
+  unitSwingFrames,
+  unitMeleeCooldownFrames,
+  fireRateMultiplier,
+  effectiveFireRate,
+  boxDistance,
+  auraEffectsOf,
+  auraDpsForTarget,
 } from "./App";
 import {
   DEFAULT_HOLD_ANGLE,
@@ -4469,17 +4498,18 @@ describe("weapon magazines and enemy reloads", () => {
 
 describe("which abilities a weapon may carry", () => {
   test("a melee weapon is offered exactly the powers a swing can carry", () => {
-    expect(weaponAbilitiesFor("melee").sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "resurrect", "stun"]);
-    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "resurrect", "stun"]); // older saves have no wtype
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "stun", "swingSpeed"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "stun", "swingSpeed"]); // older saves have no wtype
   });
 
-  test("a ranged weapon gets everything that isn't a thrown object's payload", () => {
-    const notThrowOnly = Object.keys(WEAPON_ABILITIES)
-      .filter((k) => (WEAPON_ABILITIES[k].types || []).some((t) => t !== "throw")).sort();
-    expect(weaponAbilitiesFor("ranged").sort()).toEqual(notThrowOnly);
-    expect(weaponAbilitiesFor("projectile").sort()).toEqual(notThrowOnly);
-    expect(notThrowOnly).toContain("burstFire");
-    expect(notThrowOnly).not.toContain("cluster");
+  test("a ranged weapon gets every ranged ability (excluding melee-only and throw-only powers)", () => {
+    const rangedPowers = Object.keys(WEAPON_ABILITIES)
+      .filter((k) => (WEAPON_ABILITIES[k].types || []).includes("ranged")).sort();
+    expect(weaponAbilitiesFor("ranged").sort()).toEqual(rangedPowers);
+    expect(weaponAbilitiesFor("projectile").sort()).toEqual(rangedPowers);
+    expect(rangedPowers).toContain("burstFire");
+    expect(rangedPowers).not.toContain("cluster");
+    expect(rangedPowers).not.toContain("swingSpeed");
   });
 
   test("a throwable is offered its own payloads, and nothing a thrown object cannot do", () => {
@@ -13196,8 +13226,8 @@ describe("a unit's armour counts the way yours does", () => {
     // drain and the gold revive glow, and to nothing else.
     // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(7); // the fire drain, the ❄️ ice drain beside it, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, and a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away)
-    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
+    expect(untouchable.length).toBe(8); // the fire drain, the ❄️ ice drain, the 🧪 poison drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, and a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away)
+    for (const [, ln] of untouchable) expect(/eDps > 0|ePoisonDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
   });
 
   test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {
@@ -14161,7 +14191,7 @@ describe("🛡 god mode (a testing switch)", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/playerHP\.current\s*=\s*Math\.max\(0,\s*playerHP\.current\s*-/);
     expect(src).not.toMatch(/playerHP\.current\s*-=/);
-    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(8); // +1: the ❄️ ice drain; +1: detonate's own-blast self-damage; +1: a 🪞 Reflect sending your own hit back (shrugsHit)
+    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(9); // +1: the ❄️ ice drain; +1: the 🧪 poison drain; +1: detonate's own-blast self-damage; +1: a 🪞 Reflect sending your own hit back (shrugsHit)
   });
 });
 
@@ -16788,5 +16818,182 @@ describe("bug list 2026-11-15", () => {
     // the whole bottom edge is open: over the far level at the west end, over the near one further east
     expect(seamGateLeaving15(t2.level, seams, "S", 5 * 30, 46 * 30 + 5, 30)).toBeTruthy();
     expect(seamGateLeaving15(t2.level, seams, "S", 100 * 30, 46 * 30 + 5, 30)).toBeTruthy();
+  });
+});
+
+describe("🧪 Poison ability (enemies, clothes, weapons, tick tint, DPS)", () => {
+  test("lasts 5 seconds, uses custom damage per tick, and green-tints ONLY on the damage tick", () => {
+    expect(POISON_DAMAGE_SECS).toBe(5);
+    expect(POISON_DAMAGE_DPS).toBe(2);
+    expect(POISON_TIC_FRAMES).toBe(12);
+    const body = {};
+    poisonBody(body, POISON_DAMAGE_SECS, 7);
+    expect(body.poison).toBe(300);
+    expect(poisonDpsOf(body)).toBe(7);
+    // Green tint is NOT active just from being poisoned — only during the damage tick (`onPoison`)
+    expect(bodyPoisoned(body)).toBe(false);
+    expect(bodyStatusFilter(body)).toBe(null);
+    body.onPoison = POISON_TIC_FRAMES;
+    expect(bodyPoisoned(body)).toBe(true);
+    expect(bodyStatusFilter(body)).toBe(POISON_TINT_CSS);
+    // Stronger re-application keeps max dps and refreshes timer
+    tickPoison(body, 120);
+    expect(body.poison).toBe(180);
+    poisonBody(body, POISON_DAMAGE_SECS, 4);
+    expect(body.poison).toBe(300);
+    expect(poisonDpsOf(body)).toBe(7);
+    tickPoison(body, 300);
+    expect(poisonDpsOf(body)).toBe(0);
+  });
+
+  test("weapon Poison, Poisonous clothes, and non-player enemy Poison stack and copy onto projectiles", () => {
+    const meleeW = { wtype: "melee", damage: 5, poison: POISON_DAMAGE_SECS, poisonDps: 4 };
+    const rangedW = { wtype: "ranged", damage: 5, poison: POISON_DAMAGE_SECS, poisonDps: 3 };
+    const reviveW = { wtype: "ranged", resurrect: true };
+    const clothes = [{ type: "poison", dps: 5 }];
+    const enemy = { type: "enemy", poison: true, poisonDps: 6 };
+
+    expect(weaponPoisonDps(meleeW)).toBe(4);
+    expect(wornPoisonDps(clothes)).toBe(5);
+    expect(creaturePoisonDps(enemy)).toBe(6);
+    expect(totalPoisonDps(meleeW, clothes, enemy)).toBe(15);
+    expect(totalPoisonDps(null, clothes, enemy)).toBe(11);
+    expect(totalPoisonDps(reviveW, clothes, enemy)).toBe(0);
+
+    const shot = shotStatusOf(rangedW, clothes, enemy);
+    expect(shot.poison).toBe(POISON_DAMAGE_SECS);
+    expect(shot.poisonDps).toBe(14);
+    expect(shotStatusOf(reviveW, clothes, enemy).poisonDps).toBe(0);
+
+    const hitTarget = {};
+    afflictBody(hitTarget, shot);
+    expect(hitTarget.poison).toBe(300);
+    expect(hitTarget.poisonDps).toBe(14);
+
+    // Defaults created cleanly on new weapons and enemies
+    const nw = newAsset("weapon", null, "melee");
+    expect(nw.poison).toBe(0);
+    expect(nw.poisonDps).toBe(POISON_DAMAGE_DPS);
+    const ne = newAsset("enemy");
+    expect(ne.poison).toBe(false);
+    expect(ne.poisonDps).toBe(POISON_DAMAGE_DPS);
+  });
+
+  test("Poison weapon and Poisonous clothes are factored into weaponDpsOver and playerWeaponDps", () => {
+    const sword = { wtype: "melee", damage: 5 };
+    const baseDps = weaponDpsOver(sword, 5, 5, []);
+    const clothPoisonDps = weaponDpsOver(sword, 5, 5, [{ type: "poison", dps: 4 }]);
+    expect(clothPoisonDps).toBeCloseTo(baseDps + 4, 5);
+
+    const pSword = { ...sword, poison: POISON_DAMAGE_SECS, poisonDps: 3 };
+    expect(weaponDpsOver(pSword, 5, 5, [{ type: "poison", dps: 4 }])).toBeCloseTo(baseDps + 7, 5);
+
+    const gun = { wtype: "ranged", damage: 10, fireRate: 3, clipSize: 0, poison: POISON_DAMAGE_SECS, poisonDps: 2 };
+    const gunBase = weaponDpsOver({ wtype: "ranged", damage: 10, fireRate: 3, clipSize: 0 }, 10, 5, []);
+    expect(weaponDpsOver(gun, 10, 5, [{ type: "poison", dps: 3 }])).toBeCloseTo(gunBase + 5, 5);
+
+    const merged = { stats: { strength: 5, intelligence: 5 }, effects: [{ type: "poison", dps: 6 }] };
+    const baseMerged = { stats: { strength: 5, intelligence: 5 }, effects: [] };
+    expect(playerWeaponDps(merged, sword, null, [], 0)).toBeGreaterThan(playerWeaponDps(baseMerged, sword, null, [], 0));
+  });
+});
+
+describe("🧪🔥❄️ Clothing Auras (Poison Aura, Flame Aura, Ice Aura)", () => {
+  test("aura registries have sane params, short briefs, and noAnim", () => {
+    for (const k of ["poison", "poisonAura", "flameAura", "iceAura", "swingSpeed", "fireRate"]) {
+      expect(EFFECT_TYPES[k]).toBeTruthy();
+      expect(EFFECT_TYPES[k].noAnim).toBe(true);
+      expect(EFFECT_TYPES[k].brief({}).length).toBeLessThan(60);
+    }
+    expect(EFFECT_TYPES.poison.label).toBe("Poisonous");
+    expect(EFFECT_TYPES.poisonAura.label).toBe("Poison Aura");
+    expect(EFFECT_TYPES.flameAura.label).toBe("Flame Aura");
+    expect(EFFECT_TYPES.iceAura.label).toBe("Ice Aura");
+    expect(EFFECT_TYPES.poisonAura.params.map((p) => p.key)).toEqual(["dps", "range"]);
+    expect(EFFECT_TYPES.flameAura.params.map((p) => p.key)).toEqual(["dps", "range"]);
+    expect(EFFECT_TYPES.iceAura.params.map((p) => p.key)).toEqual(["dps", "range"]);
+  });
+
+  test("boxDistance & auraDpsForTarget deal K damage within X cells and 0 as soon as out of range", () => {
+    const wearerBox = { x: 100, y: 100, w: 30, h: 60 };
+    const auras = auraEffectsOf([
+      { type: "poisonAura", dps: 5, range: 3 },
+      { type: "flameAura", dps: 4, range: 2 },
+      { type: "iceAura", dps: 3, range: 4 },
+    ]);
+    const sources = [{ box: wearerBox, auras }];
+
+    // 1 cell away horizontally (right edge 130 -> 160 = 30px = 1 cell)
+    const closeBox = { x: 160, y: 100, w: 30, h: 60 };
+    expect(boxDistance(wearerBox, closeBox)).toBe(30);
+    expect(auraDpsForTarget(closeBox, sources, 30)).toEqual({ poison: 5, flame: 4, ice: 3 });
+
+    // 2.5 cells away (75px): out of Flame Aura (2c), still in Poison (3c) & Ice (4c)
+    const midBox = { x: 205, y: 100, w: 30, h: 60 };
+    expect(auraDpsForTarget(midBox, sources, 30)).toEqual({ poison: 5, flame: 0, ice: 3 });
+
+    // 5 cells away (150px): out of ALL auras -> 0 damage immediately
+    const farBox = { x: 280, y: 100, w: 30, h: 60 };
+    expect(auraDpsForTarget(farBox, sources, 30)).toEqual({ poison: 0, flame: 0, ice: 0 });
+  });
+
+  test("Flame Aura glow and Ice Aura chill + slow disappear immediately when leaving range", () => {
+    const body = { inFlameAura: 1, inIceAura: 1 };
+    expect(bodyBurning(body)).toBe(true);
+    expect(bodyChilled(body)).toBe(true);
+    expect(chillMoveMult(body)).toBe(0.5);
+    expect(chillMoveMult(body, [{ type: "coldResist", resist: 0.8 }])).toBeCloseTo(0.9);
+    body.inFlameAura = 0;
+    body.inIceAura = 0;
+    expect(bodyBurning(body)).toBe(false);
+    expect(bodyChilled(body)).toBe(false);
+    expect(chillMoveMult(body)).toBe(1);
+  });
+});
+
+describe("💨⏩ Swing Speed & Ranged Fire Rate", () => {
+  test("melee weapon Swing speed and clothing Swing Speed stack, and clothing boosts ranged pistol-whips", () => {
+    const sword = { wtype: "melee", damage: 6, swingSpeed: 1.5, swingSpeedMult: 1.5 };
+    const plainSword = { wtype: "melee", damage: 6 };
+    const bow = { wtype: "ranged", damage: 8, fireRate: 2 };
+    const swingCloth = [{ type: "swingSpeed", mult: 2 }];
+
+    expect(WEAPON_ABILITIES.swingSpeed.types).toEqual(["melee"]);
+    expect(weaponSwingSpeedMult(sword)).toBe(1.5);
+    expect(wornSwingSpeedMult(swingCloth)).toBe(2);
+
+    // Sword alone vs Sword + clothes vs Bare/Ranged pistol-whip
+    expect(swingSpeedMultiplier(sword, [])).toBe(1.5);
+    expect(swingSpeedMultiplier(sword, swingCloth)).toBe(3);
+    expect(playerSwingFrames(plainSword, [])).toBe(12);
+    expect(playerSwingFrames(sword, [])).toBe(8);
+    expect(playerSwingFrames(sword, swingCloth)).toBe(4);
+    expect(playerSwingFrames(bow, swingCloth, true)).toBe(6); // clothing speeds up swinging with a ranged weapon (Q/V)
+    expect(playerSwingFrames(bow, [], true)).toBe(12);
+
+    // Enemy/unit melee swing & cooldown scale too
+    expect(unitSwingFrames(plainSword, [])).toBe(14);
+    expect(unitSwingFrames(sword, swingCloth)).toBe(5);
+    expect(unitMeleeCooldownFrames(sword, swingCloth)).toBe(15);
+
+    // DPS reflects faster melee swings
+    const slowDps = weaponDpsOver(plainSword, 6, 5, []);
+    expect(weaponDpsOver(sword, 6, 5, [])).toBeGreaterThan(slowDps);
+    expect(weaponDpsOver(sword, 6, 5, swingCloth)).toBeGreaterThan(weaponDpsOver(sword, 6, 5, []));
+  });
+
+  test("clothing Fire Rate speeds up ranged cooldown and ranged/boomerang DPS", () => {
+    const gun = { wtype: "ranged", damage: 10, fireRate: 2, clipSize: 0 };
+    const boom = { wtype: "ranged", damage: 10, fireRate: 2, boomerang: true, projectileRange: 5, projectileSpeed: 12 };
+    const fireCloth = [{ type: "fireRate", mult: 2 }];
+
+    expect(fireRateMultiplier(fireCloth)).toBe(2);
+    expect(effectiveFireRate(2, fireCloth)).toBe(4);
+    expect(weaponFireCooldownFrames(2, [])).toBe(30);
+    expect(weaponFireCooldownFrames(2, fireCloth)).toBe(15);
+
+    expect(weaponDpsOver(gun, 10, 5, fireCloth)).toBe(40);
+    expect(weaponDpsOver(gun, 10, 5, [])).toBe(20);
+    expect(weaponDpsOver(boom, 10, 5, fireCloth)).toBeGreaterThan(weaponDpsOver(boom, 10, 5, []));
   });
 });

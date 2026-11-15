@@ -1659,7 +1659,20 @@ export const DEFAULT_FIRE_RATE = 3;    // shots per second
 export const DEFAULT_CLIP_SIZE = 6;    // rounds before a reload
 export const DEFAULT_RELOAD_TIME = 1.2; // seconds
 // Frames are the loop's native unit (dtMul makes them real-time), so both convert at 60fps.
-export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 / Math.max(0.1, fireRate || DEFAULT_FIRE_RATE)));
+export const DEFAULT_FIRE_RATE_MULT = 1.5;
+export const fireRateMultiplier = (effects) => {
+  let m = 1;
+  for (const e of effects || []) {
+    if (e && e.type === "fireRate") {
+      const v = +(e.mult ?? e.amount ?? DEFAULT_FIRE_RATE_MULT);
+      if (Number.isFinite(v) && v > 0) m *= v;
+    }
+  }
+  return m;
+};
+export const effectiveFireRate = (fireRate, effects = null) =>
+  Math.max(0.1, (fireRate || DEFAULT_FIRE_RATE) * fireRateMultiplier(effects));
+export const weaponFireCooldownFrames = (fireRate, effects = null) => Math.max(1, Math.round(60 / effectiveFireRate(fireRate, effects)));
 // BURST FIRE. One trigger pull sends a short salvo instead of a single shot. `burst` is how many
 // rounds that salvo is; the shots inside it are spaced by burstDelay seconds, which is a separate,
 // much tighter clock than the weapon’s fire RATE — the rate still governs how soon the next PULL
@@ -1712,6 +1725,22 @@ export const tickIgnite = (body, dtMul) => { if (body && (body.ignite || 0) > 0)
 // and bite site makes, so a new site cannot set you alight and forget to freeze you.
 export const FIRE_DAMAGE_SECS = 10, FIRE_DAMAGE_DPS = 2;
 export const ICE_DAMAGE_SECS = 10, ICE_DAMAGE_DPS = 1, ICE_SLOW_MULT = 0.5;
+export const POISON_DAMAGE_SECS = 5, POISON_DAMAGE_DPS = 2, POISON_TIC_FRAMES = 12;
+export const DEFAULT_AURA_RANGE = 3, POISON_AURA_DPS = 2, FLAME_AURA_DPS = 2, ICE_AURA_DPS = 1;
+export const DEFAULT_SWING_SPEED_MULT = 1.5;
+export const poisonBody = (body, secs, dps) => {
+  if (!body || !((secs || 0) > 0) || !((dps || 0) > 0)) return body;
+  const poisoned = (body.poison || 0) > 0;
+  body.poison = Math.max(body.poison || 0, Math.round(secs * 60));
+  body.poisonDps = poisoned ? Math.max(body.poisonDps || 0, dps) : dps;
+  return body;
+};
+export const poisonDpsOf = (body) => (body && (body.poison || 0) > 0 ? body.poisonDps || 0 : 0);
+export const tickPoison = (body, dtMul) => { if (body && (body.poison || 0) > 0) body.poison = Math.max(0, body.poison - dtMul); return body; };
+export const wornPoisonDps = (effects) => (effects || []).filter((e) => e && e.type === "poison").reduce((s, e) => s + Math.max(0, e.dps ?? POISON_DAMAGE_DPS), 0);
+export const weaponPoisonDps = (w) => (w && !w.resurrect && !isThrowable(w.wtype) && w.poison ? Math.max(0, w.poisonDps ?? POISON_DAMAGE_DPS) : 0);
+export const creaturePoisonDps = (c) => (c && c.poison ? Math.max(0, c.poisonDps ?? POISON_DAMAGE_DPS) : 0);
+export const totalPoisonDps = (w, effects = null, creature = null) => (w && w.resurrect ? 0 : weaponPoisonDps(w) + wornPoisonDps(effects) + creaturePoisonDps(creature));
 export const chillBody = (body, secs, dps) => {
   if (!body || !((secs || 0) > 0) || !((dps || 0) > 0)) return body;
   const cold = (body.chill || 0) > 0;
@@ -1724,33 +1753,43 @@ export const tickChill = (body, dtMul) => { if (body && (body.chill || 0) > 0) b
 // Walk speed AND jump height multiplier (1 = not chilled). A jump's height goes with its launch
 // velocity SQUARED, so the velocity takes the square root (chillJumpVMult) to land at half height.
 export const chillMoveMult = (body, effects) => {
-  if (!body || !((body.chill || 0) > 0)) return 1;
+  if (!body || !((body.chill || 0) > 0 || (body.inIceAura || 0) > 0)) return 1;
   const m = effects ? coldDamageMult(effects) : (body.chillMult ?? 1);
   return 1 - (1 - ICE_SLOW_MULT) * m;
 };
 export const chillJumpVMult = (body, effects) => Math.sqrt(chillMoveMult(body, effects));
 // What a hit carries onto whoever it lands on. `src` is a weapon (a swing, a bite) or a projectile
 // (which copied these fields off its gun as it left the barrel: shotStatusOf).
-export const afflictBody = (body, src, igniteDpsDef = DEFAULT_IGNITE_DPS) => {
-  if (!body || !src) return body;
-  igniteBody(body, src.ignite, src.igniteDps ?? igniteDpsDef);
-  chillBody(body, src.iceDamage, src.iceDamageDps ?? ICE_DAMAGE_DPS);
+export const afflictBody = (body, src, igniteDpsDef = DEFAULT_IGNITE_DPS, effects = null, creature = null) => {
+  if (!body || (!src && !effects && !creature)) return body;
+  if (src) {
+    igniteBody(body, src.ignite, src.igniteDps ?? igniteDpsDef);
+    chillBody(body, src.iceDamage, src.iceDamageDps ?? ICE_DAMAGE_DPS);
+  }
+  const pDps = totalPoisonDps(src, effects, creature);
+  if (pDps > 0) poisonBody(body, src && typeof src.poison === "number" && src.poison > 0 ? src.poison : POISON_DAMAGE_SECS, pDps);
   return body;
 };
-// The ice half of a projectile's payload, copied off the weapon at the trigger (a resurrect shot
-// does no harm at all, so it carries none). Ignite rides its own long-standing fields beside it.
-export const shotStatusOf = (w) => (!w || w.resurrect ? { iceDamage: 0, iceDamageDps: ICE_DAMAGE_DPS } : { iceDamage: w.iceDamage ?? 0, iceDamageDps: w.iceDamageDps ?? ICE_DAMAGE_DPS });
-// WHAT THE STATUS LOOKS LIKE. Burning covers the whole burn (an Ignite clock still running, or the
-// 12-frame flag a fire cell's tick sets), not just the tick: the glow used to show only on the frames
-// HP actually came off, which at his 2/s blinked on for a fifth of every second.
-export const bodyBurning = (body) => !!body && ((body.ignite || 0) > 0 || (body.onFire || 0) > 0);
-export const bodyChilled = (body) => !!body && (body.chill || 0) > 0;
+// The ice and poison payload of a projectile, copied off the weapon + wearer at the trigger (a resurrect
+// shot does no harm at all, so it carries none). Ignite rides its own long-standing fields beside it.
+export const shotStatusOf = (w, effects = null, creature = null) => {
+  if (!w || w.resurrect) return { iceDamage: 0, iceDamageDps: ICE_DAMAGE_DPS, poison: 0, poisonDps: 0 };
+  const pDps = totalPoisonDps(w, effects, creature);
+  return { iceDamage: w.iceDamage ?? 0, iceDamageDps: w.iceDamageDps ?? ICE_DAMAGE_DPS, poison: pDps > 0 ? POISON_DAMAGE_SECS : 0, poisonDps: pDps };
+};
+// WHAT THE STATUS LOOKS LIKE. Burning covers the whole burn (an Ignite clock still running, the
+// 12-frame flag a fire cell's tick sets, or Flame Aura proximity), while Poison green-tints only on
+// the frames a poison tick deals damage (`onPoison`).
+export const bodyBurning = (body) => !!body && ((body.ignite || 0) > 0 || (body.onFire || 0) > 0 || (body.inFlameAura || 0) > 0);
+export const bodyChilled = (body) => !!body && ((body.chill || 0) > 0 || (body.inIceAura || 0) > 0);
+export const bodyPoisoned = (body) => !!body && (body.onPoison || 0) > 0;
 export const BURN_GLOW_CSS = "drop-shadow(0 0 5px #ff5a1f) drop-shadow(0 0 2px #ffa23a) brightness(1.2) saturate(1.35) hue-rotate(-10deg)";
 // A WHITE OUTLINE: two tight white shadows build a crisp rim round the silhouette, a wider pale-blue
 // one frosts it, and the colours go a little pale under it.
 export const ICE_OUTLINE_CSS = "drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 0 4px #bfe8ff) saturate(0.7) brightness(1.1)";
-// The filter for a body's status, both at once when it is burning AND chilled (the glow outside the rim).
-export const bodyStatusFilter = (body) => [bodyChilled(body) ? ICE_OUTLINE_CSS : null, bodyBurning(body) ? BURN_GLOW_CSS : null].filter(Boolean).join(" ") || null;
+export const POISON_TINT_CSS = "drop-shadow(0 0 4px #45e038) sepia(0.55) hue-rotate(65deg) saturate(2.1)";
+// The filter for a body's status, combined when multiple statuses are active.
+export const bodyStatusFilter = (body) => [bodyChilled(body) ? ICE_OUTLINE_CSS : null, bodyBurning(body) ? BURN_GLOW_CSS : null, bodyPoisoned(body) ? POISON_TINT_CSS : null].filter(Boolean).join(" ") || null;
 // "Sort of sparks coming off of them" / ice "effects": a handful of particles over the body's hit
 // box, sparks rising out of its lower two thirds, frost glinting all over it and sliding down. The
 // spots are FIXED and the motion is CSS (.statusFx), because the play view re-renders every frame:
@@ -1948,21 +1987,52 @@ export const advanceAutoReloadWeapon = (w, dt, reloadFrames) => {
 //     restarted faster than it plays, so that is the ceiling the HUD can honestly quote.
 export const WEAPON_DPS_WINDOW_SECS = 10;
 export const PLAYER_SWING_FRAMES = 12;
+export const weaponSwingSpeedMult = (w) => {
+  if (!w || !w.swingSpeed) return 1;
+  const m = typeof w.swingSpeed === "number" && w.swingSpeed > 1 ? w.swingSpeed : (w.swingSpeedMult ?? DEFAULT_SWING_SPEED_MULT);
+  return Math.max(0.25, m);
+};
+export const wornSwingSpeedMult = (effects) => (effects || []).filter((e) => e && e.type === "swingSpeed").reduce((p, e) => p * Math.max(0.25, e.mult ?? DEFAULT_SWING_SPEED_MULT), 1);
+export const swingSpeedMultiplier = (w, effects = null, unarmed = false) => wornSwingSpeedMult(effects) * (!unarmed && w && !isRanged(w.wtype) && !isThrowable(w.wtype) ? weaponSwingSpeedMult(w) : 1);
+export const playerSwingFrames = (w, effects = null, unarmed = false) => Math.max(3, Math.round(PLAYER_SWING_FRAMES / swingSpeedMultiplier(w, effects, unarmed)));
+const poisonDpsInWindow = (frames, pDps, hitAtFrame) => {
+  if (!(pDps > 0)) return 0;
+  const maxFrames = Math.round(POISON_DAMAGE_SECS * 60);
+  let p = 0, pool = 0, dmg = 0;
+  for (let f = 0; f < frames; f++) {
+    if (hitAtFrame(f)) p = maxFrames;
+    if (p > 0) {
+      pool += 1 / 60;
+      if (pool >= 1 - 1e-6) { pool -= 1; dmg += pDps; }
+      p = Math.max(0, p - 1);
+    }
+  }
+  return dmg;
+};
 export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAPON_DPS_WINDOW_SECS) => {
   const frames = Math.max(1, Math.round(secs * 60));
   const hit = Math.max(0, perHit || 0);
-  if (!weapon || !isRanged(weapon.wtype)) return hit * Math.ceil(frames / PLAYER_SWING_FRAMES) / secs;
-  const cdFrames = weaponFireCooldownFrames(weapon.fireRate);
+  const pDps = totalPoisonDps(weapon, effects);
+  if (!weapon || !isRanged(weapon.wtype)) {
+    const sw = playerSwingFrames(weapon, effects);
+    const poisonDmg = poisonDpsInWindow(frames, pDps, (f) => f % sw === 0);
+    return (hit * Math.ceil(frames / sw) + poisonDmg) / secs;
+  }
+  const cdFrames = weaponFireCooldownFrames(weapon.fireRate, effects);
   // 🪃 A boomerang gun throws again only once it is home (boomerangTripFrames: no clip, no reload), and
   // it goes through a body twice on one throw, out and back down the same line.
   if (isBoomerang(weapon)) {
     const trip = Math.max(cdFrames, boomerangTripFrames(Math.max(1, weapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * LV_CELL, weapon.projectileSpeed ?? 12, LV_CELL));
-    return hit * 2 * Math.ceil(frames / trip) / secs;
+    const halfTrip = Math.max(1, Math.floor(trip / 2));
+    const poisonDmg = poisonDpsInWindow(frames, pDps, (f) => f % trip === 0 || f % trip === halfTrip);
+    return (hit * 2 * Math.ceil(frames / trip) + poisonDmg) / secs;
   }
   const reloadFrames = weaponReloadFrames(weapon.reloadTime, intelligence);
   const salvo = weaponBurstShotCount(weapon), salvoGap = burstDelayFrames(weapon.burstDelay);
   let w = newWeaponAmmo(effectiveMagazineSize(weapon.clipSize, effects));
   let burstLeft = 0, burstT = 0, shots = 0;
+  let poisonLeft = 0, poisonPool = 0, poisonDmg = 0;
+  const maxPoison = Math.round(POISON_DAMAGE_SECS * 60);
   for (let f = 0; f < frames; f++) {
     if (burstLeft > 0) burstT -= 1;
     const due = burstShotDue(burstLeft, burstT, w);
@@ -1971,12 +2041,18 @@ export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAP
       if (needsReload(w)) { w = startReload(w, reloadFrames); burstLeft = 0; }
     } else {
       w = consumeShot(w, cdFrames); shots++;
+      if (pDps > 0) poisonLeft = maxPoison;
       burstLeft = due ? burstLeft - 1 : salvo - 1;
       burstT = salvoGap;
     }
+    if (poisonLeft > 0) {
+      poisonPool += 1 / 60;
+      if (poisonPool >= 1 - 1e-6) { poisonPool -= 1; poisonDmg += pDps; }
+      poisonLeft = Math.max(0, poisonLeft - 1);
+    }
     w = advanceWeapon(w, 1);
   }
-  return hit * shots / secs;
+  return (hit * shots + poisonDmg) / secs;
 };
 // The HUD's wording of it: a whole number from 100 up, one decimal below, so 2.5 does not read as 3.
 export const formatDps = (dps) => { const d = Math.max(0, dps || 0); return d >= 100 ? String(Math.round(d)) : String(Math.round(d * 10) / 10); };
@@ -2484,6 +2560,22 @@ export const WEAPON_ABILITIES = {
     melee: true,
     isOn: (a) => !!a && !isThrowable(a.wtype) && (a.iceDamage ?? 0) > 0,
     on: { iceDamage: ICE_DAMAGE_SECS, iceDamageDps: ICE_DAMAGE_DPS }, off: { iceDamage: 0 },
+  },
+  poison: {
+    icon: "🧪", label: "Poison", types: ["ranged", "melee"],
+    blurb: "A connecting hit poisons the target for 5 seconds: it loses Poison / tick damage every second and flashes a green tint on each damage tick. Works in both directions: in a 👹 Enemy's hands it poisons YOU.",
+    brief: (a) => "poisons what it hits · " + briefNum(a.poisonDps ?? POISON_DAMAGE_DPS) + "/tick for " + POISON_DAMAGE_SECS + "s",
+    melee: true,
+    isOn: (a) => !!a && !isThrowable(a.wtype) && !!a.poison,
+    on: { poison: POISON_DAMAGE_SECS, poisonDps: POISON_DAMAGE_DPS }, off: { poison: 0 },
+  },
+  swingSpeed: {
+    icon: "💨", label: "Swing speed", types: ["melee"],
+    blurb: "Swings faster every time you strike, boosting your melee attacks per second and DPS. Stacks with Swing Speed clothing.",
+    brief: (a) => "swings ×" + briefNum(weaponSwingSpeedMult(a)) + " faster",
+    melee: true,
+    isOn: (a) => !!a && (!a.wtype || !isRanged(a.wtype) && !isThrowable(a.wtype)) && ((a.swingSpeed ?? 0) > 1 || (!!a.swingSpeed && (a.swingSpeedMult ?? 0) > 1)),
+    on: { swingSpeed: DEFAULT_SWING_SPEED_MULT, swingSpeedMult: DEFAULT_SWING_SPEED_MULT }, off: { swingSpeed: 0 },
   },
   resurrect: {
     icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
@@ -5620,6 +5712,8 @@ const DEFAULT_ATTACK_RANGE = 60;   // px — used when an enemy asset hasn't set
 const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy holding a bow/gun engages from far further out than a fist
 const ATTACK_COOLDOWN_FRAMES = 45; // frames between one enemy's attacks (~0.75s)
 const ATTACK_SWING_FRAMES = 14;    // how long the attack's arm-swing/lunge visual plays
+export const unitSwingFrames = (w, effects = null) => Math.max(4, Math.round(ATTACK_SWING_FRAMES / swingSpeedMultiplier(w, effects)));
+export const unitMeleeCooldownFrames = (w, effects = null) => Math.max(12, Math.round(ATTACK_COOLDOWN_FRAMES / swingSpeedMultiplier(w, effects)));
 // Brief invulnerability after a hit, so standing in one enemy's range doesn't melt HP every frame.
 // It is the PLAYER'S number and, since 2026-10-14, every unit's too (unitHitImmune) — see there.
 export const PLAYER_INVULN_FRAMES = 40;
@@ -5693,7 +5787,7 @@ export const reviveInPlace = (p) => {
   // reaches zero, and the window here outlasts it anyway.
   p.stun = 0; p.down = EXTRA_LIFE_DOWN_FRAMES;
   p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0; p.stomp = null; // a stomp is committed state too
-  p.burnPool = 0; p.onFire = 0; p.ignite = 0; p.chill = 0; p.chillPool = 0; // a revive thaws you as it puts you out
+  p.burnPool = 0; p.onFire = 0; p.ignite = 0; p.chill = 0; p.chillPool = 0; p.poison = 0; p.poisonDps = 0; p.onPoison = 0; p.poisonPool = 0; p.inFlameAura = 0; p.inIceAura = 0; // a revive thaws and detoxifies you as it puts you out
   // A unit's corpse flag. The revive runs the same frame as the death, before the dead branch
   // ever sees it, so this is belt-and-braces — but a settled corpse that got back up must not
   // keep "stop simulating" set, or it would stand there with gravity switched off.
@@ -6412,6 +6506,63 @@ export const EFFECT_TYPES = {
     noAnim: true,
     params: [],
   },
+  poison: {
+    label: "Poisonous", icon: "🧪",
+    blurb: "Adds poison damage to every weapon hit and bare-handed strike you throw while wearing it: targets lose extra HP every second for 5 seconds and flash a green tint on each damage tick. Factored into weapon DPS. Works on enemies too.",
+    brief: (p) => "adds " + briefNum(p.dps ?? POISON_DAMAGE_DPS) + " poison/tick (" + POISON_DAMAGE_SECS + "s)",
+    noAnim: true,
+    params: [
+      { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: POISON_DAMAGE_DPS },
+    ],
+  },
+  poisonAura: {
+    label: "Poison Aura", icon: "🧪",
+    blurb: "Deals poison tick damage every second to nearby foes within Range cells, tinting them green on each tick. Stops immediately when they leave range. Works on both you and enemies.",
+    brief: (p) => briefNum(p.dps ?? POISON_AURA_DPS) + " poison/tick within " + briefNum(p.range ?? DEFAULT_AURA_RANGE) + " cells",
+    noAnim: true,
+    params: [
+      { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: POISON_AURA_DPS },
+      { key: "range", label: "Range (cells)", min: 1, max: 12, step: 0.5, def: DEFAULT_AURA_RANGE, fmt: (v) => v + " cells" },
+    ],
+  },
+  flameAura: {
+    label: "Flame Aura", icon: "🔥",
+    blurb: "Scorches nearby foes within Range cells for fire damage every second while they stay close, lighting them up with flames. Stops immediately when they leave range. Respects Fire Immunity and Resistance.",
+    brief: (p) => briefNum(p.dps ?? FLAME_AURA_DPS) + " fire/tick within " + briefNum(p.range ?? DEFAULT_AURA_RANGE) + " cells",
+    noAnim: true,
+    params: [
+      { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: FLAME_AURA_DPS },
+      { key: "range", label: "Range (cells)", min: 1, max: 12, step: 0.5, def: DEFAULT_AURA_RANGE, fmt: (v) => v + " cells" },
+    ],
+  },
+  iceAura: {
+    label: "Ice Aura", icon: "❄️",
+    blurb: "Chills nearby foes within Range cells for ice damage every second and halves their move and jump speed while they stay close. Stops immediately when they leave range. Respects Cold Resistance.",
+    brief: (p) => briefNum(p.dps ?? ICE_AURA_DPS) + " ice/tick & slow in " + briefNum(p.range ?? DEFAULT_AURA_RANGE) + " cells",
+    noAnim: true,
+    params: [
+      { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: ICE_AURA_DPS },
+      { key: "range", label: "Range (cells)", min: 1, max: 12, step: 0.5, def: DEFAULT_AURA_RANGE, fmt: (v) => v + " cells" },
+    ],
+  },
+  swingSpeed: {
+    label: "Swing Speed", icon: "💨",
+    blurb: "Multiplies how fast you swing melee weapons and punch/pistol-whip (Q / V) with ranged weapons, increasing melee DPS. Stacks with melee weapon Swing speed. Works on enemies too.",
+    brief: (p) => "×" + briefNum(p.mult ?? DEFAULT_SWING_SPEED_MULT) + " melee & ranged swing speed",
+    noAnim: true,
+    params: [
+      { key: "mult", label: "Speed ×", min: 1.1, max: 3, step: 0.1, def: DEFAULT_SWING_SPEED_MULT, fmt: (v) => "×" + (+v).toFixed(1) },
+    ],
+  },
+  fireRate: {
+    label: "Fire Rate", icon: "⏩",
+    blurb: "Increases the fire rate of ranged weapons you hold while wearing it, boosting DPS. Works for enemies too.",
+    brief: (p) => "×" + briefNum(p.mult ?? DEFAULT_FIRE_RATE_MULT) + " ranged fire rate",
+    noAnim: true,
+    params: [
+      { key: "mult", label: "Rate ×", min: 1.1, max: 3, step: 0.1, def: DEFAULT_FIRE_RATE_MULT, fmt: (v) => "×" + (+v).toFixed(1) },
+    ],
+  },
 };
 // Live pedestal pickup: layer a taken equipment item's stat boosts / defense / effects onto the
 // player during Playtest. Mirrors assembleLook's stat/effect math (additive stat boosts, summed
@@ -6622,12 +6773,12 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
   // this and derives its HP from the look's own stats — see enemyMaxHP.
-  if (type === "enemy") { a.groundLine = {}; a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.flies = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
+  if (type === "enemy") { a.groundLine = {}; a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.flies = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; a.poison = false; a.poisonDps = POISON_DAMAGE_DPS; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
   // A prop/object: single-canvas pixel art (like a projectile), placed into levels at any size.
@@ -6905,6 +7056,35 @@ const anglesEmpty = (ag) => ANGLES.every((a) => !(ag && ag[a] && ag[a].length));
 // 8 connection points: 2 per side. Opposing points pair up (W1<->E1 etc.).
 const CONN_KEYS = ["N1", "N2", "E1", "E2", "S1", "S2", "W1", "W2"];
 const LV_CELL = 30;
+export const boxDistance = (a, b) => {
+  if (!a || !b) return Infinity;
+  const aw = a.w ?? 0, ah = a.h ?? 0, bw = b.w ?? 0, bh = b.h ?? 0;
+  const dx = Math.max(b.x - (a.x + aw), a.x - (b.x + bw), 0);
+  const dy = Math.max(b.y - (a.y + ah), a.y - (b.y + bh), 0);
+  return Math.hypot(dx, dy);
+};
+export const auraEffectsOf = (effects) => {
+  const out = [];
+  for (const e of (effects || [])) {
+    if (!e) continue;
+    if (e.type === "poisonAura") out.push({ kind: "poison", dps: Math.max(0, e.dps ?? POISON_AURA_DPS), range: Math.max(0, e.range ?? DEFAULT_AURA_RANGE) });
+    else if (e.type === "flameAura") out.push({ kind: "flame", dps: Math.max(0, e.dps ?? FLAME_AURA_DPS), range: Math.max(0, e.range ?? DEFAULT_AURA_RANGE) });
+    else if (e.type === "iceAura") out.push({ kind: "ice", dps: Math.max(0, e.dps ?? ICE_AURA_DPS), range: Math.max(0, e.range ?? DEFAULT_AURA_RANGE) });
+  }
+  return out;
+};
+export const auraDpsForTarget = (targetBox, sources, cellPx = LV_CELL) => {
+  const res = { poison: 0, flame: 0, ice: 0 };
+  if (!targetBox || !sources || !sources.length) return res;
+  for (const src of sources) {
+    if (!src || !src.box || !src.auras || !src.auras.length) continue;
+    const dist = boxDistance(targetBox, src.box);
+    for (const a of src.auras) {
+      if (a.range > 0 && a.dps > 0 && dist <= a.range * cellPx + 1e-6) res[a.kind] = Math.max(res[a.kind], a.dps);
+    }
+  }
+  return res;
+};
 const CONN_OPP = { N1: "S1", N2: "S2", S1: "N1", S2: "N2", W1: "E1", W2: "E2", E1: "W1", E2: "W2" };
 // Where each connector ENDS UP when the level is mirrored left↔right (see flipLevelHorizontally).
 // Not the same map as CONN_OPP: the left and right edges trade places, and so do the two top ones
@@ -15404,7 +15584,7 @@ export default function AssetStudio({ game = false } = {}) {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -16546,7 +16726,7 @@ export default function AssetStudio({ game = false } = {}) {
     // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
     // record (clip 0), so nothing below ever gates a swing on ammo.
     const wpnIsRanged = !!(playtestWeapon && isRanged(playtestWeapon.wtype));
-    const fireCdFrames = weaponFireCooldownFrames(playtestWeapon?.fireRate);
+    const fireCdFrames = weaponFireCooldownFrames(playtestWeapon?.fireRate, playerAsset?.effects);
     // ...but walking through a RUN's gate is not a new session. This effect re-runs on that level
     // swap too, and it used to hand you a full clip (and a fresh fire cooldown, cancelling a reload
     // halfway) and restock your grenades at every gate, and wipe any grenade still in the air —
@@ -17115,7 +17295,7 @@ export default function AssetStudio({ game = false } = {}) {
       const here = lv.runKey || lv.id, rs = respawnSpec.current;
       const spec = rs && rs.at === here ? rs.spec : (lv.isRoom ? { roomDoor: true } : { gate: true });
       p.crouch = false; p.climbing = false; p.climbJump = false; p.topdown = false; p.tdJumpY = null;
-      p.stun = 0; p.down = 0; p.downCd = 0; p.ignite = 0; p.burnPool = 0; p.chill = 0; p.chillPool = 0;
+      p.stun = 0; p.down = 0; p.downCd = 0; p.ignite = 0; p.burnPool = 0; p.chill = 0; p.chillPool = 0; p.poison = 0; p.poisonDps = 0; p.onPoison = 0; p.poisonPool = 0; p.inFlameAura = 0; p.inIceAura = 0;
       placeSpawn(p, spec, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS);
       camRef.current.init = false; // a respawn is a cut, like a door — not a pan across the level
     };
@@ -18171,8 +18351,28 @@ export default function AssetStudio({ game = false } = {}) {
       // fractional pool so sub-1-HP ticks aren't rounded away to nothing each frame.
       // The ONE window it does honour is lifeGrace, the 🐱 Extra Life flash: you get back up in the
       // flames you died in, and without this the next life goes a sixth of a second later.
+      const hostileAuraSources = [], friendlyAuraSources = [];
+      const pAuras = auraEffectsOf(playerAsset?.effects);
+      if (pAuras.length && playerHP.current > 0 && !vehDriven) friendlyAuraSources.push({ box: { x: p.x, y: p.y, w: pw, h: ph }, auras: pAuras });
+      if (lv.enemies) {
+        for (const k0 of Object.keys(lv.enemies)) {
+          const ep0 = enemyPos.current[k0]; if (!ep0) continue;
+          if (enemyHP.current[k0] !== undefined && enemyHP.current[k0] <= 0) continue;
+          const ea0 = unitAssetAt(k0, lv.enemies[k0]); if (!ea0) continue;
+          const a0 = auraEffectsOf(ea0.effects); if (!a0.length) continue;
+          const s0 = unitSide(ea0, ep0);
+          if (s0 === "hostile") hostileAuraSources.push({ box: unitBodyBox(ea0, ep0, CW), auras: a0 });
+          else if (s0 === "friendly") friendlyAuraSources.push({ box: unitBodyBox(ea0, ep0, CW), auras: a0 });
+        }
+      }
+      const pAura = (!p.transitioning && !(p.lifeGrace > 0) && !vehDriven && playerHP.current > 0)
+        ? auraDpsForTarget({ x: p.x, y: p.y, w: pw, h: ph }, hostileAuraSources, CW)
+        : { poison: 0, flame: 0, ice: 0 };
+      p.inFlameAura = pAura.flame > 0 && !pFireImmune ? 1 : 0;
+      p.inIceAura = pAura.ice > 0 ? 1 : 0;
+
       if (pFireImmune) p.ignite = 0; // 🧯 nothing sets you alight
-      const pDps = pFireImmune ? 0 : (hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p)) * pFireMult; // 🔥 plus a hit that set you alight, less any 🚒 resistance
+      const pDps = pFireImmune ? 0 : (hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p) + pAura.flame) * pFireMult; // 🔥 plus a hit that set you alight, or Flame Aura, less any 🚒 resistance
       tickIgnite(p, dtMul);
       if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && !vehDriven) { // 🚗 a fire under your car burns the car (the VEHICLES fire pass)
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
@@ -18186,7 +18386,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (p.onFire > 0) p.onFire -= dtMul;
       // ❄️ ICE: the burn's twin, by the same per-second pool and the same two windows (a door, the
       // 🐱 get-up). Fire Immunity has nothing to say about it. See chillBody.
-      const pIceDps = chillDpsOf(p) * pColdMult;
+      const pIceDps = (chillDpsOf(p) + pAura.ice) * pColdMult;
       tickChill(p, dtMul);
       if (pIceDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && playerHP.current > 0 && !vehDriven) {
         p.chillPool = (p.chillPool || 0) + pIceDps * (dtMul / 60);
@@ -18196,6 +18396,20 @@ export default function AssetStudio({ game = false } = {}) {
           if (playerHP.current <= 0) { playerDefeated(p, "❄️ Frozen solid — back to the start."); p.chillPool = 0; }
         }
       } else { p.chillPool = 0; }
+      // 🧪 POISON (5s hit DoT + Poison Aura): 1s ticks deal poison/tick damage and flash the green tint.
+      const pHitPoison = poisonDpsOf(p);
+      tickPoison(p, dtMul);
+      const pPoisonDps = pHitPoison + pAura.poison;
+      if (pPoisonDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && playerHP.current > 0 && !vehDriven) {
+        p.poisonPool = (p.poisonPool || 0) + dtMul / 60;
+        if (p.poisonPool >= 1 - 1e-6) {
+          const ticks = Math.max(1, Math.floor(p.poisonPool + 1e-6)); p.poisonPool = Math.max(0, p.poisonPool - ticks);
+          playerHP.current = playerHpAfterHit(playerHP.current, pPoisonDps * ticks);
+          p.onPoison = POISON_TIC_FRAMES;
+          if (playerHP.current <= 0) { playerDefeated(p, "🧪 Succumbed to poison — back to the start."); p.poisonPool = 0; }
+        }
+      } else { p.poisonPool = 0; }
+      if (p.onPoison > 0) p.onPoison = Math.max(0, p.onPoison - dtMul);
 
       // Walk/climb-cycle phase for limb-flagged pieces — advances with actual movement so
       // animation speed naturally scales with how fast (or slow, e.g. crouched) you're moving.
@@ -19263,7 +19477,12 @@ export default function AssetStudio({ game = false } = {}) {
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
           const eFireImmune = fireImmune(ea.effects); // 🧯 the player's rule, on it
           if (eFireImmune) ep.ignite = 0;
-          const eDps = eFireImmune ? 0 : (hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep)) * fireDamageMult(ea.effects); // 🔥 plus a hit that set it alight, less any 🚒 resistance
+          const eaSide = unitSide(ea, ep);
+          const eAuraSrc = eaSide === "friendly" ? hostileAuraSources : eaSide === "hostile" ? friendlyAuraSources : null;
+          const eAura = (!unitTalkImmune(ep) && !(ep.lifeGrace > 0) && eAuraSrc && eAuraSrc.length) ? auraDpsForTarget(unitBodyBox(ea, ep, CW), eAuraSrc, CW) : { poison: 0, flame: 0, ice: 0 };
+          ep.inFlameAura = eAura.flame > 0 && !eFireImmune ? 1 : 0;
+          ep.inIceAura = eAura.ice > 0 ? 1 : 0;
+          const eDps = eFireImmune ? 0 : (hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep) + eAura.flame) * fireDamageMult(ea.effects); // 🔥 plus a hit or Flame Aura, less any 🚒 resistance
           tickIgnite(ep, dtMul);
           // Fire is universal and does not care whose side you are on — with ONE exception, and it
           // is not a special case so much as closing the door the rest of the rule leaves open: a
@@ -19278,12 +19497,12 @@ export default function AssetStudio({ game = false } = {}) {
               const loss = Math.floor(ep.burnPool); ep.burnPool -= loss;
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - loss);
               ep.onFire = 12;
-              if (enemyHP.current[k] <= 0) { flash("🔥 " + ea.name + " burned up!"); continue; }
+              if (enemyHP.current[k] <= 0) { ep.inFlameAura = 0; ep.inIceAura = 0; flash("🔥 " + ea.name + " burned up!"); continue; }
             }
           } else { ep.burnPool = 0; }
           if (ep.onFire > 0) ep.onFire -= dtMul;
           // ❄️ ICE on a unit: your pool, your two windows (a talker, the 🐱 get-up), its fire's flash.
-          const eIceDps = chillDpsOf(ep) * (ep.chillMult ?? 1);
+          const eIceDps = (chillDpsOf(ep) + eAura.ice) * (ep.chillMult ?? 1);
           tickChill(ep, dtMul);
           if (eIceDps > 0 && !unitTalkImmune(ep) && !unitUntouchable(ep)) {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
@@ -19291,9 +19510,25 @@ export default function AssetStudio({ game = false } = {}) {
             if (ep.chillPool >= 1) {
               const loss = Math.floor(ep.chillPool); ep.chillPool -= loss;
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - loss);
-              if (enemyHP.current[k] <= 0) { flash("❄️ " + ea.name + " froze solid!"); continue; }
+              if (enemyHP.current[k] <= 0) { ep.inFlameAura = 0; ep.inIceAura = 0; flash("❄️ " + ea.name + " froze solid!"); continue; }
             }
           } else { ep.chillPool = 0; }
+          // 🧪 POISON on a unit (5s hit DoT + Poison Aura): 1s ticks deal poison/tick damage and flash the green tint.
+          const eHitPoison = poisonDpsOf(ep);
+          tickPoison(ep, dtMul);
+          const ePoisonDps = eHitPoison + eAura.poison;
+          if (ePoisonDps > 0 && !unitTalkImmune(ep) && !unitUntouchable(ep)) {
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+            ep.poisonPool = (ep.poisonPool || 0) + dtMul / 60;
+            if (ep.poisonPool >= 1 - 1e-6) {
+              const ticks = Math.max(1, Math.floor(ep.poisonPool + 1e-6)); ep.poisonPool = Math.max(0, ep.poisonPool - ticks);
+              const loss = ePoisonDps * ticks;
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - loss);
+              ep.onPoison = POISON_TIC_FRAMES;
+              if (enemyHP.current[k] <= 0) { ep.inFlameAura = 0; ep.inIceAura = 0; flash("🧪 " + ea.name + " succumbed to poison!"); continue; }
+            }
+          } else { ep.poisonPool = 0; }
+          if (ep.onPoison > 0) ep.onPoison = Math.max(0, ep.onPoison - dtMul);
 
           // Attack: independent of AI type — Guard attacks without chasing, Seek/Avoid can also
           // attack mid-chase/retreat. Gated by range (weapon-aware, see enemyAttackRange),
@@ -19389,7 +19624,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // theirs was an ordinary stick. Same 💫 channel, same seconds off the same slider.
                 // Deliberately inside the else and behind the i-frame and block gates above: a hit
                 // that killed you, that never landed, or that you turned aside cannot daze you.
-                if (hitEw) afflictBody(p, hitEw);
+                if (!bodyBlow) afflictBody(p, hitEw, DEFAULT_IGNITE_DPS, ea?.effects, ea);
                 if ((hitEw?.stun ?? 0) > 0) { stunPlayer(p, hitEw.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + hitEw.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
               }
@@ -19404,7 +19639,7 @@ export default function AssetStudio({ game = false } = {}) {
               enemyHP.current[key] = Math.max(0, cur - uDmg);
               if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
               if (bEp) bEp.lastHitByFx = ea.effects || []; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
-              if (bEp && enemyHP.current[key] > 0 && hitEw) afflictBody(bEp, hitEw); // 🔥 / ❄️ its blade's fire and ice, unit on unit as on you
+              if (bEp && enemyHP.current[key] > 0 && !bodyBlow) afflictBody(bEp, hitEw, DEFAULT_IGNITE_DPS, ea?.effects, ea); // 🔥 / ❄️ / 🧪 weapon + clothes + innate poison, unit on unit as on you
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
             }
@@ -19419,8 +19654,9 @@ export default function AssetStudio({ game = false } = {}) {
           // you). The chosen target is swept first — it is the one the AI aimed at — and then
           // everybody else on the other side, plus the player when a hostile is fighting a unit.
           if (!stunned && attacking && meleeGeom && ep.swingT > 0 && ep.swingHit && typeof ep.swingHit === "object") {
-            const tSw = Math.max(0, ATTACK_SWING_FRAMES - ep.swingT);
-            const saNow = meleeSwingAngle(tSw, ATTACK_SWING_FRAMES);
+            const swDur = ep.swingDur || ATTACK_SWING_FRAMES;
+            const tSw = Math.max(0, swDur - ep.swingT);
+            const saNow = meleeSwingAngle(tSw, swDur);
             const arc = enemyMeleeHitboxAt(meleeGeom, ew, saNow).map((hb) => {
               const lxE = (hb.x / W) * eRenderW, lwE = (hb.w / W) * eRenderW;
               return { x: ep.x + (ep.face < 0 ? eRenderW - (lxE + lwE) : lxE), y: ep.y + (hb.y / H) * newEph, w: lwE, h: (hb.h / H) * newEph };
@@ -19663,13 +19899,13 @@ export default function AssetStudio({ game = false } = {}) {
               // on a unit's shot (nor its throw or brawl blow): a null lastHitByFx means YOUR blow,
               // and that is what the score pays a kill on.
               critInt: eIntel, shooterFx: ea.effects || [], snd: ew, // snd: whose 🔊 Hit plays where it lands
-              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), homing: shotHomes(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew),
+              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), homing: shotHomes(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew, ea?.effects, ea),
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
               shooterKey: k, // who fired it, so an exploding round can catch its OWN shooter in the blast (detonate)
               ...(isBoomerang(ew) ? boomerangRound(ew, ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea), k, dir, spd, vx, vy) : {}), // 🪃 yours, on it: home to this unit
             }, CW);
             sndMoment(ew, "fire", null, eShotAt.x, eShotAt.y); // 🔊 its gun's Fire, as yours
-            ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
+            ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate, ea?.effects));
           };
           // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
           // the whole time the target is in their sights, not just the shot frame.
@@ -19684,8 +19920,9 @@ export default function AssetStudio({ game = false } = {}) {
                 ep.reactT = 0;
                 ep.face = Math.sign(tgtAimCX - eCenterXFinal) || ep.face;
                 const rangedNow = rangedEnemy;
-                ep.attackT = rangedNow ? Math.max(20, weaponFireCooldownFrames(ew.fireRate)) : ATTACK_COOLDOWN_FRAMES;
-                ep.swingT = ATTACK_SWING_FRAMES;
+                const swFrames = rangedNow ? ATTACK_SWING_FRAMES : unitSwingFrames(ew, ea?.effects);
+                ep.attackT = rangedNow ? Math.max(20, weaponFireCooldownFrames(ew.fireRate, ea?.effects)) : unitMeleeCooldownFrames(ew, ea?.effects);
+                ep.swingT = swFrames; ep.swingDur = swFrames;
                 // 🦶 Something short under its foot: the attack it commits is a STOMP, whatever it
                 // is holding — no swing, no shot, no punch. The hit lands later, in the stomp clock.
                 const eUnder = (eStomper && !ep.stomp) ? eStompFrom() : [];
@@ -19800,7 +20037,7 @@ export default function AssetStudio({ game = false } = {}) {
           if (ep.autoFire) {
             if (stunned || !rangedEnemy || !inSight || !acts || weaponFireMode(ew) !== "auto" || !unitAutoFireHolds(ep.weaponAmmo)) ep.autoFire = false;
             else {
-              const autoCd = weaponFireCooldownFrames(ew.fireRate);
+              const autoCd = weaponFireCooldownFrames(ew.fireRate, ea?.effects);
               if (canFireNow(ep.weaponAmmo)) fireUnitShot();
               ep.attackT = Math.max(ep.attackT || 0, autoCd + 1);
             }
@@ -19959,7 +20196,7 @@ export default function AssetStudio({ game = false } = {}) {
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)) * moneyPowerMultiplier(playerAsset?.effects, wallet.current)), // 🏹 worn Tag Damage × a 🧪 timed one still running × 💵 Money = Power
             stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
-            ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon), // ❄️ its ice rides the round too
+            ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon, playerAsset?.effects, basePlayerAsset), // ❄️ / 🧪 ice & poison ride the round too
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, homing: shotHomes(playtestWeapon, playerAsset?.effects), snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
             // 🪃 A boomerang gun throws ITSELF: the weapon's own art spinning on boomerangStep's flight
@@ -19981,7 +20218,7 @@ export default function AssetStudio({ game = false } = {}) {
             // 🔊 The stroke starting: the blade's own Swing, else the basic Swing (bare hands too).
             // The Punch / Hit is the blow LANDING and plays from the hit test, never here.
             sndMoment(playtestWeapon, "swing", "swing", p.x, p.y);
-            p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
+            p.firing = { t: 0, dur: playerSwingFrames(playtestWeapon, playerAsset?.effects, !playtestWeapon) }; // swing duration — sped up by melee weapon or clothing Swing Speed
             p.hitRegistered = false; p.swingHits = {}; // a fresh swing can land a fresh hit on every body in its arc
           }
         }
@@ -20003,7 +20240,7 @@ export default function AssetStudio({ game = false } = {}) {
       // blocks it (p.firing.unarmed), as it blocks a second swing.
       if (!meleeInHand && wantMelee && !p.stomp && !(p.firing && p.firing.unarmed) && startStomp()) { /* stamping */ }
       else if (!meleeInHand && wantMelee && !p.firing && !p.stomp) {
-        sndEvent("swing", p.x, p.y); p.firing = { t: 0, dur: 12, unarmed: true }; // 🔊 a fist going round; the Punch waits for contact p.hitRegistered = false; p.swingHits = {};
+        sndEvent("swing", p.x, p.y); p.firing = { t: 0, dur: playerSwingFrames(playtestWeapon, playerAsset?.effects, true), unarmed: true }; // 🔊 a fist going round; the Punch waits for contact p.hitRegistered = false; p.swingHits = {};
       }
       p.wasMelee = !!K.melee;
       // All of the guard's timing is advanceBlock: the press raises it, BLOCK_FRAMES later the arm
@@ -20326,7 +20563,7 @@ export default function AssetStudio({ game = false } = {}) {
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
                     if (ep) { ep.lastHitByFx = null; ep.lastHitRanged = false; } // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-                    if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon) afflictBody(ep, playtestWeapon);
+                    if (ep && enemyHP.current[k] > 0) afflictBody(ep, !unarmedSwing ? playtestWeapon : null, DEFAULT_IGNITE_DPS, playerAsset?.effects, basePlayerAsset);
                     // Mark THIS body as struck and carry on: the rest of the arc may still be
                     // through somebody else. (Not p.hitRegistered — that would end the whole swing.)
                     p.swingHits[k] = true;
@@ -22549,6 +22786,12 @@ export default function AssetStudio({ game = false } = {}) {
               <label className="slider">Chill<input type="range" min="1" max="10" step="1" value={asset.iceDamageDps ?? ICE_DAMAGE_DPS} onChange={(e) => setAsset((a) => ({ ...a, iceDamageDps: +e.target.value }))} /><span className="hint2">{(asset.iceDamageDps ?? ICE_DAMAGE_DPS)} HP/sec</span></label>
               <label className="slider">Frozen for<input type="range" min="0.5" max="20" step="0.5" value={asset.iceDamage || ICE_DAMAGE_SECS} onChange={(e) => setAsset((a) => ({ ...a, iceDamage: +e.target.value }))} /><span className="hint2">{(asset.iceDamage || ICE_DAMAGE_SECS)}s</span></label>
             </>)}
+            {k === "poison" && (
+              <label className="slider">Poison / tick<input type="range" min="1" max="20" step="1" value={asset.poisonDps ?? POISON_DAMAGE_DPS} onChange={(e) => setAsset((a) => ({ ...a, poisonDps: +e.target.value }))} /><span className="hint2">{(asset.poisonDps ?? POISON_DAMAGE_DPS)} HP/tick · {POISON_DAMAGE_SECS}s</span></label>
+            )}
+            {k === "swingSpeed" && (
+              <label className="slider">Speed ×<input type="range" min="1.1" max="3" step="0.1" value={weaponSwingSpeedMult(asset)} onChange={(e) => { const m = +e.target.value; setAsset((a) => ({ ...a, swingSpeed: m, swingSpeedMult: m })); }} /><span className="hint2">×{weaponSwingSpeedMult(asset).toFixed(1)}</span></label>
+            )}
             {k === "burn" && (<>
               <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.landEffectDps || 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps || 6)} HP/sec</span></label>
               {/* Half-second steps: the Grenade in the library is set to 2.5s, which a step of 1
@@ -23819,7 +24062,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
     if (a.type === "vehicle") { if (a.size === undefined) a.size = 16; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; vehicleHalveHpOnce(a); if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
-    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); if (a.flies === undefined) a.flies = false; for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
+    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); if (a.flies === undefined) a.flies = false; for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; if (a.poison === undefined) a.poison = false; if (a.poisonDps === undefined) a.poisonDps = POISON_DAMAGE_DPS; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
     if (HAS_FIT_VARIANTS(a) && !a.variants) {
       if (a.type === "weapon") { a.variants = { default: { states: a.states || { rest: a.angles || blankAngles(), fire: blankAngles() } } }; }
@@ -26175,7 +26418,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -30217,7 +30460,8 @@ export default function AssetStudio({ game = false } = {}) {
                     eBlocks = driveUnitArms(eBlocks, eArm0, (a) => armClimbAbs(a.armPivot));
                     if (ep.climbing === "ladder") eBlocks = applyLimbSwing(eBlocks, new Set(), identifyLimbs(eBlocks).armIds, 0, { alternate: true, armReach: Math.sin(ep.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP });
                   } else if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged))) {
-                    const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - (eThrowingNow ? ep.throwT : ep.swingT), ATTACK_SWING_FRAMES);
+                    const eSwDur = eThrowingNow ? ATTACK_SWING_FRAMES : (ep.swingDur || ATTACK_SWING_FRAMES);
+                    const eSwingA = meleeSwingAngle(eSwDur - (eThrowingNow ? ep.throwT : ep.swingT), eSwDur);
                     // A ranged unit's arm follows the shot it just fired (ep.shotTilt, facing-frame
                     // degrees off level, + = down) for the swing frames — the same visible lock-on
                     // the player's p.firing.aimTilt gives. The stored rot is in the ART's frame,
@@ -30269,7 +30513,8 @@ export default function AssetStudio({ game = false } = {}) {
                       // for a ranged weapon, at the impact angle for a melee one. Its live magazine
                       // goes in too, so an enemy's bow sits un-nocked while it reloads exactly the
                       // way yours does.
-                      const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: ATTACK_SWING_FRAMES - ep.swingT, dur: ATTACK_SWING_FRAMES } : null, ep && ep.weaponAmmo);
+                      const eSwDur = (ep && ep.swingDur) || ATTACK_SWING_FRAMES;
+                      const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: eSwDur - ep.swingT, dur: eSwDur } : null, ep && ep.weaponAmmo);
                       const wpnAngles = eFired ? weaponFireArt(wfit.states, hv.pose) : (wfit.states.rest || blankAngles());
                       // Drawn for a right-facing body, so mirrored about its grip for left-facing art.
                       const wArt = bake({ ...ew, angles: wpnAngles }, hv.pose);
@@ -31695,6 +31940,8 @@ export default function AssetStudio({ game = false } = {}) {
                 </label>
               )}
               {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={asset.hostile === false} onChange={(e) => setAsset((a) => ({ ...a, hostile: !e.target.checked }))} /> 🕊️ Not hostile</label>}
+              {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={!!asset.poison} onChange={(e) => setAsset((a) => ({ ...a, poison: e.target.checked, poisonDps: a.poisonDps ?? POISON_DAMAGE_DPS }))} /> 🧪 Poison attacks</label>}
+              {asset.type === "enemy" && !!asset.poison && <label className="slider">Poison / tick<input type="range" min="1" max="20" step="1" value={asset.poisonDps ?? POISON_DAMAGE_DPS} onChange={(e) => setAsset((a) => ({ ...a, poisonDps: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{(asset.poisonDps ?? POISON_DAMAGE_DPS)} HP/tick · {POISON_DAMAGE_SECS}s</span></label>}
               {asset.type === "enemy" && <label className="chk" title="Flies instead of walking and flaps pieces flagged as 💪 Arm (wings)"><input type="checkbox" checked={!!asset.flies} onChange={(e) => setAsset((a) => ({ ...a, flies: e.target.checked }))} /> 🦸 Flies</label>}
               {asset.type === "enemy" && <label className="slider">⚔️ Attack range<input type="number" min="1" value={Math.round((asset.attackRange ?? DEFAULT_ATTACK_RANGE) / LV_CELL)} onChange={(e) => setAsset((a) => ({ ...a, attackRange: Math.max(1, +e.target.value || 1) * LV_CELL }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>cells</span></label>}
               {/* GROUND LINE, per pose. Without one the lowest drawn pixel is treated as the floor,
