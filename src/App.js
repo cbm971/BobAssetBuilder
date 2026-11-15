@@ -23766,7 +23766,7 @@ export default function AssetStudio({ game = false } = {}) {
         if (!title && !paras.length && !sel) continue;
         kids.push(<div key={l.id} className={cls + " animText" + (tilt ? " crawl" : "")} style={{ left: v.x * cellPx - wPx / 2, top: 0, width: wPx, height: winH, opacity, ...(tilt ? { perspective: Math.round(winH * 1.15) + "px" } : {}) }} data-ly={ly}>
           <div className="animTextPlane" style={{ transform: tilt ? "rotateX(" + tilt + "deg)" : undefined, color: l.color || ANIM_TEXT_COLOR, fontSize: Math.max(1, (l.size || 1) * cellPx) }}>
-            <div className="animTextBody" style={{ transform: "translateY(" + (winH - (+v.rise || 0) * cellPx).toFixed(1) + "px)", textAlign: tilt ? "justify" : "center" }}>
+            <div className="animTextBody" style={{ transform: "translateY(" + (winH - (+v.rise || 0) * cellPx).toFixed(1) + "px)", textAlign: tilt ? "justify" : "center", textAlignLast: tilt && paras.length === 1 ? "center" : undefined }}>
               {title && <div className="animTextTitle">{title.split("\n").map((q, i) => <div key={i}>{q}</div>)}</div>}
               {paras.map((q, i) => <p key={i}>{q}</p>)}
             </div>
