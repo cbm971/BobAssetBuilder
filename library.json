@@ -3065915,9 +3065915,9 @@
      "kind": "pedestal",
      "cats": [
       "Odd",
-      "Legendary"
+      ""
      ],
-     "logic": "and"
+     "logic": "or"
     }
    },
    "enemies": {
@@ -3066031,8 +3066031,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1793488130128,
-   "editedFrom": 1793454712895
+   "savedAt": 1794769952783,
+   "editedFrom": 1793488130128
   },
   {
    "id": "vcfrm09",
