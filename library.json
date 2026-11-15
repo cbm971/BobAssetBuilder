@@ -2968592,23 +2968592,6 @@
       "z": 6
      }
     ],
-    "17,142": [
-     {
-      "kind": "prop",
-      "propId": "drgtyre",
-      "size": 3,
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "oy": 0.1875,
-      "ox": 0,
-      "z": 7
-     }
-    ],
     "9,159": [
      {
       "kind": "prop",
@@ -2968659,6 +2968642,23 @@
       "ox": 0,
       "z": 10,
       "lay": "fg"
+     }
+    ],
+    "18,142": [
+     {
+      "kind": "prop",
+      "propId": "drgtyre",
+      "size": 3,
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "oy": 0.1875,
+      "ox": 0,
+      "z": 7
      }
     ]
    },
@@ -2968778,6 +2968778,11 @@
      "gearTags": [
       "T1"
      ]
+    },
+    "23,13": {
+     "enemyId": "eagl1x9",
+     "facing": -1,
+     "ai": "seek"
     }
    },
    "conns": {
@@ -2968814,8 +2968819,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794742646996,
-   "editedFrom": 1794741385273
+   "savedAt": 1794743111560,
+   "editedFrom": 1794742646996
   },
   {
    "id": "uw2goe0",
