@@ -3325693,7 +3325693,9 @@
      ]
     }
    },
-   "savedAt": 1794300705135
+   "savedAt": 1794765700346,
+   "once": true,
+   "editedFrom": 1794300705135
   },
   {
    "id": "dlgfbpx",
@@ -3326171,7 +3326173,7 @@
       {
        "id": "ckil0002",
        "text": "Who are you talking to?",
-       "to": "",
+       "to": "n4p8q743",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -3326203,8 +3326205,8 @@
      ]
     }
    },
-   "savedAt": 1794310740146,
-   "editedFrom": 1794182665603
+   "savedAt": 1794765670633,
+   "editedFrom": 1794310740146
   },
   {
    "id": "dlgliq1",
