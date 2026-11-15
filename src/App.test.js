@@ -11220,6 +11220,30 @@ describe("runs", () => {
     expect(runHudFor(run, b).where).toBe("level 2 of 2");
   });
 
+  test("off the side of a tree top you fall into the level under that edge", () => {
+    // Blake (2026-11-14): "you shouldn't go left or right into invisible wall but fall off tree".
+    // TREE stands on A through its Bottom Left over A's Top Right, so it hangs 40% of a level EAST
+    // of A: its west edge ends over A (already joined below), its east edge over B, the next level.
+    const A = mk("A", { open: { W2: "", E2: "", N2: "Tree" } }), B = mk("B", { open: { W2: "", E2: "" } });
+    const TREE = mk("TREE", { floor: "Tree", open: { S1: "", W2: "", E2: "" } });
+    const run = buildRun([A, B], "t", { maxMiddles: 2, passages: false });
+    const a = run.nodes[run.order[0]], b = run.nodes[run.order[1]];
+    expect([a.level.id, b.level.id]).toEqual(["A", "B"]);
+    const tree = run.nodes[resolveRunNeighbour(run, a, "N", [A, B, TREE])];
+    expect(tree.level.id).toBe("TREE"); expect(tree.row).toBe(-1);
+    const seams = runSeams(run, tree, CELL);
+    expect(seams.S.key).toBe(a.key); expect(seams.S.off).toEqual({ x: -0.4 * 4800, y: 1380 });
+    // east: B, a side seam of its own, placed where the street puts it and open from the sky down
+    expect(seams.E.key).toBe(b.key); expect(seams.E.fall).toBe(true); expect(seams.E.off).toEqual({ x: 0.6 * 4800, y: 1380 });
+    expect(seamGateLeaving(tree.level, seams, "E", 4801, 39 * CELL, CELL)).toBe("E2");
+    // west: the level already joined below, mounted once, and that edge leads into it too
+    expect(seams.W).toBeUndefined(); expect(seams.S.fallSides).toEqual({ W: "W2" });
+    expect(seamGateLeaving(tree.level, seams, "W", -1, 39 * CELL, CELL)).toBe("W2");
+    // a street level's own closed side is still a wall, and so is the tree's side under the street
+    expect(seamGateLeaving(a.level, runSeams(run, a, CELL), "W", -1, 600, CELL)).toBe(null);
+    expect(seamGateLeaving(tree.level, seams, "W", -1, 1380 + 46 * CELL + 5, CELL)).toBe(null);
+  });
+
   test("a blank top gate takes a level that asks for its floor by name, and bottom gates may be staggered", () => {
     // His first sewer (2026-09-30): Top Left open and left BLANK ("Sewer only"), East open, under two
     // Trailor Park levels whose bottom gates accept "Sewer" — one Bottom Left (like M6), one Bottom

@@ -13050,7 +13050,7 @@ export const resolveRunNeighbour = (run, node, side, levels) => {
 export const resolveRunSides = (run, node, levels) => { for (const s of ["N", "E", "S", "W"]) resolveRunNeighbour(run, node, s, levels); };
 // The neighbours of a live level, for drawing and for the seam test: one entry per side that has
 // a level behind it, with that level and where its origin sits in ours (`off`).
-export const runSeams = (run, node, cell = LV_CELL) => {
+const runGateSeams = (run, node, cell = LV_CELL) => {
   const out = {};
   if (!run || !node) return out;
   for (const side of ["N", "E", "S", "W"]) {
@@ -13099,6 +13099,54 @@ export const runSeams = (run, node, cell = LV_CELL) => {
 // those for its up/down range only (runCameraParts). A level that is only diagonal never widens the
 // clamp, and none of them widens it sideways: past the last sewer's east edge there is nothing under
 // the next street level, and the camera must not pan out into that.
+// OFF THE SIDE OF A TREE TOP YOU FALL (2026-11-14). Blake: "It should always load exit points on all
+// side of tree top, you shouldn't go left or right into invisible wall but fall off tree." A tree-top
+// passage ends where the plan ends, and the side of its last level with no tree top beyond it was a
+// wall in mid-air. Up there nothing is beside you but sky, so that side now joins the level that lies
+// UNDER the air just past the edge: the street level below or the next one along, placed where the
+// run's gates already put it (runPlacements). It is a side seam like any other (open its whole
+// height, seamGateLeaving), marked `fall`: you step off, the level below goes live, and you drop into
+// it. Only above the street (row < 0), only where no gate seam is, and never onto a level some other
+// side already joins (it would be mounted twice).
+const runFallSeams = (run, node, seams, cell = LV_CELL) => {
+  if (!node || !(node.row < 0) || (seams.E && seams.W)) return seams;
+  // Where the levels round here sit in this one's pixels, by the fewest gates walked (the level
+  // below first, then the street either side of it): the same offsets each seam is drawn with.
+  const at = new Map([[node.key, { x: 0, y: 0 }]]), queue = [node];
+  for (let i = 0; i < queue.length && i < 64; i++) {
+    const n = queue[i], p = at.get(n.key), ss = n === node ? seams : runGateSeams(run, n, cell);
+    for (const side of ["S", "E", "W", "N"]) {
+      const sm = ss[side], m = sm && run.nodes[sm.key];
+      if (!m || at.has(m.key) || Math.abs(m.col - node.col) > 2) continue;
+      at.set(m.key, { x: p.x + sm.off.x, y: p.y + sm.off.y }); queue.push(m);
+    }
+  }
+  for (const side of ["E", "W"]) {
+    if (seams[side]) continue;
+    const x = side === "E" ? node.level.cols * cell + cell / 2 : -cell / 2;
+    let best = null;
+    for (const n of Object.values(run.nodes)) {
+      if (n.row !== node.row + 1) continue;
+      const p = at.get(n.key); if (!p || p.y <= 0 || x < p.x || x >= p.x + n.level.cols * cell) continue;
+      if (!best || p.y < best.p.y) best = { n, p };
+    }
+    if (!best) continue;
+    const open = CONN_KEYS.filter((k) => CONN_SIDE[k] === side && node.level.conns && node.level.conns[k] && node.level.conns[k].open);
+    const keys = open.length ? open : [CONN_KEYS.find((q) => CONN_SIDE[q] === side)];
+    // The level under that edge is often the one already joined below (his tree tops hang 40% of a
+    // level west of the street level they stand on, so the east edge ends over it). It is mounted
+    // once, as that seam, and only told that this side leads into it too (`fallSides`, seamOnSide).
+    const joined = Object.values(seams).find((sm) => sm.key === best.n.key);
+    if (joined) { joined.fallSides = { ...(joined.fallSides || {}), [side]: keys[0] }; continue; }
+    const gates = {}; for (const k of keys) gates[k] = CONN_OPP[k];
+    seams[side] = { key: best.n.key, level: best.n.level, off: { x: best.p.x, y: best.p.y }, gates, fall: true };
+  }
+  return seams;
+};
+// The seam a body leaving by `side` goes into: that side's own, or the seam of another side whose
+// level also lies under this edge (runFallSeams' `fallSides`).
+export const seamOnSide = (seams, side) => (seams && (seams[side] || Object.values(seams).find((sm) => sm && sm.fallSides && sm.fallSides[side]))) || null;
+export const runSeams = (run, node, cell = LV_CELL) => (run && node ? runFallSeams(run, node, runGateSeams(run, node, cell), cell) : {});
 const RUN_SCENERY_CACHE = new WeakMap();   // node -> { run, sig, cell, list }
 // Links are only ever SET (undefined -> null or a key), never cleared, so this sum changes whenever
 // any link of the run is decided and a cached placing is stale.
@@ -13110,7 +13158,7 @@ const runLinkSig = (run) => { let s = 0, n = 0; for (const k in run.nodes) { n++
 // as ambiguous.
 const RUN_PLACE_STEPS = 20000;
 export const runPlacements = (run, root, cell = LV_CELL) => {
-  const seamsOf = new Map(), S = (n) => { let s = seamsOf.get(n.key); if (!s) { s = runSeams(run, n, cell); seamsOf.set(n.key, s); } return s; };
+  const seamsOf = new Map(), S = (n) => { let s = seamsOf.get(n.key); if (!s) { s = runGateSeams(run, n, cell); seamsOf.set(n.key, s); } return s; };
   const pos = new Map([[root.key, { x: 0, y: 0, amb: false }]]), on = new Set([root.key]);
   let steps = 0;
   const go = (n, x, y) => {
@@ -13210,7 +13258,7 @@ export const runFills = (run, live, cell = LV_CELL) => {
 // the camera may always rise a level's height there, the same over every sewer of a passage.
 export const runCameraParts = (run, node, seams, cell = LV_CELL) => {
   const out = { ...(seams || {}) };
-  for (const s of runSceneryNodes(run, node, cell)) if (s.stacked) out["scenery:" + s.key] = { level: s.node.level, off: s.off, yOnly: true };
+  for (const s of runSceneryNodes(run, node, cell)) if (s.stacked || (node.row === 0 && s.node.row < 0)) out["scenery:" + s.key] = { level: s.node.level, off: s.off, yOnly: true };
   if (node && node.row > 0) out["above:" + node.key] = { level: node.level, off: { x: 0, y: -node.level.rows * cell }, yOnly: true };
   // ...and under every street level its ground (runFills), the same depth everywhere, so the view sits
   // at the same height on a street level whether a sewer is under it or not (RUN_FILL_BELOW_ROWS).
@@ -13233,10 +13281,11 @@ export const runCameraParts = (run, node, seams, cell = LV_CELL) => {
 // Up and down keep the gate rule: a hole in a street floor that is not a sewer gate still just
 // stops you, and he enters sewers and tree tops through their gates anyway.
 export const seamGateLeaving = (lv, seams, side, cx, cy, cell = LV_CELL) => {
-  const seam = seams && seams[side]; if (!seam) return null;
+  const seam = seamOnSide(seams, side); if (!seam) return null;
   if (side === "E" || side === "W") {
-    const top = seam.off.y, bottom = top + seam.level.rows * cell;
-    if (cy >= bottom || (cy < top && top > 0)) return null;
+    const top = seam.off.y, bottom = top + seam.level.rows * cell, fall = seam.fall || !seams[side];
+    if (fall && !seams[side]) return cy < bottom ? seam.fallSides[side] : null;
+    if (cy >= bottom || (cy < top && top > 0 && !fall)) return null;   // off a tree top (a `fall` seam) the level is BELOW you: open from the sky down
     let best = null, bestD = Infinity;
     for (const k of Object.keys(seam.gates || {})) { const d = Math.abs(cy - gatePoint(lv, k, cell).y); if (d < bestD) { bestD = d; best = k; } }
     return best;
@@ -16164,7 +16213,7 @@ export default function AssetStudio({ game = false } = {}) {
     // seamHandoff so the swap render already reads the entered level's books (see there).
     const pointLiveRefsAt = (b) => { pedestalRolls.current = b.rolls; pedestalDepleted.current = b.depleted; enemyHP.current = b.eHP; enemyPos.current = b.ePos; enemyDrops.current = b.drops; corpseStripped.current = b.stripped; hazLife.current = b.haz; enemyGearRolls.current = b.gear; };
     const seamHandoff = (side, p, pw, leavingGate, dtMul) => {
-      const seam = seams[side], nb = runNow.nodes[seam.key];
+      const seam = seamOnSide(seams, side), nb = runNow.nodes[seam.key];
       // SCORE: leaving a level through a gate for the first time clears it (scoreLevelClear).
       scoreLevelClear(scoreRef.current, runNow.curKey);
       // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
