@@ -3325596,7 +3325596,7 @@
     "ndlgfbg3": {
      "id": "ndlgfbg3",
      "speaker": "Mechanic",
-     "text": "Touch the jeep and you walk to Saigon.",
+     "text": "You seen my wrench lying?",
      "choices": [
       {
        "id": "cdlgfbg3",
@@ -3325609,7 +3325609,9 @@
      ]
     }
    },
-   "savedAt": 1794312191456
+   "savedAt": 1794765838140,
+   "once": true,
+   "editedFrom": 1794765826495
   },
   {
    "id": "dlgfbg4",
