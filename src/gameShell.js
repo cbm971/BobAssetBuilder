@@ -571,19 +571,23 @@ function QuitScreen({ back }) {
   return <div className="gScreen gBlack">{shown && <BobLogo className="gLogoQuit" />}</div>;
 }
 
-// ---------- the floor-complete card ----------
-function FloorDone({ done, onContinue, click }) {
-  const rows = [{ id: "continue", label: "Continue" }];
-  useMenuKeys(true, { pick: () => { click(); onContinue(); }, back: () => { click(); onContinue(); } });
+// ---------- after the last floor ----------
+// The Floor Complete card is gone (Blake, 2026-11-14): a finished floor runs straight on into the
+// next (the shell holds black for that moment, view "nextFloor"), and after the last one this is
+// all there is. Any key or click goes on to the main menu, once it has been up a beat so a key
+// held through the ending does not skip it.
+function ToBeContinued({ onDone, click }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setArmed(true), 700); return () => clearTimeout(t); }, []);
+  useEffect(() => {
+    if (!armed) return undefined;
+    const f = (e) => { if (e && e.type === "keydown" && e.preventDefault) e.preventDefault(); click(); onDone(); };
+    window.addEventListener("keydown", f); window.addEventListener("pointerdown", f);
+    return () => { window.removeEventListener("keydown", f); window.removeEventListener("pointerdown", f); };
+  }, [armed, onDone, click]);
   return (
     <Panel>
-      <BobLogo text="FLOOR COMPLETE" className="gBanner" />
-      {done.floor ? <div className="gSub">{done.floor}</div> : null}
-      <div className="gStats gStatsBig">
-        <span>Score <b>{fmtNum(done.score)}</b></span>
-        <span>Time <b>{formatPlayTime(done.secs)}</b></span>
-      </div>
-      <MenuList rows={rows} at={0} setAt={() => {}} onPick={() => { click(); onContinue(); }} className="gBackOnly" />
+      <BobLogo text="TO BE CONTINUED" className="gBanner gBannerOnly" />
     </Panel>
   );
 }
@@ -636,11 +640,11 @@ export function GamePause({ onResume, onQuit, options, setOptions, click }) {
 }
 
 // ---------- the shell: whichever menu screen is up, over the scene ----------
-export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, floorDone, onFloorDoneContinue, gameOver, onRetry, onGameOverMenu, note, click }) {
+export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, gameOver, onRetry, onGameOverMenu, note, click }) {
   const toMenu = React.useCallback(() => setView("menu"), [setView]);
   const [menuAt, setMenuAt] = useState(0);
   const vp = useViewport();
-  const sceneUp = view !== "title" && view !== "quit";
+  const sceneUp = view !== "title" && view !== "quit" && view !== "nextFloor";
   // Each screen stands over its own level (App.js menuSceneFor). Keyed by the level, so a new screen
   // mounts a fresh backdrop — its own camera and its own cast — and fades it in.
   const scene = sceneUp && sceneFor ? sceneFor(view) : null;
@@ -655,7 +659,8 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} onUpload={onUpload} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
       {view === "quit" && <QuitScreen back={toMenu} />}
-      {view === "floorDone" && floorDone && <FloorDone done={floorDone} onContinue={onFloorDoneContinue} click={click} />}
+      {view === "nextFloor" && <div className="gScreen gBlack" />}
+      {view === "toBeContinued" && <ToBeContinued onDone={toMenu} click={click} />}
       {view === "gameOver" && gameOver && <GameOver over={gameOver} onRetry={onRetry} onMenu={onGameOverMenu} click={click} />}
     </div>
   );
@@ -692,6 +697,7 @@ export const GAME_CSS = `
 .gLogoMenu{font-size:clamp(70px,8.2vw,156px);align-self:center;margin:.02em 0 .06em}
 .gLogoQuit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:clamp(60px,9vw,140px);opacity:.22}
 .gBanner{font-size:clamp(34px,4.6vw,78px);margin-bottom:2.2vh}
+.gBanner.gBannerOnly{margin:1.2vh 0}
 .gKicker{font-size:clamp(14px,1.25vw,22px);letter-spacing:.32em;text-align:center;text-transform:uppercase;color:var(--gInk);padding:.2em 0 .55em;margin:0 0 .6em;border-bottom:2px solid rgba(241,239,228,.7);box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .gList{display:flex;flex-direction:column;align-items:stretch;gap:.1em}
 .gItem{position:relative;box-sizing:border-box;max-width:100%;display:flex;align-items:center;justify-content:flex-start;gap:1em;padding:.24em .5em .24em 1.35em;margin:0;cursor:pointer;font:inherit;font-size:clamp(20px,2.1vw,38px);letter-spacing:.03em;text-transform:uppercase;color:var(--gDim);text-shadow:0 3px 0 rgba(0,0,0,.35);transition:color .12s,background .12s;outline:none;border-radius:2px}

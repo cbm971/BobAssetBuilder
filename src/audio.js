@@ -293,54 +293,114 @@ export const leadingSilence = (channels, sampleRate) => {
 };
 
 // ── STRETCH. A sound held longer WITHOUT dropping its pitch (a plain slow-down would take a bright
-// pickup chime down two octaves): WSOLA, windowed grains laid down at the longer spacing, each one
-// nudged by up to STRETCH_SEEK_S to the offset that lines its waveform up with the end of the grain
-// before, so the joins do not buzz. channels: Float32Arrays; returns new Float32Arrays about
-// `factor` times as long. A factor at or under 1 returns copies untouched. Pure, so it is tested.
+// pickup chime down two octaves). channels: Float32Arrays; returns new Float32Arrays about `factor`
+// times as long. A factor at or under 1 returns copies untouched. Pure, so it is tested.
+//
+// A PHASE VOCODER, NOT GRAINS (2026-11-14). Blake: "The legendary item pick up slow down audio is
+// choppy". This used to be WSOLA: 50 ms grains of the clip laid down at three times their spacing,
+// each nudged to line its waveform up with the one before. Held 3x, every grain of the source is
+// laid about three times over, 25 ms apart: the chime's attack is heard three times in a row, and
+// a ringing tone whose partials are not multiples of one pitch has no offset that lines them all
+// up, so each join cancels a little and the level flutters 40 times a second. That stutter and
+// flutter is the chop. Here the clip is taken apart into its frequencies frame by frame (short
+// overlapping FFTs), the frames are laid at the longer spacing, and each frequency's phase is
+// carried forward at its own measured rate, so every partial runs on unbroken through the frames
+// and nothing is repeated. The bins around each spectral peak keep their phase relation to the
+// peak (identity phase locking), which is what keeps it from sounding hollow, and every channel
+// is turned by the same angles (taken from the mono mix), so a stereo clip keeps its image.
 export const PICKUP_LEGENDARY_STRETCH = 3; // a gold (Legendary) pickup holds the standard sound this much longer
-export const STRETCH_GRAIN_S = 0.05;
-export const STRETCH_SEEK_S = 0.012;
+export const STRETCH_FRAME_S = 0.046;      // the length of one analysis frame (2,048 samples at 44.1 kHz)
+const FFT_TABLES = new Map();
+const fftTable = (n) => {
+  let t = FFT_TABLES.get(n);
+  if (!t) {
+    const cos = new Float64Array(n / 2), sin = new Float64Array(n / 2), rev = new Uint32Array(n);
+    for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos((2 * Math.PI * i) / n); sin[i] = Math.sin((2 * Math.PI * i) / n); }
+    let bits = 0; while ((1 << bits) < n) bits++;
+    for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < bits; b++) if (i & (1 << b)) r |= 1 << (bits - 1 - b); rev[i] = r; }
+    t = { cos, sin, rev }; FFT_TABLES.set(n, t);
+  }
+  return t;
+};
+// In-place radix-2 FFT of re/im (length a power of two); `inverse` also divides by the length.
+const fft = (re, im, inverse) => {
+  const n = re.length, { cos, sin, rev } = fftTable(n);
+  for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let size = 2; size <= n; size *= 2) {
+    const half = size / 2, step = n / size;
+    for (let i = 0; i < n; i += size) {
+      for (let j = 0, k = 0; j < half; j++, k += step) {
+        const wr = cos[k], wi = inverse ? sin[k] : -sin[k];
+        const xr = re[i + j + half] * wr - im[i + j + half] * wi, xi = re[i + j + half] * wi + im[i + j + half] * wr;
+        re[i + j + half] = re[i + j] - xr; im[i + j + half] = im[i + j] - xi;
+        re[i + j] += xr; im[i + j] += xi;
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+};
 export const stretchChannels = (channels, sampleRate, factor) => {
   const chs = (channels || []).filter((d) => d && d.length);
   if (!chs.length) return [];
   const n = chs[0].length;
   if (!(factor > 1.001) || !(sampleRate > 0) || n < 64) return chs.map((d) => Float32Array.from(d));
-  const grain = Math.max(32, 2 * Math.round(sampleRate * STRETCH_GRAIN_S / 2));
-  const hop = grain / 2; // output spacing
-  const seek = Math.max(1, Math.round(sampleRate * STRETCH_SEEK_S));
-  const outLen = Math.ceil(n * factor);
-  const win = new Float32Array(grain);
-  for (let i = 0; i < grain; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * (i + 0.5)) / grain);
-  const mono = new Float32Array(n);
-  for (const d of chs) for (let i = 0; i < n; i++) mono[i] += d[i] / chs.length;
+  let N = 256; while (N < sampleRate * STRETCH_FRAME_S && N < 4096) N *= 2;
+  while (N > 64 && N > 2 * n) N /= 2;                 // a very short clip: shorter frames
+  const Ha = Math.max(1, Math.round(N / 4 / factor)); // how far the source moves on per frame
+  const Hs = Math.max(1, Math.round(Ha * factor));    // how far the output does
+  const half = N / 2, outLen = Math.ceil(n * factor), TAU = 2 * Math.PI;
+  const win = new Float64Array(N);
+  for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos((TAU * i) / N);
+  const mono = chs.length === 1 ? chs[0] : new Float32Array(n);
+  if (chs.length > 1) for (const d of chs) for (let i = 0; i < n; i++) mono[i] += d[i] / chs.length;
   const out = chs.map(() => new Float32Array(outLen));
   const norm = new Float32Array(outLen);
-  const STEP = 4; // the search compares every 4th sample: plenty to find a phase, a quarter of the work
-  let prev = -1;  // where in the source the last grain was taken from
-  for (let k = 0, o = 0; o < outLen; k++, o += hop) {
-    const nominal = Math.round((k * hop) / factor);
-    let at = nominal;
-    if (prev >= 0) {
-      const want = prev + hop; // the source that would naturally follow the grain just laid
-      let best = -Infinity;
-      for (let d = -seek; d <= seek; d++) {
-        const c = nominal + d;
-        if (c < 0 || c + grain > n || want + grain > n) continue;
-        let sum = 0;
-        for (let i = 0; i < grain; i += STEP) sum += mono[want + i] * mono[c + i];
-        if (sum > best) { best = sum; at = c; }
+  const re = new Float64Array(N), im = new Float64Array(N), mRe = new Float64Array(N), mIm = new Float64Array(N);
+  const mag = new Float64Array(half + 1), ph = new Float64Array(half + 1), prevPh = new Float64Array(half + 1);
+  const synth = new Float64Array(half + 1), rot = new Float64Array(half + 1);
+  const peaks = [];
+  const load = (src, at, r, i) => { for (let j = 0; j < N; j++) { const q = at + j; r[j] = q >= 0 && q < n ? src[q] * win[j] : 0; i[j] = 0; } };
+  const frames = Math.ceil((n + half) / Ha) + 1;
+  for (let k = 0; k < frames; k++) {
+    const at = k * Ha - half, o = k * Hs - half;       // frame k is centred on source k*Ha and on output k*Hs
+    if (o >= outLen) break;
+    load(mono, at, mRe, mIm); fft(mRe, mIm, false);
+    for (let b = 0; b <= half; b++) { mag[b] = Math.hypot(mRe[b], mIm[b]); ph[b] = Math.atan2(mIm[b], mRe[b]); }
+    if (k === 0) { for (let b = 0; b <= half; b++) { synth[b] = ph[b]; rot[b] = 0; } }   // the first frame goes down as it is
+    else {
+      peaks.length = 0;
+      for (let b = 1; b < half; b++) if (mag[b] > mag[b - 1] && mag[b] >= mag[b + 1] && (b < 2 || mag[b] > mag[b - 2]) && (b + 2 > half || mag[b] >= mag[b + 2])) peaks.push(b);
+      if (!peaks.length) peaks.push(1);
+      for (let pi = 0; pi < peaks.length; pi++) {
+        const p = peaks[pi], om = (TAU * p) / N;
+        let d = ph[p] - prevPh[p] - om * Ha; d -= TAU * Math.round(d / TAU);   // how far this partial runs off its bin's own rate
+        let th = synth[p] + Hs * (om + d / Ha) - ph[p]; th -= TAU * Math.round(th / TAU);
+        const lo = pi === 0 ? 0 : ((peaks[pi - 1] + p) >> 1) + 1, hi = pi === peaks.length - 1 ? half : (p + peaks[pi + 1]) >> 1;
+        for (let b = lo; b <= hi; b++) rot[b] = th;      // the bins round a peak turn with it
       }
+      // every bin's own running phase, kept within a turn so a long clip never loses precision
+      for (let b = 0; b <= half; b++) { const t = ph[b] + rot[b]; synth[b] = t - TAU * Math.round(t / TAU); }
     }
-    if (at < 0) at = 0;
-    if (at + grain > n) at = Math.max(0, n - grain);
+    for (let b = 0; b <= half; b++) prevPh[b] = ph[b];
     for (let ch = 0; ch < chs.length; ch++) {
-      const src = chs[ch], dst = out[ch];
-      for (let i = 0; i < grain && o + i < outLen && at + i < n; i++) dst[o + i] += src[at + i] * win[i];
+      if (chs.length === 1) { re.set(mRe); im.set(mIm); } else { load(chs[ch], at, re, im); fft(re, im, false); }
+      for (let b = 0; b <= half; b++) {
+        const c = Math.cos(rot[b]), s = Math.sin(rot[b]), xr = re[b], xi = im[b];
+        re[b] = xr * c - xi * s; im[b] = xr * s + xi * c;
+        if (b > 0 && b < half) { re[N - b] = re[b]; im[N - b] = -im[b]; }
+      }
+      im[0] = 0; im[half] = 0;
+      fft(re, im, true);
+      const dst = out[ch];
+      for (let j = Math.max(0, -o); j < N && o + j < outLen; j++) dst[o + j] += re[j] * win[j];
     }
-    for (let i = 0; i < grain && o + i < outLen; i++) norm[o + i] += win[i];
-    prev = at;
+    for (let j = Math.max(0, -o); j < N && o + j < outLen; j++) norm[o + j] += win[j] * win[j];
   }
-  for (const dst of out) for (let i = 0; i < outLen; i++) if (norm[i] > 1e-3) dst[i] /= norm[i];
+  let peakIn = 0, peakOut = 0;
+  for (const d of chs) for (let i = 0; i < n; i++) { const v = d[i] < 0 ? -d[i] : d[i]; if (v > peakIn) peakIn = v; }
+  for (const dst of out) for (let i = 0; i < outLen; i++) { if (norm[i] > 1e-3) dst[i] /= norm[i]; const v = dst[i] < 0 ? -dst[i] : dst[i]; if (v > peakOut) peakOut = v; }
+  // Never louder than it went in (partials that drift into step can stack a little higher).
+  if (peakOut > peakIn && peakOut > 0) { const g = peakIn / peakOut; for (const dst of out) for (let i = 0; i < outLen; i++) dst[i] *= g; }
   return out;
 };
 
@@ -501,6 +561,12 @@ export const createAudioEngine = ({ loadClip } = {}) => {
         try { const chs = []; for (let i = 0; i < buf.numberOfChannels; i++) chs.push(buf.getChannelData(i)); skip = leadingSilence(chs, buf.sampleRate); } catch { skip = 0; }
         starts.set(clip, skip);
         buffers.set(clip, buf);
+        // The gold pickup's held copy is built now, off the moment: built at the pickup itself it
+        // held the frame the sound started on for the tens of ms the stretch takes.
+        try {
+          const pid = resolveSound({ basic: "pickup", board, has: (id) => sounds.has(id) }), ps = pid ? sounds.get(pid) : null;
+          if (ps && ps.clip === clip && typeof setTimeout === "function") setTimeout(() => { if (buffers.get(clip) === buf) stretchedBuffer(clip, buf, PICKUP_LEGENDARY_STRETCH); }, 0);
+        } catch { /* built at the first gold pickup instead */ }
         return buf;
       } catch (e) {
         failed.add(clip);

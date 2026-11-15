@@ -183,7 +183,7 @@ export const deathEndsRun = (diffId, deathsBefore, oneUps) => runLivesLeft(diffI
 // ranked lineup — the main menu the best, the character select the next, and so on — wrapping when
 // he has fewer levels than screens.
 export const MENU_SCENE_PROP_CAP = 160;
-export const MENU_SCENE_VIEWS = ["menu", "select", "load", "options", "unlocks", "gameOver", "floorDone"];
+export const MENU_SCENE_VIEWS = ["menu", "select", "load", "options", "unlocks", "gameOver", "toBeContinued"];
 export const menuLevelScore = (l) => {
   const objs = Object.values((l && l.fx) || {}).flat().filter(Boolean);
   const props = objs.filter((o) => o.kind === "prop").length;
@@ -429,13 +429,19 @@ export const orderGameFloors = (floors) => {
   return (floors || []).map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).map((x) => x.f);
 };
 // THE FLOORS ARE CHAINED (Blake, 2026-11-10: "Yes, chain floors"). A floor's end — the Trailer Park's
-// helicopter rope and the General's briefing — no longer ends the game: the Floor Complete card's
-// Continue goes on into the next floor in GAME_FLOORS. gameNextFloor is that floor: "" after the
-// last one, and "" for a floor that is not in the list (a floor he is still building ends as before).
+// helicopter rope and the General's briefing — no longer ends the game: play goes straight on into
+// the next floor in GAME_FLOORS. gameNextFloor is that floor: "" after the last one, and "" for a
+// floor that is not in the list.
 export const gameNextFloor = (floor) => {
   const i = GAME_FLOORS.findIndex((g) => floorKey(g) === floorKey(floor));
   return i < 0 || i + 1 >= GAME_FLOORS.length ? "" : GAME_FLOORS[i + 1];
 };
+// NO FLOOR COMPLETE CARD (Blake, 2026-11-14: "No need for the floor complete pop up after a level.
+// Maybe a 'To be continued' after beating Vietnam"). What the game shows when a floor ends, given
+// the floor that comes next ("" when there is none a run can be laid on): "nextFloor" is a black
+// hold while the next floor's run starts by itself (what the card's Continue used to do), and
+// "toBeContinued" is the one screen after the last floor, which leads to the main menu.
+export const floorEndView = (nextFloor) => (nextFloor ? "nextFloor" : "toBeContinued");
 // The save a finished floor leaves for the next: the SAME game (its id, seed, fighter, difficulty,
 // lives, money, score, HP, what is worn and held) at the START of the next floor's run. No level to
 // resume at, so resumeNodeKey finds none and the run begins at the floor's Intro, arrival scene and

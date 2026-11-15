@@ -8,7 +8,7 @@ import {
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
   enemiesDefeatedCount,
   starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, selectBoxPx, keepsSavedOutfit, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
-  GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, carryToNextFloor,
+  GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, floorEndView, carryToNextFloor,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -514,6 +514,15 @@ describe("the character select's player card", () => {
     expect(gameNextFloor("Vietnam")).toBe("");
     expect(gameNextFloor("Moon")).toBe("");
     expect(gameNextFloor("")).toBe("");
+  });
+  test("no Floor Complete card: a finished floor goes straight on, and the last one says To be continued", () => {
+    expect(floorEndView(gameNextFloor("Trailer Park"))).toBe("nextFloor");
+    expect(floorEndView(gameNextFloor("Vietnam"))).toBe("toBeContinued");
+    expect(floorEndView(gameNextFloor(GAME_FLOORS[GAME_FLOORS.length - 1]))).toBe("toBeContinued");
+    expect(floorEndView("")).toBe("toBeContinued");   // a next floor no run can be laid on yet
+    for (const v of ["nextFloor", "toBeContinued"]) expect(v).not.toMatch(/floorDone/);
+    expect(MENU_SCENE_VIEWS).not.toContain("floorDone");
+    expect(MENU_SCENE_VIEWS).toContain("toBeContinued");
   });
   test("the next floor's save is the same game carried to the START of that floor's run", () => {
     const score = { total: 4200, secs: { a: 30, b: 45 }, cleared: { a: true }, spent: { "obj|o1": true } };

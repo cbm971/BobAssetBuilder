@@ -750,6 +750,42 @@ describe("stretchChannels", () => {
     const [l, r] = stretchChannels([tone(440, 0.3), tone(660, 0.3)], sr, 3);
     expect(l.length).toBe(r.length);
   });
+  // Blake, 2026-11-14: "The legendary item pick up slow down audio is choppy". The stretch laid
+  // grains of the clip down three times over, so a struck note stuttered and its ring fluttered at
+  // the grain rate. The chop is measured as the share of the loudness curve's movement that falls
+  // at 15 to 60 times a second: a jingle of struck bells has little of it, and held 3x it must not
+  // gain any (the grain stretch scored 0.067 on this jingle, the same as the unstretched 0.064
+  // squeezed into a third of the time; the phase vocoder scores 0.026).
+  test("a held jingle is smooth: no stutter or flutter at the grain rate", () => {
+    const bell = (t, hz) => (t < 0 ? 0 : Math.exp(-t * 5) * Math.min(1, t / 0.003) * (Math.sin(2 * Math.PI * hz * t) + 0.6 * Math.sin(2 * Math.PI * hz * 2.76 * t) + 0.35 * Math.sin(2 * Math.PI * hz * 5.4 * t)));
+    const jingle = Float32Array.from({ length: Math.round(sr * 0.8) }, (_, i) => { const t = i / sr; return 0.25 * (bell(t, 660) + bell(t - 0.18, 830) + bell(t - 0.36, 990)); });
+    const flutter = (d) => {
+      const m = Math.round(sr * 0.002), e = [];
+      for (let i = 0; i + m <= d.length; i += m) { let s = 0; for (let j = 0; j < m; j++) s += d[i + j] * d[i + j]; e.push(Math.sqrt(s / m)); }
+      const rate = sr / m, mean = e.reduce((a, b) => a + b, 0) / e.length;
+      let all = 0, band = 0;
+      for (let f = 1; f < 120; f++) {
+        let re = 0, im = 0;
+        for (let i = 0; i < e.length; i++) { const a = (2 * Math.PI * f * i) / rate; re += (e[i] - mean) * Math.cos(a); im += (e[i] - mean) * Math.sin(a); }
+        all += re * re + im * im; if (f >= 15 && f <= 60) band += re * re + im * im;
+      }
+      return band / all;
+    };
+    const [out] = stretchChannels([jingle], sr, 3);
+    expect(out.length).toBe(Math.ceil(jingle.length * 3));
+    expect(flutter(out)).toBeLessThan(0.045);
+    let peakIn = 0, peakOut = 0;
+    for (const v of jingle) peakIn = Math.max(peakIn, Math.abs(v));
+    for (const v of out) peakOut = Math.max(peakOut, Math.abs(v));
+    expect(peakOut).toBeLessThanOrEqual(peakIn + 1e-6);
+    expect(peakOut).toBeGreaterThan(peakIn * 0.5);
+  });
+  test("a stereo clip keeps its image: both sides are turned by the same angles", () => {
+    const a = tone(700, 0.4), [l, r] = stretchChannels([a, a.map((v) => v * 0.5)], sr, 3);
+    let worst = 0;
+    for (let i = 0; i < l.length; i++) worst = Math.max(worst, Math.abs(r[i] - l[i] * 0.5));
+    expect(worst).toBeLessThan(1e-4);
+  });
 });
 describe("🔇 the test mute: an agent's test drive makes no sound (2026-10-25)", () => {
   // Blake heard the Playtest music from an agent's hidden test tab: the mute it injected caught Web
