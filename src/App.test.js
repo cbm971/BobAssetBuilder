@@ -16488,3 +16488,92 @@ describe('dialogueSearchHit', () => {
   });
   test('every word must be found', () => { expect(dialogueSearchHit(doc, 'warden pizza')).toBe(null); expect(dialogueSearchHit({}, 'x')).toBe(null); });
 });
+
+// ---- 2026-11-14: the 45° while walking, the weapon's hand, and the ladder's cycle ----------------
+import { aimSideHeld, climbPhaseStep, LADDER_RUNG_PX, heldArmOf, heldArmView, attachHeldToArms, armOf as armOfHeld, twinArmOf as twinArmOfHeld, attachWeaponBlocksToArms as attachToArmsHeld, nextAimSideGrace as aimGraceHeld, AIM_DIAGONAL as AIM_DIAG_HELD } from "./App";
+describe("the 45° aim while walking", () => {
+  const aimDirOf = (K, grace = 0) => { const g = aimGraceHeld(grace, aimSideHeld(K), !!(K.aimUp || K.aimDown)); const d = g > 0 ? AIM_DIAG_HELD : 1; return K.aimUp ? -d : K.aimDown ? d : 0; };
+  test("THE BUG: walking on D with ↑ held read ↑ alone, straight up", () => {
+    expect(aimDirOf({ right: true, aimUp: true })).toBe(-AIM_DIAG_HELD);
+    expect(aimDirOf({ left: true, aimUp: true })).toBe(-AIM_DIAG_HELD);
+    expect(aimDirOf({ left: true, aimDown: true })).toBe(AIM_DIAG_HELD);
+  });
+  test("the arrows still make it, with or without the walk key", () => {
+    expect(aimDirOf({ aimRight: true, aimUp: true })).toBe(-AIM_DIAG_HELD);
+    expect(aimDirOf({ right: true, aimRight: true, aimUp: true })).toBe(-AIM_DIAG_HELD);
+    expect(aimDirOf({ right: true, aimLeft: true, aimDown: true })).toBe(AIM_DIAG_HELD);
+  });
+  test("standing still, ↑ alone is still straight up and ↓ alone straight down", () => {
+    expect(aimDirOf({ aimUp: true })).toBe(-1);
+    expect(aimDirOf({ aimDown: true })).toBe(1);
+    expect(aimSideHeld({})).toBe(false);
+    expect(aimSideHeld(null)).toBe(false);
+  });
+});
+describe("the ladder's climb cycle keeps pace with the climb", () => {
+  test("one hand per rung: two rungs climbed is one full cycle", () => {
+    expect(climbPhaseStep(2 * LADDER_RUNG_PX)).toBeCloseTo(2 * Math.PI, 10);
+    expect(climbPhaseStep(LADDER_RUNG_PX)).toBeCloseTo(Math.PI, 10);
+  });
+  test("it is distance, not time: any climb speed gives the same phase over the same rungs", () => {
+    const over = (step) => { let ph = 0; for (let y = 0; y < 300 - 1e-9; y += step) ph += climbPhaseStep(step); return ph; };
+    expect(over(2.5)).toBeCloseTo(over(5), 6);
+    expect(over(2.5)).toBeCloseTo(over(1.25), 6);
+    expect(over(2.5)).toBeCloseTo(10 * Math.PI, 6);
+  });
+  test("down counts as up does, and a body that is not moving does not cycle", () => {
+    expect(climbPhaseStep(-2.5)).toBe(climbPhaseStep(2.5));
+    expect(climbPhaseStep(0)).toBe(0);
+    expect(climbPhaseStep(undefined)).toBe(0);
+  });
+  test("THE BUG: it is far quicker than the walk stride it used to borrow", () => {
+    expect(climbPhaseStep(2.5)).toBeGreaterThan(2.5 * 0.03 * 3);
+  });
+});
+describe("the weapon stays in one hand whichever way you face", () => {
+  const arm = { id: "a", kind: "rect", role: "weaponArm", limb: "arm", armPivot: "top", x: 139, y: 100, w: 22, h: 70, rot: 355 };
+  const twin = { ...arm, id: "a_m", x: 200 - (arm.x + arm.w), _m: true };
+  const body = { id: "b", kind: "rect", x: 70, y: 90, w: 60, h: 100 };
+  const back = [body, arm, twin];
+  const HAND = { x: 150, y: 176 };
+  const gun = [{ id: "g", kind: "rect", x: 150, y: 168, w: 44, h: 10, rot: 0 }];
+  test("un-mirrored it is the drawn arm; mirrored it is the twin, which the mirror puts on the same side of the screen", () => {
+    expect(heldArmOf(back, false)).toBe(arm);
+    expect(heldArmOf(back, true)).toBe(twin);
+    const screenX = (a, mirrored) => { const cx = a.x + a.w / 2; return mirrored ? 200 - cx : cx; };
+    expect(screenX(heldArmOf(back, true), true)).toBe(screenX(heldArmOf(back, false), false));
+  });
+  test("a Side pose has one arm, and a hold point is not a hand: both are left alone", () => {
+    expect(heldArmOf([body, arm], true)).toBe(arm);
+    const hold = { ...arm, __hold: true };
+    expect(heldArmOf([body, hold, twin], true)).toBe(hold);
+    expect(heldArmOf([body], true)).toBe(null);
+  });
+  test("held by the drawn arm nothing changes", () => {
+    const aimed = { ...arm, rot: -90 };
+    expect(attachHeldToArms(gun, aimed, null, HAND, 355)).toEqual(attachToArmsHeld(gun, aimed, null, HAND, 355));
+    expect(heldArmView(arm)).toBe(arm);
+  });
+  test("aimed level from the twin, the gun lies along the same line as from the drawn arm, one shoulder over", () => {
+    // The aim branch stores target * armMirrorTwist: -90 on the drawn arm, +90 on the twin.
+    for (const t of [-90, -135, -45]) {
+      const own = attachHeldToArms(gun, { ...arm, rot: t }, null, HAND, 355)[0];
+      const other = attachHeldToArms(gun, { ...twin, rot: -t }, null, HAND, 355)[0];
+      const shoulderDx = (twin.x + twin.w / 2) - (arm.x + arm.w / 2);
+      expect(Math.abs((other.x - own.x) - shoulderDx)).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(other.y - own.y)).toBeLessThanOrEqual(1.5);
+      expect((((other.rot - own.rot) % 360) + 360) % 360).toBeCloseTo(0, 6);
+    }
+  });
+  test("at rest the gun sits in the twin's hand, not the drawn arm's", () => {
+    const g = attachHeldToArms(gun, twin, armOfHeld(back), HAND, 355, 355)[0];
+    expect(g.x + g.w / 2).toBeLessThan(100);
+    expect(twinArmOfHeld(back, twin)).toBe(arm);
+  });
+  test("the twin's view turns the way it shows on screen", () => {
+    const v = heldArmView({ ...twin, rot: 90 });
+    expect(v._m).toBeUndefined();
+    expect(v.rot).toBe(-90);
+    expect(v.x).toBe(twin.x);
+  });
+});

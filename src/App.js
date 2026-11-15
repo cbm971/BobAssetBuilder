@@ -1437,6 +1437,46 @@ export const attachWeaponBlocksToArms = (weaponPieces, curArm, twinArm, guideHan
     return mirrorOnCanvas(placed, true);
   });
 };
+// THE WEAPON STAYS IN ONE HAND (2026-11-14, Blake: "Guns should stay in the right hand instead of
+// teleporting to the left hand when you aim left"). A pose seen from behind or in front (Back on a
+// ladder or a ledge, Crouch, Aim up, the 🚶 plane's Back/Front) draws TWO weapon arms, the drawn one
+// and its mirror twin, and the weapon was always gripped by the drawn one (armOf). Turning to face
+// the other way mirrors the whole sprite (the wrapper's scaleX(-1)), which carries that arm to the
+// other side of the screen: on a ladder, holding the rifle out to the right and tapping ← moved it
+// from the right hand to the left. The body is the same person seen from the same side, so the hand
+// must not change. While the sprite is drawn MIRRORED the weapon is gripped by the TWIN instead,
+// which the mirror puts exactly where the drawn arm is when it is not: one hand, both facings.
+// Aiming across, the arm reaches over the body, as a right-hander's does.
+// A Side pose has one arm and no twin, so nothing changes there; a ✋ hold point or a stand-in arm is
+// not a hand at all. `find` is armOf for the player, flaggedArmOf for a unit: one rule for both.
+export const heldArmOf = (blocks, mirrored, find = armOf) => {
+  const a = find(blocks);
+  if (!a || !mirrored || a.__hold || a.__synthArm) return a;
+  return twinArmOf(blocks, a) || a;
+};
+// A mirror twin as the plain arm it LOOKS like: same box, turned by what it shows on screen
+// (visualRotOf). The attach math (armRig) reads a piece's rot as drawn, which a twin's is not.
+export const heldArmView = (arm) => ((arm && arm._m) ? { ...arm, _m: undefined, rot: visualRotOf(arm, arm.rot) } : arm);
+// attachWeaponBlocksToArms for whichever arm holds the weapon. Held by the drawn arm it IS that
+// function. Held by the twin, the weapon keeps the grip it was drawn with: it sits in the twin's
+// hand at the same angle to that arm as its art sits to the drawn arm (the base it turns from is the
+// twin's own rest angle seen in the drawn arm's terms, i.e. mirrored), so a gun aimed level from
+// either hand points along the same line. A two-armed weapon's far-side pieces (the DK Arms' second
+// forearm) ride the OTHER arm by the same mirror step attachWeaponBlocksToArms takes.
+// `baseRot` is the HELD arm's stored rot before this frame's climb/walk/aim turned it.
+export const attachHeldToArms = (weaponPieces, curArm, otherArm, guideHand, baseRot, baseOtherRot) => {
+  if (!curArm || !curArm._m) return attachWeaponBlocksToArms(weaponPieces, curArm, otherArm, guideHand, baseRot, baseOtherRot);
+  const view = heldArmView(curArm), viewBase = -visualRotOf(curArm, baseRot || 0);
+  const own = attachWeaponBlocks(weaponPieces, view, guideHand, viewBase);
+  if (!otherArm || !guideHand) return own;
+  const farSide = (pc) => { const cx = pc.x + pc.w / 2; return Math.abs(cx - (W - guideHand.x)) < Math.abs(cx - guideHand.x); };
+  const virt = { ...mirrorOnCanvas(otherArm, false), rot: -visualRotOf(otherArm, otherArm.rot) };
+  return (weaponPieces || []).map((pc, i) => {
+    if (!pc._m || !farSide(pc)) return own[i];
+    const placed = attachWeaponBlocks([mirrorOnCanvas(pc, false)], virt, guideHand, viewBase)[0];
+    return mirrorOnCanvas(placed, true);
+  });
+};
 // Hitboxes and the arm trajectory:
 // A weapon's damage box rides the swinging arm automatically — the drawn hitbox piece(s) are just
 // ordinary weapon pieces flagged isHitbox, so attachWeaponBlocks sweeps them around the grip with
@@ -2721,6 +2761,15 @@ export const REROLL_SHOW_FRAMES = 15;
 export const nextRerollHold = (prev, held, dtMul = 1) => (held ? (prev || 0) + dtMul : 0);
 export const nextAimSideGrace = (prev, sideHeld, vertHeld, dtMul = 1) =>
   !vertHeld ? 0 : sideHeld ? AIM_DIAGONAL_GRACE_FRAMES : Math.max(0, (prev || 0) - dtMul);
+// WHICH KEYS ARE THE SIDEWAYS HALF OF THE 45° (2026-11-14, Blake: "Sometimes when walking it will not
+// let you aim up at a 45 degree angle. It just looks straight up"). Only ←/→ counted, so the diagonal
+// while walking was a THREE-key hold (D + ↑ + →, four with the trigger), and the sideways arrow is the
+// one that goes missing: a keyboard that cannot report that combination never sends its keydown, and
+// a hand already holding D does not always add it. Either way the loop read ↑ alone and pointed the
+// gun straight up in mid-stride. The key you are WALKING on is a sideways key too: A/D with ↑ or ↓
+// is the diagonal, along the way you are going (the facing block already turns you that way). Standing
+// still nothing changes: ↑ alone is straight up, ↑ with ← or → is the 45°.
+export const aimSideHeld = (K) => !!(K && (K.aimLeft || K.aimRight || K.left || K.right));
 // Degrees off level the shot flies, positive = downward (screen coords, matching rot everywhere else).
 // STRAIGHT DOWN, PERIOD (Blake, 2026-10-17: ladders/planes first, then same day — "steeper angles
 // downwards" generally). ↓ alone used to be a shallow 40° dip everywhere except a ladder or 🚶 plane
@@ -7197,6 +7246,15 @@ export const LADDER_ARM_REACH = 6;
 // (its target level with it) before it lets go and falls. See the grip check in the enemy loop.
 export const CLIMB_IDLE_LET_GO_FRAMES = 90;
 export const LADDER_ARM_REACH_UP = 1.5;
+// THE CLIMB CYCLE IS PACED BY THE LADDER, NOT BY THE WALK (2026-11-14, Blake: "The climb animation
+// speed appears slower than the amount you are climbing when going up ladders"). The ladder's hand
+// and foot cycle borrowed the walk's 0.03 rad per px, which is one full cycle every 209 px: the body
+// went up SEVEN cells while each hand reached once. A climber takes a rung per rung: one hand (and
+// the opposite foot) moves for every rung the body passes, so a full left-right cycle is two rungs.
+// A rung is a cell. Phase per px CLIMBED, so it holds at any climb speed, up or down, for you and
+// for a unit, and stops the frame the body does.
+export const LADDER_RUNG_PX = LV_CELL;
+export const climbPhaseStep = (climbedPx) => Math.abs(climbedPx || 0) * Math.PI / LADDER_RUNG_PX;
 export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
   const o = opts || {};
   const trueLegs = blocks.filter((b) => legIds.has(b.id) && !b._isShoe);
@@ -16075,6 +16133,7 @@ export default function AssetStudio({ game = false } = {}) {
     // Quartered from the original 10px/frame — climbing was moving (and therefore animating,
     // since the climb animation's phase advance is driven directly by how far you actually
     // moved) too fast to see the swing cycle clearly. This single constant governs both.
+    // The cycle itself is paced by the rungs passed (climbPhaseStep), whatever this speed is.
     const CLIMB_SPEED = 2.5;
     // JUMP_HOLD_BOOST_FRAMES / _ACCEL (the Agility-above-5 hold-for-height assist) are module-level
     // now: a unit's jump gets the same assist (see the unit's gravity step).
@@ -17678,7 +17737,7 @@ export default function AssetStudio({ game = false } = {}) {
       // left/right of its own — holding ↑+← turns you and aims up-left in one move.
       // Any climb frees the gun hand (climbFreesGunArm): W/S still climb, the arrows aim.
       p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing && !climbFreesGunArm(climbKindHere), K.fire, K.aimUp, K.aimDown, p.firing);
-      p.aimSideGrace = nextAimSideGrace(p.aimSideGrace, !!(K.aimLeft || K.aimRight), !!(K.aimUp || K.aimDown), dtMul);
+      p.aimSideGrace = nextAimSideGrace(p.aimSideGrace, aimSideHeld(K), !!(K.aimUp || K.aimDown), dtMul); // the walk keys count: A/D + ↑ is the 45° too (aimSideHeld)
       const aimDiag = p.aimSideGrace > 0 ? AIM_DIAGONAL : 1;
       p.aimDir = p.aiming ? (K.aimUp ? -aimDiag : K.aimDown ? aimDiag : 0) : 0;
       // A THROW READS THE SAME ARROWS, on its own channel. p.aimDir is gated on p.aiming, which
@@ -17895,7 +17954,7 @@ export default function AssetStudio({ game = false } = {}) {
       const tdWalking = topdown && topdownLegsShouldWalk(dx, tdMove, K.left || K.right);
       p.walking = tdWalking || groundLegsShouldWalk(dx, p.onGround, climbing, p.sliding, K.left || K.right);
       if (p.walking) p.walkPhase = (p.walkPhase || 0) + (Math.abs(dx) + tdMove) * 0.03;
-      else if (climbing && climbMove) p.walkPhase = (p.walkPhase || 0) + climbMove * 0.03;
+      else if (climbing && climbMove) p.walkPhase = (p.walkPhase || 0) + climbPhaseStep(climbMove); // a rung per rung, not the walk's stride
       // Hanging is a DANGLE, not a stride: the legs need to keep moving even when you're gripping
       // still, which walkPhase can't do (it only advances with actual movement — hold still on the
       // bars and it freezes). So hanging gets its own phase, advanced by time rather than distance.
@@ -18923,7 +18982,7 @@ export default function AssetStudio({ game = false } = {}) {
           } else {
             ep.flapDown = false;
             ep.walking = (ep.onGround || !!ep.climbing) && eStep > 0.05;
-            if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + eStep * 0.03;
+            if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + (ep.climbing === "ladder" && eClimbMove > 0 ? climbPhaseStep(eClimbMove) : eStep * 0.03); // on a ladder, your rung-per-rung cycle (climbPhaseStep)
           }
 
           // TACKLE CONTACT — the enemy's half of the ability, and the exact mirror of the player's
@@ -19547,7 +19606,11 @@ export default function AssetStudio({ game = false } = {}) {
           // arm (tiltDeg) after the first answer, and the barrel has to be re-read at the bent
           // angle so the bullet still leaves the gun and not a spot a few px beside it.
           const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
-          const armPieceM = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
+          // The arm the render holds the gun in (heldArmOf): the twin while the sprite is mirrored, read
+          // off the baked pose, where the twin is its own piece.
+          const heldMirM = playerSpriteMirrored(basePlayerAsset, p.face);
+          const heldPoseM = (ang) => (heldMirM ? bake(playerAsset, ang) : (playerAsset.angles[ang] || []));
+          const armPieceM = playerAsset ? heldArmOf(heldPoseM(angleNow), heldMirM) : null;
           const wPoseM = weaponArtPose(angleNow); // walking down a 🚶 plane the gun is held by its Back art — the render's rule, so the shot leaves the barrel that is drawn
           const muzzleSpawn = (tiltDeg) => {
             if (!armPieceM) return null;
@@ -19562,14 +19625,14 @@ export default function AssetStudio({ game = false } = {}) {
             // barrel has to be read off THAT arm. Read off the arm as drawn at rest, the rifle hangs
             // down at your side and the shot left from your feet (Blake, 2026-10-18, on the S1 bars).
             const climbRotM = aimingNow ? null : p.climbing ? armClimbAbs(armPieceM.armPivot) : p.climbJumpKind ? armPushOffAbs(armPieceM.armPivot) : null;
-            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir, aimSteepDown(p)) + tiltDeg) : climbRotM != null ? climbRotM : baseArmRotM };
+            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir, aimSteepDown(p)) + tiltDeg) * armMirrorTwist(armPieceM) : climbRotM != null ? climbRotM : baseArmRotM }; // stored rot, as the render's aim branch stores it
             const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
             const guideHandM = handForGuideId(wfitM.guideId)[wPoseM] || DEFAULT_HAND[wPoseM];
-            const wBaseM = wPoseM === angleNow ? baseArmRotM : armBaseFrom(armOf(playerAsset.angles[wPoseM] || []), armPieceM, baseArmRotM);
+            const wBaseM = wPoseM === angleNow ? baseArmRotM : armBaseFrom(heldArmOf(heldPoseM(wPoseM), heldMirM), armPieceM, baseArmRotM);
             // The drawing on screen as it fires (Fire replaces Rest) and its Rest drawing, both on
             // the arm — heldShotPoint takes the muzzle from either, else the far end of the gun.
-            const heldM = (angles) => attachWeaponBlocks(bake({ ...playtestWeapon, angles: angles || blankAngles() }, wPoseM), curArmM, guideHandM, wBaseM);
-            const mp = heldShotPoint(heldM(weaponFireArt(wfitM.states, wPoseM)), heldM(wfitM.states.rest), curArmM);
+            const heldM = (angles) => attachHeldToArms(bake({ ...playtestWeapon, angles: angles || blankAngles() }, wPoseM), curArmM, null, guideHandM, wBaseM);
+            const mp = heldShotPoint(heldM(weaponFireArt(wfitM.states, wPoseM)), heldM(wfitM.states.rest), heldArmView(curArmM));
             if (!mp) return null;
             const renderWM = CW * PLAYER_RENDER_W_CELLS;
             const wrapLeftM = p.x - (bodyShape.centerFrac * renderWM - pw / 2);
@@ -19840,7 +19903,9 @@ export default function AssetStudio({ game = false } = {}) {
         const unarmedSwing = !!(p.firing && p.firing.unarmed); // Q/V bare-handed swing — ignores the held weapon entirely
         if (unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) {
           const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
-          const armPiece = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
+          const heldMirH = playerSpriteMirrored(basePlayerAsset, p.face); // the swing is the held arm's, as drawn (heldArmOf)
+          const heldPoseH = (ang) => (heldMirH ? bake(playerAsset, ang) : (playerAsset.angles[ang] || []));
+          const armPiece = playerAsset ? heldArmOf(heldPoseH(angleNow), heldMirH) : null;
           // A DRAWN CREATURE HAS NO ARM TO SWING, AND THIS WHOLE BLOCK USED TO HANG OFF ONE.
           // armOf finds only a piece flagged role:"weaponArm", and an animal built in the Enemy
           // creator (the Squirrel, both Pit Bulls, the Elaphant) has none — nothing on it is an arm.
@@ -19853,7 +19918,7 @@ export default function AssetStudio({ game = false } = {}) {
           if (armPiece || biteBox) {
             const baseArmRot = armPiece ? (armPiece.rot || 0) : 0;
             const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
-            const curArm = armPiece ? { ...armPiece, rot: baseArmRot + armPivotSign(armPiece.armPivot) * swingAngle } : null;
+            const curArm = armPiece ? { ...armPiece, rot: baseArmRot + armPivotSign(armPiece.armPivot) * swingAngle * armMirrorTwist(armPiece) } : null;
             const wfit = armPiece ? weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset)) : null;
             const guideHand = armPiece ? (handForGuideId(wfit.guideId)[angleNow] || DEFAULT_HAND[angleNow]) : null;
             const useFist = unarmedSwing || !playtestWeapon; // bare-handed reach/damage; a real melee weapon (not forced-unarmed) uses its own hitbox
@@ -19862,11 +19927,11 @@ export default function AssetStudio({ game = false } = {}) {
             // nothing and every swing taken facing the camera hit nobody at all.
             const wPoseH = weaponArtPose(angleNow);
             const wHandH = armPiece ? (handForGuideId(wfit.guideId)[wPoseH] || DEFAULT_HAND[wPoseH]) : null;
-            const wBaseH = (!armPiece || wPoseH === angleNow) ? baseArmRot : armBaseFrom(armOf(playerAsset.angles[wPoseH] || []), armPiece, baseArmRot);
+            const wBaseH = (!armPiece || wPoseH === angleNow) ? baseArmRot : armBaseFrom(heldArmOf(heldPoseH(wPoseH), heldMirH), armPiece, baseArmRot);
             const hbPieces = !armPiece ? []
               : !useFist
-              ? attachWeaponBlocks(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfit.states, wPoseH) }, wPoseH)), curArm, wHandH, wBaseH)
-              : attachWeaponBlocks([{ id: "fist", kind: "rect", x: guideHand.x - 20, y: guideHand.y - 20, w: 40, h: 40, isHitbox: true }], curArm, guideHand, baseArmRot);
+              ? attachHeldToArms(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfit.states, wPoseH) }, wPoseH)), curArm, null, wHandH, wBaseH)
+              : attachHeldToArms([{ id: "fist", kind: "rect", x: guideHand.x - 20, y: guideHand.y - 20, w: 40, h: 40, isHitbox: true }], curArm, null, guideHand, baseArmRot);
             if (hbPieces.length || biteBox) {
               const wrapLeft = p.x - (bodyShape.centerFrac * (CW * PLAYER_RENDER_W_CELLS) - pw / 2);
               const strength = pstats.strength, intelligence = pstats.intelligence;
@@ -24414,7 +24479,7 @@ export default function AssetStudio({ game = false } = {}) {
     const poseArt = bake(ea, poseKey);
     const hold = unitHoldArm(ea, poseKey, poseArt);
     const body = poseArt.filter((b) => !b._isWeapon); // the look's frozen copy of a gun is stripped before the arm is found, as the render does
-    const arm0 = hold || flaggedArmOf(body) || enemyAimArm(body);
+    const arm0 = hold || heldArmOf(body, enemyNeedsFlip(ea, ep.face), flaggedArmOf) || enemyAimArm(body); // the arm the render holds it in
     if (!arm0) return null;
     const facesRight = enemyArtFacesRight(ea);
     const tilt = (playerArtFacesRight(ea) ? 1 : -1) * (tiltDeg || 0); // the render's eShotTilt
@@ -24424,10 +24489,10 @@ export default function AssetStudio({ game = false } = {}) {
     const base = hold ? 0 : (arm0.rot || 0); // eAttachBase
     const held = (angles) => {
       const art = bake({ ...ew, angles: angles || blankAngles() }, poseKey);
-      return attachWeaponBlocks(facesRight ? art : mirrorHeldArt(art, hand.x), arm, hand, base);
+      return attachHeldToArms(facesRight ? art : mirrorHeldArt(art, hand.x), arm, null, hand, base);
     };
     const td = (tiltDeg || 0) * Math.PI / 180;
-    const mp = heldShotPoint(held(weaponFireArt(wfit.states, poseKey)), held(wfit.states.rest), arm, { x: (facesRight ? 1 : -1) * Math.cos(td), y: Math.sin(td) });
+    const mp = heldShotPoint(held(weaponFireArt(wfit.states, poseKey)), held(wfit.states.rest), heldArmView(arm), { x: (facesRight ? 1 : -1) * Math.cos(td), y: Math.sin(td) });
     if (!mp) return null;
     // The sprite's ground anchor, exactly as the render works it out (eAnchor there) — a ducking unit
     // stands on its crouch drawing's own feet (unitCrouchFrame).
@@ -29069,7 +29134,10 @@ export default function AssetStudio({ game = false } = {}) {
                   // point was designed against. Any later change to the arm's rot (climbing,
                   // firing) is tracked as a delta from this baseline and applied to the
                   // weapon too, so it stays rigidly attached instead of freezing in place.
-                  const baseArmPiece = blocks && armOf(blocks);
+                  // The arm the weapon is in: the drawn arm, or its twin while the sprite is mirrored, so it
+                  // stays in one hand whichever way you face (heldArmOf). Every arm read below is this arm.
+                  const heldMir = playerSpriteMirrored(basePlayerAsset, p.face);
+                  const baseArmPiece = blocks && heldArmOf(blocks, heldMir);
                   const baseArmRot = baseArmPiece ? (baseArmPiece.rot || 0) : 0;
                   // ...and the OTHER arm's, for a two-armed weapon's second forearm (the DK Arms'
                   // twin, which rides this arm — see attachWeaponBlocksToArms).
@@ -29102,7 +29170,7 @@ export default function AssetStudio({ game = false } = {}) {
                     // leg under them); armReach: arms pump up/down alternately instead of rotating.
                     // Aiming on the ladder (climbFreesGunArm), the gun arm is out of the pump: a
                     // shoulder that bobs while it points a rifle reads as the arm coming loose.
-                    const gunArmPiece = p.aiming ? armOf(blocks) : null;
+                    const gunArmPiece = p.aiming ? heldArmOf(blocks, heldMir) : null;
                     const armSkip = gunArmPiece ? gunArmOnly(blocks, gunArmPiece) : null;
                     blocks = applyLimbSwing(blocks, legIds, armIds, swing, { alternate: true, armReach: Math.sin(p.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP, legLift: Math.sin(p.walkPhase || 0) * 8, armSkip });
                   } else if (blocks && p.climbing) {
@@ -29218,7 +29286,7 @@ export default function AssetStudio({ game = false } = {}) {
                     // meleeClimbSwingAngle measured from where that grip is on the swing's scale — and
                     // only the weapon arm swings (gunArmOnly, as aiming there): the other hand keeps
                     // hold of the rung.
-                    const climbSwing = p.climbing ? gunArmOnly(blocks, armOf(blocks)) : null;
+                    const climbSwing = p.climbing ? gunArmOnly(blocks, heldArmOf(blocks, heldMir)) : null;
                     const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
                     const swingOf = (a) => { if (!climbSwing) return swingAngle; const g = climbGripSwingDeg(a.armPivot, armMirrorTwist(a)); return meleeClimbSwingAngle(p.firing.t, p.firing.dur, g) - g; };
                     const meleeAnchorOf = armAnchorFinder(blocks);
@@ -29289,7 +29357,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const armAimDeg = aimArmOffsetDeg(aimDir, aimSteepDown(p)) + ((p.firing && p.firing.aimTilt) || 0);
                     const aimAnchorOf = armAnchorFinder(blocks);
                     // On a ladder, bars or a ledge the other hand stays on the grip (gunArmOnly): only the gun arm aims.
-                    const onlyGunArm = p.climbing ? gunArmOnly(blocks, armOf(blocks)) : null;
+                    const onlyGunArm = p.climbing ? gunArmOnly(blocks, heldArmOf(blocks, heldMir)) : null;
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
                       if (onlyGunArm && !onlyGunArm(b)) return b;
@@ -29329,7 +29397,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // not drawn in it. It comes back into the hand the frame it is caught (boomerangAmmo).
                   const boomerangAway = isBoomerang(playtestWeapon) && isRanged(playtestWeapon.wtype) && !!wpn.current && wpn.current.clip > 0 && wpn.current.ammo <= 0;
                   if (blocks && playtestWeapon && !throwingNow && !playerAtkPose && !boomerangAway) {
-                    const curArm = armOf(blocks);
+                    const curArm = heldArmOf(blocks, heldMir);
                     if (curArm) {
                       const wfit = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
                       // Walking DOWN a 🚶 Top-down plane is the Front pose, which no weapon is drawn
@@ -29338,7 +29406,7 @@ export default function AssetStudio({ game = false } = {}) {
                       const wPose = weaponArtPose(angle);
                       const guideHand = handForGuideId(wfit.guideId)[wPose] || DEFAULT_HAND[wPose];
                       const drawnArms = wPose === angle ? null : ((playerAsset && playerAsset.angles && playerAsset.angles[wPose]) || []);
-                      const drawnArm = drawnArms && armOf(drawnArms);
+                      const drawnArm = drawnArms && heldArmOf(drawnArms, heldMir);
                       const wBaseRot = drawnArms ? armBaseFrom(drawnArm, baseArmPiece, baseArmRot) : baseArmRot;
                       const wBaseTwinRot = drawnArms ? armBaseFrom(twinArmOf(drawnArms, drawnArm), baseTwinArm, baseTwinRot) : baseTwinRot;
                       const isProjectile = isRanged(playtestWeapon.wtype);
@@ -29351,7 +29419,7 @@ export default function AssetStudio({ game = false } = {}) {
                       const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current);
                       const wpnAngles = firedNow ? weaponFireArt(wfit.states, wPose) : (wfit.states.rest || blankAngles());
                       const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, wPose);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot));
+                      blocks = mergeWeaponBlocks(blocks, attachHeldToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot));
                     }
                   }
                   // Carried throwable in hand: shown while aiming (G held) or during the brief
@@ -29364,23 +29432,23 @@ export default function AssetStudio({ game = false } = {}) {
                   const carriedThrowRender = playtestThrowId ? findA(playtestThrowId) : null;
                   const showThrowInHand = blocks && carriedThrowRender && isThrowable(carriedThrowRender.wtype) && (p.throwAiming || p.throwFiring > 0) && !p.climbing;
                   if (showThrowInHand) {
-                    const curArm = armOf(blocks);
+                    const curArm = heldArmOf(blocks, heldMir);
                     if (curArm) {
                       const tfit = weaponFitFor(carriedThrowRender, equippedBodyIdFor(playerAsset));
                       const tPose = weaponArtPose(angle); // a grenade has no Front either — the weapon's rule, above
                       const guideHand = handForGuideId(tfit.guideId)[tPose] || DEFAULT_HAND[tPose];
                       const drawnArms = tPose === angle ? null : ((playerAsset && playerAsset.angles && playerAsset.angles[tPose]) || []);
-                      const drawnArm = drawnArms && armOf(drawnArms);
+                      const drawnArm = drawnArms && heldArmOf(drawnArms, heldMir);
                       const tBaseRot = drawnArms ? armBaseFrom(drawnArm, baseArmPiece, baseArmRot) : baseArmRot;
                       const tBaseTwinRot = drawnArms ? armBaseFrom(twinArmOf(drawnArms, drawnArm), baseTwinArm, baseTwinRot) : baseTwinRot;
                       const useFire = p.throwFiring > 0;
                       const thrAngles = useFire ? weaponFireArt(tfit.states, tPose) : (tfit.states.rest || blankAngles());
                       const thrPieces = bake({ ...carriedThrowRender, angles: thrAngles }, tPose).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(thrPieces, curArm, twinArmOf(blocks, curArm), guideHand, tBaseRot, tBaseTwinRot));
+                      blocks = mergeWeaponBlocks(blocks, attachHeldToArms(thrPieces, curArm, twinArmOf(blocks, curArm), guideHand, tBaseRot, tBaseTwinRot));
                     }
                   }
                   const doorT = doorAnimProgress(p);
-                  const flip = playerSpriteMirrored(basePlayerAsset, p.face) ? "scaleX(-1)" : "";
+                  const flip = heldMir ? "scaleX(-1)" : "";
                   // Receding into the door: smaller and a touch UP the screen, scaled about the feet so they stay on the floor line.
                   const shrink = doorT < 1 ? "translateY(" + (-(1 - doorT) * ph * 0.06).toFixed(1) + "px) scale(" + (DOOR_MIN_SCALE + (1 - DOOR_MIN_SCALE) * doorT).toFixed(3) + ")" : "";
                   // A small forward tilt while actively climbing a ramp — only when walking
@@ -29798,7 +29866,8 @@ export default function AssetStudio({ game = false } = {}) {
                   // enemy has flagged 💪 Arm. Only if NEITHER exists and it holds a weapon does a
                   // synthesized invisible stand-in (enemyAimArm) get spliced in, so a weapon can
                   // still be lifted/attached — without one, "guns never shoot".
-                  let eArm0 = creatureFlies(ea) ? null : flaggedArmOf(eBlocks);
+                  const eHeldMir = !eFrontPose && enemyNeedsFlip(ea, ep && ep.face); // the wrapper's flip, below: mirrored, the weapon is in the twin arm, as yours is (heldArmOf)
+                  let eArm0 = creatureFlies(ea) ? null : heldArmOf(eBlocks, eHeldMir, flaggedArmOf);
                   // ✋ An Enemy-creator asset holds its weapon (and a grenade mid-throw) at its HOLD
                   // POINT — see unitHoldArm. Read off the pose's own un-swung art, so the default
                   // point stays put while the legs walk.
@@ -29813,7 +29882,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const eAttachBase = eArm0 && eArm0.__hold ? 0 : eBaseRot;
                   // The arm the held item attaches to after the swing/aim below has turned it. The
                   // hold arm is appended last, so flaggedArmOf would find a drawn arm first.
-                  const eHeldArmNow = () => (eArm0 && eArm0.__hold ? eBlocks.find((b) => b.__hold) : flaggedArmOf(eBlocks));
+                  const eHeldArmNow = () => (eArm0 && eArm0.__hold ? eBlocks.find((b) => b.__hold) : heldArmOf(eBlocks, eHeldMir, flaggedArmOf));
                   // ...and the body's OTHER arm as drawn, before anything below turns it: a two-armed
                   // weapon's second forearm rides it (eHeldView). Only a real drawn arm has a twin — a
                   // ✋ hold point or a synthesized stand-in never does.
@@ -29850,8 +29919,8 @@ export default function AssetStudio({ game = false } = {}) {
                   };
                   // One attach for both held things (weapon, grenade) — see eHeldView.
                   const eAttachHeld = (pieces, hv, curArm) => (hv.twin
-                    ? attachWeaponBlocksToArms(pieces, curArm, twinArmOf(eBlocks, curArm), hv.hand, hv.base, hv.twinBase)
-                    : attachWeaponBlocks(eFacesRight ? pieces : mirrorHeldArt(pieces, hv.hand.x), curArm, hv.hand, hv.base));
+                    ? attachHeldToArms(pieces, curArm, twinArmOf(eBlocks, curArm), hv.hand, hv.base, hv.twinBase)
+                    : attachHeldToArms(eFacesRight ? pieces : mirrorHeldArt(pieces, hv.hand.x), curArm, null, hv.hand, hv.base));
                   // Melee attack: swing EVERY 💪-flagged piece through the same windup/strike arc
                   // the player's own swing uses — the primary arm rotates about its shoulder and
                   // the other flagged pieces ride it rigidly (rigidArmFollow), so a multi-piece
