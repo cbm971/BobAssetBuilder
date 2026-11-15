@@ -3035628,29 +3035628,6 @@
     }
    },
    "savedAt": 1794650055250
-  },
-  {
-   "id": "dlgmtk1",
-   "name": "Pit Boss",
-   "start": "nmtk1a",
-   "nodes": {
-    "nmtk1a": {
-     "id": "nmtk1a",
-     "speaker": "Pit Boss",
-     "text": "Keys are in it. Don't roll it.",
-     "choices": [
-      {
-       "id": "cmtk1a",
-       "text": "...",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    }
-   },
-   "savedAt": 1794741385273
   }
   ],
  "sounds": [
