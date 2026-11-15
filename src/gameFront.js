@@ -293,6 +293,9 @@ export const makeGameSave = (prev, s) => ({
   objectives: s.objectives && Array.isArray(s.objectives.list) ? { list: s.objectives.list.map((o) => ({ ...o })), done: [...(s.objectives.done || [])] } : null,
   talkSpent: [...(s.talkSpent || [])],
   playSecs: Math.max(0, Number(s.playSecs) || 0),
+  // 🧪 Timed buffs still running (a drink), each with the milliseconds it has LEFT, so a load or the
+  // next floor gives back what remained (App.js buffsToSave / buffsFromSave).
+  buffs: Array.isArray(s.buffs) ? s.buffs.filter((b) => b && typeof b === "object" && b.left > 0).map((b) => ({ ...b })) : [],
 });
 // Newest first, at most GAME_SAVES_MAX, one per id (the newest copy of an id wins).
 export const sortGameSaves = (saves) => {

@@ -604,3 +604,27 @@ describe("back-to-back main-game runs never reuse the previous seed", () => {
     expect(m[0]).not.toContain("o.seed");
   });
 });
+
+import { makeGameSave as makeGameSave15, carryToNextFloor as carryToNextFloor15 } from "./gameFront";
+
+describe("timed buffs ride in the save (2026-11-15)", () => {
+  const base = { id: "g1", seed: "7", runFloor: "Trailer Park", floor: "Trailer Park", lookId: "bob", score: { total: 10, secs: {} } };
+  test("a save keeps each live buff with the time it has left", () => {
+    const s = makeGameSave15(null, { ...base, buffs: [{ stat: "speed", amount: 2, left: 41000 }, { kind: "range", mult: 1.5, left: 900 }] });
+    expect(s.buffs).toEqual([{ stat: "speed", amount: 2, left: 41000 }, { kind: "range", mult: 1.5, left: 900 }]);
+    expect(JSON.parse(JSON.stringify(s))).toEqual(s);
+  });
+  test("spent or broken entries are dropped, and an old save has none", () => {
+    expect(makeGameSave15(null, { ...base, buffs: [{ stat: "speed", amount: 2, left: 0 }, null, "x", { stat: "agility", amount: 1, left: -5 }] }).buffs).toEqual([]);
+    expect(makeGameSave15(null, base).buffs).toEqual([]);
+    expect(makeGameSave15(null, { ...base, buffs: "nope" }).buffs).toEqual([]);
+  });
+  test("the drink goes on to the next floor", () => {
+    const end = makeGameSave15(null, { ...base, buffs: [{ stat: "strength", amount: 3, left: 30000 }] });
+    const next = carryToNextFloor15(end, "Vietnam", 999);
+    expect(next.floor).toBe("Vietnam");
+    expect(next.buffs).toEqual([{ stat: "strength", amount: 3, left: 30000 }]);
+    next.buffs[0].left = 1;
+    expect(end.buffs[0].left).toBe(30000);   // its own copy
+  });
+});

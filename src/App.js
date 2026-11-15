@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animCanSkip, ANIM_SKIP_LEAVE_MS, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
@@ -3851,6 +3851,29 @@ export const withTimedTagBoosts = (effects, buffs, nowMs) => {
 };
 // Drop buffs whose timer has elapsed (called every frame so the list can't grow unbounded).
 export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.until > nowMs);
+// A PAUSED WORLD HOLDS YOUR BUFFS (2026-11-15). Blake, on the crawl between Trailer Park and
+// Vietnam: "have it so any time based buffs get paused during animations so skipping or not will
+// not effect buffs from drinks and stuff." A buff ends at a wall-clock time (`until`), and the wall
+// clock does not stop for a cutscene: a 60 s drink bought at the end of the floor was gone before
+// the General had finished talking. Every other timer in play counts frames the loop actually ran
+// (dtMul), so they already stood still; these were the one clock that kept going. Each paused
+// frame (a cutscene, a conversation, a shop, the pause menu, the fall of a death) now pushes every
+// `until` back by the real time that frame took, so a buff has exactly as long left when the world
+// moves again as it had when it stopped.
+export const holdBuffs = (buffs, ms) => (ms > 0 && buffs && buffs.length ? buffs.map((b) => (b && typeof b.until === "number" ? { ...b, until: b.until + ms } : b)) : buffs || []);
+// ...AND THEY GO WITH YOU TO THE NEXT FLOOR. A new floor is a new Playtest underneath, which starts
+// with no buffs, so the drink was lost at the floor's end whatever the cutscene did. A save keeps
+// each live buff as the time it has LEFT (a wall-clock time means nothing to another page load),
+// and a load starts that much again from its own clock.
+export const buffsToSave = (buffs, nowMs) => (buffs || []).filter((b) => b && b.until > nowMs).map(({ until, ...rest }) => ({ ...rest, left: Math.round(until - nowMs) }));
+export const buffsFromSave = (saved, nowMs) => (Array.isArray(saved) ? saved : []).filter((b) => b && b.left > 0).map(({ left, ...rest }) => ({ ...rest, until: nowMs + left }));
+// 💣 CALLING A THROW OFF (2026-11-15). Blake: "Pressing C or F or Q should all cancel a grenade you
+// are throwing". G is hold-to-aim, release-to-throw, and there was no way back once it was down:
+// letting go threw it, wherever it was pointed. Crouch (C), fire (F) or melee (Q) PRESSED while G is
+// held calls it off: the arc goes, and letting G go throws nothing. It is the press that counts,
+// not the key being down, so a trigger already held when you reach for the grenade does not stop
+// you ever aiming one. The throw stays off until G is let go; pressing G again aims afresh.
+export const throwCalledOff = (off, throwHeld, wasThrowHeld, cancelHeld, wasCancelHeld) => !!(off || (throwHeld && wasThrowHeld && cancelHeld && !wasCancelHeld));
 // ── Rooms: small levels (isRoom) with a roomTag; a level door pulls a seeded pick from the pool ─
 // A door carries a tag; entering it collects every saved room whose roomTag matches (case-
 // insensitive), then picks one deterministically from a seed so the same door in the same play
@@ -5693,6 +5716,13 @@ export const unitUntouchable = (ep) => !!(ep && ep.lifeGrace > 0);
 // 2026-09-28 and asked about, never answered; his rule is "there shouldn't be any differences".
 // The unit side sets ep.invuln at every hit site, exactly where the player's sites set p.invuln.
 export const unitHitImmune = (ep) => !!(ep && (ep.lifeGrace > 0 || ep.invuln > 0));
+// 🚗 WHO A CAR AT SPEED KNOCKS FLYING (vehRam). Not a rider, not a body that stepped out of the way
+// (ep.carDodge), not one in its i-frames, not a talker your hits pass through, and NOT YOUR OWN
+// SIDE. Blake, 2026-11-15: "You shouldn't be able to run over allies." Every car that moves is one
+// you have driven, so an ally under its bumper was hit by you: a follower walking single file
+// behind you was flattened the moment you got in and reversed. Nothing else of yours hurts an ally
+// (your shots pass through one, your blast skips one), and now your car goes by it the same way.
+export const carRamsUnit = (ep) => !!ep && !ep.ride && !ep.carDodge && !ep.friendly && !unitHitImmune(ep) && !unitTalkImmune(ep);
 // The line the ▶ Playtest toast and the enemy's own revive share, so "N left" is spelt one way.
 export const livesLeftNote = (n) => (n > 0 ? n + (n === 1 ? " life" : " lives") + " left" : "that was the last one");
 /* --- Door transitions -----------------------------------------------------------------------
@@ -6064,6 +6094,23 @@ export const creatureMeleeDamage = (strength) => Math.max(1, Math.round(CREATURE
 // Sized off the body so a squirrel bites a squirrel-sized bite and an elephant an elephant-sized
 // one, with a floor so a very small animal still has some reach.
 export const CREATURE_BITE_REACH_CELLS = 0.35;
+// A BARE BLOW REACHES ONLY AS HIGH AS THE BODY THAT THROWS IT (2026-11-15). Blake, on the fishing
+// village: "the crocalile attack hit box goes to high ... it attacked me through the ground". A
+// unit's bite or punch lands the instant it commits, and the only up-and-down test was "feet less
+// than the unit's own height apart" (sameLevel), measured on its PHYSICS box. That box is the
+// player's seven cells times the creature's scale whatever is drawn in it: his Crocodile (scale
+// 1.6) is 68 px of animal at the bottom of a 336 px box, so from the river bed it bit a man
+// standing on the pier nine rows up, through the planks. The drawn body is the animal (unitHitTop
+// says where every other hit test already finds it), so a bare blow now also needs the target's box
+// to meet a band from the body's feet up to a little over its back: half its own drawn height, and
+// never less than half a cell, for the lunge. A Pit Bull still bites a man on the step above it and
+// a Squirrel one up a ramp; neither reaches a floor over its head. Swung weapons and shots have
+// their own boxes and lines and are not asked.
+export const BARE_REACH_UP_FRAC = 0.5;
+export const bareBlowReaches = (bodyTop, bodyH, tgtTop, tgtH, cellPx) => {
+  const lift = Math.max((cellPx || 30) * 0.5, Math.max(0, bodyH) * BARE_REACH_UP_FRAC);
+  return tgtTop + tgtH > bodyTop - lift && tgtTop < bodyTop + bodyH;
+};
 export const creatureBiteBox = (x, y, w, h, face, cellPx) => {
   const reach = Math.max((cellPx || 28) * CREATURE_BITE_REACH_CELLS, w * 0.45);
   return {
@@ -12619,10 +12666,35 @@ const pairAgrees = (connA, levelA, connB, levelB) => !!(connA && connB && ((!con
 // gates actually line up with it (only those lead through — see `gates` there). Side seams keep the
 // strict both-pairs rule: the main chain was built on it and his levels all share one height.
 const vertPairs = (side) => side === "S" ? [["S1", "N1"], ["S2", "N2"], ["S2", "N1"], ["S1", "N2"]] : [["N1", "S1"], ["N2", "S2"], ["N1", "S2"], ["N2", "S1"]];
+// A TRUNK COMES UP ONLY WHERE THERE IS SOMETHING TO CLIMB (2026-11-15). Blake, with a screenshot of a
+// trunk standing beside the end of a tree top: "while you can go down via the sides you shouldn't
+// have a tree trunk going up to a tree edge. I see how the gates may get confused so please find a
+// solution." His Tree Tops 2 and 3 are the two ENDS of a tree: the canopy stops short and their one
+// bottom gate is the open shaft past its edge, the way DOWN. To the gate rules that shaft was a gate
+// like any other, and Tree Tops 2's is the only one that sits square over Forest M4's trunk, so the
+// run stood M4 under it every time: a ladder up a trunk to the top of the level, and then air, with
+// the tree three cells to the right. What tells the two apart is in the level: Tree Tops 1 and 4
+// carry the ladder on through the canopy at their gate, and the ends have nothing there. So a level
+// that hangs OVER the street (a "side" level above a street level) joins the level under it only
+// through a bottom gate with a ladder in its last rows (gateHasClimb). A gate without one is a drop:
+// you leave through it by falling (runFallSeams), and nothing is laid to climb up into it. Sewers
+// are untouched: there the street is the level on top.
+export const GATE_CLIMB_REACH = 2;     // cells either side of a gate's marked column that count as "at the gate"
+export const gateHasClimb = (lv, k, reach = GATE_CLIMB_REACH) => {
+  if (!lv || !lv.climb || !CONN_POS[k]) return false;
+  const g = Math.floor((CONN_POS[k].x / 100) * lv.cols), rows = CONN_SIDE[k] === "N" ? [0, 1] : [lv.rows - 1, lv.rows - 2];
+  for (const r of rows) for (let c = g - reach; c <= g + reach; c++) if (lv.climb[cellKey(r, c)]) return true;
+  return false;
+};
+const vertWayOk = (a, ka, b, kb) => {
+  const [up, uk, low] = CONN_SIDE[ka] === "S" ? [a, ka, b] : [b, kb, a];
+  return !(runRole(up) === "side" && runRole(low) !== "side") || gateHasClimb(up, uk);
+};
 export const seamGatePair = (left, right, side) => {
   if (!left || !right || !left.conns || !right.conns) return null;
+  const vert = side === "N" || side === "S";
   const pairs = side === "E" ? [["E1", "W1"], ["E2", "W2"]] : side === "W" ? [["W1", "E1"], ["W2", "E2"]] : vertPairs(side);
-  return pairs.find(([la, rb]) => connMatch(left.conns[la], left, right.conns[rb], right)) || null;
+  return pairs.find(([la, rb]) => connMatch(left.conns[la], left, right.conns[rb], right) && (!vert || vertWayOk(left, la, right, rb))) || null;
 };
 const canAttach = (left, right, side) => { // does `right` attach to `side` of `left`?
   if (!left || !right) return false;
@@ -12752,6 +12824,7 @@ const seamGates = (a, b, side, off, cell) => {
     const pa = gatePoint(a, k, cell);
     for (const nk of CONN_KEYS) {
       if (CONN_SIDE[nk] !== SIDE_OPP[side] || !connMatch(a.conns[k], a, b.conns[nk], b)) continue;
+      if ((side === "N" || side === "S") && !vertWayOk(a, k, b, nk)) continue;   // a drop is not a way up (gateHasClimb)
       const pb = gatePoint(b, nk, cell);
       if (Math.abs(pb.x + off.x - pa.x) <= cell && Math.abs(pb.y + off.y - pa.y) <= cell) { gates[k] = nk; break; }
     }
@@ -12850,7 +12923,33 @@ export const buildRun = (levels, seed, opts = {}) => {
     };
     // A route under (or over) the street from column `c`: in through c's own gate, then sideways
     // through the passage levels' east/west gates, and back to the street at another column.
+    // A TREE TOP IS LAID ON ITS TRUNK AND NOTHING ELSE (2026-11-15). A sewer needs a second street
+    // level to climb back out of, which is what the route search below is for. A tree top does not:
+    // off any side of it you fall (runFallSeams). Asking it for a way back down is what stood Forest
+    // M4 under the end of Tree Tops 2, the only arrangement of his levels whose two trunks both met
+    // a gate. So the level over a trunk is simply one whose bottom gate carries the ladder on
+    // (seamGatePair's rule), placed where that gate puts it. `x` is where it starts, in cells east
+    // of the run's first level. It may not overlap another tree top (they are all at one height) and
+    // no other trunk may stand under it, since that trunk would end against the canopy's underside.
+    // The ends of the tree are added once the street is final (growTrees, below).
+    const streetX = (col) => { let x = 0; for (let i = 0; i < col; i++) x += seamOffX(chain[i], chain[i + 1], "E"); return x; };
+    const planTree = (c) => {
+      if (!planPassages || taken.N.has(c)) return false;
+      const lv = chain[c], x = streetX(c);
+      const spans = passages.filter((ps) => ps.tree).map((ps) => [ps.x, ps.x + ps.levels[0].cols]);
+      const trunks = [];
+      chain.forEach((m, j) => { if (j !== c) for (const k of CONN_KEYS) if (CONN_SIDE[k] === "N" && m.conns[k] && m.conns[k].open) trunks.push(streetX(j) + gatePoint(m, k, 1).x); });
+      for (const s of order(offStreet.filter((q) => runRole(q) === "side" && canAttach(lv, q, "N") && vertSeamLinesUp(lv, q, "N")))) {
+        const sx = x + seamOffX(lv, s, "N"), ex = sx + s.cols;
+        if (spans.some(([a, b]) => sx < b && ex > a) || trunks.some((t) => t >= sx && t < ex)) continue;
+        used.add(s.id); taken.N.add(c);
+        passages.push({ dir: "N", col: c, step: 1, levels: [s], tree: true, x: sx });
+        return true;
+      }
+      return false;
+    };
     const planFrom = (c, dir) => {
+      if (dir === "N") return planTree(c);
       if (!planPassages || taken[dir].has(c)) return false;
       const firsts = offStreet.filter((s) => !used.has(s.id) && canAttach(chain[c], s, dir) && vertSeamLinesUp(chain[c], s, dir));
       if (!firsts.length) return false;
@@ -12978,8 +13077,41 @@ export const buildRun = (levels, seed, opts = {}) => {
     // A dead gate left anyway (only the Intro is laid without tryLay) costs more than any length.
     const dead = chain.filter((lv, c) => vertDead(c)).length;
     const score = chain.length + (exit ? 1000 : 0) + (dead ? 0 : 500);
-    if (!best || score > best.score) best = { chain, passages, exit: !!exit, intro: !!intro, score, dead };
+    if (!best || score > best.score) best = { chain, passages, exit: !!exit, intro: !!intro, score, dead, used };
     if (best.exit && !best.dead && best.chain.length >= maxMiddles + 2) break;
+  }
+  // THE ENDS OF THE TREE. With the street final, each tree top grows sideways through its own side
+  // gates into the levels nothing climbs up into (no bottom gate with a ladder: his Tree Tops 2 and
+  // 3, the west and east ends), as far as they fit: over the street from end to end (so there is a
+  // level to fall into under every part of it), clear of the other tree tops, and with no trunk of
+  // the street standing under it. `entry` is the index of the level on the trunk.
+  if (best && planPassages) {
+    const chain = best.chain, sx = [0];
+    for (let i = 1; i < chain.length; i++) sx.push(sx[i - 1] + seamOffX(chain[i - 1], chain[i], "E"));
+    const end = chain.length ? sx[chain.length - 1] + chain[chain.length - 1].cols : 0;
+    const trees = best.passages.filter((ps) => ps.tree);
+    const trunks = [];
+    chain.forEach((m, j) => { for (const k of CONN_KEYS) if (CONN_SIDE[k] === "N" && m.conns[k] && m.conns[k].open) trunks.push(sx[j] + gatePoint(m, k, 1).x); });
+    const climbsUp = (s) => CONN_KEYS.some((k) => CONN_SIDE[k] === "S" && s.conns[k] && s.conns[k].open && gateHasClimb(s, k));
+    const ends = offStreet.filter((s) => runRole(s) === "side" && !climbsUp(s));
+    const slots = new Set(trees.map((ps) => ps.col));   // the run's grid columns over the street that hold a tree top
+    for (const ps of trees) { ps.entry = 0; ps.xs = [ps.x]; }
+    for (const ps of trees) for (const side of ["W", "E"]) {
+      while (ps.levels.length < RUN_PASSAGE_MAX) {
+        const at = side === "W" ? 0 : ps.levels.length - 1, edge = ps.levels[at];
+        const col = side === "W" ? ps.col - ps.entry - 1 : ps.col - ps.entry + ps.levels.length;
+        if (col < 0 || col >= chain.length || slots.has(col)) break;
+        const spans = []; for (const q of trees) q.levels.forEach((s, i) => spans.push([q.xs[i], q.xs[i] + s.cols]));
+        const fit = shuffle(ends.filter((s) => !best.used.has(s.id) && canAttach(edge, s, side))).find((s) => {
+          const x0 = ps.xs[at] + seamOffX(edge, s, side), x1 = x0 + s.cols;
+          return x0 >= 0 && x1 <= end && !spans.some(([a, b]) => x0 < b && x1 > a) && !trunks.some((t) => t >= x0 && t < x1);
+        });
+        if (!fit) break;
+        const fx = ps.xs[at] + seamOffX(edge, fit, side);
+        best.used.add(fit.id); slots.add(col);
+        if (side === "W") { ps.levels.unshift(fit); ps.xs.unshift(fx); ps.entry++; } else { ps.levels.push(fit); ps.xs.push(fx); }
+      }
+    }
   }
   const run = { seed: String(seed), floor, nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [], planned: planPassages };
   if (!intros.length) run.notes.push("no Intro level yet (right gates only)");
@@ -12995,6 +13127,19 @@ export const buildRun = (levels, seed, opts = {}) => {
   const street = run.order.map((k) => run.nodes[k]);
   const link = (a, side, b) => { a.links[side] = b.key; b.links[SIDE_OPP[side]] = a.key; };
   for (const ps of (best ? best.passages : [])) {
+    // A tree top: its trunk level joined to the street under it, the ends joined along the tree, and
+    // every other side settled as nothing (null) here and now. Left undecided, a side would be
+    // matched against whatever shares the next slot of the run's grid when the level goes live
+    // (resolveRunNeighbour): the next trunk's tree top, standing 64 cells away across open air, or
+    // the street level under an end, whose trunk has no business there. Nothing beside a tree top is
+    // a wall anyway: those sides are where you fall (runFallSeams).
+    if (ps.tree) {
+      const e = ps.entry || 0, nodes = ps.levels.map((s, i) => addRunNode(run, s, ps.col + i - e, -1));
+      link(street[ps.col], "N", nodes[e]);
+      for (let i = 1; i < nodes.length; i++) link(nodes[i - 1], "E", nodes[i]);
+      for (const n of nodes) for (const side of ["N", "E", "S", "W"]) if (n.links[side] === undefined) n.links[side] = null;
+      continue;
+    }
     let at = street[ps.col];
     ps.levels.forEach((s, i) => {
       const n = addRunNode(run, s, ps.col + i * ps.step, ps.dir === "S" ? 1 : -1);
@@ -13140,6 +13285,28 @@ const runFallSeams = (run, node, seams, cell = LV_CELL) => {
     if (joined) { joined.fallSides = { ...(joined.fallSides || {}), [side]: keys[0] }; continue; }
     const gates = {}; for (const k of keys) gates[k] = CONN_OPP[k];
     seams[side] = { key: best.n.key, level: best.n.level, off: { x: best.p.x, y: best.p.y }, gates, fall: true };
+  }
+  // ...AND UNDER A TREE TOP WITH NO WAY DOWN OF ITS OWN (2026-11-15). The end of a tree (his Tree Tops
+  // 2 and 3) is joined only along the tree, and it can stand over two street levels at once: the one
+  // under its far edge is the side seam just made, and the open shaft past the canopy may be over the
+  // OTHER one, which nothing joined, so the bottom of the shaft was a floor nobody could see. With no
+  // level joined below, the bottom edge joins the level under it that no side already has (the one
+  // it overlaps most), as a `fall` like the sides. A tree top is no wider than a street level, so
+  // the two sides and the bottom between them cover everything it can stand over.
+  if (!seams.S) {
+    const w = node.level.cols * cell;
+    let best = null;
+    for (const n of Object.values(run.nodes)) {
+      if (n.row !== node.row + 1 || Object.values(seams).some((sm) => sm.key === n.key)) continue;
+      const p = at.get(n.key); if (!p || p.y <= 0) continue;
+      const over = Math.min(w, p.x + n.level.cols * cell) - Math.max(0, p.x);
+      if (over > 0 && (!best || over > best.over)) best = { n, p, over };
+    }
+    if (best) {
+      const open = CONN_KEYS.filter((k) => CONN_SIDE[k] === "S" && node.level.conns && node.level.conns[k] && node.level.conns[k].open);
+      const gates = {}; for (const k of (open.length ? open : ["S1"])) gates[k] = CONN_OPP[k];
+      seams.S = { key: best.n.key, level: best.n.level, off: { x: best.p.x, y: best.p.y }, gates, fall: true };
+    }
   }
   // ...AND THROUGH THE BOTTOM, WHERE THE TREE STOPS SHORT. His Tree Tops 2 and 3 end part-way across
   // the level; past the last branch you fell to the level's bottom edge and stood on nothing, a
@@ -14064,6 +14231,13 @@ export const topdownDepthZ = (playerFeet, unitFeet, cell) => {
 // door prompt keeps its 9500 (a door is usually IN the Front wall), and the conversation bubble
 // its 9600 (once you are talking, the conversation is the screen).
 export const SCENE_LABEL_Z = { drop: 5063, label: 5070, talk: 5080 };
+// 💣 A GRENADE IN FLIGHT IS AMONG THE BODIES (2026-11-15). Blake: "enemy grenades go in front of a
+// front layer wall, they should be roughly on the same layer as players and enemies if not right in
+// front of those." A thrown thing sat at 8000 from the day it was added, over Front paint (6000) and
+// Front props (5101): one lobbed behind a wall flew across the face of it. It is now just in front
+// of the bodies (5000) and under their bars (5060), so whatever hides a unit hides the grenade it
+// threw. Yours and theirs alike: they are the same list.
+export const THROWN_Z = 5050;
 /* ── SCORE (2026-10-14) ───────────────────────────────────────────────────────────────────────
    Blake's rules, word for word: "every enemy you kill is 100 points, dialogue can reward points,
    every level you clear will be 500 points - 10 points per second after 30 seconds. It shouldn't
@@ -16846,10 +17020,11 @@ export default function AssetStudio({ game = false } = {}) {
     };
     // A CAR AT SPEED KNOCKS A BODY FLYING (vehicleRamDamage, through the body's own armour), and the
     // body dents the car's end (a crash). Not one that has stepped out of the way (ep.carDodge), nor
-    // a talker your hits pass through. Yours is your hit: it provokes, and a 🪞 reflect comes back at you.
+    // a talker your hits pass through, nor an ally (carRamsUnit). Yours is your hit: it provokes, and
+    // a 🪞 reflect comes back at you.
     const vehRam = (car, speed, byPlayer) => {
       for (const k of Object.keys(lv.enemies || {})) {
-        const ep = enemyPos.current[k]; if (!ep || ep.ride || ep.carDodge || unitHitImmune(ep) || unitTalkImmune(ep)) continue;
+        const ep = enemyPos.current[k]; if (!carRamsUnit(ep)) continue;
         const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
         if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
         if (enemyHP.current[k] <= 0) continue;
@@ -16968,11 +17143,15 @@ export default function AssetStudio({ game = false } = {}) {
       if (c.screen) {
         const view = lscrollRef.current; if (view) { c.vw = view.clientWidth; c.vh = view.clientHeight; }
         p.vx = 0; p.vy = 0;
-        if (!nx.done) return;
+        // PRESS E TO SKIP (animCanSkip): the scene cuts to the black it would have ended on and the
+        // floor is done at once, with no flash to wait out. Nothing is lost by it: the world is
+        // paused under the scene either way, buffs included (holdBuffs).
+        const skip = pressed && !nx.done && animCanSkip(c.anim, c.si, c.age);
+        if (!nx.done && !skip) return;
         bobAudio.talk(null);
         c.ended = true;
-        flash(floorDoneFlash(lv.floor));
-        setTimeout(() => { if (animLeaveRef.current) animLeaveRef.current(); }, 1800);
+        if (!skip) flash(floorDoneFlash(lv.floor));
+        setTimeout(() => { if (animLeaveRef.current) animLeaveRef.current(); }, skip ? ANIM_SKIP_LEAVE_MS : 1800);
         return;
       }
       const actorL = c.anim.layers.find((l) => l.kind === "actor");
@@ -17069,6 +17248,7 @@ export default function AssetStudio({ game = false } = {}) {
       const p = player.current, RK = keys.current;
       const nowT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       const dtMul = lastT == null ? firstDt : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
+      const frameMs = lastT == null ? 0 : Math.max(0, nowT - lastT); // the REAL time this frame took, unclamped: what a paused frame gives back to the buffs (holdBuffs)
       lastT = nowT;
       // A CONVERSATION PAUSES THE WORLD, and it pauses it HERE — one return, above everything —
       // rather than by zeroing the player's input the way a stun does. Freezing only the player
@@ -17088,6 +17268,9 @@ export default function AssetStudio({ game = false } = {}) {
       // THE GAME'S PAUSE MENU (Esc) stops it on the same line: nothing moves, no timer runs and the
       // score clock (below) does not count, exactly as while reading a conversation.
       if (talkRef.current || shopRef.current || gamePauseRef.current || cutRef.current) bobAudio.engineLoop(false); // 🔊 a paused world's car is not running
+      // ...and a paused world holds your buffs (holdBuffs): the four pauses on these lines are the
+      // only frames the world does not run, and each gives the time it took back.
+      if (talkRef.current || shopRef.current || gamePauseRef.current || p.dying || cutRef.current) itemBuffs.current = holdBuffs(itemBuffs.current, frameMs);
       if (talkRef.current || shopRef.current || gamePauseRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
       // 🎲 HOLD R (rerollRun): read off the RAW keys and before the cutscene return below, so it works
       // while a stun has your intent zeroed or the wake-up animation is playing — a run you do not
@@ -17526,8 +17709,14 @@ export default function AssetStudio({ game = false } = {}) {
       // plays the arm swing: it rides the same p.firing channel the melee swing render already
       // uses (hitRegistered is pre-set so a bare-handed swing can't also land a punch).
       if (throwCd.current > 0) throwCd.current -= dtMul;
-      const canThrowNow = carriedThrow && throwCarry.current > 0 && throwCd.current <= 0 && !p.transitioning;
+      // C, F or Q pressed while G is down calls the throw off (throwCalledOff): no arc, and no throw
+      // when G comes up. Read off the keys themselves (RK), so S, which also crouches, does not.
+      const throwCancelKey = !!(RK.crouch || RK.fire || RK.melee);
+      p.throwOff = throwCalledOff(p.throwOff, K.throw, p.wasThrow, throwCancelKey, p.wasThrowCancelKey);
+      p.wasThrowCancelKey = throwCancelKey;
+      const canThrowNow = carriedThrow && throwCarry.current > 0 && throwCd.current <= 0 && !p.transitioning && !p.throwOff;
       p.throwAiming = !!(K.throw && canThrowNow);
+      if (!K.throw) p.throwOff = false; // G is up: the next press aims afresh
       if (!K.throw && p.wasThrow && canThrowNow) {
         const strength = pstats.strength;
         const rangeBlocks = throwRangeBlocks(strength, carriedThrow.weight);
@@ -19341,12 +19530,17 @@ export default function AssetStudio({ game = false } = {}) {
           const attackRange = engageRange; // weapon-swept reach for player-based looks, ⚔️ number for monsters
           const eCenterXFinal = ep.x + eShape.centerFrac * eRenderW;
           const gapNow = attacking ? boxGap(tgtAimCX, tgtBoxW, eCenterXFinal, epw) : Infinity;
-          const sameLevel = attacking && !ep.climbing ? (Math.abs((ep.y + newEph) - tgtFeetY) < newEph) : false;
+          // A bare blow (jaws, claws, fists: no gun, no swung blade) also has to REACH: the target's
+          // box against this unit's drawn body, not its physics box (bareBlowReaches).
+          const eBareBlow = !rangedEnemy && !meleeGeom;
+          const eDrawnTop = ep.y + unitHitTop(ea, eShape, newEph), eDrawnH = eShape.heightFrac * newEph;
+          const sameFloor = attacking && !ep.climbing ? (Math.abs((ep.y + newEph) - tgtFeetY) < newEph) : false; // roughly on the target's floor: all a lobbed grenade asks (below)
+          const sameLevel = sameFloor && (!eBareBlow || bareBlowReaches(eDrawnTop, eDrawnH, tgtBoxTop, tgtBoxH, CW));
           let inSight = false;
           // A brawl opponent is always "seen" (no stealth between two fighters); only a hostile
           // hunting the PLAYER has to sense them first. Cover still blocks the line either way.
           if (!stunned && attacking && gapNow <= attackRange && sameLevel && (targetKind === "unit" || enemyDetects(tgtAimCX - eCenterXFinal, ep.face, 0, provoked))) {
-            const chestY = ep.y + newEph * 0.5;
+            const chestY = eBareBlow ? eDrawnTop + eDrawnH * 0.5 : ep.y + newEph * 0.5; // a bare blow comes from the middle of the DRAWN body: half way up a Crocodile's physics box is five cells over its head
             const STEPS = 6;
             let blocked = false;
             for (let s = 1; s < STEPS; s++) {
@@ -19374,7 +19568,7 @@ export default function AssetStudio({ game = false } = {}) {
           if (eThrowable) {
             if (ep.throwLeft == null) ep.throwLeft = enemyThrowCarry(spawn);
             const throwMaxPx = enemyThrowRangePx(ea, eThrowable, CW);
-            if (!stunned && acts && attacking && detected && sameLevel && ep.throwLeft > 0 && (ep.throwCd || 0) <= 0
+            if (!stunned && acts && attacking && detected && sameFloor && ep.throwLeft > 0 && (ep.throwCd || 0) <= 0
                 && !unitTalkImmune(ep) && enemyWantsToThrow(gapNow, throwMaxPx, CW)) {
               const throwFace = Math.sign(tgtAimCX - eCenterXFinal) || ep.face;
               const lobV = enemyThrowVelocity(gapNow, throwMaxPx, 0.175, throwFace);
@@ -26277,6 +26471,7 @@ export default function AssetStudio({ game = false } = {}) {
       difficulty: gameCur.current.difficulty, deaths: gameCur.current.deaths, oneUps: gameCur.current.oneUps || 0,
       objectives: { list: ao.list || [], done: [...(ao.done || [])] }, talkSpent: [...(talkSpentSigns.current || [])],
       playSecs: scorePlaySecs(scoreRef.current),
+      buffs: buffsToSave(itemBuffs.current, playNowMs()), // 🧪 a drink still running goes with you (buffsToSave)
     });
   };
   const gameCheckpoint = () => {
@@ -26315,6 +26510,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (s.objectives) { activeObjective.current = { list: (s.objectives.list || []).map((o) => ({ ...o })), done: new Set(s.objectives.done || []) }; setObjectives(activeObjective.current.list.map((o) => ({ id: o.id, text: o.text }))); }
     talkSpentSigns.current = new Set(s.talkSpent || []);
     throwPickup.current = s.throwId ? Math.max(0, s.throwCount || 0) : null;
+    itemBuffs.current = buffsFromSave(s.buffs, playNowMs());
   };
   const beginGameRun = (b) => {
     lastRunSeedRef.current = String(b.seed || "");
@@ -28925,7 +29121,7 @@ export default function AssetStudio({ game = false } = {}) {
               {/* 🎬 A FLOOR END scene, over the whole view and under its own fade: the stage fitted
                   to the view and letterboxed in black (animScreenFit). Its props' frames run on the
                   scene's own clock (age), so the General talks only while the scene plays. */}
-              {play && cutRef.current && cutRef.current.screen && (() => { const c = cutRef.current; const fit = animScreenFit(c.anim, c.vw, c.vh); return <div className="animScreen">{animStageEl(c.anim, c.si, c.t, fit.cell, { key: "animscreen", left: fit.left, top: fit.top, clock: c.age || 0 })}</div>; })()}
+              {play && cutRef.current && cutRef.current.screen && (() => { const c = cutRef.current; const fit = animScreenFit(c.anim, c.vw, c.vh); return <div className="animScreen">{animStageEl(c.anim, c.si, c.t, fit.cell, { key: "animscreen", left: fit.left, top: fit.top, clock: c.age || 0 })}{!c.ended && animCanSkip(c.anim, c.si, c.age) && <div className="animSkip" style={{ right: fit.left + 26, bottom: fit.top + 20 }}>{animPromptWords("Press E to skip")}</div>}</div>; })()}
               {/* 🎬 A cutscene's fade to and from black, over the whole view (outside the camera). */}
               {play && cutRef.current && (() => { const c = cutRef.current; const f = c.ended ? 1 : animFadeAt(c.anim, c.si, c.t, c.el); return f > 0.001 ? <div className="animFade" style={{ opacity: f }} /> : null; })()}
 
@@ -30408,7 +30604,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const cwPx = g.cwPx ?? LV_CELL, chPx = g.chPx ?? cwPx;
                   const emojiSz = Math.max(10, Math.min(g.wPx ?? LV_CELL, g.hPx ?? LV_CELL));
                   return (
-                    <div key={"thr" + i} className="lobj" style={{ left: g.x - cwPx / 2, top: g.y - chPx / 2, width: cwPx, height: chPx, transform: `rotate(${g.rot}deg)`, zIndex: 8000 }}>
+                    <div key={"thr" + i} className="lobj" style={{ left: g.x - cwPx / 2, top: g.y - chPx / 2, width: cwPx, height: chPx, transform: `rotate(${g.rot}deg)`, zIndex: THROWN_Z }}>
                       {g.pieces
                         ? renderPieceRuns({ pieces: g.pieces, cacheKey: "thr_" + i, keyPrefix: "thr" + i + "_", alpha: assetAlpha(g.asset), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })
                         : <span style={{ fontSize: emojiSz * 0.85 + "px", lineHeight: 1 }}>💣</span>}
@@ -33111,6 +33307,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .animFade{position:absolute;inset:0;background:#000;pointer-events:none;z-index:50}
 .animScreen{position:absolute;inset:0;background:#000;pointer-events:none;z-index:49;overflow:hidden}
 .animScreen .animStage{overflow:hidden}
+.animSkip{position:absolute;z-index:6;display:flex;align-items:center;gap:8px;white-space:nowrap;color:#fff;opacity:.8;font-family:${SYMBOL_FONT_FAMILY},'Shrikhand','Arial Black',Impact,sans-serif;font-size:19px;letter-spacing:.02em;text-shadow:0 2px 6px rgba(0,0,0,.9)}
+.animSkip .talkKey{font-family:${SYMBOL_FONT_FAMILY},'Shrikhand','Arial Black',Impact,sans-serif;font-size:22px;font-weight:400;color:#ffd84a}
 .animStage .animText{overflow:hidden;outline:none}
 .animStage .animText.crawl{perspective-origin:50% 20%;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 38%);mask-image:linear-gradient(to bottom,transparent 0,#000 38%)}
 .animTextPlane{position:absolute;inset:0;transform-origin:50% 100%;font-family:'News Cycle','Franklin Gothic Medium','Arial Narrow',sans-serif;font-weight:700;line-height:1.25;letter-spacing:.02em;text-shadow:-.06em -.06em 0 #000,.06em -.06em 0 #000,-.06em .06em 0 #000,.06em .06em 0 #000,0 .06em 0 #000,0 -.06em 0 #000,0 0 .3em rgba(0,0,0,.9)}

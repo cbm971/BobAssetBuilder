@@ -278,6 +278,15 @@ export const animScreenFit = (anim, vw, vh) => {
   const cell = Math.max(1, Math.min(num(vw, 0) / w, num(vh, 0) / h));
   return { cell, left: (num(vw, 0) - w * cell) / 2, top: (num(vh, 0) - h * cell) / 2 };
 };
+// PRESS E TO SKIP (Blake, 2026-11-15, on the crawl between Trailer Park and Vietnam: 'Add a "Press E
+// to skip"'). A floor-end scene is words to read once; the second time through they are a wait. E
+// ends it there, except on a state that is itself waiting for E (that press is the scene's own), and
+// not in the first moments, so the E that grabbed the rope a second ago, still held or tapped twice,
+// does not throw the briefing away unseen. Only the full-screen scenes: a scene on a stage in the
+// level leaves you standing where its actor ends, and that needs its keys played out.
+export const ANIM_SKIP_ARM_SECS = 0.6;
+export const ANIM_SKIP_LEAVE_MS = 350;   // black for this long after a skip, then the floor is done (a scene played out waits 1800 on its flash)
+export const animCanSkip = (anim, si, age) => { const st = anim && anim.states && anim.states[si]; return !!st && !st.wait && num(age, 0) >= ANIM_SKIP_ARM_SECS; };
 
 export const animStateDur = (st) => clamp(num(st && st.dur, 2), ANIM_MIN_DUR, ANIM_MAX_DUR);
 // The playhead of a running animation is { si, t, el }: the state, where on its timeline (t), and

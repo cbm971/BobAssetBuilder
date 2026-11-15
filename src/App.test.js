@@ -11400,7 +11400,7 @@ describe("runs", () => {
     expect(vertSeamLinesUp(both, SA, "S")).toBe(false);  // Bottom Right would land on the sewer's roof
     expect(vertSeamLinesUp(both, mk("two", { floor: "Sewer", open: { N1: "", N2: "" } }), "S")).toBe(true);
     // Tree tops the other way up: a street's top gate under a tree top's bottom gate.
-    const T = mk("T", { floor: "Tree Top", open: { S1: "Trailor Park" } });
+    const T = { ...mk("T", { floor: "Tree Top", open: { S1: "Trailor Park" } }), climb: { "45,47": { kind: "ladder" }, "45,48": { kind: "ladder" } } };   // the ladder carries on up through its bottom gate (gateHasClimb): a gate with none is a drop, not a way up
     expect(vertSeamLinesUp(mk("up", { open: { N1: "Tree Top" } }), T, "N")).toBe(true);
     expect(vertSeamLinesUp(Q, T, "N")).toBe(false);
   });
@@ -16606,5 +16606,187 @@ describe("the weapon stays in one hand whichever way you face", () => {
     expect(v._m).toBeUndefined();
     expect(v.rot).toBe(-90);
     expect(v.x).toBe(twin.x);
+  });
+});
+
+/* ───────────────────────── His bug list of 2026-11-15 ───────────────────────── */
+import {
+  carRamsUnit as carRamsUnit15, throwCalledOff, holdBuffs, buffsToSave, buffsFromSave, activeBuffSum as activeBuffSum15,
+  bareBlowReaches, THROWN_Z, SCENE_LABEL_Z as SCENE_LABEL_Z15, gateHasClimb, seamGatePair as seamGatePair15,
+  buildRun as buildRun15, runSeams as runSeams15, seamGateLeaving as seamGateLeaving15,
+} from "./App";
+
+describe("bug list 2026-11-15", () => {
+  test("a car at speed does not run your own side down", () => {
+    // Blake: "You shouldn't be able to run over allies."
+    expect(carRamsUnit15({ x: 0, y: 0 })).toBe(true);                       // a hostile in the road
+    expect(carRamsUnit15({ friendly: true })).toBe(false);                  // an ally: raised, captured or talked round
+    expect(carRamsUnit15({ friendly: true, allyKind: "talked" })).toBe(false);
+    expect(carRamsUnit15({ ride: "car1" })).toBe(false);                    // a passenger
+    expect(carRamsUnit15({ carDodge: { kind: "jump", t: 30 } })).toBe(false); // stepped out of the way
+    expect(carRamsUnit15({ invuln: 12 })).toBe(false);                      // in its i-frames
+    expect(carRamsUnit15({ peaceful: true })).toBe(false);                  // a talker nobody is fighting
+    expect(carRamsUnit15({ peaceful: true, turned: "hostile" })).toBe(true);
+    expect(carRamsUnit15(null)).toBe(false);
+  });
+
+  test("C, F or Q pressed while G is held calls the throw off until G is let go", () => {
+    // (off, G held, G held last frame, a cancel key held, a cancel key held last frame)
+    expect(throwCalledOff(false, true, true, false, false)).toBe(false);   // just aiming
+    expect(throwCalledOff(false, true, true, true, false)).toBe(true);     // the press
+    expect(throwCalledOff(true, true, true, true, true)).toBe(true);       // still held: stays off
+    expect(throwCalledOff(true, true, true, false, true)).toBe(true);      // cancel key let go, G still down: stays off
+    expect(throwCalledOff(true, false, true, false, false)).toBe(true);    // the frame G comes up: still off, so nothing is thrown
+    // a trigger already down when you reach for the grenade is not a press
+    expect(throwCalledOff(false, true, false, true, true)).toBe(false);
+    expect(throwCalledOff(false, true, true, true, true)).toBe(false);
+    // the press on the very frame G goes down does not count either: there is no throw to call off yet
+    expect(throwCalledOff(false, true, false, true, false)).toBe(false);
+    // with G up, a cancel key is just that key
+    expect(throwCalledOff(false, false, false, true, false)).toBe(false);
+  });
+
+  test("a grenade in flight draws among the bodies, under Front", () => {
+    expect(THROWN_Z).toBeGreaterThan(5000);   // .playerWrap: the bodies
+    expect(THROWN_Z).toBeLessThan(5060);      // .unitStatus: their bars
+    expect(THROWN_Z).toBeLessThan(5101);      // Front props, and Front paint at 6000
+    expect(THROWN_Z).toBeLessThan(SCENE_LABEL_Z15.drop);
+  });
+
+  test("a paused frame gives its time back to every buff", () => {
+    const buffs = [{ stat: "speed", amount: 2, until: 10000 }, { kind: "range", mult: 1.5, until: 4000 }];
+    const held = holdBuffs(buffs, 2500);
+    expect(held.map((b) => b.until)).toEqual([12500, 6500]);
+    expect(buffs.map((b) => b.until)).toEqual([10000, 4000]);              // a new list, the old one untouched
+    expect(holdBuffs(buffs, 0)).toBe(buffs);
+    expect(holdBuffs(null, 500)).toEqual([]);
+    // a 44 s cutscene, frame by frame: the drink has as long left afterwards as it had before
+    let now = 1000, list = [{ stat: "strength", amount: 3, until: 1000 + 30000 }];
+    for (let i = 0; i < 2640; i++) { now += 1000 / 60; list = holdBuffs(list, 1000 / 60); }
+    expect(Math.round(list[0].until - now)).toBe(30000);
+    expect(activeBuffSum15(list, now).strength).toBe(3);
+  });
+
+  test("buffs are saved as the time they have left and start again from the loader's clock", () => {
+    const saved = buffsToSave([{ stat: "speed", amount: 2, until: 9000 }, { kind: "tagDamage", tag: "Gun", mult: 2, until: 5000 }, { stat: "agility", amount: 1, until: 900 }], 1000);
+    expect(saved).toEqual([{ stat: "speed", amount: 2, left: 8000 }, { kind: "tagDamage", tag: "Gun", mult: 2, left: 4000 }]);   // the spent one is gone
+    const back = buffsFromSave(saved, 500000);
+    expect(back).toEqual([{ stat: "speed", amount: 2, until: 508000 }, { kind: "tagDamage", tag: "Gun", mult: 2, until: 504000 }]);
+    expect(buffsFromSave(undefined, 5)).toEqual([]);
+    expect(buffsFromSave([{ stat: "speed", amount: 1, left: 0 }, null], 5)).toEqual([]);
+  });
+
+  test("a bare blow reaches a little over the drawn body, not up its whole physics box", () => {
+    // His Crocodile: scale 1.6, so a 336 px box with 68 px of animal at the bottom of it.
+    const feet = 1350, bodyH = 68, bodyTop = feet - bodyH, man = 210;
+    expect(bareBlowReaches(bodyTop, bodyH, feet - man, man, 30)).toBe(true);          // wading beside it
+    expect(bareBlowReaches(bodyTop, bodyH, feet - 60 - man, man, 30)).toBe(true);     // two cells up the bank
+    expect(bareBlowReaches(bodyTop, bodyH, 1080 - man, man, 30)).toBe(false);         // on the pier, nine rows up: through the planks
+    expect(Math.abs(feet - 1080) < 336).toBe(true);                                   // ...which the old feet test alone let through
+    expect(bareBlowReaches(bodyTop, bodyH, feet + 30, man, 30)).toBe(false);          // under its feet
+    // a person's drawn body is the whole box: anyone the old rule let them punch, this does too
+    expect(bareBlowReaches(0, 210, 100, 210, 30)).toBe(true);
+    expect(bareBlowReaches(0, 210, -150, 210, 30)).toBe(true);
+    // a very small animal still has half a cell of lunge
+    expect(bareBlowReaches(100, 10, 60, 30, 30)).toBe(true);
+    expect(bareBlowReaches(100, 10, 50, 30, 30)).toBe(false);
+  });
+
+  // ── tree tops ──
+  const mk = (id, opts = {}) => {
+    const conns = {};
+    for (const k of ["N1", "N2", "E1", "E2", "S1", "S2", "W1", "W2"]) conns[k] = { open: false, accepts: "" };
+    for (const k of Object.keys(opts.open || {})) conns[k] = { open: true, accepts: opts.open[k] || "" };
+    const climb = {};
+    for (const c of opts.ladder || []) for (let r = 0; r < 46; r++) climb[r + "," + c] = { kind: "ladder" };
+    return { id, name: id, floor: opts.floor || "Jungle", cols: opts.cols || 160, rows: 46, fg: {}, bg: {}, front: {}, fx: {}, climb, hazard: {}, markers: {}, enemies: {}, conns };
+  };
+  // The shape of his Vietnam pool: two trunk levels (Top Left / Top Right), two trees whose bottom
+  // gate carries the ladder on, and the two ENDS of a tree, whose bottom gate is the open shaft past
+  // the canopy with nothing to climb.
+  const street = (id, open = {}, cols = 160, ladder) => mk(id, { open: { W2: "", E2: "", ...open }, cols, ladder });
+  const START = mk("START", { open: { E2: "" } }), END = mk("END", { open: { W2: "" } });
+  const F3 = street("F3", { N2: "Tree Tops" }, 160, [111, 112]), F4 = street("F4", { N1: "Tree Tops" }, 160, [47, 48]);
+  const plain = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"].map((id, i) => street(id, {}, i % 2 ? 180 : 160));
+  const T1 = mk("T1", { floor: "Tree Tops", open: { S2: "Jungle", W2: "", E2: "" }, ladder: [110, 111, 112] });
+  const T4 = mk("T4", { floor: "Tree Tops", open: { S2: "Jungle", W2: "", E2: "" }, ladder: [110, 111, 112] });
+  const T2 = mk("T2", { floor: "Tree Tops", open: { S1: "Jungle", E2: "" } });   // the west end
+  const T3 = mk("T3", { floor: "Tree Tops", open: { S2: "Jungle", W2: "" } });   // the east end
+  const POOL = [START, END, F3, F4, ...plain, T1, T4, T2, T3];
+
+  test("a trunk joins a tree top only through a bottom gate with a ladder in it", () => {
+    expect(gateHasClimb(T1, "S2")).toBe(true);
+    expect(gateHasClimb(T2, "S1")).toBe(false);
+    expect(gateHasClimb(T3, "S2")).toBe(false);
+    expect(gateHasClimb(T1, "S1")).toBe(false);                 // the ladder is at the other gate
+    // F4's trunk is Top Left. The west end's shaft sits square over it, and is not a way up...
+    expect(seamGatePair15(F4, T2, "N")).toBe(null);
+    expect(seamGatePair15(T2, F4, "S")).toBe(null);
+    // ...so it takes a real tree, staggered (Top Left under Bottom Right), as F3 takes one straight
+    expect(seamGatePair15(F4, T1, "N")).toEqual(["N1", "S2"]);
+    expect(seamGatePair15(F3, T1, "N")).toEqual(["N2", "S2"]);
+    expect(seamGatePair15(F3, T3, "N")).toBe(null);
+    // sewers are the other way up (the street is on top) and are not asked for a ladder
+    const M6 = mk("M6", { floor: "Street", open: { W2: "", E2: "", S1: "Sewer" } }), SEW = mk("SEW", { floor: "Sewer", open: { N1: "Street", E1: "" } });
+    expect(seamGatePair15(M6, SEW, "S")).toEqual(["S1", "N1"]);
+  });
+
+  test("no trunk comes up at the end of a tree, on any seed", () => {
+    // Blake, 2026-11-15: "you shouldn't have a tree trunk going up to a tree edge".
+    let trees = 0, ends = 0, both = 0;
+    for (let seed = 0; seed < 300; seed++) {
+      const run = buildRun15(POOL, "tt" + seed, { floor: "Jungle" });
+      const up = Object.values(run.nodes).filter((n) => n.row < 0);
+      // where everything stands, in cells east of the first level
+      const sx = {}; let x = 0;
+      for (const k of run.order) { sx[k] = x; x += run.nodes[k].level.cols; }
+      const total = x, at = {};
+      for (const n of up) if (n.links.S) { const lo = run.nodes[n.links.S], pr = seamGatePair15(lo.level, n.level, "N"); at[n.key] = sx[lo.key] + (pr[0] === "N1" ? 0.3 : 0.7) * lo.level.cols - 0.7 * n.level.cols; }
+      for (let pass = 0; pass < 4; pass++) for (const n of up) if (at[n.key] !== undefined) {
+        if (n.links.E && at[n.links.E] === undefined) at[n.links.E] = at[n.key] + n.level.cols;
+        if (n.links.W && at[n.links.W] === undefined) at[n.links.W] = at[n.key] - run.nodes[n.links.W].level.cols;
+      }
+      for (const n of up) {
+        trees++;
+        expect(at[n.key]).not.toBeUndefined();                            // every tree-top level hangs off a trunk, directly or along the tree
+        const isEnd = n.level.id === "T2" || n.level.id === "T3";
+        if (isEnd) { ends++; expect(n.links.S).toBe(null); }               // an end is never stood on a trunk
+        else { expect(run.nodes[n.links.S].row).toBe(0); expect(run.nodes[n.links.S].links.N).toBe(n.key); }
+        for (const side of ["N", "E", "S", "W"]) expect(n.links[side]).not.toBeUndefined();   // nothing left to be matched by the grid later
+        if (isEnd) { expect(at[n.key]).toBeGreaterThanOrEqual(0); expect(at[n.key] + n.level.cols).toBeLessThanOrEqual(total); }   // a level to fall into under all of it
+        // no other tree top in the same air
+        for (const m of up) if (m !== n) expect(at[m.key] >= at[n.key] + n.level.cols || at[m.key] + m.level.cols <= at[n.key]).toBe(true);
+        // no trunk of the street stands under it, but its own
+        for (const k of run.order) { const lv = run.nodes[k].level; for (const g of ["N1", "N2"]) if (lv.conns[g].open && run.nodes[k].links.N !== n.key) { const gx = sx[k] + (g === "N1" ? 0.3 : 0.7) * lv.cols; expect(gx >= at[n.key] && gx < at[n.key] + n.level.cols).toBe(false); } }
+      }
+      // every trunk on the street has its tree
+      const trunkNodes = run.order.map((k) => run.nodes[k]).filter((n) => n.level.conns.N1.open || n.level.conns.N2.open);
+      for (const n of trunkNodes) { expect(n.links.N).toBeTruthy(); expect(["T1", "T4"]).toContain(run.nodes[n.links.N].level.id); }
+      if (trunkNodes.length === 2) both++;
+      expect(run.hasExit).toBe(true);
+    }
+    expect(trees).toBeGreaterThan(100); expect(ends).toBeGreaterThan(50); expect(both).toBeGreaterThan(10);
+  });
+
+  test("under the end of a tree every level it stands over is one you fall into", () => {
+    // A west end hung off a staggered tree stands over two street levels: its far edge over one, the
+    // open shaft past its canopy over the other. Both have to be there to land in.
+    const run = buildRun15([START, street("A", {}, 180), street("B", {}, 180), F4, END, T1, T2], "x", { floor: "Jungle" });
+    const order = run.order.map((k) => run.nodes[k].level.id);
+    expect(order).toEqual(expect.arrayContaining(["START", "A", "B", "F4", "END"]));
+    const i4 = order.indexOf("F4");
+    if (i4 < 3) return;   // the seed put F4 too near the start for an end to fit over the street
+    const f4 = run.nodes[run.order[i4]], t1 = run.nodes[f4.links.N], t2 = run.nodes[t1.links.W];
+    expect([t1.level.id, t2.level.id]).toEqual(["T1", "T2"]);
+    const seams = runSeams15(run, t2, 30);
+    expect(seams.E.key).toBe(t1.key);
+    // T1 hangs 64 cells west of F4 and T2 another 160: over the last 44 cells of the level two back,
+    // and 116 of the one before F4
+    const prev = run.nodes[run.order[i4 - 1]], prev2 = run.nodes[run.order[i4 - 2]];
+    expect(seams.W.key).toBe(prev2.key); expect(seams.W.fall).toBe(true); expect(seams.W.under).toBe(true);
+    expect(seams.S.key).toBe(prev.key); expect(seams.S.fall).toBe(true); expect(seams.S.under).toBe(true);
+    // the whole bottom edge is open: over the far level at the west end, over the near one further east
+    expect(seamGateLeaving15(t2.level, seams, "S", 5 * 30, 46 * 30 + 5, 30)).toBeTruthy();
+    expect(seamGateLeaving15(t2.level, seams, "S", 100 * 30, 46 * 30 + 5, 30)).toBeTruthy();
   });
 });

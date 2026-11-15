@@ -1101,6 +1101,18 @@ plus traps it does not cover:
 - **The gold pickup's slowed sound** is a phase vocoder (`stretchChannels`), built when the clip decodes.
 - **A one-paragraph crawl layer centres itself** (text-align-last), so a short closing line sits in the middle.
 
+### His bug list of 2026-11-15 (six items, one push)
+
+- **A car never runs your own side down.** `carRamsUnit` is who `vehRam` hits: not a rider, a dodger, a talker, a body in its i-frames, or an ally (`ep.friendly`).
+- **C, F or Q calls a throw off** (`throwCalledOff`, `p.throwOff`). It is the PRESS while G is held (a trigger already down does not count), S does not, and it stays off until G comes up.
+- **A grenade in flight draws at `THROWN_Z` (5050):** just over the bodies, under their bars, Front props and Front paint. Yours and theirs are one list.
+- **A paused world holds your buffs** (`holdBuffs`). A buff ends at a wall-clock `until`, so every paused frame (cutscene, conversation, shop, pause menu, the fall of a death) gives its real time back. **Buffs ride in the save** as milliseconds left (`buffsToSave`, `buffsFromSave`, `makeGameSave.buffs`), so a drink goes on to the next floor.
+- **Press E to skip** a full-screen floor-end scene (`animCanSkip`): armed after `ANIM_SKIP_ARM_SECS`, never on a state that is itself waiting for E. A scene on a stage in the level is not skippable (you are left where its actor ends).
+- **General's Briefing (`gnrlbr2`) keeps his crawl speed** (1.318 cells a second). Trim it by where the state ends, not by the speed: the Briefing ends 4.5 s after the last crawl line is fully in, and the crawl fades over the 1.2 s the last line fades in. His State 3 (the held last line) is his.
+- **A bare blow reaches only a little over the DRAWN body** (`bareBlowReaches`). A bite or punch (no gun, no swung weapon) needs the target's box inside the drawn body plus half its height. A creature's physics box is seven cells times its scale whatever is drawn in it: never gate a hit on it.
+- **A trunk comes up only where there is something to climb.** A level over the street (a "side" level above a street level) joins the level under it only through a bottom gate with ladder cells in its last two rows, within two columns of the gate (`gateHasClimb`, in `seamGatePair` and `seamGates`). A gate without one is a drop. His Tree Tops 2 and 3 are the two ENDS of a tree: their bottom gate is the open shaft past the canopy.
+- **A tree top is laid on its trunk** (`planTree` in `buildRun`), with no way back down to find: you fall off it. The ends are added along the tree once the street is final, only over the street and clear of every other trunk and tree top. A tree-top node's unused sides are set to null at once, so the grid never matches them later. Under a tree top with no gate down, `runFallSeams` joins the level beneath as a `fall` on side S.
+
 ## Working style
 
 - Ship it. Push fixes directly, with no option menus. Try things before calling them impossible.

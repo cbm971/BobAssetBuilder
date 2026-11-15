@@ -563,3 +563,26 @@ describe("a Walk in animation starts when you reach its actor's spot", () => {
     expect(animWalkedIn(0, undefined, 30)).toBe(false);
   });
 });
+
+import { animCanSkip, ANIM_SKIP_ARM_SECS, ANIM_SKIP_LEAVE_MS } from "./anim";
+
+describe("Press E to skip a floor-end scene (2026-11-15)", () => {
+  const scene = { states: [{ name: "Briefing", dur: 26.85, wait: false }, { name: "Press on", dur: 2, wait: true, prompt: "Press E" }, { name: "Only you", dur: 11, wait: false }] };
+  test("E skips once the scene has been up a moment", () => {
+    expect(animCanSkip(scene, 0, 0)).toBe(false);                         // the E that grabbed the rope must not throw it away
+    expect(animCanSkip(scene, 0, ANIM_SKIP_ARM_SECS - 0.01)).toBe(false);
+    expect(animCanSkip(scene, 0, ANIM_SKIP_ARM_SECS)).toBe(true);
+    expect(animCanSkip(scene, 2, 30)).toBe(true);
+  });
+  test("a state that is itself waiting for E keeps that press", () => {
+    expect(animCanSkip(scene, 1, 30)).toBe(false);
+  });
+  test("no scene, no state: nothing to skip", () => {
+    expect(animCanSkip(null, 0, 5)).toBe(false);
+    expect(animCanSkip(scene, 9, 5)).toBe(false);
+  });
+  test("a skipped scene leaves sooner than one played out", () => {
+    expect(ANIM_SKIP_LEAVE_MS).toBeLessThan(1800);
+    expect(ANIM_SKIP_ARM_SECS).toBeGreaterThan(0);
+  });
+});
