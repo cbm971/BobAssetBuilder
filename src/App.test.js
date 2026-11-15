@@ -57,6 +57,15 @@ import {
   topdownDepthZ,
   unitClimbRoute,
   unitDropSpot,
+  FOLLOW_DROP_REACH_CELLS,
+  followChain,
+  followLeader,
+  followCanLead,
+  followGap,
+  followSpreads,
+  followClimbWant,
+  FOLLOW_STRANDED_FRAMES,
+  FOLLOW_SPREAD_GAP,
   climbRunsOf,
   orderEndLay,
   hazardStillBurning,
@@ -13670,9 +13679,165 @@ describe("units find a way up, down or onto the plane", () => {
       expect(route(dip, rat, { cx: 400, feet: 570 })).toBeNull();
     });
   });
+  // Blake, 2026-11-14: "Followers should be able to climb to follow the player." The route was a
+  // hunter's; a follower (me.follower) is let past the rules that are a hunter's restraint. Every
+  // case here is checked both ways: the hunter's answer has not moved.
+  describe("a follower goes where you went", () => {
+    const floorAt = (lv) => (r, c) => !!(lv.fg && lv.fg[r + "," + c]);
+    const row = (r, c0, c1, skip = []) => { const o = {}; for (let c = c0; c <= c1; c++) if (!skip.includes(c)) o[r + "," + c] = "#333"; return o; };
+    const both = (lv, me, tgt) => [unitClimbRoute(lv, me, tgt, 90, C, C, floorAt(lv)), unitClimbRoute(lv, { ...me, follower: true }, tgt, 90, C, C, floorAt(lv))];
+    const body = { cx: 100, feet: 480, h: 210, w: 60 };
+    test("out of a sewer: the shaft's ladder ends at the top of the level, rows under the street", () => {
+      const lv = { cols: 20, rows: 20, climb: cells("ladder", 0, 15, 10, 10), fg: row(16, 0, 19) };
+      const [hunter, follower] = both(lv, body, { cx: 400, feet: -300 });
+      expect(hunter).toBeNull();
+      expect(follower).toEqual({ kind: "ladder", x: 315, dir: -1 });
+    });
+    test("two storeys up: the first ladder is taken when there is a deck to step off onto", () => {
+      const deck = { cols: 20, rows: 20, climb: cells("ladder", 9, 15, 5, 5), fg: { ...row(16, 0, 19), ...row(10, 0, 8, [5]) } };
+      const [hunter, follower] = both(deck, body, { cx: 200, feet: 60 });
+      expect(hunter).toBeNull();
+      expect(follower).toEqual({ kind: "ladder", x: 165, dir: -1 });
+      const deadEnd = { cols: 20, rows: 20, climb: cells("ladder", 9, 15, 15, 15), fg: row(16, 0, 19) };
+      expect(both(deadEnd, body, { cx: 200, feet: 60 })).toEqual([null, null]); // a ladder to nowhere is still no way up
+    });
+    test("a ladder that goes all the way beats one that goes part of the way", () => {
+      const lv = { cols: 30, rows: 20, climb: { ...cells("ladder", 9, 15, 5, 5), ...cells("ladder", 2, 15, 12, 12) }, fg: { ...row(16, 0, 29), ...row(10, 0, 8, [5]) } };
+      expect(both(lv, body, { cx: 200, feet: 60 })[1]).toEqual({ kind: "ladder", x: 375, dir: -1 });
+    });
+    test("a ladder that stops short of the ground is gripped by the body that is on it", () => {
+      const lv = { cols: 20, rows: 20, climb: cells("ladder", 5, 12, 10, 10), fg: row(16, 0, 19) }; // its foot three cells up
+      const [hunter, follower] = both(lv, body, { cx: 400, feet: 150 });
+      expect(hunter).toBeNull();
+      expect(follower).toEqual({ kind: "ladder", x: 315, dir: -1 });
+      const high = { cols: 20, rows: 20, climb: cells("ladder", 2, 8, 10, 10), fg: row(16, 0, 19) }; // its foot over the head
+      expect(both(high, body, { cx: 400, feet: 60 })).toEqual([null, null]);
+    });
+    test("down his four-cell hole with a two-wide ladder, however far along you have gone", () => {
+      const lv = { cols: 30, rows: 20, climb: cells("ladder", 9, 18, 7, 8), fg: { ...row(9, 0, 29, [6, 7, 8, 9]), ...row(19, 0, 29) } };
+      const [hunter, follower] = both(lv, { ...body, feet: 270 }, { cx: 700, feet: 570 });
+      expect(hunter).toBeNull(); // the open column beside the ladder, and you are not under the hole
+      expect(follower).toEqual({ kind: "ladder", x: 225, dir: 1 });
+    });
+    test("and a hole or an edge well along its own floor is walked to", () => {
+      const fg = {};
+      for (let c = 0; c < 20; c++) { if (c < 15) fg["9," + c] = "#333"; fg["19," + c] = "#333"; }
+      const lv = { cols: 20, rows: 20, climb: {}, fg };
+      const rat = { cx: 285, feet: 270, h: 168, w: 124 };
+      const [hunter, follower] = both(lv, rat, { cx: 40, feet: 570 });
+      expect(hunter).toBeNull();
+      expect(follower).toEqual({ kind: "drop", x: 513 });
+      expect(unitDropSpot(lv, rat, { cx: 40, feet: 570 }, C, C, floorAt(lv), { reachCells: FOLLOW_DROP_REACH_CELLS, anyDistance: true })).toEqual({ x: 513 });
+    });
+    test("the loop asks for it only for one tagging along", () => {
+      const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+      expect(src).toContain("topdown: navMeTopdown, follower: following }");
+    });
+  });
   test("the climb layer is read once per level", () => {
     expect(climbRunsOf(ladderLv)).toBe(climbRunsOf(ladderLv));
     expect(climbRunsOf(ladderLv).ladders).toEqual([{ c: 10, rTop: 8, rBot: 15 }]);
+  });
+});
+
+// Blake, 2026-11-14: "If you have two followers one should follow the other like a centipede, they
+// shouldn't stack as one." Each follower walks behind the one ahead of it in a fixed order.
+describe("followers walk in a line, one behind the other", () => {
+  const unit = (key, uid, lead = true, withPlayer = true) => ({ key, uid, lead, withPlayer });
+  test("the order is each unit's uid and never changes with where they stand", () => {
+    const list = [unit("5,5", 9), unit("1,1", 3), unit("2,2", 7)];
+    expect(followChain(list).map((u) => u.key)).toEqual(["1,1", "2,2", "5,5"]);
+    expect(followChain([...list].reverse()).map((u) => u.key)).toEqual(["1,1", "2,2", "5,5"]);
+    expect(list[0].key).toBe("5,5"); // not sorted in place
+    expect(followChain([{ key: "b" }, { key: "a" }]).map((u) => u.key)).toEqual(["a", "b"]);
+    expect(followChain(null)).toEqual([]);
+  });
+  test("the first follows you, each of the rest the one ahead of it", () => {
+    const chain = followChain([unit("a", 1), unit("b", 2), unit("c", 3), unit("d", 4)]);
+    expect(followLeader(chain, "a")).toEqual({ key: null, slots: 1 });
+    expect(followLeader(chain, "b")).toEqual({ key: "a", slots: 1 });
+    expect(followLeader(chain, "c")).toEqual({ key: "b", slots: 1 });
+    expect(followLeader(chain, "d")).toEqual({ key: "c", slots: 1 });
+    expect(followLeader(chain, "zz")).toEqual({ key: null, slots: 1 });
+  });
+  test("one that is off fighting keeps its place: the next follows the one before it, a place further back", () => {
+    const chain = followChain([unit("a", 1), unit("b", 2, false), unit("c", 3)]);
+    expect(followLeader(chain, "c")).toEqual({ key: "a", slots: 2 });
+    const none = followChain([unit("a", 1, false), unit("b", 2, false), unit("c", 3)]);
+    expect(followLeader(none, "c")).toEqual({ key: null, slots: 3 }); // you, three places back
+  });
+  test("one on your level does not go down after a straggler that is not", () => {
+    const chain = followChain([unit("a", 1, true, false), unit("b", 2, true, true), unit("c", 3, true, false)]);
+    expect(followLeader(chain, "b")).toEqual({ key: null, slots: 2 });
+    expect(followLeader(chain, "c")).toEqual({ key: "b", slots: 1 }); // the one still below climbs after the one that is up
+  });
+  test("who can be followed", () => {
+    expect(followCanLead({ tagAlong: true })).toBe(true);
+    expect(followCanLead({ tagAlong: false })).toBe(false);                 // fighting
+    expect(followCanLead({ tagAlong: true, regroup: true })).toBe(false);   // running back from past the leash
+    expect(followCanLead({ tagAlong: true, flies: true })).toBe(false);     // in the air: no floor to climb to
+    expect(followCanLead({ tagAlong: true, down: 30 })).toBe(false);
+    expect(followCanLead({ tagAlong: true, strandT: FOLLOW_STRANDED_FRAMES - 1 })).toBe(true);
+    expect(followCanLead({ tagAlong: true, strandT: FOLLOW_STRANDED_FRAMES })).toBe(false);
+    expect(followCanLead(null)).toBe(false);
+  });
+  test("the gap it is asked about, a follow range less for every place further back", () => {
+    expect(followGap(100, 1, 78)).toBe(100);
+    expect(followGap(-100, 1, 78)).toBe(-100);
+    expect(followGap(200, 2, 78)).toBe(122);
+    expect(followGap(-200, 3, 78)).toBe(-44);
+    expect(followGap(50, 2, 78)).toBe(0);
+  });
+  test("two standing inside each other step apart, and stop once there is daylight", () => {
+    const range = 78;
+    expect(followSpreads(0, false, false, range)).toBe(true);
+    expect(followSpreads(0, true, false, range)).toBe(false);   // the one ahead is walking: it is passing through
+    expect(followSpreads(5, false, false, range)).toBe(false);  // already apart
+    expect(followSpreads(5, false, true, range)).toBe(true);    // ...but having set off, carries on
+    expect(followSpreads(range * FOLLOW_SPREAD_GAP, false, true, range)).toBe(false);
+    expect(followSpreads(range * FOLLOW_SPREAD_GAP, false, true, range, 2)).toBe(true); // two places back: twice as far
+  });
+  test("on a ladder it keeps a body's length behind the one it follows, and never backs off", () => {
+    expect(followClimbWant(-300, false, 210, 210)).toBe(-300); // nobody on the ladder: climb to them
+    expect(followClimbWant(-300, true, 210, 210)).toBe(-90);   // up: its head under their feet
+    expect(followClimbWant(-100, true, 210, 210)).toBe(0);     // too close: hold, do not climb down
+    expect(followClimbWant(300, true, 210, 150)).toBe(150);    // down: its feet over THEIR head
+    expect(followClimbWant(100, true, 210, 150)).toBe(0);
+  });
+  // The whole behaviour, on a line: you and three followers that start as one body.
+  test("three followers string out behind you, and turn head first when you walk back through them", () => {
+    const range = ALLY_FOLLOW_RANGE_CELLS * 30, speed = 3, w = 40;
+    let px = 0; const f = [0, 0, 0], was = [false, false, false], spread = [false, false, false], moved = [false, false, false];
+    const gapTo = (a, b) => (Math.sign(a - b) || 1) * Math.max(0, Math.abs(a - b) - w);
+    const frame = (pdx) => {
+      px += pdx;
+      for (let i = 0; i < 3; i++) {
+        const lead = i ? f[i - 1] : px, gap = gapTo(lead, f[i]);
+        let dx = allyFollowIntent(followGap(gap, 1, range), range, speed, was[i]);
+        was[i] = dx !== 0;
+        spread[i] = !dx && i > 0 && followSpreads(gap, moved[i - 1], spread[i], range);
+        if (spread[i]) dx = (Math.sign(f[i] - px) || -1) * speed;
+        f[i] += dx; moved[i] = dx !== 0;
+      }
+    };
+    const apart = () => { const xs = [px, ...f]; for (let i = 1; i < xs.length; i++) expect(Math.abs(xs[i - 1] - xs[i])).toBeGreaterThan(w); };
+    for (let n = 0; n < 400; n++) frame(speed);
+    for (let n = 0; n < 200; n++) frame(0);
+    expect(px > f[0] && f[0] > f[1] && f[1] > f[2]).toBe(true); // single file behind you
+    apart();
+    const before = [...f];
+    for (let n = 0; n < 30; n++) frame(-speed); // you turn round: nobody moves until you are past
+    expect(f).toEqual(before);
+    for (let n = 0; n < 600; n++) frame(-speed);
+    for (let n = 0; n < 200; n++) frame(0);
+    expect(px < f[0] && f[0] < f[1] && f[1] < f[2]).toBe(true); // the same order, trailing the other way
+    apart();
+  });
+  test("the loop wires the line in", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("const followLine = followChain(followUnits);");
+    expect(src).toContain("const lead = followLeader(followLine, k)");
+    expect(src).toContain("allyFollowIntent(followGap(gapSigned, followSlots, followRange), followRange, aiSpeed, ep.following)");
   });
 });
 

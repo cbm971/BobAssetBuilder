@@ -12310,18 +12310,27 @@ export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
   const runs = climbRunsOf(lv);
   const dy = tgt.feet - me.feet;
   const colX = (c) => (c + 0.5) * CW;
+  const fol = !!me.follower; // tagging along with you, not hunting: see FOLLOWERS GO WHERE YOU WENT, below
   // Ground (or a plane) under every column between here and there, give or take a step; the
   // destination column itself may be open — a ladder going down a hole is boarded by dropping in.
-  const walkable = (toX) => {
+  // `holeOk` (a follower on its way DOWN): so may the columns beside it, when the open air runs
+  // unbroken from them into the destination — the same hole, entered a column early.
+  const walkable = (toX, holeOk = false) => {
     if (!floorAt) return true;
     const row = Math.floor((me.feet + 1) / CH), dest = Math.floor(toX / CW);
     const a = Math.floor(Math.min(me.cx, toX) / CW), b = Math.floor(Math.max(me.cx, toX) / CW);
+    const stands = (c) => floorAt(row - 1, c) || floorAt(row, c) || floorAt(row + 1, c) || planeIdAt(runs, colX(c), me.feet, CW, CH) >= 0;
     for (let c = a; c <= b; c++) {
-      if (c === dest || floorAt(row - 1, c) || floorAt(row, c) || floorAt(row + 1, c) || planeIdAt(runs, colX(c), me.feet, CW, CH) >= 0) continue;
-      return false;
+      if (c === dest || stands(c)) continue;
+      if (!holeOk) return false;
+      for (let cc = c, step = dest > c ? 1 : -1; cc !== dest; cc += step) if (stands(cc)) return false;
     }
     return true;
   };
+  // Whether a ladder that stops short of the target still LEADS ON: it runs out through the top of
+  // the level (a manhole shaft carries on in the level above), or there is a deck beside its top to
+  // step off onto.
+  const leadsOn = (L) => L.rTop <= 0 || (!!floorAt && [-3, -2, -1, 1, 2, 3].some((d) => floorAt(L.rTop, L.c + d) || floorAt(L.rTop + 1, L.c + d)));
   if (me.topdown && tgt.topdown) return null; // the same floor with depth: topdownStepToward walks it
   if (tgt.topdown && !me.topdown) {
     // ONTO the plane the target is on, at its nearest cell the feet can walk onto from here — or,
@@ -12355,11 +12364,32 @@ export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
   if (Math.abs(dy) <= CH * 1.5) return null; // a step or a hill: the ordinary walk gets there
   let best = null;
   const consider = (cost, route) => { if (!best || cost < best.cost) best = { cost, route }; };
+  // FOLLOWERS GO WHERE YOU WENT (2026-11-14, Blake: "Followers should be able to climb to follow
+  // the player"). An ally has asked for this route since 2026-10-02, but the route was written for
+  // a HUNTER, and three of its rules are a hunter's restraint that left a follower standing:
+  // * a ladder counted only if its top was within a jump of the target. Climb out of a sewer (the
+  //   shaft's ladder ends at the top of that level, rows below the street you are standing on) or
+  //   up two ladders in a row, and the one behind had "no way up" and stayed down for good. A
+  //   follower takes a ladder that goes part of the way when it leads on (leadsOn), at a cost, so a
+  //   ladder that goes all the way still wins;
+  // * a ladder had to stand on the unit's own floor. You grip any ladder your body is on, one that
+  //   stops a few cells short of the ground included, and so does a follower;
+  // * a ladder in a hole wider than itself (his 4-cell holes with a 2-wide ladder) was "not
+  //   walkable": the open column beside it is no ground. Going down, stepping into that hole a
+  //   column early is still the way down (walkable's holeOk);
+  // and the drop below is an AMBUSH's (right beside it, and only when you are nearly underneath):
+  // a follower walks to any hole or edge it can reach on foot, however far along you have gone.
+  // A hunter's routes are untouched: every one of these is asked only with me.follower.
   for (const L of runs.ladders) {
     const yTop = L.rTop * CH, yBot = (L.rBot + 1) * CH, x = colX(L.c);
-    if (me.feet < yTop - CH * 0.5 || me.feet > yBot + CH * 0.5 || !walkable(x)) continue; // cannot get on it from this level
-    if (dy < 0 ? !(yTop < me.feet - CH && tgt.feet >= yTop - jumpPx - CH * 0.5) : !(yBot > me.feet + CH && tgt.feet > yTop)) continue;
-    consider(Math.abs(x - me.cx) + Math.abs(x - tgt.cx), { kind: "ladder", x, dir: dy < 0 ? -1 : 1 });
+    const bodyReach = fol && dy < 0 ? Math.max(0, (me.h || 0) - CH * 1.5) : 0;
+    if (me.feet < yTop - CH * 0.5 || me.feet > yBot + CH * 0.5 + bodyReach || !walkable(x, fol && dy > 0)) continue; // cannot get on it from this level
+    let extra = 0;
+    if (dy < 0) {
+      if (!(yTop < me.feet - CH)) continue;
+      if (!(tgt.feet >= yTop - jumpPx - CH * 0.5)) { if (!fol || !leadsOn(L)) continue; extra = FOLLOW_PART_WAY_COST_CELLS * CW; }
+    } else if (!(yBot > me.feet + CH && tgt.feet > yTop)) continue;
+    consider(Math.abs(x - me.cx) + Math.abs(x - tgt.cx) + extra, { kind: "ladder", x, dir: dy < 0 ? -1 : 1 });
   }
   if (dy < 0) {
     for (const H of runs.hangs) {
@@ -12373,9 +12403,11 @@ export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
       consider(Math.abs(x - me.cx) + Math.abs(xOut - x) + Math.abs(tgt.cx - xOut) + CW, { kind: "hang", x, r: H.r, c0: H.c0, c1: H.c1 });
     }
   }
-  if (dy > 0) { const d = unitDropSpot(lv, me, tgt, CW, CH, floorAt); if (d) consider(Math.abs(d.x - (me.fx ?? me.cx)) + Math.abs(d.x - tgt.cx), { kind: "drop", x: d.x }); }
+  if (dy > 0) { const d = unitDropSpot(lv, me, tgt, CW, CH, floorAt, fol ? { reachCells: FOLLOW_DROP_REACH_CELLS, anyDistance: true, ok: (x) => walkable(x, true) } : null); if (d) consider(Math.abs(d.x - (me.fx ?? me.cx)) + Math.abs(d.x - tgt.cx), { kind: "drop", x: d.x }); }
   return best && best.route;
 };
+export const FOLLOW_PART_WAY_COST_CELLS = 20; // what a ladder that only goes part of the way costs, in cells of walking
+export const FOLLOW_DROP_REACH_CELLS = 30;    // how far along its own floor a follower walks to a hole or an edge
 // 🕳️ A HOLE TO DROP THROUGH (2026-10-04). Blake's Sewer M2 hides rats in pockets in the tunnel
 // ceiling, to drop on you as you walk underneath, and they never came. The rats saw him (they turned
 // to face him) but stood still on the lip of their pockets: Seek walks only to a target on its own
@@ -12398,14 +12430,16 @@ export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
 // → { x } (that box's centre to stop at, over the gap), or null.
 export const UNIT_DROP_REACH_CELLS = 3;
 export const UNIT_DROP_TRIGGER_CELLS = 8;
-export const unitDropSpot = (lv, me, tgt, CW, CH, floorAt) => {
+// `opts` (a FOLLOWER's drop — see FOLLOWERS GO WHERE YOU WENT): { reachCells } how far it walks to
+// the gap, { anyDistance } however far along the target has gone, { ok(x) } the walk there has ground.
+export const unitDropSpot = (lv, me, tgt, CW, CH, floorAt, opts = null) => {
   if (!lv || !me || !tgt || tgt.feet == null || !floorAt || !(me.w > 0) || me.topdown) return null;
   if (tgt.feet - me.feet <= CH * 1.5) return null; // not below it: the walk (or a climb) gets there
   const cols = lv.cols || 0, rows = lv.rows || 0;
   const bx = me.fx ?? me.cx;
   const row = Math.floor((me.feet + 1) / CH);           // the row its feet stand on
   const open = (c) => c >= 0 && c < cols && !floorAt(row, c) && !floorAt(row + 1, c); // a real drop, not a one-cell dip
-  const reach = UNIT_DROP_REACH_CELLS * CW;
+  const reach = ((opts && opts.reachCells) || UNIT_DROP_REACH_CELLS) * CW;
   const cMe = Math.floor(bx / CW), span = Math.ceil((me.w / 2 + reach) / CW) + 1;
   let best = null;
   // Each gap once: at its first column, or at the window's west end when the gap runs on past it.
@@ -12421,7 +12455,8 @@ export const unitDropSpot = (lv, me, tgt, CW, CH, floorAt) => {
     const lo = c0 * CW + me.w / 2 + 1, hi = (c1 + 1) * CW - me.w / 2 - 1;
     if (lo > hi) continue; // too narrow for this body
     const x = Math.max(lo, Math.min(hi, bx));
-    if (Math.abs(x - bx) > reach || Math.abs(x - tgt.cx) > UNIT_DROP_TRIGGER_CELLS * CW) continue;
+    if (Math.abs(x - bx) > reach || (!(opts && opts.anyDistance) && Math.abs(x - tgt.cx) > UNIT_DROP_TRIGGER_CELLS * CW)) continue;
+    if (opts && opts.ok && !opts.ok(x)) continue;
     // Where the fall ends: the first floor under the body's whole width, or the level's bottom.
     const a = Math.floor((x - me.w / 2) / CW), b = Math.floor((x + me.w / 2 - 0.001) / CW);
     let land = rows * CH;
@@ -13761,6 +13796,63 @@ export const ALLY_LEASH_CELLS = 40, ALLY_REGROUP_CELLS = 8;
 export const allyGuards = (foeDx, foeDy, cell) => Math.abs(foeDx) <= ALLY_GUARD_CELLS * cell && Math.abs(foeDy) <= ALLY_GUARD_ROWS * cell;
 export const allyRegrouping = (gapToPlayer, wasRegrouping, cell) =>
   Math.abs(gapToPlayer) > (wasRegrouping ? ALLY_REGROUP_CELLS : ALLY_LEASH_CELLS) * cell;
+// FOLLOWERS WALK IN A LINE (2026-11-14, Blake: "If you have two followers one should follow the
+// other like a centipede, they shouldn't stack as one"). Every ally tagging along used to aim at the
+// same thing — YOU — with the same follow range, so two of them walked to the same spot and stood
+// there as one body. Now your followers are a CHAIN: the first follows you, the second follows the
+// first, the third the second, each with the same closes-or-stands intent (allyFollowIntent) aimed
+// at the one ahead of it. That one rule is the whole centipede:
+// * single file behind you, a follow range apart, however many there are;
+// * you turn round and walk back through them and nothing flips: each stands until the one ahead
+//   of it has gone a follow range past, then sets off after it, so the line turns head first;
+// * at a ladder they queue: the one ahead is on another level, so the next takes the climb route TO
+//   IT (not to you), waits at the foot until there is a body's room, and climbs behind it.
+// The order is each unit's uid (handed out once, when it first appears, and never changed), so two
+// followers never trade places from one frame to the next.
+export const followChain = (units) => [...(units || [])].sort((a, b) => {
+  const ua = a.uid ?? Infinity, ub = b.uid ?? Infinity;
+  return ua === ub ? String(a.key).localeCompare(String(b.key)) : ua < ub ? -1 : 1;
+});
+// Whether the one ahead can be FOLLOWED this frame. It has to be tagging along itself — one that is
+// off fighting, running back from past the leash, flat on its back, in the air on wings, or stood
+// for two seconds under a floor it has found no way onto (FOLLOW_STRANDED_FRAMES) would lead the
+// rest of the line away from you, or nowhere. It keeps its PLACE in the line all the same, so
+// the ones behind leave its slot open and nobody shuffles up and back as a fight starts and ends.
+export const FOLLOW_STRANDED_FRAMES = 120;
+export const followCanLead = (u) => !!u && !!u.tagAlong && !u.regroup && !u.flies && !(u.down > 0) && !((u.strandT || 0) >= FOLLOW_STRANDED_FRAMES);
+// WHO `key` FOLLOWS: the nearest one ahead of it in the line that can lead, and how many places
+// back from that one it stands (`slots`) — or you (key null), as many places back as it is down the
+// line. One that is on YOUR level never goes after a leader that is not (it would climb down to a
+// straggler and away from you); it follows you until the straggler is back up.
+// chain: followChain's order, each { key, lead, withPlayer }.
+export const followLeader = (chain, key) => {
+  const i = (chain || []).findIndex((u) => u.key === key);
+  if (i < 0) return { key: null, slots: 1 };
+  for (let j = i - 1; j >= 0; j--) {
+    const c = chain[j];
+    if (!c.lead || (chain[i].withPlayer && !c.withPlayer)) continue;
+    return { key: c.key, slots: i - j };
+  }
+  return { key: null, slots: i + 1 };
+};
+// The gap the follow intent is asked about: the gap to whoever it follows, less a follow range for
+// every place it stands further back than right behind them.
+export const followGap = (gapSigned, slots, slotPx) => (Math.sign(gapSigned) || 1) * Math.max(0, Math.abs(gapSigned) - (Math.max(1, slots || 1) - 1) * slotPx);
+// ...AND NEVER ON THE SAME SPOT. Following only ever closes or stands, so two followers that ended a
+// fight inside each other (both ran at the same foe) stayed that way for as long as you stood still.
+// One whose box touches the follower it is behind, while that one is standing, takes a few steps
+// to its own place (the caller picks the side: away from you) and stops once there is daylight —
+// FOLLOW_SPREAD_GAP of the follow range per place back. Never away from YOU: walking into your own
+// pet still walks through it, as before.
+export const FOLLOW_SPREAD_GAP = 0.25;
+export const followSpreads = (gap, leaderMoving, wasSpreading, range, slots = 1) =>
+  !leaderMoving && (wasSpreading ? Math.abs(gap) < range * FOLLOW_SPREAD_GAP * Math.max(1, slots) : Math.abs(gap) <= 0);
+// ON A LADDER BEHIND SOMEBODY: how far it still wants to climb (< 0 up, > 0 down), given the raw
+// feet-to-feet `want`. Following a body that is itself on a ladder, it keeps that body's length
+// clear — its head under their feet going up, its feet over their head going down — and holds where
+// it is rather than back off. Anybody not on a ladder is climbed to as before.
+export const followClimbWant = (want, tgtOnLadder, myH, tgtH) =>
+  !tgtOnLadder ? want : want < 0 ? Math.min(0, want + (myH || 0)) : Math.max(0, want - (tgtH || 0));
 // Storage order controls stacking only within the same player-relative layer. Front/back is a
 // stronger rule: a front object must render over every back object regardless of placement order.
 // Keep the original stack index so editor actions still update/delete the correct saved object.
@@ -17856,6 +17948,21 @@ export default function AssetStudio({ game = false } = {}) {
           let wi = 0;
           for (let si = 0; si < rideSeats.length && wi < want.length; si++) if (!taken.has(si)) rideWant[want[wi++].k] = si;
         }
+        // THE LINE YOUR FOLLOWERS WALK IN (followChain): every living ally not riding with you, in
+        // uid order, with what the ones behind need to know about each — whether it can be followed
+        // this frame (followCanLead, off what it did LAST frame) and whether it is on your level.
+        const followUnits = [], followByKey = {};
+        for (const k0 of Object.keys(lv.enemies)) {
+          const ep0 = enemyPos.current[k0]; if (!ep0 || !ep0.friendly || ep0.ride) continue;
+          if (enemyHP.current[k0] !== undefined && enemyHP.current[k0] <= 0) continue;
+          const ea0 = unitAssetAt(k0, lv.enemies[k0]); if (!ea0) continue;
+          const h0 = enemyStandH(ea0, CW), feet0 = ep0.y + (ep0.crouch ? enemyCrouchH(ea0, CW) : h0);
+          const u0 = { key: k0, uid: ep0.uid, ep: ep0, ea: ea0,
+            lead: followCanLead({ tagAlong: ep0.tagAlong, regroup: ep0.regroup, strandT: ep0.strandT, flies: creatureFlies(ea0) || !!ep0.flying, down: ep0.down }),
+            withPlayer: !!(ep0.topdown && p.topdown) || unitSharesLevel(feet0, p.y + ph, h0) };
+          followUnits.push(u0); followByKey[k0] = u0;
+        }
+        const followLine = followChain(followUnits);
         for (const k of Object.keys(lv.enemies)) {
           if (enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) {
             // A DEFEATED BODY STILL FALLS. This whole per-enemy block used to be skipped the
@@ -18210,6 +18317,7 @@ export default function AssetStudio({ game = false } = {}) {
           const senseTall = unitSenseTall(eCreatureFlies, acts); // 🦸 a flying fighter's zone is much taller; an NPC's is not
           const onMyLevel = (c) => !!c && (eCreatureFlies ? enemyChasesVertically(myFeetY, feetOf(c), !!(ep.provoked && hostile), senseTall) : ((ep.topdown && (c.key ? c.ep.topdown : p.topdown)) || unitSharesLevel(myFeetY, feetOf(c), standEph)));
           let targetKind = null, targetKey = null, targetCX = p.x + pw / 2, targetW = vehDriven ? vehDriven.w : pw, targetEp = null, targetEa = null;
+          let followEp = null, followEa = null, followSlots = 1; // the follower it walks behind (null: you), and how many places back
           if (friendly) {
             // Nearest hostile NEAR YOU, unless it has strayed past the leash — see allyGuards /
             // allyRegrouping. Anything else and it tags along. A foe on another level than the ally
@@ -18220,7 +18328,18 @@ export default function AssetStudio({ game = false } = {}) {
             const guarded = ep.regroup || rideWant[k] != null ? [] : aliveOpposite(false).filter((f) => allyGuards(f.cx - pCX, f.ep.y + (f.ep.crouch ? enemyCrouchH(f.ea, CW) : enemyStandH(f.ea, CW)) - pFeet, CW));
             const near = nearestUnitCX(eCenterXNow, guarded.filter(onMyLevel)); // nearest hostile it can walk to
             if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
-            else { targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; } // nothing near you, or too far behind → tag along
+            else {
+              targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; // nothing near you, or too far behind → tag along
+              // ...behind the follower ahead of it in the line, not on top of it (followLeader). One
+              // with a seat waiting in your car goes straight to the car; one running back from past
+              // the leash runs to YOU, not to a place in a line it is forty cells from.
+              if (rideWant[k] == null && !ep.regroup) {
+                const lead = followLeader(followLine, k), lu = lead.key != null ? followByKey[lead.key] : null;
+                followSlots = lead.slots;
+                if (lu) { followEp = lu.ep; followEa = lu.ea; targetCX = unitCenter(lu.ea, lu.ep); targetW = enemyRenderW(lu.ea, CW) * sideBodyShape(lu.ea).fraction; }
+              }
+            }
+            ep.tagAlong = targetKind === "followPlayer";
           } else if (hostile) {
             // Your friendlies it can SENSE (enemySensesUnit: an ally a level away is not a target) + you.
             const cands = aliveOpposite(true).filter((f) => enemySensesUnit(f.cx - eCenterXNow, feetOf(f) - myFeetY, senseTall)).concat([{ key: null, cx: p.x + pw / 2 }]);
@@ -18338,8 +18457,11 @@ export default function AssetStudio({ game = false } = {}) {
           if ((ep.navDropCd || 0) > 0) ep.navDropCd = Math.max(0, ep.navDropCd - dtMul);
           if (ep.climbJump && ep.vy >= 0) ep.climbJump = false; // the player's rule: no re-grab on the way up off a climb
           if ((ep.down || 0) > 0) ep.climbing = null; // flattened: nothing left holding on
-          const navTgt = targetKind === "unit" ? targetEp : p;
-          const navTgtH = targetKind === "unit" ? (targetEp && targetEa ? (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) : 0) : ph;
+          // A follower's way there is the way to whoever it walks behind (followEp), so a line of
+          // them takes a ladder one after another instead of all making for you at once.
+          const navEp = targetKind === "unit" ? targetEp : followEp, navEa = targetKind === "unit" ? targetEa : followEa;
+          const navTgt = (targetKind === "unit" || followEp) ? navEp : p;
+          const navTgtH = (targetKind === "unit" || followEp) ? (navEp && navEa ? (navEp.crouch ? enemyCrouchH(navEa, CW) : enemyStandH(navEa, CW)) : 0) : ph;
           const navTgtFeet = !navTgt ? null : navTgt.climbing ? navTgt.y + navTgtH : standingLineY(navTgt, navTgtH);
           const navTgtTopdown = !!navTgt && (!!navTgt.topdown || navTgt.tdJumpY != null); // a hop off the plane is still on it
           const navMeTopdown = !!ep.topdown || ep.tdJumpY != null;
@@ -18372,14 +18494,26 @@ export default function AssetStudio({ game = false } = {}) {
             && (ep.flying ? (flyTgtFeet < myFeetY - CH * 0.25 || (flyTgtAir && flyTgtFeet < myFeetY + CH)) : (flyTgtFeet < myFeetY - CH * 1.5 && (following || !rangedEnemy || !targetOnLevel)))
             && flyFramesLeft(eFlyFx, ep.flyUsed) > 0;
           const navRouteLv = !eCreatureFlies && navPursuing && navOff && !ep.climbing && !eFlyUp
-            ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, w: epw, topdown: navMeTopdown }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
+            ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, w: epw, topdown: navMeTopdown, follower: following }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
             : null;
           const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
           const navAirborne = !ep.climbing && !ep.onGround && !ep.topdown;
+          // How long a follower has stood on a floor with whoever it follows on another and no way
+          // found to them (followCanLead: after FOLLOW_STRANDED_FRAMES the ones behind it stop
+          // following it and go round). A leader in mid-air settles nothing either way.
+          if (following && navOff && !navRoute && !ep.climbing && !navAirborne && !eFlyUp && !eCreatureFlies) ep.strandT = (ep.strandT || 0) + dtMul;
+          else if (!following || navTgtFeet != null) ep.strandT = 0;
+          // THE QUEUE AT A LADDER: whoever it follows is on a ladder and there is not yet a body's
+          // room behind them (followClimbWant). It does not get on, and does not step into the hole
+          // they are climbing down, until there is.
+          const navTgtOnLadder = following && !!navTgt && navTgt.climbing === "ladder";
+          const navQueued = navTgtOnLadder && !ep.climbing && navTgtFeet != null && Math.abs(followClimbWant(navTgtFeet - myFeetY, true, newEph, navTgtH)) < CH * 0.5;
+          const followRange = ALLY_FOLLOW_RANGE_CELLS * CW;
+          const followStep = following ? allyFollowIntent(followGap(gapSigned, followSlots, followRange), followRange, aiSpeed, ep.following) : 0;
           const towardTarget = Math.abs(distToTarget) > CW * 0.5 ? Math.sign(distToTarget) * aiSpeed : 0;
           let dxMove = (stunned || !acts || ep.stomp || ep.tailT > 0) ? 0   // a stomp plants its feet, the player's rule; so does a 🦎 tail swing (ep.tailT)
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * chargeSpeed
-            : following ? allyFollowIntent(gapSigned, ALLY_FOLLOW_RANGE_CELLS * CW, aiSpeed, ep.following)
+            : following ? followStep
             // SEEK WALKS ONLY TO A TARGET ON ITS OWN LEVEL. Sensing you through a floor is fine — it
             // still turns to face you and its gun still has its own level test — but it must not
             // trail you along the street under the storey you are walking on. Avoid is a retreat,
@@ -18397,9 +18531,10 @@ export default function AssetStudio({ game = false } = {}) {
             if (ep.hsLeap && navAirborne && !eFlyUp) dxMove = Math.abs(distToTarget) < 0.5 ? 0 : Math.sign(distToTarget) * Math.min(Math.abs(distToTarget), aiSpeed);
             else if (eFlyUp) dxMove = towardTarget * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1)); // flying: straight at it, at the item's Air speed
             else if (ep.climbing === "ladder") dxMove = navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH ? towardTarget : 0;
-            else if (ep.climbing) dxMove = towardTarget;
+            else if (ep.climbing) dxMove = (following && navTgt && navTgt.climbing && navTgt.climbing !== "ladder") ? followStep : towardTarget; // along the bars behind one that is on them too: a follow range back, not into it
             else if (navAirborne && ep.climbJump) dxMove = towardTarget;
             else if (navAirborne && ep.navHangJump) dxMove = 0;
+            else if (navQueued && navRoute && !navAirborne && (navRoute.kind === "drop" || navRoute.dir === 1)) dxMove = 0; // waiting its turn at the top of the way down
             else if (navRoute && navRoute.kind === "plane" && navRoute.feet != null && Math.abs(navRoute.feet - myFeetY) <= 2) dxMove = towardTarget; // at the way off the plane: off it, toward the target
             else if (navRoute && (!navAirborne || navRoute.kind === "ladder")) { // dropping down a hole onto a ladder steers into it
               const d = navRoute.x - (navRoute.kind === "plane" || navRoute.kind === "drop" ? ep.x + epw / 2 : eCenterXNow); // a drop is fitted to the landing box (unitDropSpot)
@@ -18429,6 +18564,17 @@ export default function AssetStudio({ game = false } = {}) {
           ep.swoopStall = false;
           if (!navAirborne) ep.navHangJump = false;
           if (following) ep.following = dxMove !== 0; else ep.following = false;
+          // ...and two followers standing inside each other step apart (followSpreads): the one
+          // behind walks to its own place, on the side away from you, while the one it follows stands.
+          // Not off a ledge: the step is taken only with ground (or a 🚶 plane) under where it leads.
+          let spreading = false;
+          if (following && followEp && !dxMove && !stunned && !ep.stomp && !(ep.tailT > 0) && !navRoute && !ep.climbing && !eFlyUp && (eCreatureFlies || !navAirborne)
+              && followSpreads(gapSigned, !!followEp.walking || !!followEp.climbing, !!ep.spread, followRange, followSlots)) {
+            const away = Math.sign(eCenterXNow - (p.x + pw / 2)) || Math.sign(eCenterXNow - targetCX) || -(p.face || 1);
+            const sr = Math.floor((myFeetY + 1) / CH), sc = Math.floor((eCenterXNow + away * (epw / 2 + CW * 0.5)) / CW);
+            if (eCreatureFlies || ep.topdown || solidAtW(sr, sc) || solidAtW(sr + 1, sc) || solidAtW(sr - 1, sc)) { spreading = true; dxMove = away * aiSpeed; }
+          }
+          ep.spread = spreading;
           // 🛼 SLIDE ON A UNIT: its feet EASE toward where it means to go at the item's Grip, and it
           // coasts when it stops, instead of snapping to speed and halting dead — the player's own
           // ground rule (horizVel), called with the unit's intent. dxMove stays the INTENT (what
@@ -18554,10 +18700,10 @@ export default function AssetStudio({ game = false } = {}) {
           // while the route goes there, so nothing changes for a unit simply walking past either.
           const cbX = ep.x + (eShape.centerFrac * eRenderW - epw / 2) - eStand.ox, cbY = ep.y - eStand.oy;
           const cbCX = ep.x + eShape.centerFrac * eRenderW;
-          const cbWant = navTgtFeet == null ? 0 : navTgtFeet - (ep.y + newEph); // < 0: the target is above
+          const cbWant = navTgtFeet == null ? 0 : followClimbWant(navTgtFeet - (ep.y + newEph), navTgtOnLadder, newEph, navTgtH); // < 0: the target is above (a body's length short of one it follows up or down a ladder)
           let eClimbMove = 0;
           if (eCreatureFlies) ep.climbing = null;
-          if (!eCreatureFlies && !ep.climbing && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned) {
+          if (!eCreatureFlies && !ep.climbing && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned && !(navQueued && !navAirborne)) {
             const kindNow = resolveClimbKind(eStand.lv, cbX, cbY, epw, newEph, CW, CH, cbWant < 0, null);
             if (navRoute.kind === "ladder" && kindNow === "ladder" && Math.abs(navRoute.x - cbCX) <= CW * 0.5) ep.climbing = "ladder";
             else if (navRoute.kind === "hang" && kindNow && kindNow !== "ladder" && canGripClimb(eStand.lv, cbX, cbY, epw, newEph, CW, CH, kindNow)) ep.climbing = kindNow;
@@ -18614,7 +18760,7 @@ export default function AssetStudio({ game = false } = {}) {
           // in the air for good — a lion "stuck on a ladder", a dog floating above the ground. A
           // second and a half of that and it drops; nothing sends it back on, because a climb route
           // exists only for a target that is NOT level (navDropCd keeps the same frame honest).
-          if (ep.climbing && Math.abs(cbWant) <= CH * 0.5 && eClimbMove < 0.5 && Math.abs(ep.x - exBefore) < 0.5) {
+          if (ep.climbing && !navTgtOnLadder && Math.abs(cbWant) <= CH * 0.5 && eClimbMove < 0.5 && Math.abs(ep.x - exBefore) < 0.5) { // (one queued on a ladder behind another is waiting, not stuck)
             ep.climbIdleT = (ep.climbIdleT || 0) + dtMul;
             if (ep.climbIdleT > CLIMB_IDLE_LET_GO_FRAMES) { ep.climbing = null; ep.navDropCd = 45; ep.climbIdleT = 0; }
           } else ep.climbIdleT = 0;
@@ -18640,6 +18786,7 @@ export default function AssetStudio({ game = false } = {}) {
             const tLine = (navRoute && navRoute.kind === "plane" && navRoute.feet != null) ? navRoute.feet
               : (stunned || !acts || ep.stomp || !(charging || (ai === "seek" && detected && targetOnLevel))) ? null
               : (targetKind === "unit" && targetEp && targetEa) ? standingLineY(targetEp, targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW))
+              : (following && followEp) ? standingLineY(navTgt, navTgtH) // the line of the follower it walks behind
               : standingLineY(p, ph);
             if (tLine != null) {
               const feet0 = ep.y + newEph;
