@@ -2969565,16 +2969565,6 @@
     }
    },
    "enemies": {
-    "34,19": {
-     "enemyTag": "Trailer",
-     "facing": 1,
-     "ai": "guard",
-     "weaponId": "none",
-     "gearTags": [
-      "T1"
-     ],
-     "dialogueId": "dlgmtk1"
-    },
     "32,58": {
      "enemyTag": "Trailer",
      "facing": -1,
@@ -2969641,7 +2969631,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794741385273
+   "savedAt": 1794742646996,
+   "editedFrom": 1794741385273
   },
   {
    "id": "uw2goe0",
@@ -3327328,29 +3327319,6 @@
    "editedFrom": 1793442347590
   },
   {
-   "id": "dlgmtk1",
-   "name": "Pit Boss",
-   "start": "nmtk1a",
-   "nodes": {
-    "nmtk1a": {
-     "id": "nmtk1a",
-     "speaker": "Pit Boss",
-     "text": "Keys are in it. Don't roll it.",
-     "choices": [
-      {
-       "id": "cmtk1a",
-       "text": "...",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    }
-   },
-   "savedAt": 1794741385273
-  },
-  {
    "id": "dlgord1",
    "name": "Order to Report",
    "start": "ndlgord1a",
@@ -3330495,6 +3330463,7 @@
   "textures": [],
   "backgrounds": [],
   "dialogues": [
+   "dlgmtk1",
    "dlgsqdn",
    "l0dowg8"
   ],
@@ -3330607,6 +3330576,7 @@
   "textures": {},
   "backgrounds": {},
   "dialogues": {
+   "dlgmtk1": 1794742670228,
    "dlgsqdn": 1793921110981,
    "l0dowg8": 1793921110981
   },
