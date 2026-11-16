@@ -470742,6 +470742,3214 @@
    "editedFrom": 1793842590967
   },
   {
+   "id": "c3gs82h",
+   "name": "Flaming Jacket",
+   "type": "equipment",
+   "angles": {
+    "front": [
+     {
+      "id": "sbjjk99",
+      "kind": "tri2",
+      "x": 59,
+      "y": 84,
+      "w": 38,
+      "h": 18,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "rot": 12,
+      "_src": "gscjrrc",
+      "_slot": "jacket"
+     },
+     {
+      "id": "w94k60f",
+      "kind": "rect",
+      "x": 105,
+      "y": 91,
+      "w": 38,
+      "h": 78,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "_src": "gscjrrc",
+      "_slot": "jacket"
+     },
+     {
+      "id": "n5jo4cb",
+      "kind": "rect",
+      "x": 65,
+      "y": 101,
+      "w": 25,
+      "h": 24,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "_src": "gscjrrc",
+      "_slot": "jacket"
+     },
+     {
+      "id": "w93995z",
+      "kind": "rect",
+      "x": 128,
+      "y": 117,
+      "w": 69,
+      "h": 25,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 81,
+      "overArms": true,
+      "outline": true,
+      "limb": "arm",
+      "_src": "gscjrrc",
+      "_slot": "jacket"
+     },
+     {
+      "id": "8c05abt",
+      "kind": "pentagon",
+      "x": 53,
+      "y": 71.5,
+      "w": 13.98,
+      "h": 7.501,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "7ylxmnn",
+      "kind": "pentagon",
+      "x": 71,
+      "y": 71.5,
+      "w": 13.98,
+      "h": 7.501,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "od0ru2b",
+      "kind": "rect",
+      "x": 54,
+      "y": 75,
+      "w": 29.664,
+      "h": 17.731,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 4.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.05
+      }
+     },
+     {
+      "id": "2bwjo8o",
+      "kind": "tri",
+      "x": 54,
+      "y": 55.5,
+      "w": 7.842,
+      "h": 17.048,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      }
+     },
+     {
+      "id": "o81xmsx",
+      "kind": "tri",
+      "x": 75.5,
+      "y": 55.5,
+      "w": 7.842,
+      "h": 17.048,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 0
+     },
+     {
+      "id": "zz54ir6",
+      "kind": "tri",
+      "x": 65,
+      "y": 57,
+      "w": 8.183,
+      "h": 15.683,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 2.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "ovjpi7x",
+      "kind": "tri",
+      "x": 60.5,
+      "y": 69.5,
+      "w": 16.025,
+      "h": 6.479,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "k6okail",
+      "kind": "pentagon",
+      "x": 53,
+      "y": 77,
+      "w": 13.98,
+      "h": 7.501,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "p75x0ud",
+      "kind": "pentagon",
+      "x": 71.5,
+      "y": 77,
+      "w": 13.98,
+      "h": 7.501,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "jxtyjx6",
+      "kind": "rect",
+      "x": 56,
+      "y": 77,
+      "w": 25.231,
+      "h": 8.865,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "tryslzb",
+      "kind": "tri",
+      "x": 55,
+      "y": 62,
+      "w": 6.819,
+      "h": 16.707,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 355
+     },
+     {
+      "id": "nzf4cio",
+      "kind": "tri",
+      "x": 76,
+      "y": 63,
+      "w": 6.478,
+      "h": 15.344,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 7
+     },
+     {
+      "id": "ithcvck",
+      "kind": "tri",
+      "x": 65.5,
+      "y": 63,
+      "w": 8.183,
+      "h": 15.685,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "jj3sfot",
+      "kind": "tri",
+      "x": 61,
+      "y": 74.5,
+      "w": 16.026,
+      "h": 6.478,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "5d0mzl0",
+      "kind": "circle",
+      "x": 58,
+      "y": 82,
+      "w": 21.48,
+      "h": 7.501,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     }
+    ],
+    "back": [
+     {
+      "id": "gfl1s51",
+      "kind": "tri2",
+      "x": 65,
+      "y": 84,
+      "w": 61,
+      "h": 16,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "rot": 0
+     },
+     {
+      "id": "jbhwr4p",
+      "kind": "rect",
+      "x": 53,
+      "y": 91,
+      "w": 89,
+      "h": 85,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true
+     },
+     {
+      "id": "dwdofly",
+      "kind": "rect",
+      "x": 54,
+      "y": 77.5,
+      "w": 51,
+      "h": 20,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 4.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.05
+      }
+     },
+     {
+      "id": "0k87erd",
+      "kind": "rect",
+      "x": 78,
+      "y": 79.5,
+      "w": 36.5,
+      "h": 19,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 4.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.05
+      }
+     },
+     {
+      "id": "ta53ubr",
+      "kind": "stadium",
+      "x": 64,
+      "y": 77,
+      "w": 67,
+      "h": 22.5,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 4.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.05
+      }
+     },
+     {
+      "id": "bi6t3jf",
+      "kind": "rect",
+      "x": 131,
+      "y": 119,
+      "w": 69,
+      "h": 25,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 81,
+      "overArms": true,
+      "outline": true,
+      "limb": "arm"
+     },
+     {
+      "id": "5o0n9vu",
+      "kind": "pentagon",
+      "x": 52.5,
+      "y": 73,
+      "w": 15.531,
+      "h": 8.334,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "9e5rfux",
+      "kind": "pentagon",
+      "x": 72.5,
+      "y": 73,
+      "w": 15.531,
+      "h": 8.334,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "u9zw7wn",
+      "kind": "tri",
+      "x": 54,
+      "y": 55.5,
+      "w": 8.713,
+      "h": 18.939,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      }
+     },
+     {
+      "id": "mu5glnt",
+      "kind": "tri",
+      "x": 78,
+      "y": 55.5,
+      "w": 8.712,
+      "h": 18.939,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 0
+     },
+     {
+      "id": "2u9w9ko",
+      "kind": "tri",
+      "x": 66,
+      "y": 57,
+      "w": 9.091,
+      "h": 17.424,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 2.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "5l8kmjl",
+      "kind": "tri",
+      "x": 61.5,
+      "y": 71,
+      "w": 17.804,
+      "h": 7.198,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "200g8e5",
+      "kind": "pentagon",
+      "x": 53,
+      "y": 79.5,
+      "w": 15.531,
+      "h": 8.333,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "hzywwcm",
+      "kind": "pentagon",
+      "x": 73,
+      "y": 79.5,
+      "w": 15.531,
+      "h": 8.333,
+      "color": "#b0504f",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "lbvfswc",
+      "kind": "rect",
+      "x": 56,
+      "y": 79.5,
+      "w": 28.031,
+      "h": 9.848,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "xy0gslu",
+      "kind": "tri",
+      "x": 55,
+      "y": 63,
+      "w": 7.576,
+      "h": 18.561,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 355
+     },
+     {
+      "id": "6t120q9",
+      "kind": "tri",
+      "x": 78.5,
+      "y": 63.5,
+      "w": 7.197,
+      "h": 17.046,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 7
+     },
+     {
+      "id": "wh56qaf",
+      "kind": "tri",
+      "x": 66.5,
+      "y": 63.5,
+      "w": 9.091,
+      "h": 17.425,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "gh43zdm",
+      "kind": "tri",
+      "x": 61.5,
+      "y": 77,
+      "w": 17.804,
+      "h": 7.197,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "q5bukrb",
+      "kind": "circle",
+      "x": 58,
+      "y": 85,
+      "w": 23.864,
+      "h": 8.333,
+      "color": "#ff7b00",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "75xhord",
+      "kind": "pentagon",
+      "x": 76.5,
+      "y": 75.5,
+      "w": 17.031,
+      "h": 9.14,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "ir819vu",
+      "kind": "pentagon",
+      "x": 98.5,
+      "y": 75.5,
+      "w": 17.032,
+      "h": 9.14,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "5cxckp7",
+      "kind": "tri",
+      "x": 78,
+      "y": 56,
+      "w": 9.553,
+      "h": 20.769,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      }
+     },
+     {
+      "id": "7tw2e03",
+      "kind": "tri",
+      "x": 104.5,
+      "y": 56,
+      "w": 9.554,
+      "h": 20.769,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 0
+     },
+     {
+      "id": "wsknbqz",
+      "kind": "tri",
+      "x": 91.5,
+      "y": 58,
+      "w": 9.969,
+      "h": 19.108,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 2.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "9lb91ly",
+      "kind": "tri",
+      "x": 85.5,
+      "y": 73,
+      "w": 19.523,
+      "h": 7.893,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "lht3mpg",
+      "kind": "pentagon",
+      "x": 76.5,
+      "y": 82,
+      "w": 17.031,
+      "h": 9.139,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "ukdtr0a",
+      "kind": "pentagon",
+      "x": 99,
+      "y": 82,
+      "w": 17.031,
+      "h": 9.139,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "aj2jpur",
+      "kind": "rect",
+      "x": 79.5,
+      "y": 82,
+      "w": 30.737,
+      "h": 10.801,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "vdmmdx6",
+      "kind": "tri",
+      "x": 79,
+      "y": 64,
+      "w": 8.307,
+      "h": 20.354,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 355
+     },
+     {
+      "id": "87cozx4",
+      "kind": "tri",
+      "x": 105,
+      "y": 65,
+      "w": 7.892,
+      "h": 18.693,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 7
+     },
+     {
+      "id": "8fxh3xq",
+      "kind": "tri",
+      "x": 91.5,
+      "y": 65,
+      "w": 9.97,
+      "h": 19.107,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "d2mlqq8",
+      "kind": "tri",
+      "x": 86.5,
+      "y": 79.5,
+      "w": 19.524,
+      "h": 7.893,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "3zsemeo",
+      "kind": "circle",
+      "x": 82.5,
+      "y": 88,
+      "w": 26.169,
+      "h": 9.139,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     }
+    ],
+    "side": [
+     {
+      "id": "kubxx58",
+      "kind": "tri2",
+      "x": 72,
+      "y": 73,
+      "w": 64,
+      "h": 27,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "rot": 342
+     },
+     {
+      "id": "7uxoqgp",
+      "kind": "rect",
+      "x": 52,
+      "y": 88,
+      "w": 91,
+      "h": 79,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true
+     },
+     {
+      "id": "sw1xfdo",
+      "kind": "rect",
+      "x": 74,
+      "y": 131,
+      "w": 69,
+      "h": 25,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 90,
+      "overArms": true,
+      "outline": true,
+      "limb": "arm"
+     },
+     {
+      "id": "ztg0ion",
+      "kind": "pentagon",
+      "x": 54,
+      "y": 70,
+      "w": 12.795,
+      "h": 6.865,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "bc0q1km",
+      "kind": "pentagon",
+      "x": 70.5,
+      "y": 70,
+      "w": 12.795,
+      "h": 6.865,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "tr3jlgn",
+      "kind": "rect",
+      "x": 55.5,
+      "y": 73.5,
+      "w": 27.148,
+      "h": 16.227,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 4.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.05
+      }
+     },
+     {
+      "id": "55rm2b3",
+      "kind": "tri",
+      "x": 55.5,
+      "y": 55.5,
+      "w": 7.177,
+      "h": 15.603,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      }
+     },
+     {
+      "id": "vr5slcz",
+      "kind": "tri",
+      "x": 75,
+      "y": 55.5,
+      "w": 7.177,
+      "h": 15.603,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 0
+     },
+     {
+      "id": "wzn4xni",
+      "kind": "tri",
+      "x": 65.5,
+      "y": 57,
+      "w": 7.49,
+      "h": 14.355,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 2.5,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "1ra50h6",
+      "kind": "tri",
+      "x": 61.5,
+      "y": 68,
+      "w": 14.666,
+      "h": 5.929,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.4
+      }
+     },
+     {
+      "id": "i2hknbw",
+      "kind": "pentagon",
+      "x": 54.5,
+      "y": 75.5,
+      "w": 12.795,
+      "h": 6.866,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": 38
+     },
+     {
+      "id": "w13ocbv",
+      "kind": "pentagon",
+      "x": 71,
+      "y": 75.5,
+      "w": 12.795,
+      "h": 6.866,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.2
+      },
+      "rot": -38
+     },
+     {
+      "id": "gjczxli",
+      "kind": "rect",
+      "x": 57,
+      "y": 75.5,
+      "w": 23.092,
+      "h": 8.114,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "fqllf5l",
+      "kind": "tri",
+      "x": 56.5,
+      "y": 61.5,
+      "w": 6.241,
+      "h": 15.291,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 355
+     },
+     {
+      "id": "jtpvjaz",
+      "kind": "tri",
+      "x": 75.5,
+      "y": 62,
+      "w": 5.929,
+      "h": 14.043,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 7
+     },
+     {
+      "id": "36d2dgd",
+      "kind": "tri",
+      "x": 65.5,
+      "y": 62,
+      "w": 7.49,
+      "h": 14.355,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "qzgdnvd",
+      "kind": "tri",
+      "x": 61.5,
+      "y": 73,
+      "w": 14.666,
+      "h": 5.929,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     },
+     {
+      "id": "mqoa973",
+      "kind": "circle",
+      "x": 59,
+      "y": 79.5,
+      "w": 19.66,
+      "h": 6.866,
+      "color": "#ff7b00",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      }
+     }
+    ],
+    "up": [
+     {
+      "id": "3fzrnqo",
+      "kind": "rect",
+      "x": 128,
+      "y": 81,
+      "w": 55,
+      "h": 24,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 90,
+      "overArms": true,
+      "outline": true,
+      "limb": "arm"
+     },
+     {
+      "id": "e8s3luc",
+      "kind": "tri2",
+      "x": 61,
+      "y": 88,
+      "w": 35,
+      "h": 18,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "rot": 12,
+      "overArms": true
+     },
+     {
+      "id": "n3szbi7",
+      "kind": "rect",
+      "x": 105,
+      "y": 91,
+      "w": 38,
+      "h": 78,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "overArms": true
+     },
+     {
+      "id": "ctmi71s",
+      "kind": "rect",
+      "x": 65,
+      "y": 101,
+      "w": 25,
+      "h": 24,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "overArms": true
+     }
+    ],
+    "crouch": [
+     {
+      "id": "b2k2pi7",
+      "kind": "tri2",
+      "x": 63,
+      "y": 113,
+      "w": 23,
+      "h": 15,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "rot": 12
+     },
+     {
+      "id": "10deke7",
+      "kind": "rect",
+      "x": 106,
+      "y": 122,
+      "w": 40,
+      "h": 57,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true
+     },
+     {
+      "id": "njvp6kh",
+      "kind": "rect",
+      "x": 65,
+      "y": 134,
+      "w": 25,
+      "h": 19,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true
+     },
+     {
+      "id": "y90zmvl",
+      "kind": "rect",
+      "x": 64,
+      "y": 127,
+      "w": 27,
+      "h": 6,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true
+     },
+     {
+      "id": "cxm90qg",
+      "kind": "rect",
+      "x": 131,
+      "y": 148,
+      "w": 54,
+      "h": 21,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 88,
+      "overArms": true,
+      "outline": true,
+      "limb": "arm"
+     },
+     {
+      "id": "uwwb2ik",
+      "kind": "rect",
+      "x": 154,
+      "y": 143,
+      "w": 13,
+      "h": 9,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "overArms": true,
+      "rot": 87,
+      "outline": true,
+      "limb": "arm"
+     }
+    ]
+   },
+   "guideId": "telfv37",
+   "slot": "jacket",
+   "variants": {
+    "default": {
+     "front": [],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "sbjjk99",
+       "kind": "tri2",
+       "x": 59,
+       "y": 84,
+       "w": 38,
+       "h": 18,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 12,
+       "_src": "gscjrrc",
+       "_slot": "jacket"
+      },
+      {
+       "id": "w94k60f",
+       "kind": "rect",
+       "x": 105,
+       "y": 91,
+       "w": 38,
+       "h": 78,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "_src": "gscjrrc",
+       "_slot": "jacket"
+      },
+      {
+       "id": "n5jo4cb",
+       "kind": "rect",
+       "x": 65,
+       "y": 101,
+       "w": 25,
+       "h": 24,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "_src": "gscjrrc",
+       "_slot": "jacket"
+      },
+      {
+       "id": "w93995z",
+       "kind": "rect",
+       "x": 128,
+       "y": 117,
+       "w": 69,
+       "h": 25,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 81,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm",
+       "_src": "gscjrrc",
+       "_slot": "jacket"
+      },
+      {
+       "id": "8c05abt",
+       "kind": "pentagon",
+       "x": 53,
+       "y": 71.5,
+       "w": 13.98,
+       "h": 7.501,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "7ylxmnn",
+       "kind": "pentagon",
+       "x": 71,
+       "y": 71.5,
+       "w": 13.98,
+       "h": 7.501,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "od0ru2b",
+       "kind": "rect",
+       "x": 54,
+       "y": 75,
+       "w": 29.664,
+       "h": 17.731,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 4.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.05
+       }
+      },
+      {
+       "id": "2bwjo8o",
+       "kind": "tri",
+       "x": 54,
+       "y": 55.5,
+       "w": 7.842,
+       "h": 17.048,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       }
+      },
+      {
+       "id": "o81xmsx",
+       "kind": "tri",
+       "x": 75.5,
+       "y": 55.5,
+       "w": 7.842,
+       "h": 17.048,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 0
+      },
+      {
+       "id": "zz54ir6",
+       "kind": "tri",
+       "x": 65,
+       "y": 57,
+       "w": 8.183,
+       "h": 15.683,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 2.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "ovjpi7x",
+       "kind": "tri",
+       "x": 60.5,
+       "y": 69.5,
+       "w": 16.025,
+       "h": 6.479,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "k6okail",
+       "kind": "pentagon",
+       "x": 53,
+       "y": 77,
+       "w": 13.98,
+       "h": 7.501,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "p75x0ud",
+       "kind": "pentagon",
+       "x": 71.5,
+       "y": 77,
+       "w": 13.98,
+       "h": 7.501,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "jxtyjx6",
+       "kind": "rect",
+       "x": 56,
+       "y": 77,
+       "w": 25.231,
+       "h": 8.865,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "tryslzb",
+       "kind": "tri",
+       "x": 55,
+       "y": 62,
+       "w": 6.819,
+       "h": 16.707,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 355
+      },
+      {
+       "id": "nzf4cio",
+       "kind": "tri",
+       "x": 76,
+       "y": 63,
+       "w": 6.478,
+       "h": 15.344,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 7
+      },
+      {
+       "id": "ithcvck",
+       "kind": "tri",
+       "x": 65.5,
+       "y": 63,
+       "w": 8.183,
+       "h": 15.685,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "jj3sfot",
+       "kind": "tri",
+       "x": 61,
+       "y": 74.5,
+       "w": 16.026,
+       "h": 6.478,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "5d0mzl0",
+       "kind": "circle",
+       "x": 58,
+       "y": 82,
+       "w": 21.48,
+       "h": 7.501,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      }
+     ],
+     "back": [
+      {
+       "id": "gfl1s51",
+       "kind": "tri2",
+       "x": 65,
+       "y": 84,
+       "w": 61,
+       "h": 16,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 0
+      },
+      {
+       "id": "jbhwr4p",
+       "kind": "rect",
+       "x": 53,
+       "y": 91,
+       "w": 89,
+       "h": 85,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "dwdofly",
+       "kind": "rect",
+       "x": 54,
+       "y": 77.5,
+       "w": 51,
+       "h": 20,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 4.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.05
+       }
+      },
+      {
+       "id": "0k87erd",
+       "kind": "rect",
+       "x": 78,
+       "y": 79.5,
+       "w": 36.5,
+       "h": 19,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 4.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.05
+       }
+      },
+      {
+       "id": "ta53ubr",
+       "kind": "stadium",
+       "x": 64,
+       "y": 77,
+       "w": 67,
+       "h": 22.5,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 4.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.05
+       }
+      },
+      {
+       "id": "bi6t3jf",
+       "kind": "rect",
+       "x": 131,
+       "y": 119,
+       "w": 69,
+       "h": 25,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 81,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      },
+      {
+       "id": "5o0n9vu",
+       "kind": "pentagon",
+       "x": 52.5,
+       "y": 73,
+       "w": 15.531,
+       "h": 8.334,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "9e5rfux",
+       "kind": "pentagon",
+       "x": 72.5,
+       "y": 73,
+       "w": 15.531,
+       "h": 8.334,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "u9zw7wn",
+       "kind": "tri",
+       "x": 54,
+       "y": 55.5,
+       "w": 8.713,
+       "h": 18.939,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       }
+      },
+      {
+       "id": "mu5glnt",
+       "kind": "tri",
+       "x": 78,
+       "y": 55.5,
+       "w": 8.712,
+       "h": 18.939,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 0
+      },
+      {
+       "id": "2u9w9ko",
+       "kind": "tri",
+       "x": 66,
+       "y": 57,
+       "w": 9.091,
+       "h": 17.424,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 2.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "5l8kmjl",
+       "kind": "tri",
+       "x": 61.5,
+       "y": 71,
+       "w": 17.804,
+       "h": 7.198,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "200g8e5",
+       "kind": "pentagon",
+       "x": 53,
+       "y": 79.5,
+       "w": 15.531,
+       "h": 8.333,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "hzywwcm",
+       "kind": "pentagon",
+       "x": 73,
+       "y": 79.5,
+       "w": 15.531,
+       "h": 8.333,
+       "color": "#b0504f",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "lbvfswc",
+       "kind": "rect",
+       "x": 56,
+       "y": 79.5,
+       "w": 28.031,
+       "h": 9.848,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "xy0gslu",
+       "kind": "tri",
+       "x": 55,
+       "y": 63,
+       "w": 7.576,
+       "h": 18.561,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 355
+      },
+      {
+       "id": "6t120q9",
+       "kind": "tri",
+       "x": 78.5,
+       "y": 63.5,
+       "w": 7.197,
+       "h": 17.046,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 7
+      },
+      {
+       "id": "wh56qaf",
+       "kind": "tri",
+       "x": 66.5,
+       "y": 63.5,
+       "w": 9.091,
+       "h": 17.425,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "gh43zdm",
+       "kind": "tri",
+       "x": 61.5,
+       "y": 77,
+       "w": 17.804,
+       "h": 7.197,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "q5bukrb",
+       "kind": "circle",
+       "x": 58,
+       "y": 85,
+       "w": 23.864,
+       "h": 8.333,
+       "color": "#ff7b00",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "75xhord",
+       "kind": "pentagon",
+       "x": 76.5,
+       "y": 75.5,
+       "w": 17.031,
+       "h": 9.14,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "ir819vu",
+       "kind": "pentagon",
+       "x": 98.5,
+       "y": 75.5,
+       "w": 17.032,
+       "h": 9.14,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "5cxckp7",
+       "kind": "tri",
+       "x": 78,
+       "y": 56,
+       "w": 9.553,
+       "h": 20.769,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       }
+      },
+      {
+       "id": "7tw2e03",
+       "kind": "tri",
+       "x": 104.5,
+       "y": 56,
+       "w": 9.554,
+       "h": 20.769,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 0
+      },
+      {
+       "id": "wsknbqz",
+       "kind": "tri",
+       "x": 91.5,
+       "y": 58,
+       "w": 9.969,
+       "h": 19.108,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 2.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "9lb91ly",
+       "kind": "tri",
+       "x": 85.5,
+       "y": 73,
+       "w": 19.523,
+       "h": 7.893,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "lht3mpg",
+       "kind": "pentagon",
+       "x": 76.5,
+       "y": 82,
+       "w": 17.031,
+       "h": 9.139,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "ukdtr0a",
+       "kind": "pentagon",
+       "x": 99,
+       "y": 82,
+       "w": 17.031,
+       "h": 9.139,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "aj2jpur",
+       "kind": "rect",
+       "x": 79.5,
+       "y": 82,
+       "w": 30.737,
+       "h": 10.801,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "vdmmdx6",
+       "kind": "tri",
+       "x": 79,
+       "y": 64,
+       "w": 8.307,
+       "h": 20.354,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 355
+      },
+      {
+       "id": "87cozx4",
+       "kind": "tri",
+       "x": 105,
+       "y": 65,
+       "w": 7.892,
+       "h": 18.693,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 7
+      },
+      {
+       "id": "8fxh3xq",
+       "kind": "tri",
+       "x": 91.5,
+       "y": 65,
+       "w": 9.97,
+       "h": 19.107,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "d2mlqq8",
+       "kind": "tri",
+       "x": 86.5,
+       "y": 79.5,
+       "w": 19.524,
+       "h": 7.893,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "3zsemeo",
+       "kind": "circle",
+       "x": 82.5,
+       "y": 88,
+       "w": 26.169,
+       "h": 9.139,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "kubxx58",
+       "kind": "tri2",
+       "x": 72,
+       "y": 73,
+       "w": 64,
+       "h": 27,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 342
+      },
+      {
+       "id": "7uxoqgp",
+       "kind": "rect",
+       "x": 52,
+       "y": 88,
+       "w": 91,
+       "h": 79,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "sw1xfdo",
+       "kind": "rect",
+       "x": 74,
+       "y": 131,
+       "w": 69,
+       "h": 25,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 90,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      },
+      {
+       "id": "ztg0ion",
+       "kind": "pentagon",
+       "x": 54,
+       "y": 70,
+       "w": 12.795,
+       "h": 6.865,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "bc0q1km",
+       "kind": "pentagon",
+       "x": 70.5,
+       "y": 70,
+       "w": 12.795,
+       "h": 6.865,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "tr3jlgn",
+       "kind": "rect",
+       "x": 55.5,
+       "y": 73.5,
+       "w": 27.148,
+       "h": 16.227,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 4.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.05
+       }
+      },
+      {
+       "id": "55rm2b3",
+       "kind": "tri",
+       "x": 55.5,
+       "y": 55.5,
+       "w": 7.177,
+       "h": 15.603,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       }
+      },
+      {
+       "id": "vr5slcz",
+       "kind": "tri",
+       "x": 75,
+       "y": 55.5,
+       "w": 7.177,
+       "h": 15.603,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 0
+      },
+      {
+       "id": "wzn4xni",
+       "kind": "tri",
+       "x": 65.5,
+       "y": 57,
+       "w": 7.49,
+       "h": 14.355,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 2.5,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "1ra50h6",
+       "kind": "tri",
+       "x": 61.5,
+       "y": 68,
+       "w": 14.666,
+       "h": 5.929,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.4
+       }
+      },
+      {
+       "id": "i2hknbw",
+       "kind": "pentagon",
+       "x": 54.5,
+       "y": 75.5,
+       "w": 12.795,
+       "h": 6.866,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": 38
+      },
+      {
+       "id": "w13ocbv",
+       "kind": "pentagon",
+       "x": 71,
+       "y": 75.5,
+       "w": 12.795,
+       "h": 6.866,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.2
+       },
+       "rot": -38
+      },
+      {
+       "id": "gjczxli",
+       "kind": "rect",
+       "x": 57,
+       "y": 75.5,
+       "w": 23.092,
+       "h": 8.114,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "fqllf5l",
+       "kind": "tri",
+       "x": 56.5,
+       "y": 61.5,
+       "w": 6.241,
+       "h": 15.291,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 355
+      },
+      {
+       "id": "jtpvjaz",
+       "kind": "tri",
+       "x": 75.5,
+       "y": 62,
+       "w": 5.929,
+       "h": 14.043,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 7
+      },
+      {
+       "id": "36d2dgd",
+       "kind": "tri",
+       "x": 65.5,
+       "y": 62,
+       "w": 7.49,
+       "h": 14.355,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "qzgdnvd",
+       "kind": "tri",
+       "x": 61.5,
+       "y": 73,
+       "w": 14.666,
+       "h": 5.929,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      },
+      {
+       "id": "mqoa973",
+       "kind": "circle",
+       "x": 59,
+       "y": 79.5,
+       "w": 19.66,
+       "h": 6.866,
+       "color": "#ff7b00",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "3fzrnqo",
+       "kind": "rect",
+       "x": 128,
+       "y": 81,
+       "w": 55,
+       "h": 24,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 90,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      },
+      {
+       "id": "e8s3luc",
+       "kind": "tri2",
+       "x": 61,
+       "y": 88,
+       "w": 35,
+       "h": 18,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 12,
+       "overArms": true
+      },
+      {
+       "id": "n3szbi7",
+       "kind": "rect",
+       "x": 105,
+       "y": 91,
+       "w": 38,
+       "h": 78,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "overArms": true
+      },
+      {
+       "id": "ctmi71s",
+       "kind": "rect",
+       "x": 65,
+       "y": 101,
+       "w": 25,
+       "h": 24,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "overArms": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "b2k2pi7",
+       "kind": "tri2",
+       "x": 63,
+       "y": 113,
+       "w": 23,
+       "h": 15,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 12
+      },
+      {
+       "id": "10deke7",
+       "kind": "rect",
+       "x": 106,
+       "y": 122,
+       "w": 40,
+       "h": 57,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "njvp6kh",
+       "kind": "rect",
+       "x": 65,
+       "y": 134,
+       "w": 25,
+       "h": 19,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "y90zmvl",
+       "kind": "rect",
+       "x": 64,
+       "y": 127,
+       "w": 27,
+       "h": 6,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "cxm90qg",
+       "kind": "rect",
+       "x": 131,
+       "y": 148,
+       "w": 54,
+       "h": 21,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 88,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      },
+      {
+       "id": "uwwb2ik",
+       "kind": "rect",
+       "x": 154,
+       "y": 143,
+       "w": 13,
+       "h": 9,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "overArms": true,
+       "rot": 87,
+       "outline": true,
+       "limb": "arm"
+      }
+     ]
+    },
+    "oipvf3l": {
+     "front": [
+      {
+       "id": "sbjjk99",
+       "kind": "tri2",
+       "x": 63,
+       "y": 79,
+       "w": 30,
+       "h": 18,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 12
+      },
+      {
+       "id": "w94k60f",
+       "kind": "rect",
+       "x": 108,
+       "y": 86,
+       "w": 29,
+       "h": 74,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 175
+      },
+      {
+       "id": "n5jo4cb",
+       "kind": "rect",
+       "x": 64,
+       "y": 102,
+       "w": 25,
+       "h": 24,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 6
+      },
+      {
+       "id": "w93995z",
+       "kind": "rect",
+       "x": 122,
+       "y": 115,
+       "w": 68,
+       "h": 21,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 87,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      }
+     ],
+     "back": [
+      {
+       "id": "gfl1s51",
+       "kind": "tri2",
+       "x": 66,
+       "y": 82,
+       "w": 61,
+       "h": 16,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 0
+      },
+      {
+       "id": "jbhwr4p",
+       "kind": "rect",
+       "x": 66,
+       "y": 89,
+       "w": 73,
+       "h": 65,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "bi6t3jf",
+       "kind": "rect",
+       "x": 121,
+       "y": 116,
+       "w": 69,
+       "h": 25,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 81,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      },
+      {
+       "id": "o0jo2p0",
+       "kind": "tri",
+       "x": 59,
+       "y": 117,
+       "w": 87,
+       "h": 44,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": false,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "kubxx58",
+       "kind": "tri2",
+       "x": 72,
+       "y": 67,
+       "w": 64,
+       "h": 27,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 342,
+       "_slot": "jacket"
+      },
+      {
+       "id": "7uxoqgp",
+       "kind": "rect",
+       "x": 69,
+       "y": 86,
+       "w": 60,
+       "h": 72,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "_slot": "jacket"
+      },
+      {
+       "id": "sw1xfdo",
+       "kind": "rect",
+       "x": 74,
+       "y": 131,
+       "w": 69,
+       "h": 25,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 90,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm",
+       "_slot": "jacket"
+      },
+      {
+       "id": "bsg1ssp",
+       "kind": "hexagon",
+       "x": 122,
+       "y": 93,
+       "w": 14,
+       "h": 30,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.1
+       },
+       "rot": 9,
+       "overArms": true,
+       "_slot": "jacket"
+      }
+     ],
+     "up": [
+      {
+       "id": "3fzrnqo",
+       "kind": "rect",
+       "x": 128,
+       "y": 81,
+       "w": 55,
+       "h": 24,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 90,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      },
+      {
+       "id": "e8s3luc",
+       "kind": "tri2",
+       "x": 72,
+       "y": 84,
+       "w": 20,
+       "h": 16,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 12,
+       "overArms": true
+      },
+      {
+       "id": "n3szbi7",
+       "kind": "rect",
+       "x": 111,
+       "y": 87,
+       "w": 26,
+       "h": 77,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "overArms": true,
+       "rot": 173
+      },
+      {
+       "id": "ctmi71s",
+       "kind": "rect",
+       "x": 66,
+       "y": 111,
+       "w": 19,
+       "h": 20,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "overArms": true,
+       "rot": 4
+      }
+     ],
+     "crouch": [
+      {
+       "id": "b2k2pi7",
+       "kind": "tri2",
+       "x": 69,
+       "y": 99,
+       "w": 25,
+       "h": 19,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "rot": 12
+      },
+      {
+       "id": "10deke7",
+       "kind": "rect",
+       "x": 107,
+       "y": 106,
+       "w": 24,
+       "h": 54,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "njvp6kh",
+       "kind": "rect",
+       "x": 74,
+       "y": 117,
+       "w": 16,
+       "h": 17,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true
+      },
+      {
+       "id": "cxm90qg",
+       "kind": "rect",
+       "x": 104,
+       "y": 129,
+       "w": 55,
+       "h": 20,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 263,
+       "overArms": true,
+       "outline": true,
+       "limb": "arm"
+      }
+     ]
+    }
+   },
+   "lastFit": "telfv37",
+   "confirmedFits": [
+    "telfv37",
+    "oipvf3l"
+   ],
+   "savedAt": 1794787196286,
+   "statBoosts": {
+    "speed": 0,
+    "agility": 0,
+    "intelligence": 0,
+    "strength": 0,
+    "hp": 2
+   },
+   "effects": [],
+   "defense": 5,
+   "categories": [
+    "T1",
+    "Jacket",
+    "Army"
+   ],
+   "value": 5,
+   "rank": "common"
+  },
+  {
    "id": "c4bnt60",
    "name": "Kitchen Cabinet",
    "type": "prop",
