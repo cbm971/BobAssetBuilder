@@ -230,6 +230,8 @@ import {
   relocatedObjectKey,
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
+  catchUpFollowers, firedOffArmTwins, ladderFootHits, ladderUnderFeet, trailDrop, trailShift, trailPickUp, trailNext, followDetourStep, followJumpsWall,
+  FOLLOW_BLOCKED_FRAMES, FOLLOW_TRAIL_GIVE_UP_FRAMES, ladderJogDx,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
   runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runFloors, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, roomViewZoom, centreRoomInView, ROOM_VIEW_ROWS, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
@@ -11840,6 +11842,38 @@ describe("runs", () => {
     expect(adoptRunNeighbours(run, n1, buckets, CELL)).toBe(0);
   });
 
+  test("catchUpFollowers brings a follower more than a level behind to you at the gate (his 2026-11-15 fallback)", () => {
+    // run1 (A) -> run2 (B) -> run3 (C, entered through its W2). run1 is two levels back: out of the world.
+    const run = { seed: "t", nodes: {}, order: ["run1", "run2", "run3"] };
+    run.nodes.run1 = { key: "run1", col: 0, row: 0, level: { ...A, runKey: "run1", enemies: { "40,10": { enemyId: "pet" }, "40,20": { enemyId: "foe" } } }, links: { N: null, E: "run2", S: null, W: null } };
+    run.nodes.run2 = { key: "run2", col: 1, row: 0, level: { ...B, runKey: "run2", enemies: {} }, links: { N: null, E: "run3", S: null, W: "run1" } };
+    run.nodes.run3 = { key: "run3", col: 2, row: 0, level: { ...C, runKey: "run3", enemies: { "40,50": { enemyId: "pet" }, "40,150": { enemyId: "pet" } } }, links: { N: null, E: null, S: null, W: "run2" } };
+    const stuck = { uid: 1, friendly: true, x: 300, y: 900, climbing: "ladder", trailN: 4 };
+    const foe = { uid: 2, x: 600, y: 900 };
+    const near = { uid: 3, friendly: true, x: 1400, y: 900 };
+    const far = { uid: 4, friendly: true, x: -6000, y: 900 }; // in the world (adopted) but 6,070 px back: more than a level (160 cells = 4,800 px)
+    const buckets = {
+      run1: { ...newLevelBucket(), ePos: { "40,10": stuck, "40,20": foe }, eHP: { "40,10": 5 } },
+      run3: { ...newLevelBucket(), ePos: { "40,50": near, "40,150": far } },
+    };
+    const box = (k, spawn, ep) => (ep.friendly ? { w: 60, h: 210 } : null);
+    const moved = catchUpFollowers(run, run.nodes.run3, buckets, { x: 100, feet: 960 }, box, CELL);
+    expect(moved.length).toBe(2);
+    // The one two levels back is now in run3's books, set down on its feet at your spot, its climb forgotten.
+    const k = Object.keys(buckets.run3.ePos).find((kk) => buckets.run3.ePos[kk] === stuck);
+    expect(k).toBeDefined();
+    expect(run.nodes.run3.level.enemies[k]).toEqual({ enemyId: "pet" });
+    expect(buckets.run3.eHP[k]).toBe(5);
+    expect(stuck.x).toBe(70); expect(stuck.y).toBe(750); expect(stuck.climbing).toBe(null); expect(stuck.trailN).toBe(null);
+    expect(run.nodes.run1.level.enemies).toEqual({ "40,20": { enemyId: "foe" } }); // a hostile is never brought along
+    expect(buckets.run1.ePos["40,20"]).toBe(foe);
+    // The far one in the world comes too; the one already near you is left to walk.
+    expect(far.x).toBe(70);
+    expect(near.x).toBe(1400);
+    // Nothing left to bring: a second call moves nobody.
+    expect(catchUpFollowers(run, run.nodes.run3, buckets, { x: 100, feet: 960 }, box, CELL)).toEqual([]);
+  });
+
   test("releaseRunUnits gives every unit back to the level it is standing in", () => {
     const dog = { enemyId: "dog" }, cat = { enemyId: "cat" }, rat = { enemyId: "rat" };
     const run = twoNodeRun({ "40,150": dog }, { "40,5": cat, "40,100": rat }), n1 = run.nodes.run1, n2 = run.nodes.run2;
@@ -16995,5 +17029,118 @@ describe("💨⏩ Swing Speed & Ranged Fire Rate", () => {
     expect(weaponDpsOver(gun, 10, 5, fireCloth)).toBe(40);
     expect(weaponDpsOver(gun, 10, 5, [])).toBe(20);
     expect(weaponDpsOver(boom, 10, 5, fireCloth)).toBeGreaterThan(weaponDpsOver(boom, 10, 5, []));
+  });
+});
+
+// His bug list of 2026-11-15, second one: arms that fire, ladders that go down, followers that keep up.
+describe("his bug list of 2026-11-15 (second)", () => {
+  test("firedOffArmTwins keeps the far arm of a two-arm weapon on while it fires (DK Arms, Harambe Arms)", () => {
+    const arm = { id: "a", x: 120, y: 50, w: 40, h: 80, mirror: true };
+    const states = {
+      rest: { back: [arm, { id: "mid", x: 90, y: 0, w: 20, h: 20, mirror: true }, { id: "mz", x: 150, y: 0, w: 5, h: 5, mirror: true, isMuzzle: true }], side: [arm] },
+      fire: { back: [{ id: "f", x: 120, y: 40, w: 40, h: 90 }], side: [{ id: "f", x: 120, y: 40, w: 40, h: 90 }], up: [] },
+    };
+    // The twin bake() would have made of the Rest arm, and only that: not a piece on the centre line, not the muzzle.
+    expect(firedOffArmTwins(states, "back")).toEqual([{ ...arm, id: "a_m", x: 40, _m: true }]);
+    expect(firedOffArmTwins(states, "side")).toEqual([]);   // Side draws both arms itself and is never mirrored
+    expect(firedOffArmTwins(states, "up")).toEqual([]);     // no Fire art: weaponFireArt draws Rest, twins and all
+    // A Fire state that draws its own twin is used as it is.
+    expect(firedOffArmTwins({ rest: states.rest, fire: { back: [{ ...arm, id: "f" }] } }, "back")).toEqual([]);
+  });
+
+  test("ladderFootHits: a deck the ladder carries on through is not its foot; the ground it stands on is", () => {
+    const CW = 30;
+    const ladder = new Set(["6,5", "7,5", "8,5", "9,5", "10,5"]); // the last one painted into the ground
+    const at = (r, c) => ladder.has(r + "," + c);
+    const cx = 5.5 * CW;
+    // Climbing down through a one-cell gap in a deck: the deck either side of the gap is under the box.
+    expect(ladderFootHits([{ r: 6, c: 4 }, { r: 6, c: 6 }], [], cx, CW, at)).toEqual([]);
+    // The ground at the foot (the ladder cell there is solid, so the ladder does not carry on): a floor.
+    expect(ladderFootHits([{ r: 10, c: 4 }, { r: 10, c: 5 }, { r: 10, c: 6 }], [], cx, CW, at).length).toBe(3);
+    // A cell the body is already in never stops it (the walls-it-starts-inside rule).
+    expect(ladderFootHits([{ r: 3, c: 4 }], [{ r: 3, c: 4 }], cx, CW, at)).toEqual([]);
+    // Off to the side of the ladder (centre more than half a cell past its column), the deck is a floor again.
+    expect(ladderFootHits([{ r: 6, c: 8 }], [], 8.5 * CW, CW, at).length).toBe(1);
+  });
+
+  test("ladderUnderFeet: S on the deck a ladder's top is flush with gets you on it", () => {
+    const CW = 30, CH = 30, pw = 60, ph = 126;
+    const climb = {}; for (let r = 6; r <= 9; r++) climb[r + ",5"] = { kind: "ladder" };
+    const lv = { rows: 20, cols: 20, climb };
+    const deck = new Set(["6,3", "6,4", "6,6", "6,7"]);
+    const hitsAt = (x) => (yy) => { const out = []; for (let r = Math.floor(yy / CH); r <= Math.floor((yy + ph - 0.001) / CH); r++) for (let c = Math.floor(x / CW); c <= Math.floor((x + pw - 0.001) / CW); c++) if (deck.has(r + "," + c)) out.push({ r, c }); return out; };
+    const at = (r, c) => !!climb[r + "," + c];
+    const y = 6 * CH - ph; // feet on the deck
+    expect(ladderUnderFeet(lv, 135, y, pw, ph, CW, CH, hitsAt(135), at)).toBe(true);
+    expect(ladderUnderFeet(lv, 300, y, pw, ph, CW, CH, hitsAt(300), at)).toBe(false); // no ladder under you
+    expect(ladderUnderFeet(lv, 135, y + 1, pw, ph, CW, CH, hitsAt(135), at)).toBe(false); // already on it
+  });
+
+  test("the trail: crumbs a step apart, picked up where you passed, followed one by one", () => {
+    const CW = 30, tr = [];
+    expect(trailDrop(tr, { x: 100, feet: 600 }, CW)).toBe(true);
+    expect(trailDrop(tr, { x: 120, feet: 600 }, CW)).toBe(false); // under a step and a half along
+    expect(trailDrop(tr, { x: 150, feet: 600 }, CW)).toBe(true);
+    expect(trailDrop(tr, { x: 150, feet: 600, climb: "ladder" }, CW)).toBe(true); // getting on a ladder is a crumb of its own
+    expect(trailDrop(tr, { x: 150, feet: 560, climb: "ladder" }, CW)).toBe(true);  // a cell and a bit up it
+    expect(trailDrop(tr, { x: 200, feet: 450 }, CW)).toBe(true);
+    expect(tr.map((t) => t.n)).toEqual([0, 1, 2, 3, 4]);
+    // Picked up at the START of your most recent pass near it, not the end of it.
+    expect(trailPickUp(tr, { cx: 140, feet: 600 }, CW)).toBe(0);
+    // It makes for the first crumb from its place that it is not already standing on.
+    expect(trailNext(tr, 0, { cx: 100, feet: 600 }, CW).n).toBe(1);
+    expect(trailNext(tr, 1, { cx: 150, feet: 600 }, CW).n).toBe(3); // on crumb 1 and the ladder's foot (2): next is up the ladder
+    expect(trailNext(tr, 0, { cx: 150, feet: 600 }, CW).n).toBe(0); // one it has not reached yet is still the one it goes to
+    expect(trailNext(tr, 4, { cx: 200, feet: 450 }, CW)).toBe(null); // used up
+    // Too far from any crumb on its own floor: nothing to pick up.
+    expect(trailPickUp(tr, { cx: 3000, feet: 600 }, CW)).toBe(null);
+    // Re-based at a seam like everything else in flight.
+    trailShift(tr, -4800, 0); expect(tr[0].x).toBe(-4700);
+  });
+
+  test("followDetourStep: blocked for a moment, it takes the trail; beside you again, it drops it", () => {
+    const CW = 30, tr = [];
+    for (const x of [100, 150, 200, 250, 300]) trailDrop(tr, { x, feet: 600 }, CW);
+    const ep = { blockT: FOLLOW_BLOCKED_FRAMES - 1 };
+    const me = { cx: 100, feet: 600 };
+    expect(followDetourStep(ep, tr, me, { near: false, onFeet: true, dt: 1 }, CW)).toBe(null); // not stuck long enough
+    ep.blockT = FOLLOW_BLOCKED_FRAMES;
+    expect(followDetourStep(ep, tr, me, { near: false, onFeet: true, dt: 1 }, CW).x).toBe(150);
+    expect(ep.trailN).toBe(1);
+    // It moves on as it reaches each crumb.
+    expect(followDetourStep(ep, tr, { cx: 150, feet: 600 }, { near: false, onFeet: true, dt: 1 }, CW).x).toBe(200);
+    // Beside you: back to plain following.
+    expect(followDetourStep(ep, tr, { cx: 200, feet: 600 }, { near: true, onFeet: true, dt: 1 }, CW)).toBe(null);
+    expect(ep.trailN).toBe(null);
+    // A crumb it cannot reach is given up, and the trail left alone for a while.
+    const ep2 = { trailN: 4 };
+    let pt = null;
+    for (let i = 0; i <= FOLLOW_TRAIL_GIVE_UP_FRAMES + 1; i++) pt = followDetourStep(ep2, tr, me, { near: false, onFeet: true, dt: 1 }, CW);
+    expect(pt).toBe(null); expect(ep2.trailCd).toBeGreaterThan(0);
+    ep2.blockT = 999;
+    expect(followDetourStep(ep2, tr, me, { near: false, onFeet: true, dt: 1 }, CW)).toBe(null);
+  });
+
+  test("ladderJogDx: where a ladder steps a cell sideways, slide over to it (Forest M1's tree)", () => {
+    const CW = 30, CH = 30, pw = 66, ph = 210;
+    const climb = {};
+    for (let r = 26; r <= 36; r++) climb[r + ",35"] = { kind: "ladder" };
+    for (let r = 21; r <= 26; r++) climb[r + ",36"] = { kind: "ladder" };
+    const lv = { rows: 46, cols: 160, climb };
+    const x = 1062 - pw / 2; // where his Bobert climbs column 35 (just left of column 36's grip window)
+    // Halfway up the first run: the grip holds going up, nothing to slide.
+    expect(ladderJogDx(lv, x, 700, pw, ph, CW, CH)).toBe(0);
+    // At its top (the box's feet just above row 26): the ladder goes on one column right.
+    expect(ladderJogDx(lv, x, 26 * CH - ph - 2, pw, ph, CW, CH)).toBeCloseTo(33); // to column 36's centre
+    // An ordinary top, nothing above: no slide.
+    const lv2 = { rows: 46, cols: 160, climb: Object.fromEntries(Object.entries(climb).filter(([k]) => k.endsWith(",35"))) };
+    expect(ladderJogDx(lv2, x, 26 * CH - ph - 2, pw, ph, CW, CH)).toBe(0);
+  });
+
+  test("followJumpsWall: more than the step-up lip, inside the jump", () => {
+    expect(followJumpsWall(30, 99, 30)).toBe(false);  // a one-cell lip: the walk steps up it
+    expect(followJumpsWall(60, 99, 30)).toBe(true);   // Trailer Park M4's fence, Agility 5
+    expect(followJumpsWall(95, 99, 30)).toBe(false);  // within a quarter cell of the jump's top: too high at Agility 5 ...
+    expect(followJumpsWall(95, 165, 30)).toBe(true);  // ... not for a Squirrel at Agility 9
   });
 });

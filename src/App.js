@@ -1565,6 +1565,29 @@ export const weaponFireArt = (states, ang) => {
   const fire = (states && states.fire) || blankAngles();
   return (fire[ang] || []).length ? fire : rest;
 };
+// ...AND THE OTHER ARM STAYS ON WHILE IT FIRES (2026-11-15, Blake: "DK and Harembe arms normally work
+// right where it has both arms with the weapon pose but in some like climbing or aiming animation
+// it does not"). His DK Arms and Harambe Arms ARE the gorilla's arms: in Back, Aim up and Crouch the
+// Rest art draws ONE arm marked 🪞 mirror and bake() adds its twin, so both arms come from the
+// weapon. Their Fire art in those poses is one arm, 8 pieces, none of them mirrored — and Fire
+// REPLACES Rest, so for every shot and every reload (a gun with an empty clip draws its Fire art) the
+// far arm vanished: up the ladder, on a ledge, ducking, firing straight up, on a 🚶 plane. Side-on
+// was fine, because his Side art draws both arms itself. Measured on his saved art, player and
+// units: 2 arms at rest in all of those poses, 1 while firing or reloading.
+// So when a pose's Fire art has no mirrored piece of its own, the mirrored half of its Rest art
+// stays: the twins bake() would have made of Rest's mirrored pieces, the near arm's Fire art in
+// front. Nothing of his art is hidden or changed; a Fire state that draws its own twin (Harambe's
+// Aim up does) is used as it is, and Side is never touched (pmirror never mirrors Side).
+// A piece straddling the centre line is not an arm's: mirrored it would only lie over itself.
+// → the extra pieces, already reflected (the shape bake gives a twin).
+export const firedOffArmTwins = (states, ang) => {
+  if (ang === "side") return [];
+  const rest = ((states && states.rest) || {})[ang] || [];
+  const fire = ((states && states.fire) || {})[ang] || [];
+  if (!fire.length || fire.some((p) => p && p.mirror)) return [];
+  return rest.filter((p) => p && p.mirror && !p.isMuzzle && !p.isHitbox && !p.isCutter && (p.x >= W / 2 || p.x + p.w <= W / 2))
+    .map((p) => ({ ...p, id: p.id + "_m", x: W - (p.x + p.w), _m: true }));
+};
 // A WEAPON IS NEVER DRAWN FACING THE CAMERA, SO THE FRONT POSE HOLDS IT BY ITS BACK ART (2026-09-28).
 // The weapon editor offers Back, Side, Aim up and Crouch (editablePoses) — the Front tab went when
 // nothing in the game ever showed a weapon from the front. Then the 🚶 Top-down plane made Front the
@@ -12769,6 +12792,59 @@ export const throwTrajectoryPoints = (x0, y0, vx0, vy0, g, isSolid, maxSteps = 1
   return pts;
 };
 const isOnClimb = (lv, x, y, pw, ph, CW, CH) => !!climbKindAt(lv, x, y, pw, ph, CW, CH);
+// A LADDER GOES DOWN WHERE IT CAME UP (2026-11-15, Blake: "There are some ladders you made like for
+// the parcor based levels that you can go up but not down meaning you can get stuck places ... It's
+// ladders up a tight space"). Climbing UP a ladder asks only whether the body is still on it; climbing
+// DOWN also stopped at the first solid cell anywhere under the body's box. The box is over two cells
+// wide, so a ladder up a one- or two-cell gap in a deck (his agility courses, the shafts of Forest
+// M12, Sewer M2) had the deck either side of the gap under the box: you climbed up through it fine,
+// and coming back the deck read as "the floor at the ladder's foot" and you stood on it, stuck. Over
+// every ladder in his levels, holding S from the top of the climb reached the bottom from 5,533 of
+// 9,923 grip positions; standing on a deck the ladder comes up through, S got you onto it from none.
+//
+// What stops a climb down now: a solid cell the body is not already in, on a row where the ladder
+// does NOT carry on through an open cell beside the body's centre (the grip window resolveClimbKind
+// uses). A deck the ladder passes through is not its foot; the ground the ladder stands on still is.
+// Over the same ladders: 9,923 of 9,923 and every deck; and wherever the old rule already finished a
+// climb down, this one finishes it at the same place.
+//   hits: the cells the step down would put the box in; inside: the cells it is in now;
+//   ladderAt(r, c): is that cell a ladder (in the same grid as the hits)
+export const ladderFootHits = (hits, inside, cx, CW, ladderAt) => {
+  if (!hits.length) return hits;
+  const solid = new Set(hits.map((h) => h.r + "," + h.c)), was = new Set((inside || []).map((h) => h.r + "," + h.c));
+  const cMid = Math.floor(cx / CW);
+  const runsThrough = (r) => { for (let c = cMid - 1; c <= cMid + 1; c++) if (cx >= c * CW - CW / 2 && cx <= (c + 1) * CW + CW / 2 && !solid.has(r + "," + c) && ladderAt(r, c)) return true; return false; };
+  return hits.filter((h) => !was.has(h.r + "," + h.c) && !runsThrough(h.r));
+};
+// A LADDER THAT STEPS A CELL SIDEWAYS (Forest M1's tree: column 35 up to row 26, then column 36 on
+// up). You climb it by holding the way it goes at the top of the first run: the walk slides you over
+// and the grip carries on. A unit only knew up and down, so at that top the climb step put it where
+// its centre was outside every ladder's grip window, it let go, fell to the foot and climbed again,
+// for good: the follower that never got up his tree. → the px to slide the body's centre (signed)
+// to the column of the ladder its box still overlaps a step up, or 0 when the grip holds going up
+// anyway, or there is no ladder up there at all (an ordinary top).
+//   x, y: the box after the step up (in the level's own pixels)
+export const ladderJogDx = (lv, x, y, pw, ph, CW, CH) => {
+  if (resolveClimbKind(lv, x, y, pw, ph, CW, CH, true, "ladder") === "ladder") return 0;
+  const cx = x + pw / 2, c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
+  let best = 0;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
+    if (climbKindOf(lv.climb && lv.climb[cellKey(r, c)]) !== "ladder") continue;
+    const d = (c + 0.5) * CW - cx;
+    if (!best || Math.abs(d) < Math.abs(best)) best = d;
+  }
+  return best;
+};
+// ...and getting ON one from above: standing on the deck its top is flush with, the box is a pixel
+// short of the ladder and S only crouched. → true when a ladder is right under the feet and stepping
+// down onto it meets no floor by the rule above (the caller then moves the body that one pixel).
+// `cx`: the body's centre in the grid the hits are in (a unit standing across a gate measures its
+// grip in its own level's pixels and its cells in the live level's).
+export const ladderUnderFeet = (lv, x, y, pw, ph, CW, CH, hitsAt, ladderAt, cx = x + pw / 2) =>
+  resolveClimbKind(lv, x, y, pw, ph, CW, CH, false, null) !== "ladder"
+  && resolveClimbKind(lv, x, y + 1, pw, ph, CW, CH, false, null) === "ladder"
+  && !ladderFootHits(hitsAt(y + 1), hitsAt(y), cx, CW, ladderAt).length;
 // Is the player (centered at cx,cy) overlapping a gameplay marker (door/pedestal)?
 const markerAt = (lv, cx, cy, CW, CH) => { const c = Math.floor(cx / CW), r = Math.floor(cy / CH); if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) return null; const m = lv.markers && lv.markers[cellKey(r, c)]; return m || null; };
 // A pedestal sits at foot level, so a marker check on the player's CENTER point (~3-4 cells up)
@@ -13985,6 +14061,57 @@ export const releaseRunUnits = (run, node, buckets, sideOf, cell = LV_CELL) => {
   if (moved) node.level = { ...node.level, enemies: live.enemies };
   return moved;
 };
+// THE ONES LEFT BEHIND CATCH UP AT THE GATE (2026-11-15, Blake: "as a fall back if followers get
+// one more than level behind the player they should spawn at the level gate. It can be a different
+// distance if needed just some fall back for path finding issues"). ONE WORLD simulates the live
+// level and its neighbours and nothing else, so a follower stuck two levels back was not even in
+// the world any more: it stood where it was for the rest of the run. Asked at every handoff, of the
+// level being ENTERED, after it has adopted its neighbours:
+// * a follower in a level that is not this one or next to it (out of the world), and
+// * a follower in the world but more than FOLLOW_CATCHUP_CELLS from you — a whole level behind,
+//   whichever levels that distance happens to lie across —
+// is set down at `spot`: where you are standing at this moment, which is in the gate. It lands on
+// its feet there and follows on. One that is merely behind in the level you just left is left to
+// walk: it is still coming, and the trail (followDetourStep) is how it gets round things.
+//   spot { x, feet }                  your centre and feet, in the entered level's pixels
+//   boxOf(k, spawn, ep, bucket)       → { w, h } for a living follower, null for anybody else
+// Returns the keys (in the entered level's books) of the ones it moved.
+export const FOLLOW_CATCHUP_CELLS = 160;
+export const catchUpFollowers = (run, node, buckets, spot, boxOf, cell = LV_CELL) => {
+  if (!run || !node || !node.level) return [];
+  const seams = runSeams(run, node, cell);
+  const near = new Set([node.key, ...Object.values(seams).map((s) => s.key)]);
+  const lb = buckets[node.key] || (buckets[node.key] = newLevelBucket());
+  const live = runUnitBooks(node.level.enemies, lb), moved = [];
+  const place = (ep, box) => {
+    ep.x = spot.x - box.w / 2; ep.y = spot.feet - box.h; ep.vy = 0; ep.onGround = false;
+    ep.climbing = null; ep.climbJump = false; ep.navHangJump = false; ep.navDropCd = 0; ep.crouch = false; ep.duckUnder = false;
+    ep.topdown = false; ep.tdJumpY = null; ep.regroup = false; ep.strandT = 0; ep.blockT = 0; ep.trailN = null; ep.trailT = 0; ep.trailCd = 0;
+  };
+  for (const k of Object.keys(live.enemies)) {
+    const ep = live.ePos[k], box = ep ? boxOf(k, live.enemies[k], ep, lb) : null;
+    if (!box || Math.abs(ep.x + box.w / 2 - spot.x) <= FOLLOW_CATCHUP_CELLS * cell) continue;
+    place(ep, box); moved.push(k);
+  }
+  let filed = false;
+  for (const key of Object.keys(run.nodes || {})) {
+    if (near.has(key)) continue;
+    const far = run.nodes[key], b = buckets[key];
+    if (!far || !far.level || !b || !b.ePos) continue;
+    let from = null;
+    for (const k of Object.keys(far.level.enemies || {})) {
+      const ep = b.ePos[k], box = ep ? boxOf(k, far.level.enemies[k], ep, b) : null;
+      if (!box) continue;
+      if (!from) from = runUnitBooks(far.level.enemies, b);
+      place(ep, box);
+      moved.push(moveRunUnit(k, from, live, { x: 0, y: 0 }, cell, { rows: node.level.rows, cols: node.level.cols }));
+      filed = true;
+    }
+    if (from) far.level = { ...far.level, enemies: from.enemies };
+  }
+  if (filed) node.level = { ...node.level, enemies: live.enemies };
+  return moved;
+};
 // The camera target and clamp, kept pure for the tests: centre the body, and keep the view on the
 // levels that are drawn — the live one and every neighbour across a seam, WHOLE.
 //
@@ -14315,6 +14442,97 @@ export const followSpreads = (gap, leaderMoving, wasSpreading, range, slots = 1)
 // it is rather than back off. Anybody not on a ladder is climbed to as before.
 export const followClimbWant = (want, tgtOnLadder, myH, tgtH) =>
   !tgtOnLadder ? want : want < 0 ? Math.min(0, want + (myH || 0)) : Math.max(0, want - (tgtH || 0));
+// THE WAY YOU WENT (2026-11-15, Blake: "On the pokeman level Followers have a pathfinding issue when
+// trying to follow the player" and "Forest M1 Followers have Pathfiniding issues following the
+// player"). A follower had exactly two ways to get to you: walk straight at you, or — only when you
+// stood more than a step ABOVE or BELOW it — ask the Climb layer for a ladder (unitClimbRoute). A
+// wall between the two of you on the SAME floor was neither. Trailer Park M4 is a flat street with
+// one red fence two cells high across it (and a three-rung ladder up its west side): you hop it, and
+// everything you caught with a Pokeball walked into it and stood there. Forest M1's watchtower is
+// the tall version: up the ladder, across the top, down the stair on the far side, and you are back
+// on the follower's own floor with the tower between you, so no route was ever asked for.
+//
+// Three rules now, cheapest first, all a FOLLOWER's only (a hunter's walk is untouched):
+// * a wall it can jump, it jumps (followJumpsWall) — the player's own jump, at its own Agility;
+// * a wall it cannot, it goes ROUND THE WAY YOU DID. You leave a crumb every TRAIL_STEP_CELLS you
+//   walk or climb (never in the air), and a follower that has stood against something for
+//   FOLLOW_BLOCKED_FRAMES — or under a floor it has found no way onto — picks your trail up where it
+//   passes it (trailPickUp) and makes for the crumbs one after another (trailNext): each is an
+//   ordinary target, so the walk, the jump above, the Climb-layer route and the ladder physics are
+//   all the ones it already had. It is back to plain following once it is beside you;
+// * and one that still cannot keep up is brought to the gate (catchUpFollowers).
+// A crumb is { n, x, feet, climb, topdown } in the live level's pixels: n counts up for ever, so a
+// follower's place on the trail survives the old end of it being dropped; the handoff re-bases the
+// lot (trailShift) like everything else in flight.
+export const TRAIL_STEP_CELLS = 1.5, TRAIL_MAX = 400;
+export const trailDrop = (trail, pt, cell = LV_CELL) => {
+  const last = trail[trail.length - 1];
+  if (last && (last.climb || null) === (pt.climb || null) && !!last.topdown === !!pt.topdown
+      && Math.abs(pt.x - last.x) < TRAIL_STEP_CELLS * cell && Math.abs(pt.feet - last.feet) < cell) return false;
+  trail.push({ n: last ? last.n + 1 : 0, x: pt.x, feet: pt.feet, climb: pt.climb || null, topdown: !!pt.topdown });
+  if (trail.length > TRAIL_MAX) trail.splice(0, trail.length - TRAIL_MAX);
+  return true;
+};
+export const trailShift = (trail, dx, dy) => { for (const t of trail || []) { t.x += dx; t.feet += dy; } };
+// WHERE A FOLLOWER PICKS THE TRAIL UP: the most recent time you passed within reach of where it
+// stands (TRAIL_AT_HAND: three cells along, a step and a half up or down), at the START of that
+// pass — the first crumb of it, not the last. The last may already be on the far side of whatever
+// stopped it (a fence is two cells thick and the crumbs are a cell and a half apart). With no crumb
+// at hand, the nearest one along its own floor within TRAIL_WALK_BACK_CELLS: it walks back to where
+// you were. → that crumb's n, or null.
+export const TRAIL_AT_HAND_CELLS = 3, TRAIL_AT_HAND_ROWS = 1.5, TRAIL_WALK_BACK_CELLS = 30;
+export const trailPickUp = (trail, me, cell = LV_CELL) => {
+  const atHand = (t) => Math.abs(t.x - me.cx) <= TRAIL_AT_HAND_CELLS * cell && Math.abs(t.feet - me.feet) <= TRAIL_AT_HAND_ROWS * cell;
+  let j = -1;
+  for (let i = (trail || []).length - 1; i >= 0; i--) if (atHand(trail[i])) { j = i; break; }
+  if (j >= 0) { while (j > 0 && atHand(trail[j - 1])) j--; return trail[j].n; }
+  let best = null;
+  for (const t of trail || []) {
+    if (Math.abs(t.feet - me.feet) > TRAIL_AT_HAND_ROWS * cell) continue;
+    const d = Math.abs(t.x - me.cx);
+    if (d <= TRAIL_WALK_BACK_CELLS * cell && (!best || d <= best.d)) best = { d, n: t.n }; // ties go to the later crumb
+  }
+  return best ? best.n : null;
+};
+// THE CRUMB IT IS MAKING FOR: crumb n, or the first one after it that it is not already standing on
+// (TRAIL_REACH). null once it has used the trail up, or when there is none.
+export const TRAIL_REACH_CELLS = 0.75, TRAIL_REACH_ROWS = 1.2;
+export const trailNext = (trail, n, me, cell = LV_CELL) => {
+  if (n == null || !trail || !trail.length) return null;
+  let i = Math.max(0, n - trail[0].n); // (the crumb it was after has aged off the old end: the oldest left)
+  while (i < trail.length && Math.abs(trail[i].x - me.cx) <= TRAIL_REACH_CELLS * cell && Math.abs(trail[i].feet - me.feet) <= TRAIL_REACH_ROWS * cell) i++;
+  return i < trail.length ? trail[i] : null;
+};
+// ONE FRAME OF A FOLLOWER'S DETOUR. `ep` keeps its place (trailN), how long it has been after the
+// same crumb (trailT) and a rest after giving up (trailCd); blockT and strandT are the loop's own
+// counts of "walking into something" and "under a floor with no way up".
+//   me { cx, feet }   where it is
+//   s  { near, onFeet, dt }  near: it is beside you on your floor (the detour is over)
+// → the crumb to make for ({ x, feet, topdown, climb }), or null: follow as usual.
+// It gives a crumb up after FOLLOW_TRAIL_GIVE_UP_FRAMES (you did something it cannot: a double jump,
+// a glide) and leaves the trail alone for FOLLOW_TRAIL_RETRY_FRAMES, so it stands and waits for the
+// gate rather than run at the same wall for ever.
+export const FOLLOW_BLOCKED_FRAMES = 24, FOLLOW_TRAIL_GIVE_UP_FRAMES = 240, FOLLOW_TRAIL_RETRY_FRAMES = 360;
+export const followDetourStep = (ep, trail, me, s, cell = LV_CELL) => {
+  if ((ep.trailCd || 0) > 0) ep.trailCd = Math.max(0, ep.trailCd - s.dt);
+  const quit = (rest) => { ep.trailN = null; ep.trailT = 0; ep.blockT = 0; if (rest) ep.trailCd = rest; return null; };
+  if (ep.trailN != null) {
+    const pt = s.near ? null : trailNext(trail, ep.trailN, me, cell);
+    if (!pt) return quit(0);
+    if (pt.n !== ep.trailN) { ep.trailN = pt.n; ep.trailT = 0; }
+    else { ep.trailT = (ep.trailT || 0) + s.dt; if (ep.trailT > FOLLOW_TRAIL_GIVE_UP_FRAMES) return quit(FOLLOW_TRAIL_RETRY_FRAMES); }
+    return pt;
+  }
+  if (s.near || (ep.trailCd || 0) > 0 || !s.onFeet) return null;
+  if ((ep.blockT || 0) < FOLLOW_BLOCKED_FRAMES && (ep.strandT || 0) < FOLLOW_BLOCKED_FRAMES) return null;
+  const n = trailPickUp(trail, me, cell), pt = n == null ? null : trailNext(trail, n, me, cell);
+  if (!pt) return quit(FOLLOW_BLOCKED_FRAMES * 2); // no trail here: look again in a moment, not every frame
+  ep.trailN = pt.n; ep.trailT = 0;
+  return pt;
+};
+// A wall a follower walks into is jumped when it is more than the one-cell lip the walk steps up
+// anyway and its top is inside the unit's jump, with a quarter of a cell to spare.
+export const followJumpsWall = (rise, jumpPx, cell = LV_CELL) => rise > cell && rise <= jumpPx - cell * 0.25;
 // Storage order controls stacking only within the same player-relative layer. Front/back is a
 // stronger rule: a front object must render over every back object regardless of placement order.
 // Keep the original stack index so editor actions still update/delete the correct saved object.
@@ -15260,6 +15478,7 @@ export default function AssetStudio({ game = false } = {}) {
   const enemyHP = useRef({});                             // spawnKey -> remaining HP this Playtest session (lazily seeded from the enemy asset's base hp on first hit)
   const unitHpSeen = useRef({});                          // spawnKey -> { hp, at } the HP bar last drew and when it last fell; drives unitStatusZ so a draining bar rises over full ones
   const enemyDrops = useRef({});                          // spawnKey -> null (no loot) | { item, x, y }; rolled once per defeated enemy
+  const followTrail = useRef([]);                         // the way you went, for a follower stuck behind something (trailDrop / followDetourStep)
   const corpseStripped = useRef({});                      // spawnKey -> [asset, ...] looted OFF that body: its art stops drawing those pieces, so a corpse you took the rifle from is visibly unarmed
   const meleeReach = useRef({});                          // enemyId|weaponId -> swept melee-hitbox reach in px, so the engage gate doesn't re-sweep the whole swing arc every frame
   const enemyPos = useRef({});                            // spawnKey -> { y, vy, onGround } — lets enemies fall to the ground on Playtest start ("drop into place") instead of being frozen at their placed cell
@@ -16574,7 +16793,7 @@ export default function AssetStudio({ game = false } = {}) {
     // Every live per-level ref pointed at one level's bucket — here in the effect, and in
     // seamHandoff so the swap render already reads the entered level's books (see there).
     const pointLiveRefsAt = (b) => { pedestalRolls.current = b.rolls; pedestalDepleted.current = b.depleted; enemyHP.current = b.eHP; enemyPos.current = b.ePos; enemyDrops.current = b.drops; corpseStripped.current = b.stripped; hazLife.current = b.haz; enemyGearRolls.current = b.gear; };
-    const seamHandoff = (side, p, pw, leavingGate, dtMul) => {
+    const seamHandoff = (side, p, pw, ph, leavingGate, dtMul) => {
       const seam = (side === "S" && seamUnder(seams, p.x + pw / 2, LV_CELL)) || seamOnSide(seams, side), nb = runNow.nodes[seam.key];
       // SCORE: leaving a level through a gate for the first time clears it (scoreLevelClear).
       scoreLevelClear(scoreRef.current, runNow.curKey);
@@ -16613,6 +16832,7 @@ export default function AssetStudio({ game = false } = {}) {
       for (const pr of projectiles.current) { pr.x += rx; pr.y += ry; if (pr.startX !== undefined) { pr.startX += rx; pr.startY += ry; pr.groundY += ry; } }
       for (const g of thrown.current) { g.x += rx; g.y += ry; }
       for (const b of booms.current) { b.x += rx; b.y += ry; }
+      trailShift(followTrail.current, rx, ry); // the way you went, for the followers behind you
       // 🚗 THE CARS COME TOO. The car you are in, and every live car standing in the level you are
       // entering (one parked across the seam, one that rolled over it), go into that level's books,
       // re-based to its pixels, so the loop that takes over steps and draws them where they are. A car
@@ -16630,6 +16850,12 @@ export default function AssetStudio({ game = false } = {}) {
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
       prepRunNeighbours(runNow, nb); // the level beyond this one gets its gear rolled before it is adopted
       adoptRunNeighbours(runNow, nb, roomState.current, CW);
+      // ...and any follower more than a level behind is brought to you at this gate (catchUpFollowers).
+      catchUpFollowers(runNow, nb, roomState.current, { x: p.x + pw / 2, feet: p.y + ph }, (k, spawn, ep, b) => {
+        if (!ep.friendly || ep.ride || (b.eHP && b.eHP[k] !== undefined && b.eHP[k] <= 0)) return null;
+        const ea = unitAssetAt(k, spawn, b.gear); if (!ea) return null;
+        return { w: unitBoxW(ea), h: enemyStandH(ea, CW) };
+      }, CW);
       // THE SWAP RENDER READS THE ENTERED LEVEL'S BOOKS. The loop effect points enemyPos / enemyHP /
       // drops / gear at a level's bucket, but it runs AFTER the render the setLevel below causes, so
       // that one render drew the entered level's spawn list against the LEFT level's positions:
@@ -16766,6 +16992,7 @@ export default function AssetStudio({ game = false } = {}) {
     // to whoever threw it first (enemyPos is still the level being left here), so a door never eats one.
     const thrownPlace = playRunId.current + "|" + (lv.runKey || lv.id);
     if (!fromSeam && thrownPlaceKey.current !== thrownPlace) {
+      followTrail.current = []; // the way you went through a place you have left by a door leads nowhere here
       for (const g of thrown.current) {
         if (!g.boomerang) continue;
         if (g.owner === "player") { if (carriedThrow && g.asset && g.asset.id === carriedThrow.id) throwCarry.current += 1; }
@@ -17841,6 +18068,10 @@ export default function AssetStudio({ game = false } = {}) {
       // resolveClimbKind (not raw box-overlap climbKindAt): ladder grip needs the player's
       // CENTER near the ladder column, and a valid bars/cliff grip wins over the ladder while
       // heading up — see resolveClimbKind's own comment for both fixes.
+      const ladderCellAt = (r, c) => climbKindOf(lv.climb && lv.climb[cellKey(r, c)]) === "ladder";
+      // S on the deck a ladder's top is flush with steps you onto it (ladderUnderFeet).
+      if (K.down && !K.up && !p.climbing && p.onGround && !p.topdown && !p.flying && !p.vehicle && p.dropCooldown <= 0
+          && ladderUnderFeet(lv, p.x, p.y, pw, ph, CW, CH, (yy) => cellsHit(p.x, yy, pw, ph), ladderCellAt)) p.y += 1;
       const climbKindHere = resolveClimbKind(lv, p.x, p.y, pw, ph, CW, CH, !!K.up, p.climbKind);
       const overlapClimb = !!climbKindHere;
       if (p.climbJump && (p.vy >= 0 || !overlapClimb)) p.climbJump = false;
@@ -17991,7 +18222,7 @@ export default function AssetStudio({ game = false } = {}) {
           else { let moved = 0; while (moved < climbStep && isOnClimb(lv, p.x, p.y - 1, pw, ph, CW, CH)) { p.y -= 1; moved++; } climbMove = moved; }
         } else if (K.down) {
           const climbStep = CLIMB_SPEED * dtMul;
-          const below = cellsHit(p.x, p.y + climbStep, pw, ph);
+          const below = ladderFootHits(cellsHit(p.x, p.y + climbStep, pw, ph), cellsHit(p.x, p.y, pw, ph), p.x + pw / 2, CW, ladderCellAt); // a deck the ladder carries on through is not its foot
           if (below.length) { /* solid floor at the ladder's foot: stop here, don't descend INTO the map */ }
           else if (isOnClimb(lv, p.x, p.y + climbStep, pw, ph, CW, CH)) { p.y += climbStep; climbMove = climbStep; } // still on the ladder
           else { climbing = false; p.dropCooldown = 8; } // stepped off the bottom into open air: let go and fall normally (never clip through)
@@ -18281,7 +18512,7 @@ export default function AssetStudio({ game = false } = {}) {
         // where the camera normally moves, so the body walked ~12 px on the swap frame while the view
         // stood still (measured: the player's screen x 653 → 665 at the swap, easing back over the
         // next frames) — a small lurch at every gate, on top of the swap itself.
-        if (leavingGate) { updateCamera(p, pw, ph, dtMul); seamHandoff(side, p, pw, leavingGate, dtMul); return; }
+        if (leavingGate) { updateCamera(p, pw, ph, dtMul); seamHandoff(side, p, pw, ph, leavingGate, dtMul); return; }
         // ...and a gate with NOTHING behind it: pressed against an edge at an open gate that no saved
         // level attaches to (no sewer built yet, or the far side of the Exit), say so, once every
         // couple of seconds. In a plain Playtest the edges are silent walls exactly as before.
@@ -18471,6 +18702,9 @@ export default function AssetStudio({ game = false } = {}) {
           let wi = 0;
           for (let si = 0; si < rideSeats.length && wi < want.length; si++) if (!taken.has(si)) rideWant[want[wi++].k] = si;
         }
+        // THE WAY YOU WENT (trailDrop): a crumb every TRAIL_STEP_CELLS you walk, climb or cross a plane,
+        // never in the air (a jump's arc is no path) and never at the wheel (they ride with you).
+        if (!p.vehicle && (p.onGround || p.topdown || p.climbing)) trailDrop(followTrail.current, { x: p.x + pw / 2, feet: p.y + ph, climb: p.climbing ? (p.climbKind || "ladder") : null, topdown: !!p.topdown }, CW);
         // THE LINE YOUR FOLLOWERS WALK IN (followChain): every living ally not riding with you, in
         // uid order, with what the ones behind need to know about each — whether it can be followed
         // this frame (followCanLead, off what it did LAST frame) and whether it is on your level.
@@ -18873,6 +19107,18 @@ export default function AssetStudio({ game = false } = {}) {
             if (near && near.key) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = vehDriven ? vehDriven.w : pw; } // 🚗 at the wheel you are as wide as your car
           }
+          // 🧭 ROUND THE WAY YOU WENT (followDetourStep): a follower that has stood against something,
+          // or under a floor with no way up, for a moment makes for your trail's crumbs one by one
+          // instead of for you — each an ordinary target, so it walks, jumps, takes the Climb-layer
+          // route and climbs exactly as it would to you. Beside you again, it is back in the line.
+          // Not one getting into your car (it goes to the car).
+          let detourPt = null;
+          if (targetKind === "followPlayer" && rideWant[k] == null && !eCreatureFlies) {
+            const pCXd = p.x + pw / 2;
+            const nearYou = unitSharesLevel(myFeetY, p.y + ph, standEph) && Math.abs(pCXd - eCenterXNow) <= (followSlots + 1) * ALLY_FOLLOW_RANGE_CELLS * CW;
+            detourPt = followDetourStep(ep, followTrail.current, { cx: eCenterXNow, feet: myFeetY }, { near: nearYou, onFeet: !!(ep.onGround || ep.topdown), dt: dtMul }, CW);
+            if (detourPt) { targetCX = detourPt.x; targetW = 0; }
+          } else { ep.trailN = null; ep.trailT = 0; }
           // Whether the target it ended up with is one it can walk to. A follower tagging along is
           // not chasing anybody, so the level does not enter into it.
           const targetOnLevel = targetKind === "followPlayer"
@@ -18983,8 +19229,10 @@ export default function AssetStudio({ game = false } = {}) {
           // A follower's way there is the way to whoever it walks behind (followEp), so a line of
           // them takes a ladder one after another instead of all making for you at once.
           const navEp = targetKind === "unit" ? targetEp : followEp, navEa = targetKind === "unit" ? targetEa : followEa;
-          const navTgt = (targetKind === "unit" || followEp) ? navEp : p;
-          const navTgtH = (targetKind === "unit" || followEp) ? (navEp && navEa ? (navEp.crouch ? enemyCrouchH(navEa, CW) : enemyStandH(navEa, CW)) : 0) : ph;
+          // ...and on a detour the way there is the way to the crumb: a body standing where you stood.
+          const detourTgt = detourPt ? { x: detourPt.x, y: detourPt.feet - standEph, onGround: !detourPt.topdown, topdown: !!detourPt.topdown, climbing: null, tdJumpY: null } : null;
+          const navTgt = detourTgt || ((targetKind === "unit" || followEp) ? navEp : p);
+          const navTgtH = detourTgt ? standEph : (targetKind === "unit" || followEp) ? (navEp && navEa ? (navEp.crouch ? enemyCrouchH(navEa, CW) : enemyStandH(navEa, CW)) : 0) : ph;
           const navTgtFeet = !navTgt ? null : navTgt.climbing ? navTgt.y + navTgtH : standingLineY(navTgt, navTgtH);
           const navTgtTopdown = !!navTgt && (!!navTgt.topdown || navTgt.tdJumpY != null); // a hop off the plane is still on it
           const navMeTopdown = !!ep.topdown || ep.tdJumpY != null;
@@ -19016,7 +19264,11 @@ export default function AssetStudio({ game = false } = {}) {
           const eFlyUp = !eCreatureFlies && !!eFlyFx && navPursuing && flyTgtFeet != null && !ep.climbing && !ep.topdown && !((ep.down || 0) > 0) && !((ep.flyBlockT || 0) > 0)
             && (ep.flying ? (flyTgtFeet < myFeetY - CH * 0.25 || (flyTgtAir && flyTgtFeet < myFeetY + CH)) : (flyTgtFeet < myFeetY - CH * 1.5 && (following || !rangedEnemy || !targetOnLevel)))
             && flyFramesLeft(eFlyFx, ep.flyUsed) > 0;
-          const navRouteLv = !eCreatureFlies && navPursuing && navOff && !ep.climbing && !eFlyUp
+          // A hop over a wall (ep.wallHop, below) is not a climb: its feet rise past the target's line on the
+          // way over, and the route then offered M4's three rungs beside the fence, which it grabbed and hung
+          // from for two seconds (measured) until the idle grip let go. No route is asked until it lands.
+          if (ep.wallHop && (ep.onGround || ep.topdown || ep.climbing)) ep.wallHop = false;
+          const navRouteLv = !eCreatureFlies && navPursuing && navOff && !ep.climbing && !eFlyUp && !ep.wallHop
             ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, w: epw, topdown: navMeTopdown, follower: following }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
             : null;
           const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
@@ -19036,7 +19288,7 @@ export default function AssetStudio({ game = false } = {}) {
           const towardTarget = Math.abs(distToTarget) > CW * 0.5 ? Math.sign(distToTarget) * aiSpeed : 0;
           let dxMove = (stunned || !acts || ep.stomp || ep.tailT > 0) ? 0   // a stomp plants its feet, the player's rule; so does a 🦎 tail swing (ep.tailT)
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * chargeSpeed
-            : following ? followStep
+            : following ? (detourPt ? towardTarget : followStep) // on a detour it walks right up to each crumb, not a follow range short
             // SEEK WALKS ONLY TO A TARGET ON ITS OWN LEVEL. Sensing you through a floor is fine — it
             // still turns to face you and its gun still has its own level test — but it must not
             // trail you along the street under the storey you are walking on. Avoid is a retreat,
@@ -19198,8 +19450,20 @@ export default function AssetStudio({ game = false } = {}) {
                   ep.crouch = true; ep.duckUnder = true; ep.y = duckY; newEph = crouchEph; ep.x = nx;
                 }
               }
+              // 🦘 AN ALLY JUMPS A WALL IT CAN CLEAR (followJumpsWall), the player's jump at its own
+              // Agility: Trailer Park M4's fence, which you climb over by its three rungs and everything
+              // you caught stood at — tagging along behind you, or making for a foe on your side of it
+              // (measured: a Pika-Squirrel ally walked into it after a Pit-Porion and stood there). A
+              // hostile's walk is left as it was.
+              if (ep.x !== nx && friendly && !navRoute && (ep.onGround || ep.topdown) && !ep.climbing && !stunned && !eCreatureFlies && followJumpsWall(rise, navJumpPx, CH)) {
+                if (ep.topdown) ep.tdJumpY = ep.y;
+                sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; ep.wallHop = true;
+              }
             }
           }
+          // How long a follower has been walking into something without getting anywhere (followDetourStep).
+          if (following && stepX && Math.abs(ep.x - exBefore) < Math.abs(stepX) * 0.25 && !ep.climbing) ep.blockT = (ep.blockT || 0) + dtMul;
+          else ep.blockT = 0;
           // The shove is spent by what the unit actually moved: a wall that stopped it ends it.
           if (ep.knock) { ep.knock.left -= eKnockStep; if (!(eKnockStep > 0) || ep.knock.left <= 0.01 || Math.abs(ep.x - exBefore) < eKnockStep * 0.5) ep.knock = null; }
           ep.stepEase = easeStep(ep.stepEase, dtMul);
@@ -19221,12 +19485,16 @@ export default function AssetStudio({ game = false } = {}) {
           // that has to be on the ladder, and resolveClimbKind's "centre near the column" window is
           // asked of it. A ladder is gripped only on the route's own column, a bar or a ledge only
           // while the route goes there, so nothing changes for a unit simply walking past either.
-          const cbX = ep.x + (eShape.centerFrac * eRenderW - epw / 2) - eStand.ox, cbY = ep.y - eStand.oy;
+          const cbX = ep.x + (eShape.centerFrac * eRenderW - epw / 2) - eStand.ox; let cbY = ep.y - eStand.oy;
+          const unitLadderAt = (r, c) => { const P = worldPartOfCell(worldParts, r, c); return !!P && climbKindOf(P.lv.climb && P.lv.climb[cellKey(r - P.dr, c - P.dc)]) === "ladder"; };
           const cbCX = ep.x + eShape.centerFrac * eRenderW;
           const cbWant = navTgtFeet == null ? 0 : followClimbWant(navTgtFeet - (ep.y + newEph), navTgtOnLadder, newEph, navTgtH); // < 0: the target is above (a body's length short of one it follows up or down a ladder)
           let eClimbMove = 0;
           if (eCreatureFlies) ep.climbing = null;
           if (!eCreatureFlies && !ep.climbing && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned && !(navQueued && !navAirborne)) {
+            // ...and from the deck a ladder's top is flush with, the step onto it (ladderUnderFeet), your rule.
+            if (navRoute.kind === "ladder" && navRoute.dir === 1 && ep.onGround && !ep.topdown && Math.abs(navRoute.x - cbCX) <= CW * 0.5
+                && ladderUnderFeet(eStand.lv, cbX, cbY, epw, newEph, CW, CH, (yy) => cellsHitW(ep.x, yy + eStand.oy, epw, newEph), unitLadderAt, cbCX)) { ep.y += 1; cbY = ep.y - eStand.oy; }
             const kindNow = resolveClimbKind(eStand.lv, cbX, cbY, epw, newEph, CW, CH, cbWant < 0, null);
             if (navRoute.kind === "ladder" && kindNow === "ladder" && Math.abs(navRoute.x - cbCX) <= CW * 0.5) ep.climbing = "ladder";
             else if (navRoute.kind === "hang" && kindNow && kindNow !== "ladder" && canGripClimb(eStand.lv, cbX, cbY, epw, newEph, CW, CH, kindNow)) ep.climbing = kindNow;
@@ -19251,7 +19519,17 @@ export default function AssetStudio({ game = false } = {}) {
             else if (kindHere === "ladder") {
               ep.climbing = "ladder";
               const step = CLIMB_SPEED * dtMul;
-              if (cbWant < -CH * 0.5) {
+              // Where the ladder steps a cell sideways, slide over to it first (ladderJogDx), as you do
+              // holding the way it goes; the next frame climbs on up the new column.
+              const jogDx = cbWant < -CH * 0.5 ? ladderJogDx(eStand.lv, cbX, cbY - step, epw, newEph, CW, CH) : 0;
+              let jogged = false;
+              if (jogDx) {
+                const mv = Math.sign(jogDx) * Math.min(Math.abs(jogDx), step);
+                const inBoxJ = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
+                if (!cellsHitW(ep.x + mv, ep.y, epw, newEph).some((h) => !inBoxJ.has(h.r + "," + h.c))) { ep.x += mv; eClimbMove = Math.abs(mv); jogged = true; }
+              }
+              if (jogged) { /* the slide is this frame's move */ }
+              else if (cbWant < -CH * 0.5) {
                 // Up, pinned at the ladder's top exactly as the player is; from there a target still
                 // more than a cell above is jumped for — off the top, toward it (climbJump stops the
                 // ladder re-gripping on the way up).
@@ -19261,8 +19539,7 @@ export default function AssetStudio({ game = false } = {}) {
               } else if (cbWant > CH * 0.5) {
                 // Down, stopping on solid ground at the foot (only ground it is not already in — the
                 // walls-it-starts-inside rule) or letting go off a bottom that ends in the air.
-                const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
-                if (cellsHitW(ep.x, ep.y + step, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c))) letGo(0);
+                if (ladderFootHits(cellsHitW(ep.x, ep.y + step, epw, newEph), cellsHitW(ep.x, ep.y, epw, newEph), cbCX, CW, unitLadderAt).length) letGo(0); // a deck the ladder carries on through is not its foot (ladderFootHits)
                 else if (isOnClimb(eStand.lv, cbX, cbY + step, epw, newEph, CW, CH)) { ep.y += step; eClimbMove = step; }
                 else letGo(8);
               }
@@ -26418,7 +26695,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -26459,6 +26736,11 @@ export default function AssetStudio({ game = false } = {}) {
       if (!b) { b = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[s.key] = b; }
       if (!b.gear) b.gear = {};
       for (const ek of Object.keys(s.level.enemies || {})) { const sp = s.level.enemies[ek]; if (spawnRolls(sp) && b.gear[ek] === undefined) b.gear[ek] = rollSpawn(allAssets, sp); }
+      // ...and its pedestals' items, the same roll-once roll the loop effect makes when a level goes
+      // live (it finds them made and keeps them). A neighbour's pedestals are drawn across the gate
+      // now (playPedSets), so the item has to exist before you get there.
+      if (!b.rolls) b.rolls = {}; if (!b.depleted) b.depleted = new Set();
+      for (const mk of Object.keys(s.level.markers || {})) { const pm = s.level.markers[mk]; if (pm && pm.kind === "pedestal" && b.rolls[mk] === undefined && !b.depleted.has(mk)) b.rolls[mk] = rollPedestalItem(allAssets, pm.cats, pm.logic); }
     }
   };
   // RUN — THE LEVEL AFTER NEXT IS GOT READY WHILE YOU WALK (2026-09-26). At a handoff the level
@@ -28534,6 +28816,19 @@ export default function AssetStudio({ game = false } = {}) {
       { lv, pos: enemyPos.current, hp: enemyHP.current, stripped: corpseStripped.current, gear: enemyGearRolls.current, hpSeen: unitHpSeen.current, off: { x: 0, y: 0 }, ns: "", parts: playSeams ? runWorldParts(lv, playSeams, LV_CELL) : null },
       ...(playSeams ? Object.values(playSeams).map((s) => { const b = roomState.current[s.key] || {}; return { lv: s.level, pos: b.ePos || {}, hp: b.eHP || {}, stripped: b.stripped || {}, gear: b.gear || {}, hpSeen: {}, off: s.off, ns: s.key + ":", parts: null }; }) : []),
     ];
+    // WHOSE PEDESTALS ARE DRAWN: the live level's, and in a RUN every neighbour's too (2026-11-15,
+    // Blake: "Items shouldn't despawn as soon as you enter a new level, it should wait until it's off
+    // screen at least"). Only the live level's markers were ever drawn, so at a gate every item on a
+    // stand in the level you were leaving vanished on the swap frame, still in view behind you, and
+    // the ones in the level ahead appeared from nothing on the same frame. A neighbour's tiles,
+    // props and units were all carried across the gate long ago; its pedestals were the one thing
+    // left behind. Each set reads its own level's books (the bucket: what was rolled, what you took),
+    // at that level's offset, under a key that names the level, so the handoff re-keys nothing and
+    // the same stand is the same element on both sides of it. The view cull decides what is built.
+    const playPedSets = !play ? [] : [
+      { lv, rolls: pedestalRolls.current, depleted: pedestalDepleted.current, off: { x: 0, y: 0 }, live: true },
+      ...(playSeams ? Object.values(playSeams).map((s) => { const b = roomState.current[s.key]; return b && b.rolls ? { lv: s.level, rolls: b.rolls, depleted: b.depleted || new Set(), off: s.off, live: false } : null; }).filter(Boolean) : []),
+    ];
     // Anything usable as an enemy: standalone Enemy-type assets (the animals), or ANY Dress Bob
     // look. This used to demand a 👹 flag on the look, which is what forced a duplicate of every
     // outfit you wanted to fight as well as wear — the flag is gone and the list is the whole
@@ -29930,7 +30225,7 @@ export default function AssetStudio({ game = false } = {}) {
                       // is what used to make the weapon vanish mid-swing).
                       const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current);
                       const wpnAngles = firedNow ? weaponFireArt(wfit.states, wPose) : (wfit.states.rest || blankAngles());
-                      const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, wPose);
+                      const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, wPose).concat(firedNow ? firedOffArmTwins(wfit.states, wPose) : []); // the far arm stays on (firedOffArmTwins)
                       blocks = mergeWeaponBlocks(blocks, attachHeldToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot));
                     }
                   }
@@ -30517,7 +30812,7 @@ export default function AssetStudio({ game = false } = {}) {
                       const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: eSwDur - ep.swingT, dur: eSwDur } : null, ep && ep.weaponAmmo);
                       const wpnAngles = eFired ? weaponFireArt(wfit.states, hv.pose) : (wfit.states.rest || blankAngles());
                       // Drawn for a right-facing body, so mirrored about its grip for left-facing art.
-                      const wArt = bake({ ...ew, angles: wpnAngles }, hv.pose);
+                      const wArt = bake({ ...ew, angles: wpnAngles }, hv.pose).concat(eFired ? firedOffArmTwins(wfit.states, hv.pose) : []); // the far arm stays on, as yours does
                       eBlocks = mergeWeaponBlocks(eBlocks, eAttachHeld(wArt, hv, curArm));
                     }
                   }
@@ -30758,22 +31053,24 @@ export default function AssetStudio({ game = false } = {}) {
                     <div className={"enemyDropCap rk-" + itemRank(item)}>{item.name}</div>
                   </div>;
                 })}
-                {play && lv.markers && Object.keys(lv.markers).map((k) => {
-                  const m = lv.markers[k]; if (!m || m.kind !== "pedestal") return null;
+                {playPedSets.map((pset) => pset.lv.markers && Object.keys(pset.lv.markers).map((k) => {
+                  const m = pset.lv.markers[k]; if (!m || m.kind !== "pedestal") return null;
                   const [r, c] = k.split(",").map(Number);
-                  const rolled = pedestalRolls.current[k];
+                  const rolled = pset.rolls[k];
+                  const pedNs = (pset.lv.runKey || pset.lv.id || "") + ":", pedX = pset.off.x + c * LV_CELL, pedY = pset.off.y + r * LV_CELL;
                   // Taken, with nothing swapped back onto it — the pedestal is spent. Render nothing
                   // (no "no match" placeholder). A pedestal that simply never matched any item still
                   // shows "no match" below, so a mis-tagged filter is still obvious in the editor.
-                  if (!rolled && pedestalDepleted.current.has(k)) return null;
-                  const { pieces: artPieces, bb } = groundArt(rolled);
+                  if (!rolled && pset.depleted.has(k)) return null;
                   const boxW = LV_CELL * PED_BOX_W_CELLS, boxH = LV_CELL * PED_BOX_H_CELLS;
+                  if (offScreen(pedX + LV_CELL / 2 - boxW / 2, pedY - boxH + LV_CELL, boxW, boxH)) return null; // out of view: nothing to build (the item is still there in the books)
+                  const { pieces: artPieces, bb } = groundArt(rolled);
                   // Seen through a wall (the loop decided which pedestals that sheet hides, and has
                   // already faded the Front cells over this one). How washed out it draws depends on
                   // how far away the player is: a distant one is a pale hint that something is over
                   // there, but once you're close it wears its own texture, full colour. Never
                   // ghosted at all when the item isn't behind a wall in the first place.
-                  const xrayed = xrayPedKeys.current.has(k);
+                  const xrayed = pset.live && xrayPedKeys.current.has(k); // the see-through sheet is the live level's
                   const ghost = xrayed
                     ? pedestalXrayGhost(Math.hypot((c + 0.5) * LV_CELL - playerCenter.current.x, (r + 0.5) * LV_CELL - playerCenter.current.y) / LV_CELL)
                     : 0;
@@ -30792,12 +31089,12 @@ export default function AssetStudio({ game = false } = {}) {
                     // item), and its z-index makes a stacking context, so anything inside it was
                     // stuck down there too — the player's head covered the name of the very thing
                     // they were standing on to read it. Same box, same coordinates, own layer.
-                    <React.Fragment key={"ped" + k}>
-                      <div className={"pedestalPlay" + (xrayed ? " xray" : "") + ""} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
-                        <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", alpha: assetAlpha(rolled), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
+                    <React.Fragment key={"ped" + pedNs + k}>
+                      <div className={"pedestalPlay" + (xrayed ? " xray" : "") + ""} style={{ left: pedX + LV_CELL / 2 - boxW / 2, top: pedY - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
+                        <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + pedNs + k, keyPrefix: "ped" + pedNs + k + "_", alpha: assetAlpha(rolled), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
                       </div>
                       {(rolled || !bb) && (
-                        <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
+                        <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: pedX + LV_CELL / 2 - boxW / 2, top: pedY - boxH + LV_CELL, width: boxW, height: boxH }}>
                           {rolled && <div className={"pedestalCap rk-" + itemRank(rolled)}>{rolled.name}</div>}
                           {/* The "no match" warning rides up here with the rest of the words, so a
                               mis-tagged pedestal still says so with the player standing on it. The
@@ -30809,7 +31106,7 @@ export default function AssetStudio({ game = false } = {}) {
                       )}
                     </React.Fragment>
                   );
-                })}
+                }))}
                 {play && projectiles.current.map((pr, i) => {
                   // Projectiles render in a square container `size` cells across (size = the
                   // Projectile asset's Scale slider). Pieces fill it as percentage-of-canvas, so
