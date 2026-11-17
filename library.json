@@ -1427929,7 +1427929,7 @@
     "hp": 1,
     "speed": 0,
     "agility": 0,
-    "intelligence": 5,
+    "intelligence": 4,
     "strength": 1
    },
    "defense": 2,
@@ -1427950,8 +1427950,8 @@
    ],
    "value": 20,
    "rank": "legendary",
-   "savedAt": 1793613781562,
-   "editedFrom": 1793613774457
+   "savedAt": 1794880673190,
+   "editedFrom": 1793613781562
   },
   {
    "id": "np2j0ym",
