@@ -1905,6 +1905,92 @@ export const hitFate = (effects, canReflect, rng = Math.random) => {
   if (back > 0 && rng() < back) return "reflect";
   return "hit";
 };
+// 🐞 LUCKY / 🪞 REFLECT ON A SHOT (2026-11-16). Blake: "with deflect when it triggers the projectile
+// just stops at what they hit, falls back a cell then falls to the ground, and with reflect it sends
+// the projectile back where it came from" — and then, naming them: "there's an ability that makes
+// attacks ignore and one that makes attacks bounce back". "Deflect" is 🐞 Lucky. Until now both were
+// invisible on a SHOT: a lucky round just vanished on the wearer, and a reflected one vanished too
+// while the shooter's HP dropped across the room with nothing travelling between them. Now the round
+// is a real object both ways:
+//   Lucky   = the round stops dead on the body it struck, hops back one cell off it, drops to the
+//             floor, lies there a moment and is gone. It does nothing to anyone: a dud the whole way
+//             down, an explosive round included (a rocket that drops at your feet and goes off there
+//             would make luck worse than not having it).
+//   Reflect = the round turns round and flies back AT whoever fired it, as a live shot of the other
+//             side: it hits the shooter (and anyone of theirs in the way) by every normal shot rule —
+//             their armour, a rocket's blast, a piercing round going through. A round already
+//             reflected is never reflected again, so two mirror jackets cannot rally a bullet forever.
+// Swings, bites, stomps, throws and blasts keep hitFate exactly as it was: nothing flies there.
+// Same chances, same order (luck first) as hitFate — only rolled the moment the round TOUCHES the
+// body, before its damage, so the shot can be turned instead of spent.
+export const shotFate = (effects, canReflect, rng = Math.random) => hitFate(effects, canReflect, rng);
+// The deflected round's fall, in cells and frames so it reads the same at any zoom: one cell back
+// over DEFLECT_BACK_FRAMES with a small hop up, then plain gravity to the first solid below, then
+// DEFLECT_REST_FRAMES lying there (fading over the last third) before it is removed.
+export const DEFLECT_BACK_FRAMES = 10, DEFLECT_HOP_CELLS = 0.08, DEFLECT_GRAVITY_CELLS = 0.012, DEFLECT_REST_FRAMES = 60;
+export const DEFLECT_MAX_FALL_CELLS = 0.5; // per frame: a tall shaft must not tunnel through a 1-cell floor
+// Turn a flying round into a deflected one where it is. `dir` is the way it was travelling (its
+// art's facing), so "back" is away from the body it struck.
+export const deflectShot = (pr, cell) => {
+  const dir = Math.sign(pr.vx || 0) || (Math.cos(((pr.rot || 0) * Math.PI) / 180) < 0 ? -1 : 1);
+  pr.drop = { dir, backLeft: cell, vx: -dir * cell / DEFLECT_BACK_FRAMES, vy: -cell * DEFLECT_HOP_CELLS, spin: -dir * 9, rest: 0, alpha0: pr.alpha ?? 1 };
+  pr.homing = false; pr.homeKey = null;
+  return pr;
+};
+// One frame of that fall. `solidAt(x, y)` is true when the point is inside a solid cell (the
+// world's own collision). Returns "fall", "rest" or "gone".
+export const deflectedShotStep = (pr, dt, cell, solidAt) => {
+  const d = pr.drop;
+  if (!d) return "gone";
+  if (d.rest > 0) {
+    d.rest += dt;
+    const left = DEFLECT_REST_FRAMES - d.rest;
+    if (left <= 0) return "gone";
+    pr.alpha = d.alpha0 * Math.min(1, left / (DEFLECT_REST_FRAMES / 3));
+    return "rest";
+  }
+  if (d.backLeft > 0) { // one cell back off the body, unless a wall is right there
+    const step = Math.min(d.backLeft, Math.abs(d.vx) * dt), nx = pr.x - d.dir * step;
+    if (solidAt(nx, pr.y)) d.backLeft = 0; else { pr.x = nx; d.backLeft -= step; }
+  }
+  d.vy = Math.min(d.vy + cell * DEFLECT_GRAVITY_CELLS * dt, cell * DEFLECT_MAX_FALL_CELLS);
+  const ny = pr.y + d.vy * dt;
+  if (d.vy > 0 && solidAt(pr.x, ny)) {
+    // Down onto the top of the cell it fell into — cells are a uniform `cell` grid in world space.
+    pr.y = Math.floor(ny / cell) * cell - 1;
+    if (solidAt(pr.x, pr.y)) pr.y = ny - d.vy * dt; // landed on something not grid-aligned: stay where it was
+    d.rest = dt; d.vy = 0;
+    pr.rot = d.dir < 0 ? 180 : 0; // lying flat, still pointing the way it was going
+    return "rest";
+  }
+  pr.y = ny;
+  pr.rot = (pr.rot || 0) + d.spin * dt;
+  return "fall";
+};
+// Send a round back at (tx, ty) — the thrower's body — at the speed it arrived, as a fresh shot of
+// the wearer's side. tx == null (nobody left to aim at) just reverses it along the way it came.
+// Its range is at least twice the trip back, so the arc's drop (which starts at half range) never
+// sets in before it gets there: the reflection must actually reach the shooter, not fall short.
+export const reflectShot = (pr, tx, ty, side) => {
+  const sp = Math.hypot(pr.vx || 0, pr.vy || 0) || 1;
+  let vx = -(pr.vx || 0), vy = -(pr.vy || 0), dist = 0;
+  if (tx != null && ty != null) {
+    const dx = tx - pr.x, dy = ty - pr.y;
+    dist = Math.hypot(dx, dy);
+    if (dist > 1) { vx = dx / dist * sp; vy = dy / dist * sp; }
+  }
+  if (!vx && !vy) vx = sp;
+  Object.assign(pr, {
+    vx, vy, startX: pr.x, startY: pr.y, traveled: 0,
+    groundY: Math.max(pr.y, side.groundY ?? pr.y),
+    rangePx: Math.max(pr.rangePx || 0, dist * 2),
+    rot: Math.atan2(vy, vx) * 180 / Math.PI,
+    foe: !!side.foe, shooterKey: side.shooterKey ?? null, shooterFx: side.shooterFx ?? null,
+    critInt: side.critInt, reflected: true, homeKey: null,
+  });
+  if (pr.pierce) pr.hits = side.wearer != null ? [side.wearer] : [];
+  return pr;
+};
 // What is left of fire damage after every worn Fire Resistance (1 = none worn).
 export const fireDamageMult = (effects) => {
   let m = 1;
@@ -6462,7 +6548,7 @@ export const EFFECT_TYPES = {
   // chances and the resistances multiply instead of adding when two items carry the same one.
   luckyDodge: {
     label: "Lucky", icon: "🐞",
-    blurb: "Some hits just miss you: each hit that lands has the chance you set to do nothing at all — no damage, no stun, no burn. Fire you stand in is not a hit (Fire Resistance covers that). Two lucky items stack (20% and 20% make 36%). Worn by a 👹 Enemy it works on THEM. No animation of its own.",
+    blurb: "Some hits just miss you: each hit that lands has the chance you set to do nothing at all — no damage, no stun, no burn. A lucky shot stops dead on you, drops back a cell and falls to the ground. Fire you stand in is not a hit (Fire Resistance covers that). Two lucky items stack (20% and 20% make 36%). Worn by a 👹 Enemy it works on THEM. No animation of its own.",
     brief: (p) => briefPct(p.chance) + " chance a hit does no damage",
     noAnim: true,
     params: [
@@ -6471,7 +6557,7 @@ export const EFFECT_TYPES = {
   },
   reflect: {
     label: "Reflect", icon: "🪞",
-    blurb: "Sends hits back: each hit that lands has the chance you set to bounce back at whoever threw it — they take the damage and you take none. Works on swings, bites, stomps, shots, throws and blasts; your own blast has nobody to go back to. Two reflect items stack. Worn by a 👹 Enemy it works on THEM, so your own shots can come back at you. No animation of its own.",
+    blurb: "Sends hits back: each hit that lands has the chance you set to bounce back at whoever threw it — they take the damage and you take none. A shot turns round and flies back at whoever fired it. Works on swings, bites, stomps, shots, throws and blasts; your own blast has nobody to go back to. Two reflect items stack. Worn by a 👹 Enemy it works on THEM, so your own shots can come back at you. No animation of its own.",
     brief: (p) => briefPct(p.chance) + " chance to send a hit back at the attacker",
     noAnim: true,
     params: [
@@ -17211,7 +17297,11 @@ export default function AssetStudio({ game = false } = {}) {
     // skips its damage, stun, burn and i-frames, exactly as for a miss. A reflected hit goes onto the
     // attacker here, by the attacker's own HP rules (god mode and playerDefeated for you; the 🐱 revive
     // grace for a unit), and is final: it is never rolled for luck or reflected a second time.
-    const shrugsHit = (wearer, effects, dmg, by, x, y) => {
+    // `rolled`: this hit already had its 🐞 / 🪞 roll — a SHOT has it the moment it touches the body
+    // (turnShot, shotFate), where a lucky round drops and a reflected one flies home for real, and a
+    // rocket's blast must not roll a second time for the body the rocket itself struck. Nothing to do.
+    const shrugsHit = (wearer, effects, dmg, by, x, y, rolled = false) => {
+      if (rolled) return false;
       const fate = hitFate(effects, by != null && by !== wearer);
       if (fate === "hit") return false;
       if (fate === "reflect" && dmg > 0) {
@@ -20583,7 +20673,7 @@ export default function AssetStudio({ game = false } = {}) {
               // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
               const bCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), bNote = bCrit ? "💥 Critical! " : "";
               const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch, !!pr.ignoreArmor);
-              if (shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, pcx, p.y)) { /* 🐞 / 🪞 nothing lands on you */ }
+              if (shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, pcx, p.y, pr.turnRolled === "player")) { /* 🐞 / 🪞 nothing lands on you · a rocket that struck you had its roll on contact (turnShot) */ }
               else {
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
@@ -20603,7 +20693,7 @@ export default function AssetStudio({ game = false } = {}) {
               // stun land on your ally exactly as yours land on a hostile in the branch below.
               const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
               const aDmg = incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2, !!pr.ignoreArmor);
-              if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
+              if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, bx.x + bx.w / 2, bx.y, pr.turnRolled === k)) continue; // 🐞 / 🪞 (not twice for the body the rocket struck: turnShot rolled it)
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
@@ -20626,7 +20716,7 @@ export default function AssetStudio({ game = false } = {}) {
               const base = playerRangedDamage(baseDmg);
               // Whoever fired it: your Intelligence for your shot, a friendly unit's for its own.
               const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? pstats.intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2, !!pr.ignoreArmor);
-              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
+              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", bx.x + bx.w / 2, bx.y, pr.turnRolled === k)) continue; // 🐞 / 🪞 (not twice for the body the rocket struck: turnShot rolled it)
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
@@ -21227,8 +21317,45 @@ export default function AssetStudio({ game = false } = {}) {
           const kk = (pr.foe ? "f" : "p") + (pr.resurrect ? "r" : "");
           return homingLists[kk] || (homingLists[kk] = shotTargetsFor(!!pr.foe, !!pr.resurrect, null));
         };
+        // 🐞 / 🪞 A ROUND MEETING A BODY THAT WEARS LUCKY OR REFLECT (see shotFate). Asked by the three
+        // places a shot touches a body — a hostile's round on you, on one of your allies, and yours or an
+        // ally's on a hostile — the moment it touches, before the explode branch, so a rocket can be
+        // stopped or sent home too. True = the round is turned and keeps existing (the caller returns
+        // true from the filter): lucky it is a dud falling at the body's feet; reflected it is now a
+        // shot of the WEARER's side flying at the body of whoever fired it. `by` is that shooter
+        // ("player", a unit key, or null), `feetY` the wearer's floor line (the reflected arc's ground).
+        // A 🪃 boomerang is its own flight home and keeps the old instant reflect (shrugsHit).
+        const turnShot = (pr, wearer, effects, by, x, y, feetY) => {
+          if (pr.boomerang || pr.drop) return false;
+          const fate = shotFate(effects, by != null && by !== wearer && !pr.reflected);
+          if (fate === "hit") return false;
+          if (fate === "lucky") {
+            deflectShot(pr, CW);
+            booms.current.push({ x, y, propId: null, slot: "fx.lucky", size: 2, life: 0, maxLife: 30 });
+            return true;
+          }
+          let tx = null, ty = null;
+          if (by === "player") { if (playerHP.current > 0) { tx = p.x + pw / 2; ty = p.y + ph / 2; } }
+          else {
+            const aep = enemyPos.current[by], aea = aep ? unitAssetAt(by, lv.enemies[by]) : null;
+            if (aea && enemyHP.current[by] !== 0) { const b = unitBodyBox(aea, aep, CW); tx = b.x + b.w / 2; ty = b.y + b.h / 2; }
+          }
+          const mine = wearer === "player", wep = mine ? null : enemyPos.current[wearer];
+          reflectShot(pr, tx, ty, {
+            wearer, groundY: feetY,
+            foe: !(mine || (wep && wep.friendly)), // it now flies for the wearer's side
+            shooterKey: mine ? null : wearer,      // null = yours: the kill is scored to you
+            shooterFx: mine ? null : (effects || []),
+            critInt: mine ? undefined : pr.critInt, // yours crits off your Intelligence, as your own shot does
+          });
+          booms.current.push({ x, y, propId: null, slot: "fx.reflect", size: 2, life: 0, maxLife: 30 });
+          return true;
+        };
+        const pointSolid = (x, y) => cellsHitW(x, y, 1, 1).length > 0;
         projectiles.current = projectiles.current.filter((pr) => {
           pr.life += dtMul;
+          // 🐞 A lucky round: hop back a cell, drop, lie there, gone. It touches nobody on the way.
+          if (pr.drop) return pr.life <= 3600 && inWorld(pr.x, pr.y) && deflectedShotStep(pr, dtMul, CW, pointSolid) !== "gone";
           // Distance, not lifetime, is the normal flight limiter. Reconstruct the aimed trajectory
           // from the firing snapshot, then add only the second-half quadratic drop.
           pr.rangePx = Math.max(CW, pr.rangePx || DEFAULT_PROJECTILE_RANGE * CW);
@@ -21290,7 +21417,8 @@ export default function AssetStudio({ game = false } = {}) {
               if (!pr.pierce) return false;
             }
             if (!vehDriven && prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y && pierceFreshHit(pr, "player")) {
-              if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+              if (turnShot(pr, "player", playerAsset?.effects, pr.shooterKey || null, p.x + pw / 2, p.y, p.y + ph)) return true; // 🐞 / 🪞
+              if (pr.explode) { pr.turnRolled = "player"; detonate(pr, boxCx, boxCy); return false; }
               if (pFireImmune && shotIsFlame(pr)) { if (!pr.pierce) return false; } // 🧯 the flames wash over you
               else if (p.invuln <= 0 || (pr.pair && p.invulnPair === pr.pair)) { // ⏩ a Double Shot's twin is the same shot, not a second hit to wait out
                 // For a projectile, "from behind" is decided by which way the shot is travelling
@@ -21301,7 +21429,7 @@ export default function AssetStudio({ game = false } = {}) {
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), sNote = sCrit ? "💥 Critical! " : "";
                 const dmg = coldResistedHit(fireResistedHit(incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor), pr, playerAsset?.effects), pr, playerAsset?.effects); // 🚒 / ❄️
-                if (!shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, p.x + pw / 2, p.y)) { // 🐞 / 🪞 — either way the round is spent below
+                if (!shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, p.x + pw / 2, p.y, !pr.boomerang)) { // 🐞 / 🪞 rolled in turnShot (a 🪃 still rolls here) — either way the round is spent below
                 playerHP.current = playerHpAfterHit(playerHP.current, dmg);
                 p.invuln = PLAYER_INVULN_FRAMES; p.invulnPair = pr.pair || null;
                 if (playerHP.current > 0) afflictBody(p, pr);
@@ -21323,14 +21451,15 @@ export default function AssetStudio({ game = false } = {}) {
               const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
-                if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+                if (!unitUntouchable(ep) && turnShot(pr, k, ea.effects, pr.shooterKey || null, eHitLeft + epw / 2, hitTop, hitTop + hitH)) return true; // 🐞 / 🪞
+                if (pr.explode) { pr.turnRolled = k; detonate(pr, boxCx, boxCy); return false; }
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing. A bullet ignores i-frames (see the shot at a hostile below)
                 if (shotIsFlame(pr) && fireImmune(ea.effects)) { if (!pr.pierce) return false; continue; } // 🧯 as on you above
                 // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const aDmg = coldResistedHit(fireResistedHit(incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects), pr, ea.effects); // 🚒 / ❄️
-                if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
+                if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, eHitLeft + epw / 2, hitTop, !pr.boomerang)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 rolled in turnShot (a 🪃 still rolls here) the round is spent on it either way
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg); // 🔫 bullet: starts no i-frames
                 ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -21388,7 +21517,8 @@ export default function AssetStudio({ game = false } = {}) {
               // the explode branch: a rocket must not detonate on a body it cannot hurt.
               if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
               if (!pierceFreshHit(pr, k)) continue; // 🪡 already went through this one
-              if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+              if (!unitUntouchable(ep) && turnShot(pr, k, ea.effects, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop, hitTop + hitH)) return true; // 🐞 / 🪞
+              if (pr.explode) { pr.turnRolled = k; detonate(pr, boxCx, boxCy); return false; }
               // 🐱 Mid-revive, or inside the 40 i-frames after its last hit: the round is consumed
               // and does nothing, the same reading a shot gets off an invulnerable player. After
               // the explode branch on purpose — a rocket still goes off on it, and the blast pass
@@ -21409,7 +21539,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (ep) { ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true; }
               if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
               const dmg = coldResistedHit(fireResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects), pr, ea.effects); // 🚒 / ❄️
-              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
+              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop, !pr.boomerang)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 rolled in turnShot (a 🪃 still rolls here) the round is spent on it either way
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🔫 bullet: starts no i-frames
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               if (ep && enemyHP.current[k] > 0) afflictBody(ep, pr);

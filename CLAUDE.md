@@ -995,6 +995,12 @@ plus traps it does not cover:
   a hit: resistance scales the burn pool and a flame round (`fireResistedHit`), luck never reads fire. A new hit site
   calls shrugsHit (a test counts 16). The marks are booms with `slot: "fx.lucky" | "fx.reflect"`. Items: Lucky Hat
   `lckyhat`, Spiked Jacket `spkjkt1`, Fireman's Coat `frcoat1`, Fireman's Helmet `frhelm1`.
+  **A SHOT is turned for real (2026-11-16):** the three projectile-meets-body sites call `turnShot` on contact, before
+  the explode branch (`shotFate` = hitFate's same rolls). Lucky → `deflectShot`: the round stops, hops back one cell,
+  falls, lies ~1s, gone, a dud (rockets too). Reflect → `reflectShot`: it flies back at the shooter's body as a shot of
+  the wearer's side (`foe` flipped, `reflected` so never again). Those sites then pass shrugsHit's `rolled` flag so
+  nothing rolls twice; a rocket's blast does the same for the body it struck (`pr.turnRolled`). 🪃 keeps the old path.
+  He calls Lucky "deflect" ("the one that makes attacks ignore").
 - **🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21):** "Fire damage" is the `ignite` key renamed in the
   picker; added now it starts on his 2 HP/s for 10 s (`FIRE_DAMAGE_*`), saved weapons keep theirs. Ice is `iceDamage`
   (+`iceDamageDps`, 1/s, 10 s): its own timer on the body (`chillBody`, `chillPool`), half walk speed and half jump HEIGHT

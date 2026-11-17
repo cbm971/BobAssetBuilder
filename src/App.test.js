@@ -370,6 +370,10 @@ import {
   luckyChance,
   reflectChance,
   hitFate,
+  shotFate,
+  deflectShot,
+  deflectedShotStep,
+  reflectShot,
   fireDamageMult,
   fireResistedHit,
   FIRE_RESIST_MAX,
@@ -13260,8 +13264,8 @@ describe("a unit's armour counts the way yours does", () => {
     // drain and the gold revive glow, and to nothing else.
     // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(8); // the fire drain, the ❄️ ice drain, the 🧪 poison drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, and a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away)
-    for (const [, ln] of untouchable) expect(/eDps > 0|ePoisonDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
+    expect(untouchable.length).toBe(10); // the fire drain, the ❄️ ice drain, the 🧪 poison drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away), and the two bullets' 🐞/🪞 turnShot rolls (a body mid-revive turns a round away before it can deflect or reflect it)
+    for (const [, ln] of untouchable) expect(/eDps > 0|ePoisonDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)|!unitUntouchable\(ep\) && turnShot\(/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
   });
 
   test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {
@@ -17142,5 +17146,65 @@ describe("his bug list of 2026-11-15 (second)", () => {
     expect(followJumpsWall(60, 99, 30)).toBe(true);   // Trailer Park M4's fence, Agility 5
     expect(followJumpsWall(95, 99, 30)).toBe(false);  // within a quarter cell of the jump's top: too high at Agility 5 ...
     expect(followJumpsWall(95, 165, 30)).toBe(true);  // ... not for a Squirrel at Agility 9
+  });
+});
+
+// 🐞 Lucky / 🪞 Reflect on a SHOT (2026-11-16, Blake: "with deflect when it triggers the projectile
+// just stops at what they hit, falls back a cell then falls to the ground, and with reflect it sends
+// the projectile back where it came from" — his "deflect" is Lucky, "the one that makes attacks ignore").
+describe("🐞 Lucky and 🪞 Reflect turn a real shot", () => {
+  const seq = (...v) => { let i = 0; return () => v[i++]; };
+  const C = 30;
+  test("a shot is lucky, reflected or taken, never two — Lucky's and Reflect's own chances, luck first", () => {
+    const fx = [{ type: "luckyDodge", chance: 0.5 }, { type: "reflect", chance: 0.5 }];
+    expect(shotFate(fx, true, seq(0.1))).toBe("lucky");
+    expect(shotFate(fx, true, seq(0.9, 0.1))).toBe("reflect");
+    expect(shotFate(fx, true, seq(0.9, 0.9))).toBe("hit");
+    expect(shotFate(fx, false, seq(0.9, 0))).toBe("hit"); // nobody to send it to / already reflected once
+    expect(shotFate([], true, seq(0))).toBe("hit");
+    expect(EFFECT_TYPES.deflect).toBeUndefined(); // no new ability: the two he has do it
+  });
+  test("deflected: one cell back off the body, down to the floor, lies there, then gone", () => {
+    // A shot flying RIGHT, stopped at x=300 two cells above a floor whose top is y=360 (row 12).
+    const solidAt = (x, y) => y >= 360;
+    const pr = deflectShot({ x: 300, y: 300, vx: 9, vy: 0, rot: 0, homing: true }, C);
+    expect(pr.homing).toBe(false);
+    let fate = "fall", frames = 0, minX = pr.x;
+    while (fate === "fall" && frames < 200) { fate = deflectedShotStep(pr, 1, C, solidAt); minX = Math.min(minX, pr.x); frames++; }
+    expect(fate).toBe("rest");
+    expect(pr.x).toBeCloseTo(270);         // exactly one cell back (to the left of a rightward shot)
+    expect(minX).toBeCloseTo(270);         // never further
+    expect(pr.y).toBe(359);                // lying on the floor's top
+    expect(frames).toBeLessThan(40);       // drops, it does not float down
+    let n = 0; while (deflectedShotStep(pr, 1, C, solidAt) === "rest") n++;
+    expect(n).toBeGreaterThan(30);         // lies there a moment...
+    expect(deflectedShotStep(pr, 1, C, solidAt)).toBe("gone"); // ...then it is gone
+  });
+  test("a leftward shot hops right; a wall right behind it stops the hop", () => {
+    const open = (x, y) => y >= 360;
+    const a = deflectShot({ x: 300, y: 300, vx: -9, vy: 0 }, C);
+    while (deflectedShotStep(a, 1, C, open) === "fall");
+    expect(a.x).toBeCloseTo(330);
+    const walled = (x, y) => y >= 360 || x < 290;
+    const b = deflectShot({ x: 300, y: 300, vx: 9, vy: 0 }, C);
+    while (deflectedShotStep(b, 1, C, walled) === "fall");
+    expect(b.x).toBeGreaterThanOrEqual(290);
+  });
+  test("reflected: flies back at the shooter at the speed it came, for the wearer's side, and never falls short", () => {
+    const pr = { x: 600, y: 300, vx: 10, vy: 0, rangePx: 120, foe: true, shooterKey: "3,4", critInt: 7, pierce: true, hits: ["x"] };
+    reflectShot(pr, 0, 300, { wearer: "player", groundY: 330, foe: false, shooterKey: null, shooterFx: null, critInt: undefined });
+    expect(pr.vx).toBeCloseTo(-10); expect(pr.vy).toBeCloseTo(0);
+    expect(pr.foe).toBe(false); expect(pr.shooterKey).toBeNull(); expect(pr.critInt).toBeUndefined();
+    expect(pr.reflected).toBe(true);
+    expect(pr.rangePx).toBeGreaterThanOrEqual(1200); // 600 px back: its drop never starts before it arrives
+    expect(pr.hits).toEqual(["player"]);
+    expect([pr.startX, pr.startY, pr.traveled]).toEqual([600, 300, 0]);
+    // Aimed, not just reversed: a shooter up on a ledge gets the shot up the slope at it.
+    const up = reflectShot({ x: 300, y: 300, vx: 6, vy: 8 }, 0, 0, { foe: true });
+    expect(Math.hypot(up.vx, up.vy)).toBeCloseTo(10);
+    expect(up.vx).toBeCloseTo(-10 / Math.SQRT2); expect(up.vy).toBeCloseTo(-10 / Math.SQRT2);
+    // Nobody to aim at (the shooter is dead): straight back the way it came.
+    const back = reflectShot({ x: 300, y: 300, vx: 6, vy: 8 }, null, null, { foe: true });
+    expect([back.vx, back.vy]).toEqual([-6, -8]);
   });
 });
