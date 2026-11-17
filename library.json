@@ -972770,10 +972770,10 @@
     "hp": 0,
     "speed": 0,
     "agility": -1,
-    "intelligence": -1,
+    "intelligence": 0,
     "strength": 2
    },
-   "defense": 0,
+   "defense": 10,
    "effects": [
     {
      "id": "l959my9",
@@ -972789,10 +972789,10 @@
     "Hat",
     "Rogue"
    ],
-   "savedAt": 1794880768642,
+   "savedAt": 1794914810345,
    "value": 10,
    "rank": "rare",
-   "editedFrom": 1790512135800
+   "editedFrom": 1794880768642
   },
   {
    "id": "hpstrhat",
