@@ -663124,7 +663124,7 @@
     "intelligence": 1,
     "strength": 0
    },
-   "defense": 5,
+   "defense": 4,
    "effects": [],
    "categories": [
     "T1",
@@ -663137,10 +663137,9 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793458364468,
    "value": 3,
-   "rank": "common",
-   "editedFrom": 1793454712895
+   "rank": "poor",
+   "savedAt": 1794915192431
   },
   {
    "id": "expl0d3",
