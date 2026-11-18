@@ -271,7 +271,7 @@ if (require.main === module) {
     const flag = (f) => { const i = argv.indexOf(f); if (i < 0) return false; argv.splice(i, 1); return true; };
     const play = flag("--play"), grid = flag("--grid"), li = argv.indexOf("--lib");
     const libFile = li >= 0 ? argv.splice(li, 2)[1] : require("path").join(__dirname, "..", "asset-data", "library.json");
-    const lib = JSON.parse(fs.readFileSync(libFile, "utf8"));
+    const lib = require("../src/libraryFiles").readLibraryFile(libFile);   // an index + parts, or one old file
     const lv = (lib.levels || []).find((l) => l.id === argv[1] || l.name === argv[1]);
     if (!lv) { console.error("no level with id or name " + argv[1]); process.exit(1); }
     const [outFile, px, ...win] = argv.slice(2);
@@ -281,7 +281,7 @@ if (require.main === module) {
     process.exit(0);
   }
   if (argv[0] === "--asset") {
-    const lib = JSON.parse(fs.readFileSync(require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const lib = require("../src/libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
     const a = lib.assets.find((x) => x.id === argv[1]);
     if (!a) { console.error("no asset with id " + argv[1]); process.exit(1); }
     pieces = (a.frames && a.frames[0] && a.frames[0].front) || (a.angles && a.angles.front) || [];

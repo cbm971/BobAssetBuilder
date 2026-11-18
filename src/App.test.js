@@ -7666,8 +7666,7 @@ describe("the props shipped inside asset-data/library.json", () => {
   // anything this browser store has never seen. So the file itself is the deliverable, and these
   // run the shipped records through the app's OWN code rather than trusting the script that wrote
   // them. Every check below is a mistake that has actually been made on a prop before.
-  const library = () => JSON.parse(require("fs").readFileSync(
-    require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+  const library = () => require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
   const byId = (id) => {
     const a = library().assets.find((x) => x.id === id);
     expect(a).toBeTruthy();
@@ -7797,8 +7796,7 @@ describe("how far a stat slider goes", () => {
 describe("the Squirrel shipped inside asset-data/library.json", () => {
   // Same deal as the props above: the committed record IS the delivery, so check it with the app's
   // own code rather than trusting the script that generated it.
-  const library = () => JSON.parse(require("fs").readFileSync(
-    require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+  const library = () => require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
   const byId = (id) => { const a = library().assets.find((x) => x.id === id); expect(a).toBeTruthy(); return a; };
   const squirrel = () => byId("sqrl1x9");
   const pitBull = () => byId("5ey3l1q");
@@ -10786,8 +10784,7 @@ describe("recolour everywhere never leaves the colour it was asked about", () =>
   test("the real library is what motivated this, and it really does collide", () => {
     // Guards the premise rather than the fix: if piece ids ever DO become unique per asset this
     // test fails and the comment above can be retired. Until then it is documentation with teeth.
-    const lib = JSON.parse(require("fs").readFileSync(
-      require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
     const walk = (a, fn) => {
       const ang = (g) => { if (!g || typeof g !== 'object') return; for (const k of Object.keys(g)) for (const p of (g[k] || [])) if (p) fn(p); };
       ang(a.angles);
@@ -10961,8 +10958,7 @@ describe("change this colour everywhere means exactly this colour", () => {
   // fixture cannot catch a bug that only fires on the shape his data has — the id collision that
   // started all of this was exactly that — so this sweeps the real library instead.
   test("on the REAL library, one recolour changes every block of that colour and no other", () => {
-    const lib = JSON.parse(require("fs").readFileSync(
-      require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
     const TO = '#010203';
     let over = 0, under = 0, colours = 0;
     for (const a of lib.assets) {
@@ -15307,7 +15303,7 @@ describe("🐞 Lucky, 🪞 Reflect and 🚒 Fire Resistance", () => {
     expect(coldResistedHit(6, { iceDamage: 0 }, [{ type: "coldResist", resist: 0.5 }])).toBe(6);
     expect(chillMoveMult({ chill: 5 }, [{ type: "coldResist", resist: 0.4 }])).toBeCloseTo(0.7);
     expect(chillMoveMult({ chill: 5, chillMult: 0.5 })).toBeCloseTo(0.75);
-    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "../asset-data/library.json"), "utf8"));
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "../asset-data/library.json"));
     for (const id of ["spbeani", "spushat", "spcyhat", "sppkhood", "spbrjkt", "sporjkt", "sprdcot", "sppkjkt"]) {
       const eq = lib.assets.find((a) => a && a.id === id);
       expect(eq).toBeDefined();
@@ -15802,8 +15798,7 @@ describe("🪣 change this colour everywhere matches the colour as drawn, not ju
 
   // The same guard as the hex sweep above, on the colour as drawn: every look of every asset he has.
   test("on the REAL library, recolouring a block changes every block that LOOKS like it and no other", () => {
-    const lib = JSON.parse(require("fs").readFileSync(
-      require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
     const TO = "#010203";
     let over = 0, under = 0, looks = 0, hexes = 0;
     for (const a of lib.assets) {
@@ -15974,7 +15969,7 @@ describe("🪃 Boomerang (weapon + throwable ability, 2026-10-25)", () => {
   // symetrical boomerang. Also it kind of looks cheated." His weapons are a few stock shapes turned
   // into place, no outline. So the shipped one is ⬭ Ovals only, and every piece has its mirror twin.
   test("the shipped Boomerang is a symmetric arch of stock Ovals, no outline, in every fit and pose", () => {
-    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
     const w = lib.assets.find((a) => a.id === "boomrg1");
     expect(editorReachIssues(w)).toEqual([]);
     for (const fit of ["telfv37", "oipvf3l", "default"]) for (const st of ["rest", "fire"]) for (const pose of ["front", "back", "side", "up", "crouch"]) {
@@ -16083,7 +16078,7 @@ describe("🦸 Flying creatures (flies: true, flapCreatureWings, Eagle enemy)", 
   });
 
   test("the shipped Eagle enemy (eagl1x9) is a flying Seek enemy with wings, separated legs, and zero editorReachIssues", () => {
-    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
     const eagle = lib.assets.find((a) => a.id === "eagl1x9");
     expect(eagle).toBeTruthy();
     expect(eagle.name).toBe("Eagle");
@@ -16506,7 +16501,7 @@ describe("💵 Money = Power (clothing ability, 2026-11-11)", () => {
   });
 
   test("Money Glasses (mnyglas) and Fancy Little Top Hat (fcythat) ship fitted to BoB and Bobbett with Money = Power and zero editorReachIssues", () => {
-    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "../asset-data/library.json"), "utf8"));
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "../asset-data/library.json"));
     for (const [id, name] of [["mnyglas", "Money Glasses"], ["fcythat", "Fancy Little Top Hat"]]) {
       const eq = lib.assets.find((a) => a && a.id === id);
       expect(eq).toBeDefined();

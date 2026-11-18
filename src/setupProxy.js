@@ -41,10 +41,17 @@ const emptyLibrary = () => {
   return out;
 };
 
+// The file is an index + parts (libraryParts.js: one file would pass GitHub's 100 MB limit), read
+// and written through libraryFiles. Should that module ever fail to load, the old one-file read
+// still works for an old file, and nothing here throws.
+let libFiles = null;
+try { libFiles = require("./libraryFiles"); } catch { /* the one-file fallback below */ }
+const readLibraryAt = (f) => (libFiles ? libFiles.readLibraryFile(f) : JSON.parse(fs.readFileSync(f, "utf8")));
+
 const readLibrary = () => {
   for (const f of [DATA_FILE, BAK_FILE]) {
     try {
-      const parsed = JSON.parse(fs.readFileSync(f, "utf8"));
+      const parsed = readLibraryAt(f);
       if (parsed && Array.isArray(parsed.assets)) {
         // A file written before a kind existed simply has no key for it.
         for (const k of KINDS) if (!Array.isArray(parsed[k])) parsed[k] = [];
@@ -67,10 +74,10 @@ const snapshot = () => {
     fs.mkdirSync(SNAP_DIR, { recursive: true });
     const today = new Date().toISOString().slice(0, 10);
     const target = path.join(SNAP_DIR, "library-" + today + ".json");
-    if (!fs.existsSync(target)) fs.copyFileSync(DATA_FILE, target);
+    if (!fs.existsSync(target)) { if (libFiles) { if (libFiles.libraryFilesConsistent(DATA_FILE)) libFiles.copyLibraryFiles(DATA_FILE, target); } else fs.copyFileSync(DATA_FILE, target); }
     const old = fs.readdirSync(SNAP_DIR).filter((f) => /^library-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
     for (const f of old.slice(0, Math.max(0, old.length - SNAP_KEEP))) {
-      try { fs.unlinkSync(path.join(SNAP_DIR, f)); } catch { /* best effort */ }
+      try { if (libFiles) libFiles.removeLibraryFiles(path.join(SNAP_DIR, f)); else fs.unlinkSync(path.join(SNAP_DIR, f)); } catch { /* best effort */ }
     }
   } catch { /* a snapshot failing must never stop the real save */ }
 };
@@ -78,6 +85,14 @@ const snapshot = () => {
 const writeLibrary = (next) => {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   snapshot();
+  // The backup is only replaced by a set that reads whole: one left mixed by a write cut off half way
+  // must not overwrite the good copy it would be recovered from.
+  if (libFiles) {
+    try { if (fs.existsSync(DATA_FILE) && libFiles.libraryFilesConsistent(DATA_FILE)) libFiles.copyLibraryFiles(DATA_FILE, BAK_FILE); } catch { /* best effort */ }
+    // Parts, then the index, each written to a temp file and renamed (libraryFiles.writeSplitFiles).
+    libFiles.writeLibraryFile(DATA_FILE, next);
+    return;
+  }
   try { if (fs.existsSync(DATA_FILE)) fs.copyFileSync(DATA_FILE, BAK_FILE); } catch { /* best effort */ }
   // Write to a temp file and rename. A half-written library.json is the one way this file can be
   // lost while the disk is working fine — rename is atomic, so a reader sees the old file or the

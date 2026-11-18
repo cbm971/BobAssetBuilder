@@ -224,7 +224,9 @@ const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 // use it to drop a deleted record they already hold, but only a copy no newer than the delete
 // (App.js cloudDeleteReaches). Written only for ids still deleted, in id order, so it is as stable as
 // the rest of the text.
-const cloudSnapshot = (lib, removedAt) => {
+// The snapshot as an object (the keeper splits it into parts, libraryParts.js); cloudSnapshot is
+// its text, one file, as before.
+const cloudSnapshotLib = (lib, removedAt) => {
   const out = { savedAt: null };
   for (const k of KINDS) out[k] = (((lib && lib[k]) || []).filter((r) => r && r.id)).slice().sort(byId);
   out.removed = {};
@@ -237,8 +239,9 @@ const cloudSnapshot = (lib, removedAt) => {
       for (const id of out.removed[k]) if (typeof at[id] === "number" && isFinite(at[id])) out.removedAt[k][id] = at[id];
     }
   }
-  return JSON.stringify(out, null, 1);
+  return out;
 };
+const cloudSnapshot = (lib, removedAt) => JSON.stringify(cloudSnapshotLib(lib, removedAt), null, 1);
 // WHEN EACH DELETE HAPPENED (2026-10-18). The folder's deleted list has no dates, and a delete with
 // no date can never be applied to a copy that already holds the record (it may have been saved again
 // since). So the keeper dates each id the first time it sees it on the list, keeps dates for ids still
@@ -271,4 +274,4 @@ const gameStorageKey = (key) => {
   return { host: m[1].toLowerCase(), top: (m[2] || "").toLowerCase() };
 };
 
-module.exports = { gameStorageKey, KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot, reconcileRemovedAt, clipHash, clipNameOk, clipMatches, CLIP_PREFIX };
+module.exports = { gameStorageKey, KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot, cloudSnapshotLib, reconcileRemovedAt, clipHash, clipNameOk, clipMatches, CLIP_PREFIX };

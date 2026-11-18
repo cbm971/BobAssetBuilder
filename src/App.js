@@ -12,6 +12,9 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // after startRun is where it meets the run engine.
 import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed, GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, floorEndView, carryToNextFloor } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
+// library.json is an index naming its part files (libraryParts.js: one file would pass GitHub's 100 MB
+// limit). Both published copies are read through it; an old one-file library still reads as it is.
+import libraryParts from "./libraryParts";
 // VEHICLES (2026-10-31): a car's rules — its five looks, what a hit does to it, its wheels, how it
 // drives and how a unit gets out of its way — are src/vehicle.js. The 🚗 VEHICLES blocks in the
 // playtest loop are where those meet the level, the keys and the units.
@@ -766,7 +769,11 @@ const cloudLibrary = {
       if (!b) return null;
       const h = await cloudLibrary.head();
       if (h && cloudLibrary.data && h.hash === cloudLibrary.hash) { cloudLibrary.checkedAt = Date.now(); return cloudLibrary.data; }
-      const d = h ? await cloudLibrary.getJson(h.root + "library.json" + (h.root === b ? "?v=" + encodeURIComponent(h.hash) : ""), 30000) : null;
+      // The index and every part it names, from the same root (a commit path never mixes saves; on the
+      // branch path a cached part from an older save fails the set check, and the last good copy stays).
+      const q = h && h.root === b ? "?v=" + encodeURIComponent(h.hash) : "";
+      let d = null;
+      if (h) { try { d = await libraryParts.loadLibraryAsync((name) => cloudLibrary.getJson(h.root + name + q, 30000)); } catch { d = null; } }
       if (d && Array.isArray(d.assets)) { cloudLibrary.data = d; cloudLibrary.hash = h.hash; cloudLibrary.checkedAt = Date.now(); return d; }
       if (!cloudLibrary.data && !cloudLibrary.failedOnce) { cloudLibrary.failedOnce = true; if (cloudLibrary.onFail) { try { cloudLibrary.onFail(); } catch { /* a notice must not break a load */ } } }
       return cloudLibrary.data;
@@ -839,8 +846,11 @@ const projectLibrary = {
     // list still counts, exactly as the dev server's does.
     if (!data) {
       try {
-        const res = await fetch((process.env.PUBLIC_URL || "") + "/library.json");
-        if (res.ok) { const d = await res.json(); if (d && Array.isArray(d.assets)) data = d; }
+        const d = await libraryParts.loadLibraryAsync(async (name) => {
+          const res = await fetch((process.env.PUBLIC_URL || "") + "/" + name);
+          return res.ok ? res.json() : null;
+        });
+        if (d && Array.isArray(d.assets)) data = d;
       } catch { /* not published with a seed either */ }
     }
     let disk = null;

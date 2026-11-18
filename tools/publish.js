@@ -24,7 +24,8 @@ const root = path.join(__dirname, "..");
 const run = (cmd, opts) => { console.log("> " + cmd); return execSync(cmd, { cwd: root, stdio: "inherit", ...opts }); };
 const env = { ...process.env, PUBLIC_URL: "/BobAssetBuilder", CI: "false", MSYS_NO_PATHCONV: "1" };
 run("npm run build", { env });
-fs.copyFileSync(path.join(root, "asset-data", "library.json"), path.join(root, "build", "library.json"));
+// The index and its parts (src/libraryParts.js), copied as they are: library.json names library.1.json ...
+require(path.join(root, "src", "libraryFiles.js")).copyLibraryFiles(path.join(root, "asset-data", "library.json"), path.join(root, "build", "library.json"));
 // ...and the committed sound files beside it (clips/<hash>.<ext>), the seed for the sounds the
 // committed library names. His own uploads reach the published copy from the `saves` branch instead.
 if (fs.existsSync(path.join(root, "asset-data", "clips"))) fs.cpSync(path.join(root, "asset-data", "clips"), path.join(root, "build", "clips"), { recursive: true });

@@ -58,6 +58,10 @@ const { spawn, spawnSync, execFileSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
 const core = require(path.join(ROOT, "src", "saveKeeperCore.js"));
+// The library as an index + parts (src/libraryParts.js: one file would pass GitHub's 100 MB limit,
+// and the online save would stop updating). Read either shape, write parts.
+const libParts = require(path.join(ROOT, "src", "libraryParts.js"));
+const libFiles = require(path.join(ROOT, "src", "libraryFiles.js"));
 const { applyWrite } = require(path.join(ROOT, "src", "setupProxy.js")).__test;
 const { KINDS } = core;
 
@@ -342,7 +346,9 @@ class SaveFolder {
   // record the folder lacks or a strictly newer save comes in. An older committed copy is never an
   // edit (git has its own history), so it is ignored rather than merged.
   seedFromRepo(file) {
-    return this.seedFrom(readJson(file), "repo", "repoRemoved");
+    let lib = null;
+    try { lib = libFiles.readLibraryFile(file); } catch { lib = null; }
+    return this.seedFrom(lib, "repo", "repoRemoved");
   }
   // The same rule for any library-shaped file: the committed one ("repo"), or the online copy on
   // the `saves` branch when someone other than this keeper pushed it ("cloud": an agent's recovery,
@@ -569,9 +575,15 @@ const cloudSyncOnce = async (folder) => {
         if (sh.status === 0) { try { await folder.putClip(name, sh.stdout); } catch (e) { log("online copy: sound file " + name + " not kept: " + e.message); } }
       }
     }
-    const show = await g(["show", CLOUD_REF + ":library.json"]);
+    // An index and its parts, each read from the same commit (or the one file an older keeper wrote).
     let lib = null;
-    try { lib = JSON.parse(show.stdout.toString("utf8")); } catch { lib = null; }
+    try {
+      lib = await libParts.loadLibraryAsync(async (name) => {
+        const show = await g(["show", CLOUD_REF + ":" + name]);
+        if (show.status !== 0) throw new Error("no " + name + " online");
+        return JSON.parse(show.stdout.toString("utf8"));
+      });
+    } catch (e) { cloudNote("online copy: could not read it (" + (e && e.message) + ")"); lib = null; }
     if (lib && Array.isArray(lib.assets)) {
       const s = await folder.seedFrom(lib, "cloud", "cloudRemoved");
       if (s.take || s.deleted) log("from the online copy: " + s.take + " new or newer, " + s.deleted + " deleted");
@@ -579,11 +591,13 @@ const cloudSyncOnce = async (folder) => {
   }
   // Read between writes, never mid-commit. Each delete is dated the first time it is seen here
   // (core.reconcileRemovedAt), so copies that still hold the record can drop it.
-  const text = await folder.run(async () => {
+  const split = await folder.run(async () => {
     const at = core.reconcileRemovedAt(state.removedAt, folder.lib.removed, Date.now());
     if (JSON.stringify(at) !== JSON.stringify(state.removedAt || null)) { state.removedAt = at; await saveState(); }
-    return core.cloudSnapshot(folder.lib, at);
+    return libParts.splitLibrary(core.cloudSnapshotLib(folder.lib, at), "library.json");
   });
+  // Everything published, as one string, only for the hash that says whether anything changed.
+  const text = split.index + "\n" + split.parts.map((p) => p.name + "\n" + p.text).join("\n");
   // The sound files are part of what is published, so a new one is a new snapshot even when no
   // record changed. Only once there are any: with none, the hash is exactly what it always was, so
   // this change alone does not make every copy download the library again.
@@ -602,7 +616,7 @@ const cloudSyncOnce = async (folder) => {
   }
   const records = KINDS.reduce((n, k) => n + ((folder.lib && folder.lib[k]) || []).length, 0);
   const at = new Date().toISOString();
-  fs.writeFileSync(path.join(CLOUD_DIR, "library.json"), text);
+  libFiles.writeSplitFiles(path.join(CLOUD_DIR, "library.json"), split);   // parts, the index, leftover parts removed
   fs.writeFileSync(path.join(CLOUD_DIR, "head.json"), JSON.stringify({ hash, savedAt: at, records }, null, 1));
   // clips/: every sound file the folder holds that the branch does not. Added, never rewritten (a
   // name is its content), so a push carries only the new ones and the branch grows by each file once.
@@ -615,8 +629,10 @@ const cloudSyncOnce = async (folder) => {
     fs.mkdirSync(cloudClips, { recursive: true });
     fs.writeFileSync(dst, b);
   }
-  // Named only when it exists: `git add` of a missing path fails the WHOLE add, library.json included.
-  await g(["add", "library.json", "head.json", ...(fs.existsSync(cloudClips) ? ["clips"] : [])]);
+  // The whole folder (-A): new parts, rewritten ones, and a part a smaller library no longer has.
+  // The branch holds only what is written here (library*.json, head.json, clips/).
+  const add = await g(["add", "-A", "--", ".", ":(exclude)*.tmp"]);
+  if (add.status !== 0) { cloudNote("online copy: git add failed: " + gitWhy(add.stderr)); return "fail"; }
   const c = await g(["commit", "-q", "-m", "Saves " + at + " (" + records + " things)"]);
   if (c.status !== 0) { cloudNote("online copy: commit failed: " + (c.stderr || c.stdout.toString()).trim()); return "fail"; }
   const p = await g(["push", "-q", "origin", CLOUD_BRANCH + ":refs/heads/" + CLOUD_BRANCH]);

@@ -78,8 +78,9 @@ Passing tests have hidden broken render paths more than once. Start the dev serv
 - Seed real data: `asset:<id>` + `assetIndex`, and `level:<id>` + `levelIndex`, cloned from real
   records. **Seed localStorage on the FIRST load only.** After that the app reads IndexedDB
   (`bobAssetStudio`, store `kv`), and a later localStorage write is silently shadowed. Write to IDB.
-- **His newest data is the `saves` branch** (`git fetch origin saves`, then `FETCH_HEAD:library.json`).
-  The committed `asset-data/library.json` can be stale.
+- **His newest data is the `saves` branch** (`git fetch origin saves`). It is an index + parts, so read
+  it with `libraryParts.loadLibrary((n) => JSON.parse(<git show FETCH_HEAD:n>))`. `FETCH_HEAD:library.json`
+  alone is only the index. The committed `asset-data/library.json` can be stale.
 - **The Browser pane is usually hidden**, so rAF never fires. Inject a rAF shim (MessageChannel,
   gated) as a `<script>` element. A shim made inside a tool call dies when that call throws. Put
   the per-frame driver in a page script too. Never sample with `setTimeout(…, 0)`, which is clamped
@@ -113,7 +114,7 @@ has never actually been gone; the bytes were always still on disk.** Never clear
 (`tools/read-chrome-leveldb.js` on the old address's Chrome store; the procedure is in its header).
 
 **Where it lives:**
-1. **The online save is the `saves` branch** (`library.json` + `head.json`). Every copy of the game
+1. **The online save is the `saves` branch** (`library.json` index + `library.N.json` parts + `head.json`). Every copy of the game
    (StackBlitz, Pages, the desktop copy, any new address) reads it through `cloudLibrary` /
    `mergeCloudLibrary` inside `projectLibrary.load`, and adopts only STRICTLY newer records. The
    keeper (`cloudSync` in `tools/bob-okay.js`) pushes his folder there at most once a minute. It
@@ -148,10 +149,27 @@ has never actually been gone; the bytes were always still on disk.** Never clear
 4. **`asset-data/library.json`** is the committed project file. It is the agents' **delivery
    channel** and the seed for a brand-new browser. It is not his live library.
 
+**THE LIBRARY IS AN INDEX + PARTS** (2026-11-17). Blake: "Eventually there will be 600+ items ...
+much more than 100MB".
+- **Why:** GitHub refuses any file over 100 MB, and the one library.json was 60 MB that day. Past
+  100 MB the keeper's push to `saves` fails on every try, and his online save silently stops updating.
+- **The shape:** `library.json` is a small index (`format`, `set`, `parts`, plus `savedAt`, `removed`,
+  `removedAt`). It names `library.1.json`, `library.2.json`, ... of at most 20 MB each
+  (`src/libraryParts.js`, `PART_MAX_CHARS`). As the library grows it gains parts.
+- **The set check:** every part repeats the index's `set` (a content hash). A reader that gets parts
+  from two different saves refuses the read rather than mixing them.
+- **Where it applies:** the `saves` branch, `asset-data/` (and `library.bak.*`), the Pages seed, and
+  the dev server's snapshots.
+- **How to read and write:** only through `src/libraryFiles.js` (Node) or
+  `libraryParts.loadLibraryAsync` (browser). Both still read an old one-file library.
+- **The guard:** `libraryParts.test.js` fails if any committed file reaches 45 MB.
+
 **Delivering or revising a record:**
-- Keep the id. Put the record into `asset-data/library.json` **by text insertion**: splice it in
-  before the `\r\n ],` that closes `assets`. Never re-serialise the whole file. Then parse both
-  versions and assert every other record is identical.
+- Keep the id. Put records in with **`node tools/library.js add <records.json>`** (`{ assets: [...],
+  levels: [...] }`). It writes `library.json` and `library.bak.json`, appending new ids and
+  replacing a known id only with a strictly newer savedAt. Never splice into a part file by hand:
+  its `set` must match the index. Then read both back and assert every other record is identical.
+  `node tools/library.js size` lists every file.
 - Stamp `savedAt = max(now, newest + 1)`. "Newest" means the newest copy across the repo, the
   `saves` branch / his folder, AND the live StackBlitz store he may be working in right now. He
   works while you work, and stamping over a stale base silently reverts his edits in every copy.
@@ -166,8 +184,8 @@ has never actually been gone; the bytes were always still on disk.** Never clear
 - Start an asset job from his existing asset of the same kind, not from a blank page.
 - The dev server rewrites `asset-data/` from the browser. **`git checkout -- asset-data/` also
   restores anything he deleted that session**, so check `git diff --stat asset-data/` first.
-  `library.bak.json` is tracked too and is the fallback when library.json fails to parse. If you
-  touch one, check the other.
+  `library.bak.json` (+ its parts) is tracked too and is the fallback when library.json fails to
+  read whole. If you touch one, check the other.
 
 **Rules the code depends on (do not "tidy" them):**
 - **Every saved kind is wired five ways:** save up, restore down, delete up, export, and
