@@ -1,5 +1,5 @@
 {
- "set": "75420fa65bcdb43c",
+ "set": "f6160e70dfc83b86",
  "part": 2,
  "assets": [
   {
@@ -856123,6 +856123,1344 @@
     "crouch": []
    },
    "savedAt": 1794960528807
+  },
+  {
+   "id": "tmarch1",
+   "name": "Tournament Arch",
+   "type": "prop",
+   "guideId": "default",
+   "size": 16,
+   "animFps": 6,
+   "solidDefault": false,
+   "category": "Stage",
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "tma00",
+       "kind": "rect",
+       "x": 6,
+       "y": 58,
+       "w": 16,
+       "h": 192,
+       "color": "#c0392b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma01",
+       "kind": "rect",
+       "x": 6,
+       "y": 76,
+       "w": 16,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma02",
+       "kind": "rect",
+       "x": 6,
+       "y": 106,
+       "w": 16,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma03",
+       "kind": "rect",
+       "x": 6,
+       "y": 136,
+       "w": 16,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma04",
+       "kind": "rect",
+       "x": 6,
+       "y": 166,
+       "w": 16,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma05",
+       "kind": "rect",
+       "x": 6,
+       "y": 196,
+       "w": 16,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma06",
+       "kind": "rect",
+       "x": 6,
+       "y": 226,
+       "w": 16,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma07",
+       "kind": "rect",
+       "x": 0,
+       "y": 250,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma08",
+       "kind": "poly",
+       "x": 27,
+       "y": 60,
+       "w": 20,
+       "h": 20,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.5,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma09",
+       "kind": "poly",
+       "x": 48,
+       "y": 60,
+       "w": 20,
+       "h": 20,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.5,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0a",
+       "kind": "poly",
+       "x": 69,
+       "y": 60,
+       "w": 20,
+       "h": 20,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.5,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0b",
+       "kind": "poly",
+       "x": 90,
+       "y": 60,
+       "w": 20,
+       "h": 20,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.5,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0c",
+       "kind": "poly",
+       "x": 111,
+       "y": 60,
+       "w": 20,
+       "h": 20,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.5,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0d",
+       "kind": "poly",
+       "x": 132,
+       "y": 60,
+       "w": 20,
+       "h": 20,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.5,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0e",
+       "kind": "poly",
+       "x": 153,
+       "y": 60,
+       "w": 20,
+       "h": 20,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.5,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0f",
+       "kind": "rect",
+       "x": 0,
+       "y": 0,
+       "w": 200,
+       "h": 64,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0g",
+       "kind": "rect",
+       "x": 6,
+       "y": 6,
+       "w": 188,
+       "h": 52,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0h",
+       "kind": "star",
+       "x": 10,
+       "y": 23,
+       "w": 16,
+       "h": 16,
+       "color": "#daa520",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tma0i",
+       "kind": "text",
+       "x": 30,
+       "y": 18,
+       "w": 140,
+       "h": 28,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "TOURNAMENT",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "savedAt": 1794968137048
+  },
+  {
+   "id": "tmbrkt1",
+   "name": "Bracket Board",
+   "type": "prop",
+   "guideId": "default",
+   "size": 12,
+   "animFps": 6,
+   "solidDefault": false,
+   "category": "Decoration",
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "tmb00",
+       "kind": "rect",
+       "x": 30,
+       "y": 146,
+       "w": 10,
+       "h": 54,
+       "color": "#8b5a2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb01",
+       "kind": "rect",
+       "x": 0,
+       "y": 0,
+       "w": 200,
+       "h": 150,
+       "color": "#8b5a2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb02",
+       "kind": "rect",
+       "x": 7,
+       "y": 7,
+       "w": 186,
+       "h": 136,
+       "color": "#556b2f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb03",
+       "kind": "text",
+       "x": 50,
+       "y": 10,
+       "w": 100,
+       "h": 26,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "BRACKET",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "tmb04",
+       "kind": "rect",
+       "x": 14,
+       "y": 46,
+       "w": 30,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb05",
+       "kind": "rect",
+       "x": 14,
+       "y": 70,
+       "w": 30,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb06",
+       "kind": "rect",
+       "x": 14,
+       "y": 102,
+       "w": 30,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb07",
+       "kind": "rect",
+       "x": 14,
+       "y": 126,
+       "w": 30,
+       "h": 12,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb08",
+       "kind": "rect",
+       "x": 44,
+       "y": 51,
+       "w": 8,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb09",
+       "kind": "rect",
+       "x": 44,
+       "y": 75,
+       "w": 8,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0a",
+       "kind": "rect",
+       "x": 44,
+       "y": 107,
+       "w": 8,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0b",
+       "kind": "rect",
+       "x": 44,
+       "y": 131,
+       "w": 8,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0c",
+       "kind": "rect",
+       "x": 52,
+       "y": 51,
+       "w": 2,
+       "h": 26,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0d",
+       "kind": "rect",
+       "x": 52,
+       "y": 107,
+       "w": 2,
+       "h": 26,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0e",
+       "kind": "rect",
+       "x": 54,
+       "y": 63,
+       "w": 6,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0f",
+       "kind": "rect",
+       "x": 54,
+       "y": 119,
+       "w": 6,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0g",
+       "kind": "rect",
+       "x": 60,
+       "y": 58,
+       "w": 22,
+       "h": 12,
+       "color": "#40e0d0",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0h",
+       "kind": "rect",
+       "x": 60,
+       "y": 114,
+       "w": 22,
+       "h": 12,
+       "color": "#c0392b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0i",
+       "kind": "rect",
+       "x": 82,
+       "y": 63,
+       "w": 4,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0j",
+       "kind": "rect",
+       "x": 82,
+       "y": 119,
+       "w": 4,
+       "h": 2,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0k",
+       "kind": "rect",
+       "x": 86,
+       "y": 63,
+       "w": 2,
+       "h": 58,
+       "color": "#f5f5dc",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0l",
+       "kind": "rect",
+       "x": 86,
+       "y": 85,
+       "w": 28,
+       "h": 14,
+       "color": "#daa520",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmb0m",
+       "kind": "star",
+       "x": 89,
+       "y": 38,
+       "w": 22,
+       "h": 22,
+       "color": "#daa520",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "savedAt": 1794968137048
+  },
+  {
+   "id": "tmpodm1",
+   "name": "Winners Podium",
+   "type": "prop",
+   "guideId": "default",
+   "size": 10,
+   "animFps": 6,
+   "solidDefault": false,
+   "category": "Stage",
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "tmp00",
+       "kind": "rect",
+       "x": 0,
+       "y": 100,
+       "w": 66,
+       "h": 60,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp01",
+       "kind": "rect",
+       "x": 0,
+       "y": 100,
+       "w": 66,
+       "h": 10,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp02",
+       "kind": "text",
+       "x": 19,
+       "y": 116,
+       "w": 28,
+       "h": 36,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "2",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "tmp03",
+       "kind": "rect",
+       "x": 134,
+       "y": 118,
+       "w": 66,
+       "h": 42,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp04",
+       "kind": "rect",
+       "x": 134,
+       "y": 118,
+       "w": 66,
+       "h": 10,
+       "color": "#c1440e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp05",
+       "kind": "text",
+       "x": 153,
+       "y": 130,
+       "w": 28,
+       "h": 26,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "3",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "tmp06",
+       "kind": "rect",
+       "x": 66,
+       "y": 72,
+       "w": 68,
+       "h": 88,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp07",
+       "kind": "rect",
+       "x": 66,
+       "y": 72,
+       "w": 68,
+       "h": 10,
+       "color": "#daa520",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp08",
+       "kind": "text",
+       "x": 84,
+       "y": 92,
+       "w": 32,
+       "h": 48,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "1",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "tmp09",
+       "kind": "circle",
+       "x": 68,
+       "y": 8,
+       "w": 18,
+       "h": 24,
+       "color": "#daa520",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp0a",
+       "kind": "rect",
+       "x": 96,
+       "y": 44,
+       "w": 8,
+       "h": 18,
+       "color": "#daa520",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp0b",
+       "kind": "rect",
+       "x": 84,
+       "y": 62,
+       "w": 32,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tmp0c",
+       "kind": "poly",
+       "x": 77,
+       "y": 0,
+       "w": 46,
+       "h": 46,
+       "color": "#daa520",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         0.8,
+         1
+        ],
+        [
+         0.2,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "savedAt": 1794968137048
+  },
+  {
+   "id": "tmsign1",
+   "name": "Tournament Sign",
+   "type": "prop",
+   "guideId": "default",
+   "size": 8,
+   "animFps": 6,
+   "solidDefault": false,
+   "category": "Decoration",
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "tms00",
+       "kind": "rect",
+       "x": 36,
+       "y": 56,
+       "w": 10,
+       "h": 44,
+       "color": "#8b5a2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tms01",
+       "kind": "poly",
+       "x": 0,
+       "y": 0,
+       "w": 200,
+       "h": 62,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "outline": true,
+       "outlineColor": "#2b2b2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         0.84,
+         0
+        ],
+        [
+         1,
+         0.5
+        ],
+        [
+         0.84,
+         1
+        ],
+        [
+         0,
+         1
+        ]
+       ],
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tms02",
+       "kind": "text",
+       "x": 12,
+       "y": 17,
+       "w": 148,
+       "h": 28,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "TOURNAMENT",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "savedAt": 1794968137048
   }
  ],
  "levels": [
