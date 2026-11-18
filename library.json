@@ -3000497,6 +3000497,14 @@
       "Slide"
      ],
      "logic": "or"
+    },
+    "33,149": {
+     "kind": "pedestal",
+     "cats": [
+      "Drink",
+      ""
+     ],
+     "logic": "or"
     }
    },
    "enemies": {
@@ -3000597,7 +3000605,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794960528807
+   "savedAt": 1794961094289,
+   "editedFrom": 1794960528807
   },
   {
    "id": "uw2goe0",
