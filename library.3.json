@@ -1,5 +1,5 @@
 {
- "set": "504e8313050aee4e",
+ "set": "308cd336ad8a2565",
  "part": 3,
  "levels": [
   {
@@ -451533,19 +451533,6 @@
       "z": 2
      }
     ],
-    "18,107": [
-     {
-      "kind": "shape",
-      "shape": "fence",
-      "tint": "#c42727",
-      "solid": true,
-      "size": 2,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 3
-     }
-    ],
     "19,106": [
      {
       "kind": "shape",
@@ -451713,6 +451700,32 @@
       "z": -12,
       "oy": 0.122
      }
+    ],
+    "18,107": [
+     {
+      "kind": "shape",
+      "shape": "fence",
+      "tint": "#2a2017",
+      "solid": true,
+      "size": 1.5,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 6
+     }
+    ],
+    "19,107": [
+     {
+      "kind": "shape",
+      "shape": "fence",
+      "tint": "#2a2017",
+      "solid": true,
+      "size": 1.5,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 7
+     }
     ]
    },
    "climb": {
@@ -451768,6 +451781,14 @@
      "enemyId": "qfm7xn6",
      "facing": -1,
      "ai": "seek"
+    },
+    "19,8": {
+     "enemyTag": "Trailer",
+     "facing": -1,
+     "ai": "seek",
+     "gearTags": [
+      "T1"
+     ]
     }
    },
    "conns": {
@@ -451804,8 +451825,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794997434794,
-   "editedFrom": 1794970183512
+   "savedAt": 1794999852571,
+   "editedFrom": 1794997434794
   },
   {
    "id": "n9tn70t",
