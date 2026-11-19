@@ -758,6 +758,12 @@ plus traps it does not cover:
     with a way out. **No street level is laid with a top/bottom gate that leads nowhere** (his rule,
     2026-10-11: "an impossible seed"): `tryLay` takes a level back when its passage cannot be
     planned (`vertDead`), the Exit included, and the step back to an Exit never cuts a passage.
+  - His sewers: M1/M5 (N1 in, E1 on), M3/M4 (W1/E1 tunnels) and two EXITS, M2 and Sewer M6
+    (`swrm06a`, 2026-11-19: W1 in, N2 manhole up). Every sewer chain climbs out through an exit, so
+    a second exit spreads the sewers out (400 seeds: M2 282 -> 184, M6 200). M6 keeps M2's rows 0-9
+    and manhole shaft cell for cell (an N2 shaft must line up with every street S2 manhole); below
+    that, a flooded stretch (no walkway, Front water, a one-row dip) and, past the manhole, the dead
+    end: a drop shaft to a lower gallery running back west to one T1 pedestal, with a sunken pool.
   - One level is live at a time. Neighbours are drawn whole from cached tiles. Their units are
     adopted into the live level (`adoptRunNeighbours` / `releaseRunUnits`), so shots and chases
     cross gates.
