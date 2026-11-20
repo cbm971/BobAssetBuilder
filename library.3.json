@@ -1,5 +1,5 @@
 {
- "set": "887256abaef9b57e",
+ "set": "6f4997047a3113cb",
  "part": 3,
  "levels": [
   {
@@ -669755,12 +669755,6 @@
     "0,111": {
      "kind": "ladder"
     },
-    "17,146": {
-     "kind": "ladder"
-    },
-    "17,147": {
-     "kind": "ladder"
-    },
     "18,146": {
      "kind": "ladder"
     },
@@ -670007,8 +670001,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1795174099198,
-   "editedFrom": 1795087901835
+   "savedAt": 1795174221794,
+   "editedFrom": 1795174216119
   },
   {
    "id": "sxnw2pk",
