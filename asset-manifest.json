@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/BobAssetBuilder/static/js/main.e75120e3.js",
+    "index.html": "/BobAssetBuilder/index.html",
+    "main.e75120e3.js.map": "/BobAssetBuilder/static/js/main.e75120e3.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.e75120e3.js"
+  ]
+}
