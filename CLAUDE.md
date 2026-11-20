@@ -291,6 +291,9 @@ plus traps it does not cover:
   skin carries only `variants.oipvf3l` and `confirmedFits: ["oipvf3l"]`.
 - House style: flat, 4–8 pieces, one colour plus a dark edge (`#1d1b1b`), no shading, gradients or
   tiers, and the face left open.
+- **A belt on a shirt or jacket: tick Over arms on the crouch belt band + knot only** (Blake, 2026-11-20, Karate
+  Shirt `krtgi01`: "the belt should not tuck into the pants but it should be behind the legs"). Crouch tucks plain
+  shirt pieces under the pants, which hid the whole belt; the hanging tails stay plain so the knees still cover them.
 - **Sleeves need `overArms: true` + `limb: "arm"`.** A sleeve box copied without those flags hangs
   off the shoulder.
 - **Underwear in Crouch: tick Behind legs on EVERY piece** (his Boxers do). The crouch thighs come up
