@@ -1070,6 +1070,14 @@ plus traps it does not cover:
   (2026-10-17) is Tag Damage. A timed tag buff reaches the shot, the swing and the HUD's ATK only through
   `withTimedTagBoosts(effects, itemBuffs.current, now)` into `tagDamageMultiplier`; never a second multiplier.
   His weapon tags are `Gun` and `Meelee` (his spelling; match them).
+- **An item can have several effects** (2026-11-21): `effect` is the first, `moreEffects` the rest; every
+  user of an item reads `itemEffectsOf(item)` / `itemSummary(item)`, never `item.effect` alone (only
+  `isMoneyItem` does). 💥 Damage is a timed tagBoost with `any` (every weapon, fists, throws via
+  `timedDamageMult`); 💔 Lose HP stops at 1 (`applyHurt`); a heal can be `full`; a stat boost can be negative.
+  🌀 `item.screenFx` (blur / tint, seconds) is a `kind: "screen"` buff drawn by `.consumeFx` under the HUD;
+  with none of its own an item takes its tag's (`ITEM_TAG_SCREEN_FX`: Alcohol blurs), `{kind:"none"}` turns it off.
+  Items: Hamburger, Hot Dog, Pizza Slice (a circle cut to a wedge by two cutters), French Fries, Steroids,
+  Ritilin (his spelling), Whiskey, Wine, Joint.
 - Talk reach is `TALK_RANGE_CELLS` = 6. The Enemy-creator Speed AND Strength sliders go to 20 (the animals' scale; a
   creature's Strength is its bite, 2x, unclamped), a
   dressed look walks by `playerWalkSpeed`, and Speed floors at 0.

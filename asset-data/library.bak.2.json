@@ -1,5 +1,5 @@
 {
- "set": "b2b914dc0e4ddcae",
+ "set": "69df0b4419c994ba",
  "part": 2,
  "assets": [
   {
@@ -892557,6 +892557,1462 @@
     "crouch": []
    },
    "savedAt": 1795292178941
+  },
+  {
+   "id": "hmbrgr1",
+   "name": "Hamburger",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "hmbrgr1_0",
+      "kind": "roundrect",
+      "x": 42,
+      "y": 164,
+      "w": 116,
+      "h": 26,
+      "color": "#d9973f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hmbrgr1_1",
+      "kind": "stadium",
+      "x": 36,
+      "y": 142,
+      "w": 128,
+      "h": 24,
+      "color": "#6b3a1e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hmbrgr1_2",
+      "kind": "tri2",
+      "x": 60,
+      "y": 136,
+      "w": 22,
+      "h": 14,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hmbrgr1_3",
+      "kind": "rect",
+      "x": 40,
+      "y": 134,
+      "w": 120,
+      "h": 8,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hmbrgr1_4",
+      "kind": "stadium",
+      "x": 34,
+      "y": 126,
+      "w": 132,
+      "h": 12,
+      "color": "#5fae3a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hmbrgr1_5",
+      "kind": "halfcircle",
+      "x": 40,
+      "y": 74,
+      "w": 120,
+      "h": 56,
+      "color": "#d9973f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hmbrgr1_6",
+      "kind": "stadium",
+      "x": 70,
+      "y": 92,
+      "w": 10,
+      "h": 6,
+      "color": "#f4e3b5",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -20
+     },
+     {
+      "id": "hmbrgr1_7",
+      "kind": "stadium",
+      "x": 110,
+      "y": 88,
+      "w": 10,
+      "h": 6,
+      "color": "#f4e3b5",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 25
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 25
+   },
+   "categories": [
+    "T1",
+    "Food",
+    "Heal"
+   ],
+   "value": 6,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503503
+  },
+  {
+   "id": "hotdog1",
+   "name": "Hot Dog",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "hotdog1_0",
+      "kind": "stadium",
+      "x": 34,
+      "y": 104,
+      "w": 132,
+      "h": 40,
+      "color": "#c47f2e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hotdog1_1",
+      "kind": "stadium",
+      "x": 14,
+      "y": 120,
+      "w": 172,
+      "h": 28,
+      "color": "#b5462e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hotdog1_2",
+      "kind": "rect",
+      "x": 44,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -32
+     },
+     {
+      "id": "hotdog1_3",
+      "kind": "rect",
+      "x": 64,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 32
+     },
+     {
+      "id": "hotdog1_4",
+      "kind": "rect",
+      "x": 84,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -32
+     },
+     {
+      "id": "hotdog1_5",
+      "kind": "rect",
+      "x": 104,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 32
+     },
+     {
+      "id": "hotdog1_6",
+      "kind": "rect",
+      "x": 124,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -32
+     },
+     {
+      "id": "hotdog1_7",
+      "kind": "halfcircle",
+      "x": 28,
+      "y": 134,
+      "w": 144,
+      "h": 30,
+      "color": "#d9973f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 180
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 15
+   },
+   "categories": [
+    "T1",
+    "Food",
+    "Heal"
+   ],
+   "value": 4,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503504
+  },
+  {
+   "id": "pizzsl1",
+   "name": "Pizza Slice",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "pizzsl1_0",
+      "kind": "circle",
+      "x": 15,
+      "y": 80,
+      "w": 170,
+      "h": 170,
+      "color": "#c98a3c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "pizzsl1_1",
+      "kind": "circle",
+      "x": 27,
+      "y": 92,
+      "w": 146,
+      "h": 146,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "pizzsl1_2",
+      "kind": "poly",
+      "x": 0,
+      "y": 70,
+      "w": 100,
+      "h": 190,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        1,
+        0.7368
+       ],
+       [
+        0.377,
+        0
+       ],
+       [
+        0,
+        0
+       ],
+       [
+        0,
+        1
+       ],
+       [
+        1,
+        1
+       ]
+      ],
+      "isCutter": true
+     },
+     {
+      "id": "pizzsl1_3",
+      "kind": "poly",
+      "x": 100,
+      "y": 70,
+      "w": 100,
+      "h": 190,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        0,
+        0.7368
+       ],
+       [
+        0.623,
+        0
+       ],
+       [
+        1,
+        0
+       ],
+       [
+        1,
+        1
+       ],
+       [
+        0,
+        1
+       ]
+      ],
+      "isCutter": true
+     },
+     {
+      "id": "pizzsl1_4",
+      "kind": "rect",
+      "x": 73.5,
+      "y": 91.3,
+      "w": 2.6,
+      "h": 124,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -24
+     },
+     {
+      "id": "pizzsl1_5",
+      "kind": "rect",
+      "x": 123.9,
+      "y": 91.3,
+      "w": 2.6,
+      "h": 124,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 24
+     },
+     {
+      "id": "pizzsl1_6",
+      "kind": "circle",
+      "x": 68,
+      "y": 104,
+      "w": 20,
+      "h": 20,
+      "color": "#b5302a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "pizzsl1_7",
+      "kind": "circle",
+      "x": 108,
+      "y": 112,
+      "w": 18,
+      "h": 18,
+      "color": "#b5302a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "pizzsl1_8",
+      "kind": "circle",
+      "x": 90,
+      "y": 150,
+      "w": 16,
+      "h": 16,
+      "color": "#b5302a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 20
+   },
+   "categories": [
+    "T1",
+    "Food",
+    "Heal"
+   ],
+   "value": 5,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503505
+  },
+  {
+   "id": "frfrys1",
+   "name": "French Fries",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "frfrys1_0",
+      "kind": "rect",
+      "x": 64,
+      "y": 84,
+      "w": 12,
+      "h": 60,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": -10
+     },
+     {
+      "id": "frfrys1_1",
+      "kind": "rect",
+      "x": 82,
+      "y": 76,
+      "w": 12,
+      "h": 66,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": -4
+     },
+     {
+      "id": "frfrys1_2",
+      "kind": "rect",
+      "x": 98,
+      "y": 72,
+      "w": 12,
+      "h": 70,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 3
+     },
+     {
+      "id": "frfrys1_3",
+      "kind": "rect",
+      "x": 114,
+      "y": 78,
+      "w": 12,
+      "h": 64,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 8
+     },
+     {
+      "id": "frfrys1_4",
+      "kind": "rect",
+      "x": 128,
+      "y": 88,
+      "w": 12,
+      "h": 56,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 14
+     },
+     {
+      "id": "frfrys1_5",
+      "kind": "trapezoid",
+      "x": 54,
+      "y": 120,
+      "w": 92,
+      "h": 86,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 180
+     },
+     {
+      "id": "frfrys1_6",
+      "kind": "rect",
+      "x": 70,
+      "y": 156,
+      "w": 60,
+      "h": 8,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 10
+   },
+   "categories": [
+    "T1",
+    "Food",
+    "Heal"
+   ],
+   "value": 2,
+   "rank": "poor",
+   "dropWeight": 1,
+   "savedAt": 1795297503506
+  },
+  {
+   "id": "strods1",
+   "name": "Steroids",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "strods1_0",
+      "kind": "rect",
+      "x": 16,
+      "y": 140,
+      "w": 34,
+      "h": 4,
+      "color": "#c8ccd0",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "strods1_1",
+      "kind": "rect",
+      "x": 46,
+      "y": 134,
+      "w": 10,
+      "h": 16,
+      "color": "#9aa4ad",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "strods1_2",
+      "kind": "roundrect",
+      "x": 54,
+      "y": 126,
+      "w": 92,
+      "h": 32,
+      "color": "#e8eef2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "strods1_3",
+      "kind": "rect",
+      "x": 58,
+      "y": 132,
+      "w": 56,
+      "h": 20,
+      "color": "#b5302a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "strods1_4",
+      "kind": "rect",
+      "x": 146,
+      "y": 136,
+      "w": 34,
+      "h": 12,
+      "color": "#9aa4ad",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "strods1_5",
+      "kind": "rect",
+      "x": 178,
+      "y": 122,
+      "w": 10,
+      "h": 40,
+      "color": "#9aa4ad",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "stat",
+    "stat": "strength",
+    "amount": 4,
+    "duration": 240
+   },
+   "categories": [
+    "T1",
+    "Drug",
+    "Item"
+   ],
+   "value": 12,
+   "rank": "rare",
+   "dropWeight": 1,
+   "savedAt": 1795297503507,
+   "moreEffects": [
+    {
+     "kind": "stat",
+     "stat": "intelligence",
+     "amount": -1,
+     "duration": 240
+    }
+   ],
+   "screenFx": {
+    "kind": "tint",
+    "color": "#ff2020",
+    "amount": 0.08,
+    "duration": 10
+   }
+  },
+  {
+   "id": "ritlin1",
+   "name": "Ritilin",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "ritlin1_0",
+      "kind": "roundrect",
+      "x": 64,
+      "y": 104,
+      "w": 72,
+      "h": 100,
+      "color": "#e8892a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "ritlin1_1",
+      "kind": "roundrect",
+      "x": 58,
+      "y": 82,
+      "w": 84,
+      "h": 26,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "ritlin1_2",
+      "kind": "rect",
+      "x": 64,
+      "y": 130,
+      "w": 72,
+      "h": 44,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "ritlin1_3",
+      "kind": "rect",
+      "x": 72,
+      "y": 140,
+      "w": 56,
+      "h": 8,
+      "color": "#3b6fb6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "ritlin1_4",
+      "kind": "rect",
+      "x": 72,
+      "y": 154,
+      "w": 40,
+      "h": 6,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "ritlin1_5",
+      "kind": "stadium",
+      "x": 142,
+      "y": 190,
+      "w": 24,
+      "h": 12,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": -20
+     },
+     {
+      "id": "ritlin1_6",
+      "kind": "stadium",
+      "x": 30,
+      "y": 194,
+      "w": 24,
+      "h": 12,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 15
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "stat",
+    "stat": "intelligence",
+    "amount": 2,
+    "duration": 60
+   },
+   "categories": [
+    "T1",
+    "Drug",
+    "Item"
+   ],
+   "value": 6,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503508,
+   "moreEffects": [
+    {
+     "kind": "stat",
+     "stat": "speed",
+     "amount": 2,
+     "duration": 60
+    }
+   ]
+  },
+  {
+   "id": "whisky1",
+   "name": "Whiskey",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "whisky1_0",
+      "kind": "rect",
+      "x": 88,
+      "y": 58,
+      "w": 24,
+      "h": 40,
+      "color": "#b5651d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "whisky1_1",
+      "kind": "rect",
+      "x": 86,
+      "y": 50,
+      "w": 28,
+      "h": 14,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "whisky1_2",
+      "kind": "trapezoid",
+      "x": 60,
+      "y": 92,
+      "w": 80,
+      "h": 26,
+      "color": "#b5651d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "whisky1_3",
+      "kind": "roundrect",
+      "x": 60,
+      "y": 112,
+      "w": 80,
+      "h": 96,
+      "color": "#b5651d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "whisky1_4",
+      "kind": "rect",
+      "x": 64,
+      "y": 138,
+      "w": 72,
+      "h": 44,
+      "color": "#efe3c2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "whisky1_5",
+      "kind": "rect",
+      "x": 64,
+      "y": 150,
+      "w": 72,
+      "h": 10,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "damage",
+    "mult": 1.5,
+    "duration": 60
+   },
+   "categories": [
+    "T1",
+    "Alcohol",
+    "Drink"
+   ],
+   "value": 6,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503509,
+   "moreEffects": [
+    {
+     "kind": "hurt",
+     "amount": 10
+    }
+   ]
+  },
+  {
+   "id": "wine001",
+   "name": "Wine",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "wine001_0",
+      "kind": "rect",
+      "x": 90,
+      "y": 44,
+      "w": 20,
+      "h": 56,
+      "color": "#2e5a2e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "wine001_1",
+      "kind": "rect",
+      "x": 88,
+      "y": 40,
+      "w": 24,
+      "h": 22,
+      "color": "#7a1f2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "wine001_2",
+      "kind": "trapezoid",
+      "x": 66,
+      "y": 92,
+      "w": 68,
+      "h": 28,
+      "color": "#2e5a2e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "wine001_3",
+      "kind": "roundrect",
+      "x": 66,
+      "y": 114,
+      "w": 68,
+      "h": 98,
+      "color": "#2e5a2e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "wine001_4",
+      "kind": "rect",
+      "x": 70,
+      "y": 148,
+      "w": 60,
+      "h": 38,
+      "color": "#efe3c2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "wine001_5",
+      "kind": "rect",
+      "x": 70,
+      "y": 156,
+      "w": 60,
+      "h": 8,
+      "color": "#7a1f2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "damage",
+    "mult": 1.25,
+    "duration": 60
+   },
+   "categories": [
+    "T1",
+    "Alcohol",
+    "Drink"
+   ],
+   "value": 8,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503510,
+   "moreEffects": [
+    {
+     "kind": "heal",
+     "amount": 15
+    }
+   ]
+  },
+  {
+   "id": "joint01",
+   "name": "Joint",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "joint01_0",
+      "kind": "poly",
+      "x": 44,
+      "y": 120,
+      "w": 120,
+      "h": 36,
+      "color": "#f2efe4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "points": [
+       [
+        0,
+        0.28
+       ],
+       [
+        1,
+        0
+       ],
+       [
+        1,
+        1
+       ],
+       [
+        0,
+        0.72
+       ]
+      ]
+     },
+     {
+      "id": "joint01_1",
+      "kind": "rect",
+      "x": 146,
+      "y": 121,
+      "w": 18,
+      "h": 34,
+      "color": "#d8c89a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "joint01_2",
+      "kind": "rect",
+      "x": 38,
+      "y": 130,
+      "w": 9,
+      "h": 16,
+      "color": "#8a8a8a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "joint01_3",
+      "kind": "circle",
+      "x": 30,
+      "y": 130,
+      "w": 13,
+      "h": 16,
+      "color": "#e8542a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 3,
+       "glowColor": "#ff8a1e",
+       "bright": 1
+      }
+     },
+     {
+      "id": "joint01_4",
+      "kind": "circle",
+      "x": 22,
+      "y": 100,
+      "w": 20,
+      "h": 20,
+      "color": "#c8c8c8",
+      "mirror": false,
+      "fx": {
+       "opacity": 0.6,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "joint01_5",
+      "kind": "circle",
+      "x": 34,
+      "y": 76,
+      "w": 14,
+      "h": 14,
+      "color": "#c8c8c8",
+      "mirror": false,
+      "fx": {
+       "opacity": 0.4,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 100,
+    "full": true
+   },
+   "categories": [
+    "T1",
+    "Drug",
+    "Heal"
+   ],
+   "value": 8,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503511,
+   "moreEffects": [
+    {
+     "kind": "stat",
+     "stat": "intelligence",
+     "amount": -2,
+     "duration": 60
+    },
+    {
+     "kind": "stat",
+     "stat": "speed",
+     "amount": -2,
+     "duration": 60
+    }
+   ],
+   "screenFx": {
+    "kind": "tint",
+    "color": "#ff8a1e",
+    "amount": 0.22,
+    "duration": 10
+   }
   }
  ],
  "levels": [

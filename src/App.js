@@ -3813,10 +3813,22 @@ export const MONEY_CHAR = "💵"; // 💵 — one symbol for the wallet, the pri
 export const DEFAULT_ITEM_EFFECT = () => ({ kind: "heal", amount: 5 });
 export const normItemEffect = (e) => {
   if (!e || typeof e !== "object") return DEFAULT_ITEM_EFFECT();
+  // A stat boost may be NEGATIVE (2026-11-21, Blake: the steroid "decreases int by 1", the Joint
+  // "decrease int and speed for 60 seconds"). activeBuffSum just adds it, so -1 Int is Int one
+  // lower for the duration, through every reader of the stat (shop prices clamp at 0-10, Speed
+  // floors at 0). Zero would be an effect that does nothing, so the editor never sets it.
   if (e.kind === "stat") {
     const stat = ITEM_STAT_KEYS.includes(e.stat) ? e.stat : "speed";
     return { kind: "stat", stat, amount: Number.isFinite(e.amount) ? e.amount : 2, duration: Number.isFinite(e.duration) ? e.duration : 8 };
   }
+  // 💥 A TIMED DAMAGE BOOST on EVERYTHING you hit with (2026-11-21, Blake: whiskey and wine
+  // "increase damage"). 🏹 Tag damage needs a tag, and a drink makes the rifle AND the fists hit
+  // harder. It rides withTimedTagBoosts as a tagBoost with `any`, so it reaches the shot, the
+  // swing, the HUD's ATK and the DPS through the one tagDamageMultiplier like a tag potion does.
+  if (e.kind === "damage") return { kind: "damage", mult: Number.isFinite(e.mult) ? Math.max(1, e.mult) : 1.5, duration: Number.isFinite(e.duration) ? e.duration : 30 };
+  // 💔 LOSE HP (2026-11-21, Blake: whiskey should "reduce HP"). Taken the moment it is drunk and
+  // never below 1 (applyHurt): an item you chose to use killing you outright reads as a bug.
+  if (e.kind === "hurt") return { kind: "hurt", amount: Math.max(1, Math.round(Number.isFinite(e.amount) ? e.amount : 10)) };
   // Rounded and floored at 1: a wallet is whole units, and a note worth nothing is a pickup that
   // flashes "+0" and reads as broken.
   if (e.kind === "money") return { kind: "money", amount: Math.max(1, Math.round(Number.isFinite(e.amount) ? e.amount : 10)) };
@@ -3841,23 +3853,90 @@ export const normItemEffect = (e) => {
   // the run spends it instead. It is never a 🐱 Extra Life, which gets you up where you fell and is
   // the worn ability's alone (he split those two apart on 2026-10-18). Whole lives, at least one.
   if (e.kind === "oneUp") return { kind: "oneUp", lives: Math.max(1, Math.round(Number.isFinite(e.lives) ? e.lives : 1)) };
-  return { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
+  // ❤️ `full` (2026-11-21, the Joint "should refill HP") heals to the top whatever the max is, so
+  // a look with 300 HP is refilled as surely as one with 100. The amount is kept for unticking.
+  const heal = { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
+  if (e.full) heal.full = true;
+  return heal;
 };
 // One-line human summary for the pedestal callout / pickup flash.
 export const itemEffectSummary = (e) => {
   const x = normItemEffect(e);
-  return x.kind === "heal" ? "Heal " + x.amount + " HP"
+  return x.kind === "heal" ? (x.full ? "Full HP" : "Heal " + x.amount + " HP")
+    : x.kind === "hurt" ? "-" + x.amount + " HP"
     : x.kind === "money" ? MONEY_CHAR + " +" + x.amount
     : x.kind === "range" ? "Range ×" + x.mult + " for " + x.duration + "s"
+    : x.kind === "damage" ? "Damage ×" + x.mult + " for " + x.duration + "s"
     : x.kind === "tagDamage" ? (x.tag.trim() || "Tagged") + " damage ×" + x.mult + " for " + x.duration + "s"
     : x.kind === "oneUp" ? "+" + x.lives + (x.lives === 1 ? " life" : " lives")
-    : "+" + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
+    : (x.amount < 0 ? "" : "+") + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
+};
+// AN ITEM CAN DO SEVERAL THINGS AT ONCE (2026-11-21, Blake: a steroid that "increases strength a
+// good bit ... But decreases int by 1", wine that raises damage AND HP). `effect` stays the first
+// one, so every item already saved reads exactly as before and isMoneyItem still asks it alone;
+// `moreEffects` holds the rest, each the same shape and normalised the same way. Every reader that
+// USES an item (consumeItemNow, the callout, the shop row) goes through this list.
+export const itemEffectsOf = (item) => [normItemEffect(item && item.effect), ...((item && Array.isArray(item.moreEffects)) ? item.moreEffects.map(normItemEffect) : [])];
+export const itemSummary = (item) => itemEffectsOf(item).map(itemEffectSummary).join(" · ");
+// Losing HP to something you drank: down by `amount`, never below 1 (and a body already at 0 stays
+// there; nothing drinks from the floor). Pure.
+export const applyHurt = (curHP, amount) => (curHP <= 0 ? curHP : Math.max(1, curHP - Math.max(0, Math.round(amount || 0))));
+
+/* 🌀 A SCREEN FILTER WHILE IT KICKS IN (2026-11-21, Blake: "have some items apply a filter when
+   consumed ... a blurry filter to all items tagged "alcohol" and a sort of orange filter with the
+   Joint. A very slight Red filter for the steroids. Only for 10 seconds.")
+   `item.screenFx` is the item's own: { kind: "blur", amount: px } or { kind: "tint", color, amount:
+   0-1 opacity }, for `duration` seconds, or { kind: "none" } to switch a tag's filter off. With no
+   screenFx of its own an item takes its TAG's (ITEM_TAG_SCREEN_FX), which is how "all items tagged
+   Alcohol" blur, his Blu Vodka and 5LOKO included, and every Alcohol item made from here on.
+   It is one more entry on the timed buff list (kind "screen"), so a cutscene, a shop or the pause
+   menu holds it (holdBuffs) and it is pruned like any buff. Drawn as one overlay over the level
+   and under the HUD (.consumeFx), so the HP bar stays readable through it. */
+export const SCREEN_FX_SECS = 10;
+export const ITEM_TAG_SCREEN_FX = { alcohol: { kind: "blur", amount: 3, duration: SCREEN_FX_SECS } };
+export const normScreenFx = (f) => {
+  if (!f || typeof f !== "object") return null;
+  const duration = Number.isFinite(f.duration) ? Math.max(1, f.duration) : SCREEN_FX_SECS;
+  if (f.kind === "none") return { kind: "none" };
+  if (f.kind === "blur") return { kind: "blur", amount: Number.isFinite(f.amount) ? Math.max(0.5, Math.min(12, f.amount)) : 3, duration };
+  if (f.kind === "tint") return { kind: "tint", color: typeof f.color === "string" && f.color ? f.color : "#ff8a1e", amount: Number.isFinite(f.amount) ? Math.max(0.02, Math.min(0.8, f.amount)) : 0.2, duration };
+  return null;
+};
+// The filter this item puts on the screen, or null. Its own first; else the first of its tags
+// that has one (the rank label is a tag too, but none of those has a filter).
+export const itemScreenFx = (item) => {
+  const own = normScreenFx(item && item.screenFx);
+  if (own) return own.kind === "none" ? null : own;
+  for (const t of itemTagList(item || {})) { const f = ITEM_TAG_SCREEN_FX[String(t || "").trim().toLowerCase()]; if (f) return normScreenFx(f); }
+  return null;
+};
+export const SCREEN_FX_FADE_IN_MS = 400, SCREEN_FX_FADE_OUT_MS = 2500;
+// What the overlay draws at nowMs: the strongest blur still running and every tint, each eased in
+// over SCREEN_FX_FADE_IN_MS and out over its last SCREEN_FX_FADE_OUT_MS so it never snaps off.
+// Null when nothing is running (the overlay is not drawn at all then). Pure.
+export const activeScreenFx = (buffs, nowMs) => {
+  let blur = 0; const tints = [];
+  for (const b of (buffs || [])) {
+    if (!b || b.kind !== "screen" || !(b.until > nowMs)) continue;
+    const left = b.until - nowMs, total = Math.max(1, b.total || SCREEN_FX_SECS * 1000), gone = total - left;
+    const k = Math.max(0, Math.min(1, gone / SCREEN_FX_FADE_IN_MS, left / SCREEN_FX_FADE_OUT_MS));
+    if (b.fx === "blur") blur = Math.max(blur, (b.amount || 0) * k);
+    else if (b.fx === "tint") tints.push({ color: b.color, alpha: (b.amount || 0) * k });
+  }
+  return blur > 0.05 || tints.some((t) => t.alpha > 0.005) ? { blur, tints } : null;
+};
+export const screenFxBuff = (fx, nowMs) => {
+  const f = normScreenFx(fx); if (!f || f.kind === "none") return null;
+  const total = f.duration * 1000;
+  return f.kind === "blur" ? { kind: "screen", fx: "blur", amount: f.amount, total, until: nowMs + total } : { kind: "screen", fx: "tint", color: f.color, amount: f.amount, total, until: nowMs + total };
 };
 // The item editor's Effect dropdown, in order: what each kind is called there and what it starts on
 // when picked (switching back to the kind already set keeps its numbers).
 export const ITEM_EFFECT_KINDS = [
   { kind: "heal", label: "❤️ Heal", fresh: () => ({ kind: "heal", amount: 5 }) },
+  { kind: "hurt", label: "💔 Lose HP", fresh: () => ({ kind: "hurt", amount: 10 }) },
   { kind: "stat", label: "📊 Boost a stat", fresh: () => ({ kind: "stat", stat: "speed", amount: 2, duration: 8 }) },
+  { kind: "damage", label: "💥 Damage", fresh: () => ({ kind: "damage", mult: 1.5, duration: 30 }) },
   { kind: "money", label: MONEY_CHAR + " Money", fresh: () => ({ kind: "money", amount: 10 }) },
   { kind: "range", label: "🎯 Range", fresh: () => ({ kind: "range", mult: 1.5, duration: 8 }) },
   { kind: "tagDamage", label: "🏹 Tag damage", fresh: () => ({ kind: "tagDamage", tag: "", mult: 1.5, duration: 8 }) },
@@ -4054,12 +4133,15 @@ export const activeRangeMult = (buffs, nowMs) => {
 export const withTimedTagBoosts = (effects, buffs, nowMs) => {
   let out = null;
   for (const b of (buffs || [])) {
-    if (!b || b.kind !== "tagDamage" || !(b.until > nowMs)) continue;
+    if (!b || (b.kind !== "tagDamage" && b.kind !== "damage") || !(b.until > nowMs)) continue;
     if (!out) out = [...(effects || [])];
-    out.push({ type: "tagBoost", tag: b.tag || "", mult: Math.max(1, b.mult || 1) });
+    // 💥 a timed Damage item is a tag boost that matches EVERY weapon and the fists (`any`).
+    out.push(b.kind === "damage" ? { type: "tagBoost", any: true, tag: "", mult: Math.max(1, b.mult || 1) } : { type: "tagBoost", tag: b.tag || "", mult: Math.max(1, b.mult || 1) });
   }
   return out || effects;
 };
+// The 💥 timed Damage share alone, for a hit no weapon's tags speak for (fists, a bite, a throw).
+export const timedDamageMult = (buffs, nowMs) => anyDamageMult(withTimedTagBoosts(null, buffs, nowMs));
 // Drop buffs whose timer has elapsed (called every frame so the list can't grow unbounded).
 export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.until > nowMs);
 // A PAUSED WORLD HOLDS YOUR BUFFS (2026-11-15). Blake, on the crawl between Trailer Park and
@@ -4963,12 +5045,19 @@ export const clashKnocks = (aX, bX, aFace, cellPx) => {
 // thing as the Strength bug (see playerRangedDamage) — Strength was an unremovable property of
 // the body that no amount of gear-swapping could explain. Do not "fix" this into melee-only;
 // a 1.5x hat making Army Bob's rifle hit harder is the feature working.
+// A tagBoost with `any` (only a running 💥 Damage item makes one, see withTimedTagBoosts) counts on
+// every weapon whatever its tags, untagged ones too; anyDamageMult is that share alone.
+export const anyDamageMult = (effects) => {
+  let mult = 1;
+  for (const e of (effects || [])) if (e && e.type === "tagBoost" && e.any) mult *= (e.mult ?? 1.5);
+  return mult;
+};
 export const tagDamageMultiplier = (effects, weaponCategories) => {
   const cats = normCats(weaponCategories);
-  if (!cats.length) return 1;
-  let mult = 1;
+  let mult = anyDamageMult(effects);
+  if (!cats.length) return mult;
   for (const e of (effects || [])) {
-    if (e.type !== "tagBoost") continue;
+    if (e.type !== "tagBoost" || e.any) continue;
     const tag = (e.tag || "").trim().toLowerCase();
     if (tag && cats.includes(tag)) mult *= (e.mult ?? 1.5);
   }
@@ -6282,8 +6371,9 @@ export const enemyAttackDamage = (ea, weapon, money = ea && ea.wallet) => {
     const base = (weapon.damage ?? 5) * tagDamageMultiplier(ea && ea.effects, itemTagList(weapon)) * moneyMult;
     return isRanged(weapon.wtype) ? playerRangedDamage(base) : playerMeleeDamage(base, str);
   }
-  if (isCreatureUnit(ea)) return Math.max(1, Math.round(creatureMeleeDamage(str) * moneyMult));          // jaws/claws: Strength IS the damage
-  return playerMeleeDamage(UNARMED_DAMAGE * moneyMult, str);                    // a PERSON's fists — still yours
+  const anyMult = anyDamageMult(ea && ea.effects); // 💥 a running Damage item reaches the fists and the bite too
+  if (isCreatureUnit(ea)) return Math.max(1, Math.round(creatureMeleeDamage(str) * moneyMult * anyMult));          // jaws/claws: Strength IS the damage
+  return playerMeleeDamage(UNARMED_DAMAGE * moneyMult * anyMult, str);                    // a PERSON's fists — still yours
 };
 // WHAT A CREATURE HITS FOR: twice its Strength, and nothing else feeds in.
 // A drawn creature — anything built in the Enemy creator, so every animal — cannot hold a weapon,
@@ -6815,7 +6905,7 @@ export const lookAbilityNames = (look) => {
 export const pickupChangeRows = (item, ctx) => {
   if (!item) return [];
   const { held = null, before = null, after = null, off = null } = ctx || {};
-  if (item.type === "item") return [{ kind: "text", text: itemEffectSummary(item.effect) }];
+  if (item.type === "item") return [{ kind: "text", text: itemSummary(item) }];
   const rows = [];
   if (item.type === "weapon") {
     const liveKeys = weaponLiveAbilityKeys;
@@ -7012,7 +7102,7 @@ export const normalizeAssetJson = (raw) => {
     }
     if (Object.keys(out).length) a.variants = out; else delete a.variants;
   }
-  if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
+  if (type === "item") { a.effect = normItemEffect(a.effect); if (Array.isArray(a.moreEffects)) a.moreEffects = a.moreEffects.map(normItemEffect); else delete a.moreEffects; if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
   if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0; // hand-written JSON rarely carries a price; 0 = free, never undefined
   if ((type === "prop" || type === "vehicle") && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
   if (type === "vehicle") { if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; vehicleHalveHpOnce(a); if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; if (!Number.isFinite(a.speed)) a.speed = 1; if (a.size === undefined) a.size = 16; }
@@ -16649,15 +16739,45 @@ export default function AssetStudio({ game = false } = {}) {
   // `quiet` skips the toast and RETURNS what happened as one short line instead ("+5 HP") — the
   // pedestal/drop take puts that line under the pickup banner, which replaced the toast there. The
   // shop still flashes: its panel is open over the level, so a banner would land behind it.
+  // SEVERAL EFFECTS (itemEffectsOf: the steroid's +Str and -Int, wine's damage and HP) are applied
+  // in order and said in ONE line joined by " · " — one toast, for the reason above. Then the
+  // item's 🌀 screen filter, if it has one, joins the timed list.
   const consumeItemNow = (item, suffix, quiet) => {
-    const eff = normItemEffect(item.effect);
+    const effs = itemEffectsOf(item);
+    if (effs.length === 1) { const one = consumeEffectNow(item, effs[0], suffix, quiet); addScreenFxFor(item); return one; }
+    const lines = effs.map((eff) => consumeEffectNow(item, eff, "", true));
+    addScreenFxFor(item);
+    const line = lines.join(" · ");
+    if (!quiet) flash("🧪 " + item.name + " · " + line + (suffix || ""));
+    return line;
+  };
+  const addScreenFxFor = (item) => {
+    const nowMs = playNowMs(), b = screenFxBuff(itemScreenFx(item), nowMs);
+    if (!b) return;
+    // A second drink restarts the filter rather than stacking two of the same: one blur, one tint each colour.
+    itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs).filter((x) => !(x.kind === "screen" && x.fx === b.fx && (b.fx === "blur" || x.color === b.color)));
+    itemBuffs.current.push(b);
+  };
+  const consumeEffectNow = (item, eff, suffix, quiet) => {
     const tail = suffix || "";
     let line;
     if (eff.kind === "heal") {
       const mx = maxPlayerHP(livePlayerAsset()), was = playerHP.current;
-      playerHP.current = applyHeal(playerHP.current, mx, eff.amount);
+      playerHP.current = applyHeal(playerHP.current, mx, eff.full ? mx : eff.amount);
       line = "+" + (playerHP.current - was) + " HP";
       if (!quiet) flash("🧪 " + item.name + " · " + line + " (" + playerHP.current + "/" + mx + ")" + tail);
+    } else if (eff.kind === "hurt") {
+      const mx = maxPlayerHP(livePlayerAsset()), was = playerHP.current;
+      playerHP.current = applyHurt(playerHP.current, eff.amount);
+      line = "-" + (was - playerHP.current) + " HP";
+      if (!quiet) flash("💔 " + item.name + " · " + line + " (" + playerHP.current + "/" + mx + ")" + tail);
+    } else if (eff.kind === "damage") {
+      // The 💥 Damage boost: the timed list again; withTimedTagBoosts hands it on as an `any` tagBoost.
+      const nowMs = playNowMs();
+      itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
+      itemBuffs.current.push({ kind: "damage", mult: eff.mult, until: nowMs + eff.duration * 1000 });
+      line = itemEffectSummary(eff);
+      if (!quiet) flash("💥 " + item.name + " · " + line + tail);
     } else if (eff.kind === "money") {
       setWallet(wallet.current + eff.amount);
       line = MONEY_CHAR + " +" + eff.amount;
@@ -16690,7 +16810,7 @@ export default function AssetStudio({ game = false } = {}) {
       const nowMs = playNowMs();
       itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
       itemBuffs.current.push({ stat: eff.stat, amount: eff.amount, until: nowMs + eff.duration * 1000 });
-      line = "+" + eff.amount + " " + (ITEM_STAT_LABEL[eff.stat] || eff.stat) + " for " + eff.duration + "s";
+      line = itemEffectSummary(eff); // signed: the steroid's "-1 Int for 120s"
       if (!quiet) flash("🧪 " + item.name + " · " + line + tail);
     }
     return line;
@@ -18248,7 +18368,7 @@ export default function AssetStudio({ game = false } = {}) {
           x: p.x + pw / 2, y: p.y + ph * 0.4, vx: boomT ? boomT.vx : vx, vy: boomT ? boomT.vy : vy, rot: 0,
           spin: (p.face || 1) * 8, asset: carriedThrow, pieces: fly.pieces.length ? fly.pieces : null,
           cwPx: fly.canvasWPx, chPx: fly.canvasHPx, wPx: fly.wPx, hPx: fly.hPx,
-          dmgMult: moneyPowerMultiplier(playerAsset?.effects, wallet.current),
+          dmgMult: moneyPowerMultiplier(playerAsset?.effects, wallet.current) * timedDamageMult(itemBuffs.current, playNowMs()), // 💥 a running Damage drink rides the throw too
           ...(boomT ? { boomerang: true, owner: "player", out: true, sp: BOOMERANG_THROW_SPEED_CELLS * CW, aim0: boomT.aim0, spinDir: p.face || 1, rangePx: rangeBlocks * CW, traveled: 0 } : {}),
         });
         sndMoment(carriedThrow, "throw", null, p.x + pw / 2, p.y + ph * 0.4); // 🔊 the throwable's Throw
@@ -20932,8 +21052,8 @@ export default function AssetStudio({ game = false } = {}) {
                     const base = (!unarmedSwing && playtestWeapon)
                       ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)) * moneyMult, strength)
                       : isCreatureUnit(basePlayerAsset)
-                      ? Math.max(1, Math.round(creatureMeleeDamage(strength) * moneyMult))
-                      : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon) * moneyMult, strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
+                      ? Math.max(1, Math.round(creatureMeleeDamage(strength) * moneyMult * timedDamageMult(itemBuffs.current, nowT)))
+                      : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon) * moneyMult * timedDamageMult(itemBuffs.current, nowT), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder; 💥 a drink, harder again
                     const isCrit = Math.random() < critChance(intelligence);
                     // ...through the unit's own armour, the way their swing at you goes through yours.
                     const dmg = coldResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor)), !unarmedSwing ? playtestWeapon : null, ea.effects);
@@ -24479,7 +24599,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0;
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
     if (a.type === "vehicle") { if (a.size === undefined) a.size = 16; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; for (const st of VEHICLE_STATES) if (!Array.isArray(a.angles[st])) a.angles[st] = []; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; vehicleHalveHpOnce(a); if (!Number.isFinite(a.defense)) a.defense = VEHICLE_DEFAULT_DEFENSE; }
-    if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
+    if (a.type === "item") { a.effect = normItemEffect(a.effect); if (Array.isArray(a.moreEffects)) a.moreEffects = a.moreEffects.map(normItemEffect); else delete a.moreEffects; if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
     if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); if (a.flies === undefined) a.flies = false; for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; if (a.poison === undefined) a.poison = false; if (a.poisonDps === undefined) a.poisonDps = POISON_DAMAGE_DPS; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
     if (HAS_FIT_VARIANTS(a) && !a.variants) {
@@ -31376,6 +31496,19 @@ export default function AssetStudio({ game = false } = {}) {
                 })()}
                 </div>
               </div>
+              {/* 🌀 AN ITEM'S SCREEN FILTER (activeScreenFx): a drink's blur, the Joint's orange, the
+                  steroid's red. A sibling of .lgrid like the banner, so it covers the VIEW and sits
+                  under the HUD (z 4 < 6): the world swims, the HP bar does not. Tints are flat colour
+                  layers; the blur is a backdrop-filter, and only drawn while one is running. */}
+              {play && (() => {
+                const fx = activeScreenFx(itemBuffs.current, playNowMs());
+                if (!fx) return null;
+                return (
+                  <div className="consumeFx" style={fx.blur > 0.05 ? { backdropFilter: "blur(" + fx.blur.toFixed(2) + "px)", WebkitBackdropFilter: "blur(" + fx.blur.toFixed(2) + "px)" } : undefined}>
+                    {fx.tints.map((t, i) => <div key={i} style={{ position: "absolute", inset: 0, background: t.color, opacity: t.alpha }} />)}
+                  </div>
+                );
+              })()}
               {/* 🎁 THE PICKUP BANNER (see showPickup). A sibling of .lgrid, NOT inside it: .lgrid is
                   translated by the camera, and the banner belongs to the VIEW — top-centre of what
                   you can see, wherever in the level you happen to be. .lscroll.playing is its
@@ -31767,7 +31900,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const box = 44;
                   let plane = null;
                   if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) }; }
-                  const what = it.type === "item" ? itemEffectSummary(it.effect)
+                  const what = it.type === "item" ? itemSummary(it)
                     : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×" + throwPickupCount(it) : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
                     : ((SLOTS[it.slot] && SLOTS[it.slot].label) || "Worn") + (it.defense ? " · Defense " + it.defense : "");
                   // Only a price you PAY can be out of reach; one that pays you back never is.
@@ -32588,55 +32721,106 @@ export default function AssetStudio({ game = false } = {}) {
             </div>
           )}
           {asset.type === "item" && !effEdit && (() => {
-            const eff = normItemEffect(asset.effect);
-            const setEff = (patch) => setAsset((a) => ({ ...a, effect: normItemEffect({ ...normItemEffect(a.effect), ...patch }) }));
+            // ONE SET OF CONTROLS PER EFFECT. The first is `effect`; ➕ adds to `moreEffects`
+            // (itemEffectsOf), each with the same dropdown and fields and a ✕ to drop it.
+            const setAt = (i, fn) => setAsset((a) => {
+              if (i === 0) return { ...a, effect: normItemEffect(fn(normItemEffect(a.effect))) };
+              const more = (Array.isArray(a.moreEffects) ? a.moreEffects : []).map(normItemEffect);
+              more[i - 1] = normItemEffect(fn(more[i - 1]));
+              return { ...a, moreEffects: more };
+            });
+            const removeAt = (i) => setAsset((a) => { const more = (Array.isArray(a.moreEffects) ? a.moreEffects : []).filter((_, j) => j !== i - 1); const next = { ...a, moreEffects: more }; if (!more.length) delete next.moreEffects; return next; });
+            const addEffect = () => setAsset((a) => ({ ...a, moreEffects: [...(Array.isArray(a.moreEffects) ? a.moreEffects : []), normItemEffect(ITEM_EFFECT_KINDS.find((x) => x.kind === "stat").fresh())] }));
+            const fields = (eff, i) => {
+              const setEff = (patch) => setAt(i, (cur) => ({ ...cur, ...patch }));
+              return (
+                <div key={i} className={i ? "itemEffMore" : undefined}>
+                  {/* A DROPDOWN (Blake, 2026-10-21: "you should make it a drop down"). It was a row of
+                      buttons in a card of fixed width, and the sixth, 🍄 One up, sat past the card's
+                      right edge where the row's overflow:hidden cut it off — "Tag damage" was already
+                      half gone. A list has room for every kind there will ever be. */}
+                  <label className="slider">Effect
+                    <select value={eff.kind} onChange={(e) => { const k = e.target.value; setAt(i, (cur) => cur.kind === k ? cur : ITEM_EFFECT_KINDS.find((x) => x.kind === k).fresh()); }} style={{ marginLeft: 6 }}>
+                      {ITEM_EFFECT_KINDS.map((x) => <option key={x.kind} value={x.kind}>{x.label}</option>)}
+                    </select>
+                    {i > 0 && <button className="ltbtn itemEffX" title="Remove" onClick={() => removeAt(i)}>✕</button>}
+                  </label>
+                  {eff.kind === "heal" ? (
+                    <>
+                      <label className="slider">❤️ Full<input type="checkbox" checked={!!eff.full} onChange={(e) => setAt(i, (cur) => { const n = { ...cur }; if (e.target.checked) n.full = true; else delete n.full; return n; })} style={{ marginLeft: 6 }} /></label>
+                      {!eff.full && <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>}
+                    </>
+                  ) : eff.kind === "hurt" ? (
+                    <label className="slider">💔 HP lost<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, Math.round(+e.target.value || 1)) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
+                  ) : eff.kind === "oneUp" ? (
+                    <label className="slider">🍄 Lives<input type="number" min="1" max="9" value={eff.lives} onChange={(e) => setEff({ lives: Math.max(1, Math.min(9, Math.round(+e.target.value || 1))) })} style={{ width: 60 }} /></label>
+                  ) : eff.kind === "money" ? (
+                    <>
+                      <label className="slider">{MONEY_CHAR} Worth<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 70 }} /></label>
+                    </>
+                  ) : eff.kind === "range" ? (
+                    <>
+                      {/* The 🎯 Long Shot clothing ability's own scale (×1 to ×4 in quarters), so a
+                          potion and a pair of goggles that both say ×1.5 mean the same shot. */}
+                      <label className="slider">🎯 Range ×<input type="range" min="1.25" max="4" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
+                      <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                    </>
+                  ) : eff.kind === "damage" ? (
+                    <>
+                      {/* 💥 Tag damage's own ×1 to ×5 scale, with no tag: every weapon and the fists. */}
+                      <label className="slider">💥 Damage<input type="range" min="1.25" max="5" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
+                      <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                    </>
+                  ) : eff.kind === "tagDamage" ? (
+                    <>
+                      {/* The 🏹 Tag Damage clothing card's own controls: the same "Tag to boost" box
+                          (matched against a weapon's three tags, any case) and the same ×1 to ×5 scale,
+                          so a potion and a hat that both say "Gun ×1.5" are the same hit. */}
+                      <label className="slider">Tag to boost<input type="text" value={eff.tag} placeholder="e.g. Gun" onChange={(e) => setEff({ tag: e.target.value })} style={{ marginLeft: 6, width: 110 }} /></label>
+                      <label className="slider">🏹 Damage<input type="range" min="1.25" max="5" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
+                      <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                    </>
+                  ) : (
+                    <>
+                      <label className="slider">📊 Stat
+                        <select value={eff.stat} onChange={(e) => setEff({ stat: e.target.value })} style={{ marginLeft: 6 }}>
+                          {ITEM_STAT_KEYS.map((s) => <option key={s} value={s}>{ITEM_STAT_LABEL[s]}</option>)}
+                        </select>
+                      </label>
+                      {/* -10 to +10, never 0 (a boost of nothing): the spinner steps over it. */}
+                      <label className="slider">➕ Amount<input type="number" min="-10" max="10" value={eff.amount} onChange={(e) => { const v = Math.round(+e.target.value); if (!Number.isFinite(v) || e.target.value === "") return; setEff({ amount: Math.max(-10, Math.min(10, v === 0 ? (eff.amount > 0 ? -1 : 1) : v)) }); }} style={{ width: 60 }} /></label>
+                      <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                    </>
+                  )}
+                </div>
+              );
+            };
+            // 🌀 The screen filter (itemScreenFx). "Auto" is no screenFx of its own: the tag's
+            // (Alcohol blurs), shown in brackets so you can see what Auto will do on this item.
+            const own = normScreenFx(asset.screenFx), auto = !own ? itemScreenFx(asset) : null;
+            const setFx = (fx) => setAsset((a) => { const n = { ...a }; if (fx) n.screenFx = normScreenFx(fx); else delete n.screenFx; return n; });
+            const fxName = { blur: "🌀 Blur", tint: "🎨 Tint" };
             return (
               <div className="card">
                 <div className="ct">🧪 Item effect</div>
-                {/* A DROPDOWN (Blake, 2026-10-21: "you should make it a drop down"). It was a row of
-                    buttons in a card of fixed width, and the sixth, 🍄 One up, sat past the card's
-                    right edge where the row's overflow:hidden cut it off — "Tag damage" was already
-                    half gone. A list has room for every kind there will ever be. */}
-                <label className="slider">Effect
-                  <select value={eff.kind} onChange={(e) => { const k = e.target.value; setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === k ? cur : normItemEffect(ITEM_EFFECT_KINDS.find((x) => x.kind === k).fresh()) }; }); }} style={{ marginLeft: 6 }}>
-                    {ITEM_EFFECT_KINDS.map((x) => <option key={x.kind} value={x.kind}>{x.label}</option>)}
+                {itemEffectsOf(asset).map((eff, i) => fields(eff, i))}
+                <button className="ltbtn itemEffAdd" onClick={addEffect}>➕ Effect</button>
+                <label className="slider">🌀 Screen
+                  <select value={own ? own.kind : "auto"} onChange={(e) => { const k = e.target.value; setFx(k === "auto" ? null : k === "none" ? { kind: "none" } : k === "blur" ? { kind: "blur", amount: 3, duration: SCREEN_FX_SECS } : { kind: "tint", color: "#ff8a1e", amount: 0.2, duration: SCREEN_FX_SECS }); }} style={{ marginLeft: 6 }}>
+                    <option value="auto">Auto{auto ? " (" + fxName[auto.kind] + ")" : ""}</option>
+                    <option value="none">None</option>
+                    <option value="blur">{fxName.blur}</option>
+                    <option value="tint">{fxName.tint}</option>
                   </select>
                 </label>
-                {eff.kind === "heal" ? (
-                  <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
-                ) : eff.kind === "oneUp" ? (
-                  <label className="slider">🍄 Lives<input type="number" min="1" max="9" value={eff.lives} onChange={(e) => setEff({ lives: Math.max(1, Math.min(9, Math.round(+e.target.value || 1))) })} style={{ width: 60 }} /></label>
-                ) : eff.kind === "money" ? (
+                {own && own.kind === "blur" && <label className="slider">🌀 Blur<input type="range" min="0.5" max="8" step="0.5" value={own.amount} onChange={(e) => setFx({ ...own, amount: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>{own.amount}px</span></label>}
+                {own && own.kind === "tint" && (
                   <>
-                    <label className="slider">{MONEY_CHAR} Worth<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 70 }} /></label>
-                  </>
-                ) : eff.kind === "range" ? (
-                  <>
-                    {/* The 🎯 Long Shot clothing ability's own scale (×1 to ×4 in quarters), so a
-                        potion and a pair of goggles that both say ×1.5 mean the same shot. */}
-                    <label className="slider">🎯 Range ×<input type="range" min="1.25" max="4" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
-                    <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
-                  </>
-                ) : eff.kind === "tagDamage" ? (
-                  <>
-                    {/* The 🏹 Tag Damage clothing card's own controls: the same "Tag to boost" box
-                        (matched against a weapon's three tags, any case) and the same ×1 to ×5 scale,
-                        so a potion and a hat that both say "Gun ×1.5" are the same hit. */}
-                    <label className="slider">Tag to boost<input type="text" value={eff.tag} placeholder="e.g. Gun" onChange={(e) => setEff({ tag: e.target.value })} style={{ marginLeft: 6, width: 110 }} /></label>
-                    <label className="slider">🏹 Damage<input type="range" min="1.25" max="5" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
-                    <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
-                  </>
-                ) : (
-                  <>
-                    <label className="slider">📊 Stat
-                      <select value={eff.stat} onChange={(e) => setEff({ stat: e.target.value })} style={{ marginLeft: 6 }}>
-                        {ITEM_STAT_KEYS.map((s) => <option key={s} value={s}>{ITEM_STAT_LABEL[s]}</option>)}
-                      </select>
-                    </label>
-                    <label className="slider">➕ Amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /></label>
-                    <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                    <label className="slider">🎨 Colour<input type="color" value={own.color} onChange={(e) => setFx({ ...own, color: e.target.value })} style={{ marginLeft: 6 }} /></label>
+                    <label className="slider">🎨 Strength<input type="range" min="0.02" max="0.6" step="0.02" value={own.amount} onChange={(e) => setFx({ ...own, amount: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round(own.amount * 100)}%</span></label>
                   </>
                 )}
+                {own && own.kind !== "none" && <label className="slider">⏱ Duration<input type="number" min="1" value={own.duration} onChange={(e) => setFx({ ...own, duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>}
               </div>
             );
           })()}
@@ -34006,6 +34190,10 @@ html,body{margin:0;padding:0;background:#0f1117}
 .animSide{display:flex;flex-direction:column;gap:12px;width:330px;flex:none}
 .animStageWrap{position:relative;overflow:hidden;border:2px solid #2c3245;border-radius:6px;background-color:#1a1f2c;background-image:linear-gradient(to right,rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.05) 1px,transparent 1px);box-shadow:inset 0 -3px 0 #6b4423;touch-action:none;user-select:none}
 .animFade{position:absolute;inset:0;background:#000;pointer-events:none;z-index:50}
+.consumeFx{position:absolute;inset:0;pointer-events:none;z-index:4}
+.itemEffMore{border-top:1px dashed #3a4256;margin-top:6px;padding-top:6px}
+.itemEffX{margin-left:6px;padding:0 6px;line-height:18px}
+.itemEffAdd{margin:6px 0 4px}
 .animScreen{position:absolute;inset:0;background:#000;pointer-events:none;z-index:49;overflow:hidden}
 .animScreen .animStage{overflow:hidden}
 .animSkip{position:absolute;z-index:6;display:flex;align-items:center;gap:8px;white-space:nowrap;color:#fff;opacity:.8;font-family:${SYMBOL_FONT_FAMILY},'Shrikhand','Arial Black',Impact,sans-serif;font-size:19px;letter-spacing:.02em;text-shadow:0 2px 6px rgba(0,0,0,.9)}

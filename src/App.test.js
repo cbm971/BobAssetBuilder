@@ -15655,7 +15655,7 @@ describe("🍄 One up (item effect, 2026-10-21)", () => {
     expect(inferAssetType({ effect: { kind: "oneUp", lives: 1 } })).toBe("item");
   });
   test("the item editor's Effect dropdown lists every kind, One up included, each starting valid", () => {
-    expect(ITEM_EFFECT_KINDS.map((x) => x.kind)).toEqual(["heal", "stat", "money", "range", "tagDamage", "oneUp"]);
+    expect(ITEM_EFFECT_KINDS.map((x) => x.kind)).toEqual(["heal", "hurt", "stat", "damage", "money", "range", "tagDamage", "oneUp"]);
     for (const x of ITEM_EFFECT_KINDS) expect(normItemEffect(x.fresh()).kind).toBe(x.kind);
   });
 });
@@ -17201,5 +17201,80 @@ describe("🐞 Lucky and 🪞 Reflect turn a real shot", () => {
     // Nobody to aim at (the shooter is dead): straight back the way it came.
     const back = reflectShot({ x: 300, y: 300, vx: 6, vy: 8 }, null, null, { foe: true });
     expect([back.vx, back.vy]).toEqual([-6, -8]);
+  });
+});
+
+// 🍔💉🥃 Consumables of 2026-11-21: several effects per item, 💥 Damage, 💔 Lose HP, full heal,
+// negative stat boosts, and the 🌀 screen filter (Alcohol blurs by tag).
+import { itemEffectsOf, itemSummary, applyHurt, normScreenFx, itemScreenFx, activeScreenFx, screenFxBuff, SCREEN_FX_SECS, anyDamageMult, timedDamageMult, tagDamageMultiplier as tdm2, withTimedTagBoosts as wttb2, normItemEffect as nie2, itemEffectSummary as ies2, activeBuffSum as abs2, holdBuffs as hb2 } from "./App";
+describe("consumables with several effects and a screen filter", () => {
+  test("new effect kinds normalise and read back", () => {
+    expect(nie2({ kind: "damage", mult: 1.5, duration: 60 })).toEqual({ kind: "damage", mult: 1.5, duration: 60 });
+    expect(nie2({ kind: "damage", mult: 0.5 }).mult).toBe(1);
+    expect(nie2({ kind: "hurt", amount: 10 })).toEqual({ kind: "hurt", amount: 10 });
+    expect(nie2({ kind: "hurt", amount: -4 }).amount).toBe(1);
+    expect(nie2({ kind: "heal", amount: 100, full: true })).toEqual({ kind: "heal", amount: 100, full: true });
+    expect(nie2({ kind: "heal", amount: 7 })).toEqual({ kind: "heal", amount: 7 }); // no `full` key on an ordinary heal
+    expect(ies2({ kind: "stat", stat: "intelligence", amount: -1, duration: 240 })).toBe("-1 Int for 240s");
+    expect(ies2({ kind: "stat", stat: "speed", amount: 2, duration: 8 })).toBe("+2 Speed for 8s");
+    expect(ies2({ kind: "heal", full: true, amount: 5 })).toBe("Full HP");
+    expect(ies2({ kind: "hurt", amount: 10 })).toBe("-10 HP");
+    expect(ies2({ kind: "damage", mult: 1.25, duration: 60 })).toBe("Damage ×1.25 for 60s");
+  });
+  test("an item's effects are `effect` then `moreEffects`, said in one line", () => {
+    const steroid = { type: "item", effect: { kind: "stat", stat: "strength", amount: 4, duration: 240 }, moreEffects: [{ kind: "stat", stat: "intelligence", amount: -1, duration: 240 }] };
+    expect(itemEffectsOf(steroid).map((e) => e.stat)).toEqual(["strength", "intelligence"]);
+    expect(itemSummary(steroid)).toBe("+4 Str for 240s · -1 Int for 240s");
+    expect(itemEffectsOf({ type: "item", effect: { kind: "heal", amount: 5 } })).toHaveLength(1); // old items unchanged
+    expect(itemEffectsOf({ type: "item" })).toEqual([{ kind: "heal", amount: 5 }]);
+  });
+  test("a negative stat boost lowers the stat while it runs", () => {
+    const buffs = [{ stat: "strength", amount: 4, until: 1000 }, { stat: "intelligence", amount: -1, until: 1000 }];
+    expect(abs2(buffs, 500)).toEqual({ strength: 4, intelligence: -1 });
+    expect(abs2(buffs, 1500)).toEqual({});
+  });
+  test("lose HP never kills", () => {
+    expect(applyHurt(50, 10)).toBe(40);
+    expect(applyHurt(5, 10)).toBe(1);
+    expect(applyHurt(1, 10)).toBe(1);
+    expect(applyHurt(0, 10)).toBe(0);
+  });
+  test("💥 Damage multiplies every weapon, untagged ones and fists too, and only while it runs", () => {
+    const buffs = [{ kind: "damage", mult: 1.5, until: 1000 }];
+    const fx = wttb2([], buffs, 500);
+    expect(tdm2(fx, ["Gun"])).toBeCloseTo(1.5);
+    expect(tdm2(fx, [])).toBeCloseTo(1.5);
+    expect(anyDamageMult(fx)).toBeCloseTo(1.5);
+    expect(timedDamageMult(buffs, 500)).toBeCloseTo(1.5);
+    expect(timedDamageMult(buffs, 1500)).toBe(1);
+    // ...and stacks with a tag potion on a matching weapon, not on another.
+    const both = wttb2([], [...buffs, { kind: "tagDamage", tag: "Gun", mult: 2, until: 1000 }], 500);
+    expect(tdm2(both, ["Gun"])).toBeCloseTo(3);
+    expect(tdm2(both, ["Meelee"])).toBeCloseTo(1.5);
+    expect(tdm2([{ type: "tagBoost", tag: "", mult: 2 }], ["Gun"])).toBe(1); // a blank worn tag still boosts nothing
+  });
+  test("🌀 screen filter: own first, else the Alcohol tag's blur, 'none' switches it off", () => {
+    const vodka = { type: "item", categories: ["T1", "Alcohol", "Drink"], rank: "common" };
+    expect(itemScreenFx(vodka)).toEqual({ kind: "blur", amount: 3, duration: SCREEN_FX_SECS });
+    expect(itemScreenFx({ ...vodka, categories: ["T1", "alcohol ", ""] }).kind).toBe("blur"); // any case, trimmed
+    expect(itemScreenFx({ ...vodka, screenFx: { kind: "none" } })).toBeNull();
+    expect(itemScreenFx({ type: "item", categories: ["T1", "Drug", "Heal"], screenFx: { kind: "tint", color: "#ff8a1e", amount: 0.22, duration: 10 } })).toEqual({ kind: "tint", color: "#ff8a1e", amount: 0.22, duration: 10 });
+    expect(itemScreenFx({ type: "item", categories: ["T1", "Food", "Heal"] })).toBeNull();
+    expect(normScreenFx({ kind: "blur", amount: 99 }).amount).toBe(12);
+    expect(normScreenFx({ kind: "wobble" })).toBeNull();
+  });
+  test("🌀 the filter eases in, holds, eases out and is gone after its seconds; a pause holds it", () => {
+    const b = screenFxBuff({ kind: "tint", color: "#ff2020", amount: 0.08, duration: 10 }, 0);
+    expect(b).toMatchObject({ kind: "screen", fx: "tint", until: 10000, total: 10000 });
+    expect(activeScreenFx([b], 0)).toBeNull();                        // nothing yet on the very frame
+    expect(activeScreenFx([b], 5000).tints[0].alpha).toBeCloseTo(0.08); // full strength mid-way
+    expect(activeScreenFx([b], 9000).tints[0].alpha).toBeLessThan(0.08); // fading out
+    expect(activeScreenFx([b], 10001)).toBeNull();
+    const held = hb2([b], 3000)[0];
+    expect(activeScreenFx([held], 10500).tints[0].alpha).toBeCloseTo(0.08); // past its own 10 s: a cutscene's 3 s given back
+    const blur = screenFxBuff({ kind: "blur", amount: 3 }, 0);
+    expect(activeScreenFx([blur], 5000).blur).toBeCloseTo(3);
+    expect(abs2([b, blur], 5000)).toEqual({}); // never a stat
+    expect(screenFxBuff({ kind: "none" }, 0)).toBeNull();
   });
 });
