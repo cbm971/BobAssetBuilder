@@ -1,5 +1,5 @@
 {
- "set": "a7f85492bf1c3559",
+ "set": "094670d8ac5f8067",
  "part": 4,
  "levels": [
   {
@@ -117441,6 +117441,126 @@
     "23,109": {
      "c": "#5a3a22",
      "tex": "4cugsd5"
+    },
+    "33,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "22,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "21,31": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "33,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "32,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "31,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "30,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "29,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "28,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "27,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "26,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "25,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "24,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
+    },
+    "23,148": {
+     "c": "#2a2017",
+     "hideInPlay": true,
+     "carsOnly": true
     }
    },
    "bg": {
@@ -126667,7 +126787,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795292178941
+   "savedAt": 1795296634018,
+   "editedFrom": 1795296604853
   },
   {
    "id": "vshaq01",
