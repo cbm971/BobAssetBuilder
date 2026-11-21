@@ -1,5 +1,5 @@
 {
- "set": "f0f270f8965862ff",
+ "set": "e98fde38afbdcdbf",
  "part": 2,
  "assets": [
   {
@@ -129987,10 +129987,10 @@
     "Shirt",
     "Ninja"
    ],
-   "value": 12,
+   "value": 20,
    "rank": "legendary",
-   "savedAt": 1795256573306,
-   "editedFrom": 1795176586934
+   "savedAt": 1795256625051,
+   "editedFrom": 1795256573306
   },
   {
    "id": "ktswckc",
