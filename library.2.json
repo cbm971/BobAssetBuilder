@@ -1,5 +1,5 @@
 {
- "set": "582e1415ad391ed4",
+ "set": "f0f270f8965862ff",
  "part": 2,
  "assets": [
   {
@@ -129967,7 +129967,7 @@
    ],
    "statBoosts": {
     "hp": 0,
-    "speed": 0,
+    "speed": 2,
     "agility": 1,
     "intelligence": 0,
     "strength": 1
@@ -129977,7 +129977,7 @@
     {
      "id": "kgswg01",
      "type": "swingSpeed",
-     "mult": 1.5,
+     "mult": 1.3,
      "animByBody": {},
      "lastFit": "default"
     }
@@ -129988,8 +129988,9 @@
     "Ninja"
    ],
    "value": 12,
-   "rank": "rare",
-   "savedAt": 1795176586934
+   "rank": "legendary",
+   "savedAt": 1795256573306,
+   "editedFrom": 1795176586934
   },
   {
    "id": "ktswckc",
