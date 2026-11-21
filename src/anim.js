@@ -72,6 +72,11 @@
  *          show on the open beats). Blake (2026-11-07): the General's close-up should be "an actual
  *          character ... using Bobs body type", a playable look, with the mouth animated as before —
  *          not a one-off drawing with a neck.
+ *          fire = its gun is FIRING: the held weapon (weaponId) is drawn in its Fire drawing (his
+ *          rifles' muzzle flash) and its Fire sound plays once as it switches on (animShotsBetween).
+ *          Blake (2026-11-21) on the Jungle Ambush: the VC "fire or use their bayonet at the player
+ *          instead of just kind of running into them". A shot is a key with fire on, then one with it
+ *          off; a bayonet is a lunge, keyed with x / rot / arms like any other move.
  *
  * KEYS. A state is a few keys along its own timeline. Numbers ease from one key to the next; the
  * rest (flip, pose, play) switch AT the key. A key that leaves a layer out carries that layer's
@@ -91,7 +96,7 @@ export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "ar
 export const ANIM_LINEAR_FIELDS = ["rise"];
 // A text layer's look when it is made: the yellow of the crawl it was asked for.
 export const ANIM_TEXT_COLOR = "#ffe81f";
-export const ANIM_STEP_FIELDS = ["flip", "pose", "play", "hold", "talk"];
+export const ANIM_STEP_FIELDS = ["flip", "pose", "play", "hold", "talk", "fire"];
 // 👄 A TALKING MOUTH: open or shut at this moment of the clock (seconds). A fixed, uneven beat at
 // ANIM_TALK_FPS, so it reads as words rather than a metronome, and the same moment always looks
 // the same (a still frame in the editor, a screenshot, a replay).
@@ -130,7 +135,7 @@ export const animLayerDefaults = (anim, layer) => {
   if (layer && layer.kind === "cloth") return { x: w / 2 - 3, fx: w / 2 + 3, y: h - 1, cover: 2.8, lift: 0, show: 1 };
   if (layer && layer.kind === "rope") return { x: w / 2, y: 1, drop: Math.max(1, h - 3), swing: 0, hold: false, show: 1 };
   if (layer && layer.kind === "text") return { x: w / 2, y: h, rise: 0, show: 1 };
-  if (layer && layer.kind === "look") return { x: w / 2, y: h - ANIM_STAND_HIP_CELLS * (num(layer.size, ANIM_LOOK_SIZE) / 7), rot: 0, show: 1, flip: false, pose: "front", legs: 0, arms: 0, sit: 0, talk: false, sx: 1, sy: 1 };
+  if (layer && layer.kind === "look") return { x: w / 2, y: h - ANIM_STAND_HIP_CELLS * (num(layer.size, ANIM_LOOK_SIZE) / 7), rot: 0, show: 1, flip: false, pose: "front", legs: 0, arms: 0, sit: 0, talk: false, fire: false, sx: 1, sy: 1 };
   return { x: w / 2, y: h, rot: 0, show: 1, sx: 1, sy: 1, flip: false, play: true };
 };
 // A prop layer's CSS transform for its box `hPx` tall. The turn stays about the box's middle and
@@ -243,6 +248,23 @@ export const animLayerAt = (anim, state, layer, t) => {
       const k = ANIM_LINEAR_FIELDS.includes(f) ? clamp((t - keys[i].t) / span, 0, 1) : u;
       out[f] = num(a, 0) + (num(b, 0) - num(a, 0)) * k;
     } else out[f] = a;
+  }
+  return out;
+};
+// 🔥 WHO PULLED THE TRIGGER between two moments of a play-through (a, b = { si, t }; a = null at the
+// very start): the character layers holding a weapon whose `fire` is on at b and was off at a. The
+// stage draws a firing character's gun in its Fire drawing; this is what plays that gun's Fire sound,
+// once per shot, in play and in the editor's ▶. It compares two frames, so a shot keyed on for less
+// than a frame (~0.017 s) can fall between them unheard: key a shot on for 0.05 s or more.
+export const animShotsBetween = (anim, a, b) => {
+  const states = (anim && anim.states) || [];
+  if (!b || !states[b.si]) return [];
+  const out = [];
+  for (const l of (anim && anim.layers) || []) {
+    if (l.kind !== "look" || !l.weaponId) continue;
+    const now = !!animLayerAt(anim, states[b.si], l, b.t).fire;
+    const was = !!a && !!states[a.si] && !!animLayerAt(anim, states[a.si], l, a.t).fire;
+    if (now && !was) out.push(l.id);
   }
   return out;
 };

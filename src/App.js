@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animCanSkip, ANIM_SKIP_LEAVE_MS, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animShotsBetween, animMirrorValues, animPropTransform, animStateDur, animStep, animCanSkip, ANIM_SKIP_LEAVE_MS, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
@@ -17643,6 +17643,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (c.ended) return;
       const nx = animStep(c.anim, c, dtMul / 60, pressed);
       if (nx.si !== c.si) animStateSound(c.anim, nx.si);
+      animShotSounds(c.anim, c, nx);
       c.si = nx.si; c.t = nx.t; c.el = nx.el; c.age = (c.age || 0) + dtMul / 60;
       animInst.current[c.ik] = { si: c.si, t: c.t, done: !!nx.done };
       // 🎬 A FLOOR END scene (floorEndAnim) is over the whole screen, not on a stage in the level:
@@ -24860,7 +24861,10 @@ export default function AssetStudio({ game = false } = {}) {
   // level at the shoulder (armAimAbs), and lowering the arm points it down. Side and Crouch only:
   // no weapon is drawn facing the camera (weaponArtPose), and a Front character keeps empty hands
   // rather than holding a side-on gun across its chest.
-  const animLookHeld = (l, pose, art, posed) => {
+  // `firing` (the key's 🔥 fire, 2026-11-21): the weapon's FIRE drawing instead of its Rest one, which
+  // for his rifles is the same gun with the muzzle flash at the barrel (the flash is plain art; the
+  // 🔴 muzzle marker is left out either way). A fit with no Fire drawing keeps its Rest one.
+  const animLookHeld = (l, pose, art, posed, firing) => {
     const w = l && l.weaponId ? findA(l.weaponId) : null;
     if (!w || w.type !== "weapon" || isThrowable(w.wtype)) return null;
     if (pose !== "side" && pose !== "crouch") return null;
@@ -24870,7 +24874,8 @@ export default function AssetStudio({ game = false } = {}) {
     const armNow = posed.find((b) => b.id === arm0.id && !!b._m === !!arm0._m) || arm0;
     const fit = weaponFitFor(w, equippedBodyIdFor(findA(l.lookId)));
     const hand = handForGuideId(fit.guideId)[pose] || DEFAULT_HAND[pose];
-    const pieces = bake({ ...w, angles: fit.states.rest || blankAngles() }, pose).filter((p) => !p.isHitbox && !p.isMuzzle);
+    const drawn = (firing && fit.states.fire) || fit.states.rest;
+    const pieces = bake({ ...w, angles: drawn || blankAngles() }, pose).filter((p) => !p.isHitbox && !p.isMuzzle);
     return pieces.length ? attachWeaponBlocks(pieces, armNow, hand, arm0.rot || 0) : null;
   };
   // ONE STAGE: every layer of `anim` as it is at (si, t), in a box the stage's size. Used by the
@@ -24949,7 +24954,7 @@ export default function AssetStudio({ game = false } = {}) {
         if (!art || !art.length) { if (o.editor) kids.push(<div key={l.id} className={cls + " animNoActor"} style={{ left: v.x * cellPx - rw * 0.2, top: v.y * cellPx - rh * (188 / H), width: rw * 0.4, height: rh, transformOrigin: (rw * 0.2) + "px " + (rh * 188 / H) + "px", transform: ltf, opacity }} data-ly={ly} />); continue; }
         const hip = animActorHip(art);
         let posed = animActorBlocks(art, v);
-        const held = animLookHeld(l, pose, art, posed);
+        const held = animLookHeld(l, pose, art, posed, !!v.fire);
         if (held) posed = mergeWeaponBlocks(posed, held);
         const hx = (hip.x / W) * rw, hy = (hip.y / H) * rh;
         const lk = o.key + "l" + l.id + (open ? "o" : "s");
@@ -25051,6 +25056,14 @@ export default function AssetStudio({ game = false } = {}) {
     if (!st || !st.sound || !bobAudio.has(st.sound)) { bobAudio.talk(null); return; }
     bobAudio.talk(st.sound, st.wait ? 600 : animStateDur(st), st.soundVol);
   };
+  // 🔥 Each character that fired between two moments (animShotsBetween) is heard: its gun's own Fire
+  // sound, full volume (a cutscene is on screen by definition), the same voice a shot in play uses.
+  const animShotSounds = (anim, a, b) => {
+    for (const id of animShotsBetween(anim, a, b)) {
+      const l = anim.layers.find((x) => x.id === id), w = l ? findA(l.weaponId) : null;
+      if (w) bobAudio.moment({ asset: w, slot: "fire" });
+    }
+  };
   const animInstKey = (lv, mk) => (lv.runKey || lv.id || "") + "|" + mk;
   // Hand the player to a placed animation, at state `si`. Shared by "Level start" (the play effect)
   // and "Walk up + E" (the loop), so there is exactly one way into a cutscene.
@@ -25062,6 +25075,7 @@ export default function AssetStudio({ game = false } = {}) {
     cutRef.current = { ik, mk, m, anim, si, t: 0, el: 0, ended: false, entry: entry || null, age: 0 };
     setAnimPrompt(null);
     animStateSound(anim, si);
+    animShotSounds(anim, null, { si, t: 0 });
   };
   // 💾 Save the animation open in the editor. The asset path, narrowed: stamped (editedFrom), Save
   // As on a rename (resolveSaveTarget, his rule), the index row, the project file. Nothing wears an
@@ -25259,7 +25273,7 @@ export default function AssetStudio({ game = false } = {}) {
   // or a click on its prompt. The playhead lives in a ref (one frame's step reads the last one's)
   // and is copied into state to draw; the sound fires where the state changes, as in play.
   const animPrevRef = useRef(null);
-  const animPlayStart = (si) => { if (!animDoc) return; animPressE.current = false; animPrevRef.current = { si, t: 0, el: 0 }; setAnimPrev({ si, t: 0, el: 0 }); animStateSound(animDoc, si); };
+  const animPlayStart = (si) => { if (!animDoc) return; animPressE.current = false; animPrevRef.current = { si, t: 0, el: 0 }; setAnimPrev({ si, t: 0, el: 0 }); animStateSound(animDoc, si); animShotSounds(animDoc, null, { si, t: 0 }); };
   const animPlayStop = () => { animPrevRef.current = null; setAnimPrev(null); bobAudio.talk(null); };
   useEffect(() => {
     if (screen !== "anim" || !animPrev || !animDoc) return undefined;
@@ -25271,6 +25285,7 @@ export default function AssetStudio({ game = false } = {}) {
       const pressed = animPressE.current; animPressE.current = false;
       const nx = animStep(animDoc, pv, dt, pressed);
       if (nx.si !== pv.si) animStateSound(animDoc, nx.si);
+      if (!nx.done) animShotSounds(animDoc, pv, nx);
       if (nx.done) { animPrevRef.current = null; setAnimPrev(null); bobAudio.talk(null); setAnimSi(nx.si); setAnimT(nx.t); return; }
       animPrevRef.current = { si: nx.si, t: nx.t, el: nx.el }; setAnimPrev({ si: nx.si, t: nx.t, el: nx.el });
       raf = requestAnimationFrame(tick);
@@ -28604,6 +28619,8 @@ export default function AssetStudio({ game = false } = {}) {
                   {sel.kind === "look" && <>
                     {sliderRow("Zoom", Math.round((selV.sx ?? 1) * 100), 10, 300, 1, "%", (v) => setV({ sx: v / 100, sy: v / 100 }))}
                     <label className="chk"><input type="checkbox" checked={!!selV.talk} onChange={(e) => setV({ talk: e.target.checked })} /> 👄 Talking</label>
+                    {/* 🔥 Its gun firing at this key (animLookHeld's Fire drawing + its Fire sound). */}
+                    {sel.weaponId && <label className="chk"><input type="checkbox" checked={!!selV.fire} onChange={(e) => setV({ fire: e.target.checked })} /> 🔥 Firing</label>}
                   </>}
                 </> : (() => {
                   const pa = findA(sel.propId);

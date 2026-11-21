@@ -5913,6 +5913,18 @@ Blake: "the VK kind of just come out of the bushes and wave their arm at Bob, I 
 
 **Checked** in the dev server's 🎬 editor (same `animStageEl` as play): all four rifles drawn levelled at Bob at Ambush 0.7 s, angled down at him at Down 2.0 s, Bob front-facing through Look; the 🔫 select is visible under the look select at 1600 px.
 
+## Jungle Ambush take 3: they shoot and stab (2026-11-21)
+
+Blake: "work on the Vietnam E1 animation so the VT soldiers fire or use there bayonette at the player instead of just kind of running into them". In take 2 the four VC ran out leaning 10 degrees forward and ended with V3's rifle already overlapping Bob, so it read as a charge into him.
+
+**Code:** `fire` joins ANIM_STEP_FIELDS (look layers, default false). `animLookHeld` takes the key's fire and draws the weapon's Fire drawing (Type 53 / Mosin: the same gun plus gold and white flash tris at the barrel). `animShotsBetween(anim, a, b)` lists the look layers holding a weapon whose fire switched on between two moments; `animShotSounds` plays each one's Fire sound (`bobAudio.moment({ asset, slot: "fire" })`) in `beginCut`, `cutFrame` and the editor's ▶. Editor: "🔥 Firing" under 👄 Talking, shown only when the layer holds a weapon.
+
+**Record (`vcambs1`, built on the saves copy 1794533846192):** Ambush ends with them planted (V1 14.5, V2 19.6, V3 29.0, V4 33.5, rot 0). New **Fire** (0.62 s): V2 shot 0.12-0.2 with a 5 degree kick, Bob's arms to 165, V4 shot 0.3-0.38, V3 winds back to 29.8. New **Bayonet** (0.45 s, sound `6hh0w94`): V3 lunges to 28.1 in 0.08 s, Bob leans back to -18, V1 shot 0.2-0.28, V3 pulls back. Down starts where Bayonet ends and they step in. The first lunge (27.3) put the spike a cell out of his back; 28.1 ends it inside him. A shot keyed inside Down was dropped: the extra key held Bob upright until it, then dropped him in 0.2 s.
+
+**Checked** in the dev server's 🎬 editor (stage cloned into a 3x overlay): flashes at V2's and V4's muzzles, the lunge, the Firing box visible and ticked. The shot sounds were not heard (muted test); `animShotsBetween` is unit-tested. The dev server rewrote asset-data twice during this (once mid test run, which failed three REAL-library tests on its file): restore and re-add before testing.
+
+**Same day, the Schweitzer Sword (`schwsd1`):** melee, Good, T1 / Meelee / Army, damage 12, his 💨 Swing speed weapon ability at x1.5 (12 swing frames to 8). Six stock pieces in the Katana's grip geometry per pose and per fit, so it sits in both bodies' hands: wooden grip, flared steel pommel and guard (wide ends toward the grip, the Swiss "I" hilt), straight blade, fuller, point; the Katana's hitbox; the Katana's hit sound.
+
 ## Forest M15, the fishing village (2026-11-14)
 
 Blake: "can you make another Vietnam (Forest M?) level? Make it kind of like a fishing village level. Make sure if you use dialogue it isn't too generic, long and corny (I often have to edit dialogue you make) you may make whatever assets you need for it".

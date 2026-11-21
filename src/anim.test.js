@@ -586,3 +586,32 @@ describe("Press E to skip a floor-end scene (2026-11-15)", () => {
     expect(ANIM_SKIP_ARM_SECS).toBeGreaterThan(0);
   });
 });
+
+import { animShotsBetween } from "./anim";
+describe("🔥 a character firing (animShotsBetween)", () => {
+  // Blake, 2026-11-21: the ambush VC should fire at Bob, not just run into him. A shot is a key with
+  // fire on: the gun draws its Fire art and its Fire sound plays ONCE, as the flag switches on.
+  const mk = (() => { let n = 0; return () => "id" + n++; })();
+  const anim = migrateAnim({ type: "anim", w: 20, h: 10, layers: [
+    { id: "g", kind: "look", lookId: "x", weaponId: "rifle" },
+    { id: "u", kind: "look", lookId: "x", weaponId: "" },
+    { id: "a", kind: "actor" },
+  ], states: [
+    { id: "s0", dur: 1, keys: [{ id: "k0", t: 0, v: { g: { fire: false }, u: { fire: true } } }, { id: "k1", t: 0.5, v: { g: { fire: true } } }, { id: "k2", t: 0.6, v: { g: { fire: false } } }] },
+    { id: "s1", dur: 1, keys: [{ id: "k3", t: 0, v: { g: { fire: true } } }] },
+  ] }, mk);
+  test("fire is a step field, off by default", () => {
+    expect(animLayerAt(anim, anim.states[0], anim.layers[0], 0.49).fire).toBe(false);
+    expect(animLayerAt(anim, anim.states[0], anim.layers[0], 0.55).fire).toBe(true);
+    expect(animLayerAt(anim, anim.states[0], anim.layers[0], 0.7).fire).toBe(false);
+  });
+  test("a shot is heard once, as it switches on", () => {
+    expect(animShotsBetween(anim, { si: 0, t: 0.48 }, { si: 0, t: 0.51 })).toEqual(["g"]);
+    expect(animShotsBetween(anim, { si: 0, t: 0.51 }, { si: 0, t: 0.53 })).toEqual([]);
+    expect(animShotsBetween(anim, { si: 0, t: 0.61 }, { si: 0, t: 0.63 })).toEqual([]);
+  });
+  test("a state that opens firing fires as it starts; an empty-handed layer never does", () => {
+    expect(animShotsBetween(anim, { si: 0, t: 0.99 }, { si: 1, t: 0.01 })).toEqual(["g"]);
+    expect(animShotsBetween(anim, null, { si: 0, t: 0 })).toEqual([]);
+  });
+});
