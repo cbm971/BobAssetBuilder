@@ -1,5 +1,5 @@
 {
- "set": "094670d8ac5f8067",
+ "set": "19c8c0f683135c8d",
  "part": 1,
  "assets": [
   {
@@ -727069,6 +727069,163 @@
    "editedFrom": 1792630266101
   },
   {
+   "id": "frfrys1",
+   "name": "French Fries",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "frfrys1_0",
+      "kind": "rect",
+      "x": 64,
+      "y": 84,
+      "w": 12,
+      "h": 60,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": -10
+     },
+     {
+      "id": "frfrys1_1",
+      "kind": "rect",
+      "x": 82,
+      "y": 76,
+      "w": 12,
+      "h": 66,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": -4
+     },
+     {
+      "id": "frfrys1_2",
+      "kind": "rect",
+      "x": 98,
+      "y": 72,
+      "w": 12,
+      "h": 70,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 3
+     },
+     {
+      "id": "frfrys1_3",
+      "kind": "rect",
+      "x": 114,
+      "y": 78,
+      "w": 12,
+      "h": 64,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 8
+     },
+     {
+      "id": "frfrys1_4",
+      "kind": "rect",
+      "x": 128,
+      "y": 88,
+      "w": 12,
+      "h": 56,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 14
+     },
+     {
+      "id": "frfrys1_5",
+      "kind": "trapezoid",
+      "x": 54,
+      "y": 120,
+      "w": 92,
+      "h": 86,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 180
+     },
+     {
+      "id": "frfrys1_6",
+      "kind": "rect",
+      "x": 70,
+      "y": 156,
+      "w": 60,
+      "h": 8,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 10
+   },
+   "categories": [
+    "T1",
+    "Food",
+    "Heal"
+   ],
+   "value": 2,
+   "rank": "poor",
+   "dropWeight": 1,
+   "savedAt": 1795297503506
+  },
+  {
    "id": "frhelm1",
    "name": "Fireman's Helmet",
    "type": "equipment",
@@ -975345,6 +975502,169 @@
    "rank": "common"
   },
   {
+   "id": "hmbrgr1",
+   "name": "Hamburger",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "hmbrgr1_0",
+      "kind": "roundrect",
+      "x": 42,
+      "y": 164,
+      "w": 116,
+      "h": 26,
+      "color": "#d9973f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hmbrgr1_1",
+      "kind": "stadium",
+      "x": 36,
+      "y": 142,
+      "w": 128,
+      "h": 24,
+      "color": "#6b3a1e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hmbrgr1_2",
+      "kind": "tri2",
+      "x": 60,
+      "y": 136,
+      "w": 22,
+      "h": 14,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hmbrgr1_3",
+      "kind": "rect",
+      "x": 40,
+      "y": 134,
+      "w": 120,
+      "h": 8,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hmbrgr1_4",
+      "kind": "stadium",
+      "x": 34,
+      "y": 126,
+      "w": 132,
+      "h": 12,
+      "color": "#5fae3a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hmbrgr1_5",
+      "kind": "halfcircle",
+      "x": 40,
+      "y": 74,
+      "w": 120,
+      "h": 56,
+      "color": "#d9973f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hmbrgr1_6",
+      "kind": "stadium",
+      "x": 70,
+      "y": 92,
+      "w": 10,
+      "h": 6,
+      "color": "#f4e3b5",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -20
+     },
+     {
+      "id": "hmbrgr1_7",
+      "kind": "stadium",
+      "x": 110,
+      "y": 88,
+      "w": 10,
+      "h": 6,
+      "color": "#f4e3b5",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 25
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 25
+   },
+   "categories": [
+    "T1",
+    "Food",
+    "Heal"
+   ],
+   "value": 6,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503503
+  },
+  {
    "id": "hmmock1",
    "name": "Hammock",
    "type": "prop",
@@ -977852,6 +978172,173 @@
    "value": 16,
    "rank": "rare",
    "editedFrom": 1794914810345
+  },
+  {
+   "id": "hotdog1",
+   "name": "Hot Dog",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "hotdog1_0",
+      "kind": "stadium",
+      "x": 34,
+      "y": 104,
+      "w": 132,
+      "h": 40,
+      "color": "#c47f2e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hotdog1_1",
+      "kind": "stadium",
+      "x": 14,
+      "y": 120,
+      "w": 172,
+      "h": 28,
+      "color": "#b5462e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "hotdog1_2",
+      "kind": "rect",
+      "x": 44,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -32
+     },
+     {
+      "id": "hotdog1_3",
+      "kind": "rect",
+      "x": 64,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 32
+     },
+     {
+      "id": "hotdog1_4",
+      "kind": "rect",
+      "x": 84,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -32
+     },
+     {
+      "id": "hotdog1_5",
+      "kind": "rect",
+      "x": 104,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 32
+     },
+     {
+      "id": "hotdog1_6",
+      "kind": "rect",
+      "x": 124,
+      "y": 125,
+      "w": 24,
+      "h": 4,
+      "color": "#f2c230",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -32
+     },
+     {
+      "id": "hotdog1_7",
+      "kind": "halfcircle",
+      "x": 28,
+      "y": 134,
+      "w": 144,
+      "h": 30,
+      "color": "#d9973f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": 180
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "heal",
+    "amount": 15
+   },
+   "categories": [
+    "T1",
+    "Food",
+    "Heal"
+   ],
+   "value": 4,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795297503504
   },
   {
    "id": "hpstrhat",
