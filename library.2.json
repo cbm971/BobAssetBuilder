@@ -1,5 +1,5 @@
 {
- "set": "1cc528ab90d00bc2",
+ "set": "8532feef2d7fe296",
  "part": 2,
  "assets": [
   {
@@ -528456,9 +528456,9 @@
      {
       "id": "ritlin1_1",
       "kind": "roundrect",
-      "x": 58,
-      "y": 82,
-      "w": 84,
+      "x": 61,
+      "y": 95,
+      "w": 76,
       "h": 26,
       "color": "#f4f4f4",
       "mirror": false,
@@ -528475,7 +528475,7 @@
       "id": "ritlin1_2",
       "kind": "rect",
       "x": 64,
-      "y": 130,
+      "y": 134,
       "w": 72,
       "h": 44,
       "color": "#f4f4f4",
@@ -528577,7 +528577,7 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795311851298,
+   "savedAt": 1795312114547,
    "moreEffects": [
     {
      "kind": "stat",
@@ -528586,7 +528586,7 @@
      "duration": 120
     }
    ],
-   "editedFrom": 1795311586074
+   "editedFrom": 1795311851298
   },
   {
    "id": "rkamp01",
