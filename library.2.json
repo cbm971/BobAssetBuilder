@@ -1,5 +1,5 @@
 {
- "set": "19c8c0f683135c8d",
+ "set": "6a9dc3d5f1c78d4c",
  "part": 2,
  "assets": [
   {
@@ -975679,10 +975679,10 @@
      {
       "id": "whisky1_2",
       "kind": "trapezoid",
-      "x": 60,
-      "y": 92,
-      "w": 80,
-      "h": 26,
+      "x": 64.5,
+      "y": 96.5,
+      "w": 71,
+      "h": 24.5,
       "color": "#b5651d",
       "mirror": false,
       "fx": {
@@ -975751,9 +975751,8 @@
     "crouch": []
    },
    "effect": {
-    "kind": "damage",
-    "mult": 1.5,
-    "duration": 60
+    "kind": "heal",
+    "amount": 5
    },
    "categories": [
     "T1",
@@ -975763,13 +975762,14 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795297503509,
+   "savedAt": 1795311520179,
    "moreEffects": [
     {
      "kind": "hurt",
      "amount": 10
     }
-   ]
+   ],
+   "editedFrom": 1795297503509
   },
   {
    "id": "whtstn1",
