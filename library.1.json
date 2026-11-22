@@ -1,5 +1,5 @@
 {
- "set": "8532feef2d7fe296",
+ "set": "ca63282c01e7b0a7",
  "part": 1,
  "assets": [
   {
@@ -929519,10 +929519,13 @@
     "throw": "qd117xl",
     "land": "aghad42"
    },
-   "savedAt": 1794915849789,
+   "savedAt": 1795312610268,
    "boomerang": false,
    "pickupCount": 3,
-   "editedFrom": 1792266673918
+   "editedFrom": 1794915849789,
+   "soundVol": {
+    "land": 0.4
+   }
   },
   {
    "id": "gr3nsh1",

@@ -1,5 +1,5 @@
 {
- "set": "8532feef2d7fe296",
+ "set": "ca63282c01e7b0a7",
  "part": 2,
  "assets": [
   {
@@ -445648,12 +445648,11 @@
     "land": "aghad42"
    },
    "soundVol": {
-    "land": 0.55
+    "land": 0.05
    },
-   "savedAt": 1794915849810,
-   "editedFrom": 1793454712895,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "savedAt": 1795312627475
   },
   {
    "id": "phchili",
