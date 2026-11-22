@@ -1,5 +1,5 @@
 {
- "set": "ca63282c01e7b0a7",
+ "set": "8ffdd2ee42a00f25",
  "part": 2,
  "assets": [
   {
@@ -225501,8 +225501,10 @@
    },
    "boomerang": false,
    "pickupCount": 3,
-   "savedAt": 1794915849807,
-   "editedFrom": 1793790587446
+   "soundVol": {
+    "hit": 0.55
+   },
+   "savedAt": 1795312687454
   },
   {
    "id": "mdetsd1",
