@@ -1,5 +1,5 @@
 {
- "set": "d346a7d988c993e9",
+ "set": "b352213a93f4e5e0",
  "part": 2,
  "assets": [
   {
@@ -898532,7 +898532,7 @@
     "kind": "stat",
     "stat": "intelligence",
     "amount": 2,
-    "duration": 60
+    "duration": 120
    },
    "categories": [
     "T1",
@@ -898542,15 +898542,16 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795297503508,
+   "savedAt": 1795311586074,
    "moreEffects": [
     {
      "kind": "stat",
      "stat": "speed",
      "amount": 2,
-     "duration": 60
+     "duration": 120
     }
-   ]
+   ],
+   "editedFrom": 1795297503508
   },
   {
    "id": "whisky1",
@@ -898598,10 +898599,10 @@
      {
       "id": "whisky1_2",
       "kind": "trapezoid",
-      "x": 60,
-      "y": 92,
-      "w": 80,
-      "h": 26,
+      "x": 64.5,
+      "y": 96.5,
+      "w": 71,
+      "h": 24.5,
       "color": "#b5651d",
       "mirror": false,
       "fx": {
@@ -898672,7 +898673,7 @@
    "effect": {
     "kind": "damage",
     "mult": 1.5,
-    "duration": 60
+    "duration": 240
    },
    "categories": [
     "T1",
@@ -898682,13 +898683,14 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795297503509,
+   "savedAt": 1795311586073,
    "moreEffects": [
     {
      "kind": "hurt",
      "amount": 10
     }
-   ]
+   ],
+   "editedFrom": 1795311520179
   },
   {
    "id": "wine001",
