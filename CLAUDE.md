@@ -1077,7 +1077,9 @@ plus traps it does not cover:
   🌀 `item.screenFx` (blur / tint, seconds) is a `kind: "screen"` buff drawn by `.consumeFx` under the HUD;
   with none of its own an item takes its tag's (`ITEM_TAG_SCREEN_FX`: Alcohol blurs), `{kind:"none"}` turns it off.
   Items: Hamburger, Hot Dog, Pizza Slice (a circle cut to a wedge by two cutters), French Fries, Steroids,
-  Ritilin (his spelling), Whiskey, Wine, Joint.
+  Ritalin (renamed from Ritilin at his word), Whiskey, Wine, Joint.
+  **A NEW effect kind must reach the published site (`npm run publish`) the same day:** an older page reads an
+  unknown kind as the default Heal 5 HP, and saving the item there writes Heal 5 over it (Whiskey, 2026-11-21).
 - Talk reach is `TALK_RANGE_CELLS` = 6. The Enemy-creator Speed AND Strength sliders go to 20 (the animals' scale; a
   creature's Strength is its bite, 2x, unclamped), a
   dressed look walks by `playerWalkSpeed`, and Speed floors at 0.

@@ -1,5 +1,5 @@
 {
- "set": "b352213a93f4e5e0",
+ "set": "bed9c56faca70aef",
  "part": 2,
  "assets": [
   {
@@ -898395,7 +898395,7 @@
   },
   {
    "id": "ritlin1",
-   "name": "Ritilin",
+   "name": "Ritalin",
    "type": "item",
    "guideId": "default",
    "angles": {
@@ -898542,7 +898542,7 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795311586074,
+   "savedAt": 1795311851298,
    "moreEffects": [
     {
      "kind": "stat",
@@ -898551,7 +898551,7 @@
      "duration": 120
     }
    ],
-   "editedFrom": 1795297503508
+   "editedFrom": 1795311586074
   },
   {
    "id": "whisky1",
