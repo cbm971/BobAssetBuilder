@@ -1,10 +1,11 @@
 {
  "format": "bob-library-parts-1",
- "set": "bed9c56faca70aef",
+ "set": "588302e81313db75",
  "parts": [
   "library.1.json",
   "library.2.json",
-  "library.3.json"
+  "library.3.json",
+  "library.4.json"
  ],
  "savedAt": "2026-10-16T23:09:35.058Z",
  "removed": {
