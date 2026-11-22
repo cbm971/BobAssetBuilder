@@ -1,5 +1,5 @@
 {
- "set": "b810794355c9f556",
+ "set": "b3c19925c38dffd8",
  "part": 3,
  "assets": [
   {
@@ -490026,27 +490026,11 @@
     }
    },
    "conns": {
-    "N2": {
-     "open": false,
-     "accepts": ""
-    },
     "N1": {
      "open": false,
      "accepts": ""
     },
-    "W1": {
-     "open": false,
-     "accepts": ""
-    },
-    "W2": {
-     "open": true,
-     "accepts": "Vietnam"
-    },
-    "S2": {
-     "open": false,
-     "accepts": ""
-    },
-    "S1": {
+    "N2": {
      "open": false,
      "accepts": ""
     },
@@ -490055,6 +490039,22 @@
      "accepts": ""
     },
     "E2": {
+     "open": true,
+     "accepts": "Vietnam"
+    },
+    "S1": {
+     "open": false,
+     "accepts": ""
+    },
+    "S2": {
+     "open": false,
+     "accepts": ""
+    },
+    "W1": {
+     "open": false,
+     "accepts": ""
+    },
+    "W2": {
      "open": true,
      "accepts": "Vietnam"
     }
