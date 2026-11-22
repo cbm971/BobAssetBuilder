@@ -1,5 +1,5 @@
 {
- "set": "7a0fb953e187117a",
+ "set": "e36252dc991f1327",
  "part": 2,
  "assets": [
   {
@@ -975901,9 +975901,9 @@
      {
       "id": "wine001_2",
       "kind": "trapezoid",
-      "x": 66,
-      "y": 92,
-      "w": 68,
+      "x": 72.5,
+      "y": 92.5,
+      "w": 55.5,
       "h": 28,
       "color": "#2e5a2e",
       "mirror": false,
@@ -975973,9 +975973,8 @@
     "crouch": []
    },
    "effect": {
-    "kind": "damage",
-    "mult": 1.25,
-    "duration": 60
+    "kind": "heal",
+    "amount": 5
    },
    "categories": [
     "T1",
@@ -975985,13 +975984,14 @@
    "value": 8,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795297503510,
+   "savedAt": 1795311647707,
    "moreEffects": [
     {
      "kind": "heal",
      "amount": 15
     }
-   ]
+   ],
+   "editedFrom": 1795297503510
   },
   {
    "id": "wlysjp1",
