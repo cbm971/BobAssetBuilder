@@ -1,5 +1,5 @@
 {
- "set": "b3c19925c38dffd8",
+ "set": "1cc528ab90d00bc2",
  "part": 2,
  "assets": [
   {
@@ -975774,8 +975774,9 @@
     "crouch": []
    },
    "effect": {
-    "kind": "damage",
-    "mult": 1.5,
+    "kind": "stat",
+    "stat": "strength",
+    "amount": 2,
     "duration": 240
    },
    "categories": [
@@ -975786,14 +975787,14 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795311586073,
+   "savedAt": 1795312067352,
    "moreEffects": [
     {
      "kind": "hurt",
      "amount": 10
     }
    ],
-   "editedFrom": 1795311520179
+   "editedFrom": 1795311586073
   },
   {
    "id": "whtstn1",
