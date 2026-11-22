@@ -1,5 +1,5 @@
 {
- "set": "06314963c1345e52",
+ "set": "3197f211e4746280",
  "part": 3,
  "assets": [
   {
@@ -1001975,23 +1001975,6 @@
       "z": 13
      }
     ],
-    "29,134": [
-     {
-      "kind": "prop",
-      "propId": "vwb3tl6",
-      "solid": false,
-      "size": 12,
-      "inFront": false,
-      "lay": "bg",
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "oy": 0.861619,
-      "z": 14
-     }
-    ],
     "25,151": [
      {
       "kind": "shape",
@@ -1003528,6 +1003511,21 @@
       "canvasScale": false,
       "z": 5
      }
+    ],
+    "30,140": [
+     {
+      "kind": "prop",
+      "propId": "mscl69m",
+      "solid": false,
+      "size": 16,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 155
+     }
     ]
    },
    "climb": {
@@ -1003923,7 +1003921,8 @@
      "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1795315387930
+   "savedAt": 1795367715002,
+   "editedFrom": 1795315387930
   },
   {
    "id": "trps3a1",
