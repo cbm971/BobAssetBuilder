@@ -1,5 +1,5 @@
 {
- "set": "e36252dc991f1327",
+ "set": "be353a7ec25953d9",
  "part": 2,
  "assets": [
   {
@@ -159516,7 +159516,9 @@
    "soundVol": {
     "death": 0.05
    },
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "l17rsel",
@@ -204795,7 +204797,9 @@
     "hurt": 0.05
    },
    "savedAt": 1792267033914,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "lvlamp1",
@@ -309277,7 +309281,9 @@
     "death": 0.4
    },
    "savedAt": 1793267128506,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "mnpian1",
@@ -325777,7 +325783,7 @@
    "solidDefault": false,
    "savedAt": 1793561227724,
    "category": "vehicles",
-   "hp": 180,
+   "hp": 90,
    "defense": 12,
    "speed": 1.3,
    "facesRight": true,
@@ -333702,7 +333708,8 @@
      }
     ]
    },
-   "editedFrom": 1793561185919
+   "editedFrom": 1793561185919,
+   "hpHalved": true
   },
   {
    "id": "msnngt1",
@@ -411778,7 +411785,9 @@
     "death": "32tmy0z"
    },
    "editedFrom": 1792266916614,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "o51p2f3",
@@ -510583,7 +510592,9 @@
     "death": "rrbq1w9"
    },
    "savedAt": 1792267513966,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "qp0eawu",
@@ -516599,7 +516610,9 @@
     "hurt": 0.1
    },
    "savedAt": 1792267513968,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "r0ckrub",
@@ -523054,7 +523067,9 @@
     "death": "9skpe67"
    },
    "savedAt": 1792267573921,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "ratmsk1",
@@ -653100,6 +653115,7 @@
     }
    ],
    "angles": {
+    "id": "spbsfr0",
     "front": [
      {
       "id": "spbs0",
@@ -653692,7 +653708,9 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1794182665597
+   "savedAt": 1794182665597,
+   "size": 2,
+   "animFps": 6
   },
   {
    "id": "spcrtm1",
@@ -717454,7 +717472,9 @@
     "hurt": "5542xx2"
    },
    "savedAt": 1792267573931,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "stbill1",
@@ -803348,7 +803368,9 @@
     "attack": "6f5xiih"
    },
    "savedAt": 1792267573938,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "trtlmsk",

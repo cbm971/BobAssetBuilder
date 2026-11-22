@@ -1,5 +1,5 @@
 {
- "set": "e36252dc991f1327",
+ "set": "be353a7ec25953d9",
  "part": 1,
  "assets": [
   {
@@ -121124,7 +121124,9 @@
    },
    "savedAt": 1792275304148,
    "editedFrom": 1792267393888,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "5z2auvk",
@@ -448290,7 +448292,9 @@
     "hurt": "8wmnw9q",
     "death": "8wmnw9q"
    },
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "c102uyt",
@@ -503973,7 +503977,9 @@
     "attack": 0.05,
     "death": 0.6
    },
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "cardbx1",
@@ -550670,7 +550676,9 @@
     "death": "9skpe67"
    },
    "savedAt": 1792266973913,
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "crcmsk1",
@@ -653232,7 +653240,9 @@
     }
    },
    "editedFrom": 1793183562096,
-   "savedAt": 1793266832545
+   "savedAt": 1793266832545,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "ekowow7",
@@ -831352,7 +831362,9 @@
     "hurt": 0.05,
     "death": 0.05
    },
-   "flies": false
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "gcfxvc3",
