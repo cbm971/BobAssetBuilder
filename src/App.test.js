@@ -17336,3 +17336,74 @@ describe("consumables with several effects and a screen filter", () => {
     expect(screenFxBuff({ kind: "none" }, 0)).toBeNull();
   });
 });
+
+/* 🐒 TAIL HOLD (EFFECT_TYPES.tailHold, 2026-11-22). Blake: "an ability called "Tail hold" (which would be
+   after double jump) where if you press space in mid air your character is susppended seemingly by the
+   area where the tail is and you can shoot etc while suspended." What to pin: it sits right after Double
+   Jump; a press in the air catches, the next press (or S) lets go; a Double Jump not yet spent takes the
+   first press; one hold per time in the air; the ground, a ladder or a plane hands it back; Hang time;
+   a unit's hang is capped; the swing hangs from behind for both facings and calms while aiming. */
+import { tailHoldStep, tailHoldFrames, tailHoldUnitFrames, tailHoldSwingDeg, tailHoldSwingCss, tailHoldPose, easeTailHoldAim, TAIL_HOLD_TIME_UNLIMITED, TAIL_HOLD_UNIT_SECS } from "./App";
+describe("tail hold", () => {
+  const fx = { type: "tailHold" };
+  const air = { onGround: false, climbing: false, flying: false, press: false, drop: false, down: false, extraJumpLeft: false, dt: 1 };
+  test("it is listed right after Double Jump, with no designed animation", () => {
+    const keys = Object.keys(EFFECT_TYPES);
+    expect(keys[keys.indexOf("doubleJump") + 1]).toBe("tailHold");
+    expect(EFFECT_TYPES.tailHold.label).toBe("Tail Hold");
+    expect(EFFECT_TYPES.tailHold.noAnim).toBe(true);
+    expect(effectBrief({ type: "tailHold" }).desc).toBe("press Jump in mid-air to hang by your tail");
+    expect(effectBrief({ type: "tailHold", time: 3 }).desc).toBe("press Jump in mid-air to hang by your tail · 3s");
+  });
+  test("a press in the air catches, and the next press lets go", () => {
+    const c = tailHoldStep(fx, { on: false, used: false, t: 0 }, { ...air, press: true });
+    expect(c).toMatchObject({ on: true, used: true, caught: true });
+    const held = tailHoldStep(fx, c, air);
+    expect(held).toMatchObject({ on: true, used: true, t: 1 });
+    const off = tailHoldStep(fx, held, { ...air, press: true });
+    expect(off).toMatchObject({ on: false, used: true, let: true });
+    // one per time in the air: pressing again does not catch until something hands it back
+    expect(tailHoldStep(fx, off, { ...air, press: true }).on).toBe(false);
+    expect(tailHoldStep(fx, off, { ...air, onGround: true })).toEqual({ on: false, used: false, t: 0 });
+    expect(tailHoldStep(fx, off, { ...air, climbing: true }).used).toBe(false);
+  });
+  test("S, a flight, being knocked flat, or the Hang time running out lets go", () => {
+    const on = { on: true, used: true, t: 10 };
+    expect(tailHoldStep(fx, on, { ...air, drop: true })).toMatchObject({ on: false, used: true, let: false });
+    expect(tailHoldStep(fx, on, { ...air, flying: true }).on).toBe(false);
+    expect(tailHoldStep(fx, on, { ...air, down: true }).on).toBe(false);
+    const timed = { type: "tailHold", time: 2 };
+    expect(tailHoldFrames(timed)).toBe(120);
+    expect(tailHoldStep(timed, { on: true, used: true, t: 118 }, air).on).toBe(true);
+    expect(tailHoldStep(timed, { on: true, used: true, t: 119 }, air).on).toBe(false);
+    expect(tailHoldFrames(fx)).toBe(Infinity);
+    expect(tailHoldFrames({ type: "tailHold", time: TAIL_HOLD_TIME_UNLIMITED })).toBe(Infinity);
+    expect(tailHoldStep(fx, { on: true, used: true, t: 100000 }, air).on).toBe(true);
+  });
+  test("after double jump: an unspent Double Jump keeps the first press, the next press is the hold", () => {
+    expect(tailHoldStep(fx, { on: false, used: false, t: 0 }, { ...air, press: true, extraJumpLeft: true }).on).toBe(false);
+    expect(tailHoldStep(fx, { on: false, used: false, t: 0 }, { ...air, press: true, extraJumpLeft: false }).on).toBe(true);
+    // no press, no catch; no item, never
+    expect(tailHoldStep(fx, { on: false, used: false, t: 0 }, air).on).toBe(false);
+    expect(tailHoldStep(null, { on: true, used: true, t: 3 }, { ...air, press: true })).toEqual({ on: false, used: false, t: 0 });
+    expect(tailHoldStep(fx, { on: false, used: false, t: 0 }, { ...air, press: true, onGround: true }).on).toBe(false);
+  });
+  test("a unit hangs at most TAIL_HOLD_UNIT_SECS, or the item's shorter Hang time", () => {
+    expect(tailHoldUnitFrames(fx)).toBe(TAIL_HOLD_UNIT_SECS * 60);
+    expect(tailHoldUnitFrames({ type: "tailHold", time: 1.5 })).toBe(90);
+  });
+  test("the body swings from behind its back for both facings, and calms while the arms are busy", () => {
+    const t = 20; // part way into the catch's swing
+    const deg = tailHoldSwingDeg(t, 0);
+    expect(Math.abs(deg)).toBeGreaterThan(1);
+    expect(Math.abs(tailHoldSwingDeg(t, 1))).toBeCloseTo(Math.abs(deg) * 0.3, 5);
+    expect(Math.abs(tailHoldSwingDeg(2000, 0))).toBeLessThanOrEqual(3.0001); // settled into the slow sway
+    const right = tailHoldSwingCss(t, 0, 100, 200, true), left = tailHoldSwingCss(t, 0, 100, 200, false);
+    expect(right.startsWith("translate(-25.0px,-28.0px)")).toBe(true); // behind = -x for art drawn facing right
+    expect(left.startsWith("translate(25.0px,-28.0px)")).toBe(true);
+    expect(tailHoldSwingCss(0, 0, 100, 200, true)).toBe(""); // nothing to turn on the frame it catches
+    expect(tailHoldPose(0)).toMatchObject({ tilt: 0, bob: 0 });
+    expect(easeTailHoldAim(0, true, 1)).toBeGreaterThan(0);
+    expect(easeTailHoldAim(1, false, 100)).toBeLessThan(0.01);
+  });
+});

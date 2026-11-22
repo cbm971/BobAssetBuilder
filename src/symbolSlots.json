@@ -73,6 +73,7 @@
   { "k": "🧯", "l": "Fire immunity", "g": "Abilities", "d": "gi:fire-shield" },
   { "k": "🪖", "l": "Explosion immunity", "g": "Abilities", "d": "mdi:bomb-off" },
   { "k": "🐞", "l": "Lucky", "g": "Abilities", "d": "gi:horseshoe" },
+  { "k": "🐒", "l": "Tail Hold", "g": "Abilities", "d": "gi:monkey" },
   { "k": "🪞", "l": "Reflect", "g": "Abilities", "d": "gi:shield-reflect" },
   { "k": "🚒", "l": "Fire resistance", "g": "Abilities", "d": "gi:fire-extinguisher" },
   { "k": "❄", "l": "Ice damage", "g": "Abilities", "d": "gi:snowflake-1", "c": "#bfe8ff" },

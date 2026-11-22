@@ -6032,3 +6032,31 @@ Three things the tests caught before shipping:
 1. **The gopura's doorway was a closed pocket.** Cutting a door in the MIDDLE of a tower is what a front view shows; in side view the walls either side still stand to the ground, so the walk stopped at column 16. Fixed with 8-row doors through both side walls, corbelled like the kalan's, and a back wall behind them.
 2. **The hall roof slab clipped heads walking west.** It ran to column 92, over the top of the terrace steps; walking down them the head met its underside at column 93. East-bound never showed it. The slab now ends at column 90.
 3. **Agility 4 got over the gable.** A running leap off the east end of B1 (bars shimmy at walk speed and a bar jump keeps it) put Agility 4's feet at 640 beside a gable whose ramp-topped peak started at 630. Ramps on top make the wall "hill", and with nothing under the centre a hill under the body's edge is a ledge (`sideWallsW`), so he stood on it and jumped again over everything. Raising it a row did not help. The gable is now plain blocks with a flat top at row 20 (the point is drawn in the background): every Agility 4 leap from eight take-off points stops at the wall, and a B2 hang (feet exactly at 600) passes over the top.
+
+## Tree Tops 6 and 7, Monkey Pants and 🐒 Tail Hold (2026-11-22)
+
+His ask: a Tree Tops level with Tree Tops 2's layout "so there is an edge", another one flipped, monkeys,
+a George of the Jungle parody, Monkey Pants with a curly tail on a shirtless character, and a "Tail hold"
+ability after Double Jump: Space in mid-air hangs you by the tail and you can shoot while hanging.
+
+- **Tree Tops 6 (`trtops6`, a west end):** Tree Tops 2's canopy, col-43 wall and west shaft kept cell for cell.
+  Jorge's Treehouse (bamboo deck row 24, thatch hut, rope ladder col 82, hammock under the deck), vine bars on
+  row 16 to the Monkey Fig (crowns on rows 24 and 10). Pedestals: Food OR Heal, Furry AND Good.
+- **Tree Tops 7 (`trtops7`, an east end):** Tree Tops 2 through the editor's own ⇄ Flip; shaft cols 109-115,
+  wall col 116. Two crowns and a giant with a lookout, two vine bar lines with climbable hanging vines.
+  Pedestals: Food OR Drink, Shoes AND Good. Every ladder top is 7+ columns from a bar line: a ladder top puts
+  your body in the bar row, and stepping off one 5 columns away grabbed the bars instead of the deck.
+- Both: monkeys with rocks, a Squirrel on a 3-cell perch, Jorge on the canopy, two Monkey Men with Bobs Bow.
+- **Garments:** Monkey Pants (`mnkypnt`: his Dino Tail Pants' trousers in brown, a dark band, a 〰️ Curve tail;
+  Agility +1, Defense 1, Tail Hold, rare, Furry), Leopard Loincloth (`lprdlcn`), Jungle Hair (`jnglhr1`).
+  **Looks:** Monkey Man (`mnkyman`: BoB, Billy Skin, Monkey Pants) and Jorge of the Jungle (`jrgjngl`: BoB,
+  Bobby Skin, loincloth, hair), both Special. Weapons are per placement now, so the looks hold none.
+- **Bobbett fit:** he saw the Monkey Pants misaligned on her in Side and Crouch. Her hips are mirrored round
+  twins (Side x 64-136 from y 152, Crouch x 62-138 from y 145), wider and higher than the Dino Tail Pants' seat,
+  and the Crouch band floated over a stadium's round top. Those poses got a waist and seat cut to her; Back rose
+  to cover the top of her cheeks and BoB's crack (from y 152), and so did the loincloth's back panel.
+- **The back tail** first ran out to the side, where the arm covered all of it but the tip; it now curls up the
+  middle of the back.
+- **Measured in the running game (?mute&god):** Monkey Man caught at y 913.4 and held still; an arrow left from the
+  hang; Space let go; a second catch and S let go. An enemy Monkey Man hopped at an attack, caught at the top,
+  fired at thT 60, let go at 4 s and waited out the cooldown.

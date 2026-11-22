@@ -5442,6 +5442,80 @@ export const flyVy = (vy, rise, dtMul) => flyEaseVy(vy, -rise, dtMul);
 // a yo-yo that would have flicked between the flying pose and a fall every half second.
 export const FLY_HOVER_GAIN = 0.08;
 export const flyHoverVy = (dy, rise) => Math.max(-rise, Math.min(rise, (dy || 0) * FLY_HOVER_GAIN));
+// 🐒 TAIL HOLD (EFFECT_TYPES.tailHold, 2026-11-22). Blake: "an ability called "Tail hold" (which would be
+// after double jump) where if you press space in mid air your character is susppended seemingly by the
+// area where the tail is and you can shoot etc while suspended." Made for his Monkey Pants (mnkypnt).
+//   * A fresh PRESS of Jump in mid-air catches: you stop dead where you are, with no fall and no drift
+//     (the jump's carry is dropped too, so letting go falls straight down), and hang there. A/D still
+//     turn you round, and the hands are free: shoot, swing, throw and block exactly as on your feet.
+//   * "After double jump": with a ⤴️ Double Jump worn too, the first press in the air is still the
+//     double jump and the NEXT press is the hold. It is also listed right after it in the catalog.
+//   * Press Jump again, or hold S (the bars' own let-go key), and you drop. Keep Jump held as you let go
+//     and a 🪂 Glide carries you down: Fly's rule. W beside a ladder still grabs the ladder, and W with a
+//     🦸 Fly worn takes off; both end the hold. Knocked flat, you let go.
+//   * One hold per time in the air, handed back by the ground, a ladder, bars or a 🚶 plane, Double
+//     Jump's rule, so it cannot be chained into a slow staircase down the sky. Hang time is how long one
+//     hold may last; the slider's top stop (TAIL_HOLD_TIME_UNLIMITED) is no limit.
+// The picture: "suspended seemingly by the area where the tail is". Nothing is drawn holding you: the
+// body hangs like a pendulum from a hook up behind the back, where a curled tail's tip would catch
+// (tailHoldSwingCss), swinging out on the catch and settling into a slow sway, legs dangling and arms
+// relaxed (tailHoldPose, through Fly's rig). Arms busy with a shot, a swing, a throw or a block damp
+// the sway (thAim), so a shot leaves the barrel close to where it is drawn.
+// Worn by a 👹 Enemy with a gun it HOPS at an attack commit and catches at the top of the hop, shooting
+// down from there for TAIL_HOLD_UNIT_SECS (or the item's own Hang time if that is shorter), then drops
+// and fights from its feet for TAIL_HOLD_UNIT_COOLDOWN_FRAMES before the next hop. Same hold, same
+// physics, same pose as yours.
+export const TAIL_HOLD_TIME_UNLIMITED = 30;
+export const TAIL_HOLD_UNIT_SECS = 4;
+export const TAIL_HOLD_UNIT_COOLDOWN_FRAMES = 150;
+export const tailHoldFrames = (effect) => {
+  if (!effect) return 0;
+  const secs = effect.time ?? TAIL_HOLD_TIME_UNLIMITED;
+  return secs >= TAIL_HOLD_TIME_UNLIMITED ? Infinity : Math.max(1, secs * 60);
+};
+export const tailHoldUnitFrames = (effect) => Math.min(tailHoldFrames(effect), TAIL_HOLD_UNIT_SECS * 60);
+// One frame of the hold. `s` is last frame's { on, used, t } (t = frames hung); `o` = { onGround,
+// climbing (a ladder, bars, a ledge or a 🚶 plane), flying, press (Jump pressed THIS frame), drop (S held),
+// down (knocked flat), extraJumpLeft (a Double Jump worn and not yet spent), dt }. Returns the next
+// { on, used, t }, plus `caught` / `let` on the frame a press starts or ends it, so that press does
+// nothing else (no double jump rides on it).
+export const tailHoldStep = (effect, s, o) => {
+  if (!effect || o.onGround || o.climbing) return { on: false, used: false, t: 0 };
+  const st = s || {};
+  if (st.on) {
+    const t = (st.t || 0) + (o.dt || 1);
+    if (o.press || o.drop || o.down || o.flying || t >= tailHoldFrames(effect)) return { on: false, used: true, t: 0, let: !!o.press };
+    return { on: true, used: true, t };
+  }
+  if (!st.used && o.press && !o.flying && !o.down && !o.extraJumpLeft) return { on: true, used: true, t: 0, caught: true };
+  return { on: false, used: !!st.used, t: 0 };
+};
+// The hanging pose, in Fly's rig (flyPoseBlocks / flyLegBlocks): arms relaxed a little forward of
+// hanging, the legs dangling in a slow treading scissor. `t` = frames hung.
+export const TAIL_HOLD_ARM_DEG = 22;
+export const tailHoldPose = (t) => ({ tilt: 0, arm: TAIL_HOLD_ARM_DEG, legSwing: 7 * Math.sin((t || 0) * 0.08), bob: 0 });
+// The pendulum, in degrees about the hook: a swing out on the catch that settles over
+// TAIL_HOLD_SETTLE_FRAMES into a slow sway. `aim` (0..1, eased) damps it to TAIL_HOLD_AIM_SWAY of itself.
+export const TAIL_HOLD_SWING_DEG = 9, TAIL_HOLD_SWAY_DEG = 3, TAIL_HOLD_SETTLE_FRAMES = 45, TAIL_HOLD_AIM_SWAY = 0.3;
+export const tailHoldSwingDeg = (t, aim) => {
+  const tt = t || 0;
+  const amp = TAIL_HOLD_SWAY_DEG + (TAIL_HOLD_SWING_DEG - TAIL_HOLD_SWAY_DEG) * Math.exp(-tt / TAIL_HOLD_SETTLE_FRAMES);
+  const a = Math.max(0, Math.min(1, aim || 0));
+  return amp * Math.sin(tt * 0.075) * (1 - a * (1 - TAIL_HOLD_AIM_SWAY));
+};
+// Where the hook is, as a share of the sprite box measured from its centre, in the ART's own frame
+// (drawn facing right, so behind is -x): the top of the Monkey Pants' tail curl, which sits at about
+// (50, 94) on the 200×260 canvas in Side, and the sprite box IS that canvas (pieces are placed in % of it).
+// The facing flip sits ahead of this in the wrapper's transform list, so it hangs from behind both ways.
+export const TAIL_HOLD_HOOK_X = -0.25, TAIL_HOLD_HOOK_Y = -0.14;
+export const TAIL_HOLD_AIM_EASE = 0.15;
+export const easeTailHoldAim = (cur, busy, dtMul) => (cur || 0) + ((busy ? 1 : 0) - (cur || 0)) * (1 - Math.pow(1 - TAIL_HOLD_AIM_EASE, dtMul || 1));
+export const tailHoldSwingCss = (t, aim, w, h, facesRight = true) => {
+  const deg = tailHoldSwingDeg(t, aim);
+  if (Math.abs(deg) < 0.05) return "";
+  const hx = (facesRight ? 1 : -1) * TAIL_HOLD_HOOK_X * (w || 0), hy = TAIL_HOLD_HOOK_Y * (h || 0);
+  return "translate(" + hx.toFixed(1) + "px," + hy.toFixed(1) + "px) rotate(" + deg.toFixed(2) + "deg) translate(" + (-hx).toFixed(1) + "px," + (-hy).toFixed(1) + "px)";
+};
 // 🦸 A FLYING CREATURE SWOOPS (2026-11-14). Blake: "The eagle / flying enemies just kind of hover at
 // human height. It would be better if they sort of swooped in to attack." A `flies` creature that
 // is coming for someone with a melee attack used to steer its feet to the target's own feet line
@@ -6437,6 +6511,19 @@ export const EFFECT_TYPES = {
     params: [
       { key: "height", label: "Height", min: 4, max: 16, step: 0.5, def: 9 },
       { key: "speed", label: "Speed", min: 1, max: 10, step: 1, def: 5 },
+    ],
+  },
+  // 🐒 Press Jump in mid-air to hang by the tail (tailHoldStep). Right after Double Jump on purpose:
+  // Blake asked for it "after double jump", and worn together the double jump takes the first press in
+  // the air and the hold takes the next. No designed animation (noAnim): every body hangs in the one
+  // built-in pose (tailHoldPose / tailHoldSwingCss), Fly's rule.
+  tailHold: {
+    label: "Tail Hold", icon: "🐒",
+    blurb: "Press Jump in mid-air to hang by your tail right where you are: no falling and no drifting, and your hands stay free to shoot, swing or throw (A/D turn you round). Press Jump again, or S, to let go. With a Double Jump worn too, the first press in the air is the double jump and the next one is the hold. One hold per time in the air; Hang time is how long it can last (the top of the slider is no limit). Worn by a 👹 Enemy with a gun, it hops up, hangs and shoots down.",
+    brief: (p) => "press Jump in mid-air to hang by your tail" + ((p.time ?? TAIL_HOLD_TIME_UNLIMITED) >= TAIL_HOLD_TIME_UNLIMITED ? "" : " · " + briefNum(p.time) + "s"),
+    noAnim: true,
+    params: [
+      { key: "time", label: "Hang time", min: 0.5, max: TAIL_HOLD_TIME_UNLIMITED, step: 0.5, def: TAIL_HOLD_TIME_UNLIMITED, fmt: (v) => v >= TAIL_HOLD_TIME_UNLIMITED ? "∞" : v + "s" },
     ],
   },
   // A cape that soaks part of a hit taken from BEHIND — the direction the wearer is facing tells
@@ -17128,6 +17215,7 @@ export default function AssetStudio({ game = false } = {}) {
     const glideEffect = (playerAsset?.effects || []).find((e) => e.type === "glide") || null;
     const flyEffect = (playerAsset?.effects || []).find((e) => e.type === "fly") || null;
     const headStompEffect = (playerAsset?.effects || []).find((e) => e.type === "headStomp") || null;
+    const tailHoldEffect = (playerAsset?.effects || []).find((e) => e.type === "tailHold") || null; // 🐒 (tailHoldStep)
     // Say how to fly (showFlyHint) when a Fly item has just come ON: worn at the start of play, or
     // picked up or bought (both bump equipGen, which re-runs this effect). A gate's re-run with the
     // same item still on says nothing; taking it off and putting one back on says it again.
@@ -18202,6 +18290,7 @@ export default function AssetStudio({ game = false } = {}) {
       const airSteer = flyMove || glideMove;
       dx = horizVel(K, speed, grounded, p.vx, airSteer, slideResolved, dtMul);
       if (!grounded && !(airSteer && airSteer.active)) dx = capAirborneSpeed(dx, speed);
+      if (p.tailHold) dx = 0; // 🐒 hanging by the tail: you stay where you caught; A/D (above) only turn you round
       // Ramp feel: last frame's slope check set p.onSlope/p.slideVx. Standing on a ramp with
       // nothing held SLIDES you downhill — so dropping or jumping onto a ramp turns into a slide
       // the moment the surface catches you — walking DOWN gets the slide added on top, and
@@ -18497,8 +18586,18 @@ export default function AssetStudio({ game = false } = {}) {
           p.vy = 0; p.onGround = false;
         }
       } else {
+        // 🐒 TAIL HOLD (tailHoldStep) is asked first: a press that catches or lets go is the hold's,
+        // and a ⤴️ Double Jump not yet spent keeps the first press in the air for itself ("after
+        // double jump"). Ladders, bars and planes never reach this branch; their reset is below.
+        const thStep = tailHoldStep(tailHoldEffect, { on: !!p.tailHold, used: !!p.thUsed, t: p.thT || 0 }, {
+          onGround: p.onGround, climbing: false, flying: !!p.flying, press: !!K.jump && !p.wasJump, drop: !!FK.down,
+          down: (p.down || 0) > 0, extraJumpLeft: !!doubleJumpEffect && !p.extraJumped, dt: dtMul,
+        });
+        if (thStep.caught) { p.vy = 0; p.vx = 0; p.jumpHoldT = JUMP_HOLD_BOOST_FRAMES; } // stop dead; a let-go then falls straight down
+        p.tailHold = thStep.on; p.thUsed = thStep.used; p.thT = thStep.t;
+        const thPress = !!(thStep.caught || thStep.let);
         if (K.jump && p.onGround) { sndEvent("jump", p.x, p.y); p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // Agility-scaled jump HEIGHT, given directly in blocks — see jumpHeightBlocks above
-        else if (doubleJumpEffect && !p.onGround && !p.extraJumped && K.jump && !p.wasJump) {
+        else if (doubleJumpEffect && !thPress && !p.tailHold && !p.onGround && !p.extraJumped && K.jump && !p.wasJump) {
           // Double Jump effect: one bonus mid-air jump, available once per airborne period —
           // however you got airborne, not just off an actual jump. Edge-triggered off wasJump so
           // holding the key through the whole first jump's rise can't silently consume it the
@@ -18529,6 +18628,7 @@ export default function AssetStudio({ game = false } = {}) {
           : flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);
         if (fly && !p.flying) clearFlyPose(p); // a fresh take-off starts its pose from the hover
         p.flying = !!fly;
+        if (fly) p.tailHold = false; // 🐒 W with a Fly worn takes off out of a tail hold
         const glide = fly ? null : glideState(glideEffect, K, p.onGround, climbing, p.vy);
         p.gliding = !!(glide && glide.active);
         // Play the gliding item's own Side animation while it is in use — reusing the same
@@ -18553,6 +18653,9 @@ export default function AssetStudio({ game = false } = {}) {
           // top gate with a level above is right here (then it carries you through like any seam).
           if (p.y < 0 && !seamAt("N", p, pw, ph)) { p.y = 0; if (p.vy < 0) p.vy = 0; }
           p.hsAir = headStompAirStep(p.hsAir, false, p.y, p.vy, true); // a flight is going up: let go of it and a 👢 Stomp is armed on the way down
+        } else if (p.tailHold) {
+          // 🐒 Hanging by the tail: held where you caught, no fall, so no 👢 Stomp is armed either.
+          p.vy = 0; p.onGround = false; p.hsFall = false;
         } else {
           const gravMul = p.gliding ? glide.fall : (djActive ? p.djGravMul : 1);
           // Above baseline Agility (5), holding Jump through the rise adds extra height on top —
@@ -18571,6 +18674,8 @@ export default function AssetStudio({ game = false } = {}) {
       }
       p.climbing = climbing;
       p.climbKind = climbing ? climbKindHere : null;
+      if (climbing || topdown) { p.tailHold = false; p.thUsed = false; p.thT = 0; } // 🐒 caught something real: the hold is handed back, as Double Jump's is
+      p.thAim = p.tailHold ? easeTailHoldAim(p.thAim, !!(p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking), dtMul) : 0;
       p.topdown = topdown;
       // Off the plane you are simply side-on again — but not during the hop off it, so a jump
       // taken while walking up the road lands you still walking up the road.
@@ -19129,6 +19234,14 @@ export default function AssetStudio({ game = false } = {}) {
           // ...and 👢 Stomp: it lands on heads when it falls (the stomp test after the attack sink,
           // applyHitTo) and leaps at its target to do it (the attack commit, headStompLeapPlan).
           const eHeadStomp = (ea.effects || []).find((e) => e && e.type === "headStomp") || null;
+          // ...and 🐒 Tail Hold: a gunman hops at an attack commit (eTailHop) and catches at the top of the
+          // hop (its fall, below). The ground, a ladder, bars or a plane hand the hold back, as yours.
+          const eTailHold = (ea.effects || []).find((e) => e && e.type === "tailHold") || null;
+          if ((ep.thCd || 0) > 0) ep.thCd = Math.max(0, ep.thCd - dtMul);
+          if ((ep.tailHold || ep.thHop) && (ep.onGround || ep.topdown || ep.climbing || (ep.down || 0) > 0)) {
+            if (ep.tailHold) ep.thCd = TAIL_HOLD_UNIT_COOLDOWN_FRAMES;
+            ep.tailHold = false; ep.thHop = false; ep.thT = 0; ep.thAim = 0;
+          }
           if ((ep.hsLeapCd || 0) > 0) ep.hsLeapCd = Math.max(0, ep.hsLeapCd - dtMul);
           if (ep.onGround || ep.topdown) { ep.extraJumped = false; ep.djGravMul = 1; } // landing hands the extra jump back, as it does yours
           const ew = spawnWeaponFor(spawn, ea); // the weapon THIS PLACEMENT is holding — the level's choice wins over the look's own, and "bare hands" is a choice (spawnWeaponIdOf)
@@ -19583,7 +19696,7 @@ export default function AssetStudio({ game = false } = {}) {
           // 🦎 Shoved by a tail swing (ep.knock): the shove IS its step until it runs out, through the
           // very wall/kerb/edge tests below — the player's rule. `stunned` already zeroed its walk.
           const eKnockStep = ep.knock ? knockbackStep(ep.knock.left, dtMul) : 0;
-          const stepX = eKnockStep > 0 ? ep.knock.dir * eKnockStep : walkStepX;
+          const stepX = eKnockStep > 0 ? ep.knock.dir * eKnockStep : (ep.tailHold ? 0 : walkStepX); // 🐒 hanging by the tail, it stays where it caught (a shove still moves it, as it moves you)
           // The feet's say, on top of the turn-toward above — then the one and only write, gated by
           // holdFacing so a facing the unit wanted for a single frame never reaches the sprite.
           wantFace = enemyFaceThisFrame(wantFace, (eSwoop && eSwoop.phase === "cruise") ? 0 : dxMove, enemyAttackCommitted(ep)); // 🦸 circling, it watches its target rather than its drift
@@ -19894,6 +20007,16 @@ export default function AssetStudio({ game = false } = {}) {
                 // whether its arms are busy aiming, swinging or throwing.
                 if (ep.flying) advanceFlyPose(ep, Math.abs(ep.x - exBefore) / Math.max(0.01, aiSpeed * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1))), ep.vy / Math.max(0.01, eRise), (ep.aimHold || 0) > 0 || (ep.swingT || 0) > 0 || (ep.throwT || 0) > 0, dtMul);
                 if (eHeadStomp) ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, true); // a flight went up: the fall after it is armed at once, as yours is
+              } else if (eTailHold && (ep.tailHold || (ep.thHop && ep.vy >= 0))) {
+                // 🐒 THE TOP OF ITS HOP: it catches by the tail and hangs there, held like you, shooting
+                // down (its attack loop is untouched: a feet line within its own height of yours is
+                // "the same floor"), until tailHoldUnitFrames runs out. Then it drops and fights from
+                // its feet for TAIL_HOLD_UNIT_COOLDOWN_FRAMES before the next hop.
+                if (!ep.tailHold) { ep.tailHold = true; ep.thHop = false; ep.thT = 0; ep.thAim = 0; }
+                ep.vy = 0; ep.onGround = false;
+                ep.thT += dtMul;
+                ep.thAim = easeTailHoldAim(ep.thAim, (ep.aimHold || 0) > 0 || (ep.swingT || 0) > 0 || (ep.throwT || 0) > 0, dtMul);
+                if (ep.thT >= tailHoldUnitFrames(eTailHold)) { ep.tailHold = false; ep.thT = 0; ep.thAim = 0; ep.thCd = TAIL_HOLD_UNIT_COOLDOWN_FRAMES; }
               } else {
                 const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
                 eHsFeet0 = ep.y + newEph;
@@ -20437,6 +20560,11 @@ export default function AssetStudio({ game = false } = {}) {
                 const eLeap = (!eUnder.length && eHeadStomp && !(ep.hsLeapCd > 0) && !ep.hsLeap && ep.onGround && !ep.climbing && !ep.topdown && !ep.crouch && !ep.flying)
                   ? headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop, dx: tgtAimCX - eCenterXFinal, speed: unitMoveSpeed(ea, false) * chillMoveMult(ep), cellPx: CW })
                   : null;
+                // 🐒 Wearing a Tail Hold with a gun, on its feet and not cooling down: the attack it
+                // commits is a HOP. At the top it catches by the tail and shoots down from there (its
+                // fall, eTailHold). No shot rides on the hop itself.
+                const eTailHop = !eUnder.length && !eLeap && eTailHold && rangedNow && !(ep.thCd > 0) && !ep.thHop && !ep.tailHold
+                  && ep.onGround && !ep.climbing && !ep.topdown && !ep.crouch && !ep.flying;
                 if (eUnder.length) {
                   ep.swingT = 0; ep.swingHit = null;
                   ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, STOMP_FRAMES);
@@ -20449,6 +20577,11 @@ export default function AssetStudio({ game = false } = {}) {
                   ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, eLeap.frames);
                   sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep); ep.onGround = false; ep.jumpHoldT = 0;
                   ep.hsLeap = true;
+                } else if (eTailHop) {
+                  ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0; ep.autoFire = false;
+                  ep.attackT = ATTACK_COOLDOWN_FRAMES;
+                  sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep); ep.onGround = false; ep.jumpHoldT = 0;
+                  ep.thHop = true;
                 } else if (eTailFront.length) {
                   ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0; ep.autoFire = false;
                   ep.attackT = ATTACK_COOLDOWN_FRAMES;
@@ -30323,6 +30456,13 @@ export default function AssetStudio({ game = false } = {}) {
                     blocks = applyWalkArmSwing(blocks, swing); // arms swing opposite the legs; applyLimbSwing never touches them
                   } else if (blocks && creatureFlies(basePlayerAsset) && !(p.down > 0)) {
                     if (p.flapDown) blocks = flapCreatureWings(blocks, true);
+                  } else if (blocks && p.tailHold && angle === "side") {
+                    // 🐒 HANGING BY THE TAIL (tailHoldPose): legs dangling, arms relaxed, the whole
+                    // body swinging from the hook behind your back (the wrapper's tailHoldSwingCss,
+                    // see `lean`). A shot, swing, throw or block takes the arms in the branches below,
+                    // and then only the legs dangle here (the flying pose's rule for busy arms).
+                    const thPose = tailHoldPose(p.thT);
+                    blocks = (p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking) ? flyLegBlocks(blocks, thPose) : flyPoseBlocks(blocks, thPose, playerArtFacesRight(basePlayerAsset));
                   } else if (blocks && p.flying && angle === "side") {
                     // 🦸 FLYING: the built-in pose (flyPose) — hover, climb, come down or the
                     // superhero dive along, blended from where the flight is. Legs and arms here; the
@@ -30554,6 +30694,8 @@ export default function AssetStudio({ game = false } = {}) {
                     // hover, the superhero dive at speed, upright again while the arms are busy.
                     const tip = flyTiltDeg(p, playerArtFacesRight(basePlayerAsset));
                     if (Math.abs(tip) > 0.5) lean = `rotate(${tip.toFixed(1)}deg)`;
+                  } else if (p.tailHold) {
+                    lean = tailHoldSwingCss(p.thT, p.thAim, renderW, ph, playerArtFacesRight(basePlayerAsset)); // 🐒 swinging from the hook behind your back
                   } else if (p.hsFall) {
                     lean = headStompScaleCss(p.vy); // 👢 a stomp drops straight: no lean, stretched by the speed of the fall (about the feet — see transformOrigin)
                   } else if (airborne) {
@@ -30935,6 +31077,10 @@ export default function AssetStudio({ game = false } = {}) {
                     // here; the arms further down, once the held weapon's base angle has been read off
                     // the arm as drawn (they are turned the way an aim is, by driveUnitArms).
                     eBlocks = flyLegBlocks(eBlocks, flyPoseOf(ep));
+                  } else if (ep && ep.tailHold && !eUseAtkPose && !eFrontPose && !eClimbBack && !isCreatureUnit(ea)) {
+                    // 🐒 Hanging by the tail in YOUR pose (tailHoldPose): legs dangling here, arms
+                    // relaxed further down (an aim outranks them), the swing on the wrapper.
+                    eBlocks = flyLegBlocks(eBlocks, tailHoldPose(ep.thT));
                   } else if (ep && ep.hsFall && !eUseAtkPose && !eFrontPose && !eClimbBack && !isCreatureUnit(ea)) {
                     // 👢 A Stomp's fall, in YOUR pose (headStompPose): legs locked together here, arms
                     // flung up further down, where the flying arms go.
@@ -31069,6 +31215,9 @@ export default function AssetStudio({ game = false } = {}) {
                     // the weapon in the hand rides along. A drawn creature keeps its paws as drawn.
                     const ePose = flyPoseOf(ep);
                     eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, ePose, eFacesRight));
+                  } else if (ep && ep.tailHold && eRealArm && !eUseAtkPose && !eFrontPose && !eClimbBack && !isCreatureUnit(ea)) {
+                    const thPose = tailHoldPose(ep.thT); // 🐒 relaxed while it is not aiming
+                    eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, thPose, eFacesRight));
                   } else if (ep && ep.hsFall && eRealArm && !eUseAtkPose && !eFrontPose && !eClimbBack && !isCreatureUnit(ea)) {
                     // 👢 ...and the Stomp fall's arms, overhead, by the flying arms' rule; an aim, a swing or a throw (above) outranks it.
                     const hsPose = headStompPose(ep.hsFallT);
@@ -31144,9 +31293,12 @@ export default function AssetStudio({ game = false } = {}) {
                   const eFlyTip = (ep && ep.flying && !downed && !eFrontPose && !isCreatureUnit(ea)) ? flyTiltDeg(ep, enemyArtFacesRight(ea)) : 0;
                   // 👢 ...and a Stomp's fall stretches it about its feet with the speed of the fall, as yours does.
                   const eHsFall = !!(ep && ep.hsFall && !downed && !eFrontPose && !isCreatureUnit(ea));
+                  // 🐒 ...and a unit hanging by the tail swings from the hook behind its back, as you do.
+                  const eThSwing = (ep && ep.tailHold && !downed && !eFrontPose && !isCreatureUnit(ea)) ? tailHoldSwingCss(ep.thT, ep.thAim, eRenderW, eph, enemyArtFacesRight(ea)) : "";
                   const wrapTransform = downed
                     ? (flip === "none" ? "" : flip + " ") + "translateY(" + (-layFlatLiftPx(eBlocks, eRenderW, eph)).toFixed(2) + "px) " + LAY_FLAT_ROT_CSS
                     : Math.abs(eFlyTip) > 0.5 ? ((flip === "none" ? "" : flip + " ") + "rotate(" + eFlyTip.toFixed(1) + "deg)")
+                    : eThSwing ? ((flip === "none" ? "" : flip + " ") + eThSwing)
                     : eHsFall ? ((flip === "none" ? "" : flip + " ") + headStompScaleCss(ep.vy))
                     : flip;
                   // Depth on a shared 🚶 plane (topdownDepthZ): the player's feet line against this

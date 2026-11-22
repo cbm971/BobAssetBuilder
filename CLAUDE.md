@@ -1022,6 +1022,13 @@ plus traps it does not cover:
   (`headStompPose`, Fly's rig, no designer) shows exactly then. A wearing unit leaps at its target at
   an attack commit (`headStompLeapPlan`) only if its jump clears the head: Agility 10 clears a 7-cell
   Bob, 9 does not. Keep the `hs*` names; `stomp*` is taken.
+- **🐒 Tail Hold (`EFFECT_TYPES.tailHold`, 2026-11-22):** a FRESH Jump press in the air with no unspent Double Jump
+  catches (`tailHoldStep`): vy 0, dx 0, one hold per time in the air. Jump again or S lets go; W flight, a ladder,
+  landing or being floored ends it; `time` 30 = no limit. Guns and swings work while hanging. The body swings from
+  the top of the Monkey Pants' tail curl (`TAIL_HOLD_HOOK_X/Y`, canvas (50, 94); the sprite box IS the 200x260
+  canvas), calmer while aiming. A unit with it AND a ranged weapon hops at an attack commit (`eTailHop`), catches at
+  the apex, shoots (sameFloor still holds), lets go after `TAIL_HOLD_UNIT_SECS`, then waits
+  `TAIL_HOLD_UNIT_COOLDOWN_FRAMES`. Throw-only units (the monkeys' rocks) never hop: `rangedNow` is the weapon's.
 - **🔥 Ignite (weapon ability, ranged + melee, 2026-10-18):** a connecting hit sets the body alight for `ignite` s at
   `igniteDps` (`igniteBody`). It is a timer on the body added to `hazardDpsAt` in the SAME burn pool fire cells use, so the
   onFire look and immunities are fire's own; it never paints cells (a 10/s flamethrower would re-raster the level). Applied at
@@ -1223,6 +1230,7 @@ Grep it for the function or feature name. In order, it covers:
 - sound: the storage measurements and why audio is a file, the clip ladder, the keeper's sweep of
   clips, and the test rigs (fake host store, a test keeper with a local bare repo, headless Edge);
 - the 👢 Stomp clothing ability (`headStomp`), with how it was driven in a real build;
+- the 🐒 Tail Hold clothing ability, the Monkey Pants refit to Bobbett, and Tree Tops 6 and 7;
 - the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.
 - the game front end: why it is one app at two addresses, the title before the bundle, where saves live;
 - and, last, the 🚗 vehicles: his 7 cars migrated, what was measured driving one, and the car's i-frames;
