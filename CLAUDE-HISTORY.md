@@ -6011,3 +6011,24 @@ Why S1 and not S2's two-tone: S1's bedroom paints its upper and lower walls with
 Compatibility: 500 seeds over his library start S1 162, S2 172, S3 166, and in 500/500 the rest of the run is identical to S1 alone. A REAL library test checks that S2 and S3 keep S1's gates and edge terrain/markers/spawns and that every run after the start is S1's. It leaves placed props out of the edge check: S2 swapped the berry bush standing on column 0.
 
 Verified in the running app (dev server, ?mute, god): the wake-up plays on the pink bed and the blanket is pink, the closet door says Press E at its S1 spot, the TV says Read this at col 38, the kitchen shows the pink wallpaper and both pedestals rolled, the Station Wagon says Press E to drive and drives, past the turquoise Canned Ham.
+
+## Forest M20, the Agility temple (2026-11-22)
+
+His ask: "make another Parcor centric Vietnam level that rewards high AGI". Forest M20 (`vcfrm20`) is a bombed Cham temple compound at night, 200x46, W2/E2, ground row 36, built by a seeded generator (`gen20.js`, scratchpad only) on his Forest M11/M16 look: single jungle trees in two greens, Front trees at both ends, mixed plant clumps, a new Cham Brick texture (`chmbrk1`, his stoneBrick recipe in red-brown).
+
+West to east: jungle; the gopura (gate tower, cols 18-33) with a vine ladder on its west face up to its overgrown deck; a bomb crater (cols 39-63) with 45° banks, a mud bed and Dirty Water as Front paint, a croc on guard; the mandapa hall (cols 64-92) on a 2-row plinth with a gable over its west door and a roof slab; the kalan terrace (rows 30-35); the kalan itself, cut away and hollow; the fire house (kosagrha) with a boat-shaped thatched roof; jungle.
+
+The three Agility grades:
+- **Agility 5:** vine bars B1 (row 17, one row over a standing head on the gopura deck, so anyone catches it) run over the crater; B2 (row 13) is three rows over a B1 hang, 90 px. Agility 4 peaks at 430 against 420, Agility 5 catches. From B2 you shimmy over the gable and drop on the hall roof, catch B3 (any) and drop on the terrace. This route skips the crater croc and the hall's three Vietkong.
+- **Agility 8:** in the fire house a ladder hangs from a 1-cell hatch in the loft floor, its bottom 5 rows over a standing head. The loft holds the Heal OR Food pedestal and opens east (8 rows) so you can leave it.
+- **Agility 10:** inside the kalan a rope ladder hangs 7 rows over a standing head and climbs through a 1-cell hatch in the summit slab to the Vietnam AND Rare pedestal and a guard. Two item sources, one purple, no gold.
+
+Measured in the running app (dev server, ?mute&god, a gated MessageChannel frame loop, units frozen):
+- Shaft: Agility 9 peaks at y 486.7 against 480 (no catch); Agility 10 catches with Space held, climbs through the hatch and steps onto the summit. A 4-frame tap at Agility 10 does not reach: the hold boost needs Space held.
+- Loft: Agility 7 peaks at 720.9-722.3 against 720 at 60 and 144 fps; Agility 8 catches and walks into the loft. A Monte Carlo of the jump code (60-360 Hz, ±25% frame jitter, 20,000 jumps a level) never lifts Agility 7 past 149.6 px or 9 past 208, so both gates hold, by under a pixel at 165 Hz for the loft.
+- Ground route at Agility 1 / Speed 1: west to east and east to west, end to end.
+
+Three things the tests caught before shipping:
+1. **The gopura's doorway was a closed pocket.** Cutting a door in the MIDDLE of a tower is what a front view shows; in side view the walls either side still stand to the ground, so the walk stopped at column 16. Fixed with 8-row doors through both side walls, corbelled like the kalan's, and a back wall behind them.
+2. **The hall roof slab clipped heads walking west.** It ran to column 92, over the top of the terrace steps; walking down them the head met its underside at column 93. East-bound never showed it. The slab now ends at column 90.
+3. **Agility 4 got over the gable.** A running leap off the east end of B1 (bars shimmy at walk speed and a bar jump keeps it) put Agility 4's feet at 640 beside a gable whose ramp-topped peak started at 630. Ramps on top make the wall "hill", and with nothing under the centre a hill under the body's edge is a ledge (`sideWallsW`), so he stood on it and jumped again over everything. Raising it a row did not help. The gable is now plain blocks with a flat top at row 20 (the point is drawn in the background): every Agility 4 leap from eight take-off points stops at the wall, and a B2 hang (feet exactly at 600) passes over the top.
