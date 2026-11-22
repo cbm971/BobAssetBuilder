@@ -6060,3 +6060,32 @@ ability after Double Jump: Space in mid-air hangs you by the tail and you can sh
 - **Measured in the running game (?mute&god):** Monkey Man caught at y 913.4 and held still; an arrow left from the
   hang; Space let go; a second catch and S let go. An enemy Monkey Man hopped at an attack, caught at the top,
   fired at thT 60, let go at 4 s and waited out the cooldown.
+
+## Forest M21, a Vietnam trunk level (2026-11-22)
+
+His ask: "On Bob can you make another Vietnam level that has a tree tops entrance?"
+
+- **Gate choice:** a probe ran `buildRun` over 300 Vietnam seeds with a dummy trunk level at N1 and at N2,
+  160 and 180 wide. N2 at 180 gave the most tree tops without taking trunks from M3 and M4. The finished
+  level: runs with a tree top 158 → 194 of 300; trunks used M21 82, M3 80, M4 82; still 8 street levels
+  and an Exit on every seed.
+- **Layout (W → E):** west bank sentry; a drowned plank bridge on row 38 over a channel (bed row 42, Front
+  water); the porter way station (cook fire, two Cargo Bicycles, his Hammock between two trunks, his Camo
+  Net over rice sacks and crates with a Heal OR Food pedestal, an AK guard); a bomb crater with a puddle and
+  snapped trees; the root mound and the giant tree; the AA knoll (his AA gun, sandbags, two gunners).
+- **The tree:** a tapered Background trunk (cols 120-131 at the base) with bark streaks and vine shapes, a
+  4-wide climb ladder (cols 124-127) from the mound to row 0. A bamboo lookout deck west on row 18 (poles,
+  rail, thatch roof well over the head, his Alarm Gong and Oil Lantern, a Mosin sniper, one Vietnam AND
+  Good pedestal) and a bark limb east, under a leaf clump, where a Monkey throws rocks.
+- **Cargo Bicycle (`hcmbike`):** the Ho Chi Minh Trail porter's bike. His Rocket Bicycle's wheels, frame and
+  poles (ids re-prefixed), the rocket removed, three burlap sacks in his Rice Sacks colours and a rope.
+- **Style:** his Forest M11 recipe: material patches meeting on 45° ramps, far canopies on thin trunks with
+  the night sky between them, Front trees with his Tree Roots at three spots, plants in clumps.
+- **The bug the playtest found:** the east limb first sat on row 24, exactly 7 rows over the mound. Walking
+  under it on the ground cleared it by nothing; at the ladder foot the climbing box sits at feet 31.95, so
+  the head overlapped the limb by 0.05 row and D moved Bob 1.2 cells and no further. Raised to row 23.
+- **Measured in the running game (?mute&god, BoB):** walked edge to edge both ways; ladder from the mound to
+  the top of the level and back; off the ladder onto the deck and the limb and back on; off the ladder foot
+  both ways. In a real 🏁 run (seed 89521 on the dev library: Vietnam S1, Forest M21, …) walked out of S1
+  into M21 and climbed the trunk straight into Tree Tops 5 (its trunk ladder at col 47, still climbing).
+- Generator `gen21.js` (+ `props21.js`, `setup21.js`) stays in that session's scratchpad.
