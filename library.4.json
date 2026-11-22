@@ -1,5 +1,5 @@
 {
- "set": "27c53877c32168b6",
+ "set": "06314963c1345e52",
  "part": 4,
  "levels": [
   {
@@ -249615,24 +249615,6 @@
       "z": 178
      }
     ],
-    "27,148": [
-     {
-      "kind": "prop",
-      "propId": "lt1i1vk",
-      "solid": false,
-      "size": 4,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.122,
-      "z": 179
-     }
-    ],
     "33,164": [
      {
       "kind": "prop",
@@ -249775,24 +249757,6 @@
       "ox": 0,
       "oy": 0.42,
       "z": 187
-     }
-    ],
-    "30,194": [
-     {
-      "kind": "prop",
-      "propId": "vjtaro1",
-      "solid": false,
-      "size": 6,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.722,
-      "oy": 0,
-      "z": 188
      }
     ],
     "31,156": [
@@ -250077,6 +250041,42 @@
       "flip": true,
       "lay": "bg",
       "z": 208
+     }
+    ],
+    "28,147": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "size": 4,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0,
+      "oy": 0.122,
+      "z": 179
+     }
+    ],
+    "30,195": [
+     {
+      "kind": "prop",
+      "propId": "vjtaro1",
+      "solid": false,
+      "size": 6,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.722,
+      "oy": 0,
+      "z": 188
      }
     ]
    },
@@ -250566,7 +250566,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795350766679
+   "savedAt": 1795367551702,
+   "editedFrom": 1795350766679
   },
   {
    "id": "vshaq01",
