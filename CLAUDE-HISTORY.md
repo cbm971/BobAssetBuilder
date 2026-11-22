@@ -5993,3 +5993,21 @@ Trailer Park S2 (`trps2a1`) is a copy of his newest S1 (`6ktwvoo`, saves branch,
 Compatibility: buildRun picks the Intro with one `rnd()` however many Intros a floor has, and S2 has S1's gates and edge columns exactly, so every later level of a seed is the same as before. Over his real library, 500 seeds: 265 start in S2 and in 500/500 the rest of the run is identical. A save from before keeps its level (resumeNodeKey falls back to the run start only if a level left its slot). `GAME_FLOORS` and the floor lists dedupe by floor, so no game code names S2. A jest test (two Intros on one floor) keeps this true.
 
 Verified in the running app (dev server, ?mute&god): the S2 playtest draws the purple bed and blanket, the wake-up plays, the moved door says Press E and the TCloset clears "Go into the side room to prepare", the navy trailer's door works, and run 402896 went S2 -> M15 and on across the seam. The 🎬 editor shows the Colour box on Wake Up (Purple Bed)'s Blanket layer, and his Wake Up (Bed) has nothing unsaved.
+
+## Trailer Park S3, the third start room (2026-11-21)
+
+Blake, right after S2: "On Bob can you add a 3rd Trailor Park S varient? An S3?" No colour asked for this time, so S3 is a turquoise-and-pink 1960s room, to sit apart from S1 (green, rust quilt) and S2 (gold, purple quilt).
+
+Trailer Park S3 (`trps3a1`) is a copy of his newest S1 (`6ktwvoo`, saves branch, savedAt 1794064324160), made by a script that asserts every change:
+- Bedroom: Turquoise Atomic wallpaper (`atmtrq1`, his Light Atomic recipe: turquoise paper, cream starbursts, orange sparkles, pink dots) on all 682 bedroom wallpaper fills, fg and bg.
+- Kitchen walls: Pink Atomic wallpaper (`atmpnk1`, his kitchen Atomic wallpaper with pink paper). The checker floor is S1's.
+- 1960s Pink Bed (`bedpnk1`, his 1960s Bed with the quilt pieces recoloured the way the Purple Bed was) and Wake Up (Pink Bed) (`wakebd3`, Wake Up (Purple Bed) with that bed and the Blanket layer `color` #d94f8a).
+- His Mirror Dresser (size 7, cols 23-29) stands between the bed and the closet door, under his Sunburst Clock (not moved). His TV moved east to the right wall (27,38) and its TV News sign with it (31,38). The closet door and its TCloset marker are where S1 has them. His Sputnik Light hangs under the ceiling line over the bed (23,8).
+- Next door: 1960s Canned Ham 3 (`cnham63`), his Canned Ham with the coral lower body turquoise (same body, door and wheel, so the Trailer Int door works).
+- The driveway car is his 1960s Station Wagon (size 16, cols 132-148, art ending on row 35 like the Beetle's) instead of the Beetle.
+
+Why S1 and not S2's two-tone: S1's bedroom paints its upper and lower walls with ONE texture and two cell colours (#004d05 green, #ffb3b3 pink), but a textured cell draws the texture's own ground over the whole tile, so in play both halves are the same green. The cell colour only shows in the editor's flat swatches and in the offline rasterizer. A new wallpaper colour therefore has to be a new texture record (S2's Gold Atomic was one too).
+
+Compatibility: 500 seeds over his library start S1 162, S2 172, S3 166, and in 500/500 the rest of the run is identical to S1 alone. A REAL library test checks that S2 and S3 keep S1's gates and edge terrain/markers/spawns and that every run after the start is S1's. It leaves placed props out of the edge check: S2 swapped the berry bush standing on column 0.
+
+Verified in the running app (dev server, ?mute, god): the wake-up plays on the pink bed and the blanket is pink, the closet door says Press E at its S1 spot, the TV says Read this at col 38, the kitchen shows the pink wallpaper and both pedestals rolled, the Station Wagon says Press E to drive and drives, past the turquoise Canned Ham.

@@ -11239,6 +11239,43 @@ describe("runs", () => {
     expect([...starts].sort()).toEqual(["INTRO", "INTRO2"]);   // both rooms come up over 40 seeds
   });
 
+  // Blake, 2026-11-21, after S2: "can you add a 3rd Trailor Park S varient? An S3?" Every start room
+  // a floor has must keep S1's gates and its edge columns cell for cell; otherwise a seed that wakes
+  // up in it lays a different run, and a saved game in a later level no longer finds its own level.
+  // This reads his REAL library, so a fourth variant (or an edit of one) that breaks the rule fails
+  // here and not in somebody's run.
+  test("on the REAL library, Trailer Park S1, S2 and S3 share gates and edge columns, and every run after the start is S1's", () => {
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
+    const IDS = ["6ktwvoo", "trps2a1", "trps3a1"];   // Trailer Park S1 (his), S2, S3
+    const [s1, ...variants] = IDS.map((id) => lib.levels.find((l) => l.id === id));
+    // Terrain, ladders, hazards, markers and spawns. Not placed props: S2 swapped the berry bush that
+    // stands on column 0 for his purple one, and a bush is scenery, not a seam.
+    const edges = (lv) => {
+      const out = {};
+      for (const layer of ["fg", "bg", "front", "climb", "hazard", "markers", "enemies"]) for (const [k, v] of Object.entries(lv[layer] || {})) {
+        if ([0, 1, lv.cols - 2, lv.cols - 1].includes(+k.split(",")[1])) out[layer + " " + k] = v;
+      }
+      return out;
+    };
+    for (const v of variants) {
+      expect(runRole(v)).toBe("intro");
+      expect([v.floor, v.cols, v.rows]).toEqual([s1.floor, s1.cols, s1.rows]);
+      expect(v.conns).toEqual(s1.conns);
+      expect(edges(v)).toEqual(edges(s1));
+    }
+    const s1Only = lib.levels.filter((l) => !variants.includes(l)), starts = new Set();
+    for (let i = 0; i < 60; i++) {
+      const sd = "tp-start-" + i;
+      const one = buildRun(s1Only, sd, { floor: "Trailer Park" }), all = buildRun(lib.levels, sd, { floor: "Trailer Park" });
+      const ids1 = one.order.map((k) => one.nodes[k].level.id), idsAll = all.order.map((k) => all.nodes[k].level.id);
+      expect(ids1[0]).toBe(IDS[0]);
+      expect(IDS).toContain(idsAll[0]); starts.add(idsAll[0]);
+      expect(all.order).toEqual(one.order);
+      expect(idsAll.slice(1)).toEqual(ids1.slice(1));
+    }
+    expect([...starts].sort()).toEqual([...IDS].sort());   // all three rooms come up over 60 seeds
+  });
+
   test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {
     const pool = [A, B, C, D, SEWER, SEWER2];
     // The start of a run without an Intro is a seeded pick among east-open levels, so take the first
