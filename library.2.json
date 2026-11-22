@@ -1,5 +1,5 @@
 {
- "set": "6a9dc3d5f1c78d4c",
+ "set": "7a0fb953e187117a",
  "part": 2,
  "assets": [
   {
@@ -528552,7 +528552,7 @@
     "kind": "stat",
     "stat": "intelligence",
     "amount": 2,
-    "duration": 60
+    "duration": 120
    },
    "categories": [
     "T1",
@@ -528562,15 +528562,16 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795297503508,
+   "savedAt": 1795311586074,
    "moreEffects": [
     {
      "kind": "stat",
      "stat": "speed",
      "amount": 2,
-     "duration": 60
+     "duration": 120
     }
-   ]
+   ],
+   "editedFrom": 1795297503508
   },
   {
    "id": "rkamp01",
@@ -975751,8 +975752,9 @@
     "crouch": []
    },
    "effect": {
-    "kind": "heal",
-    "amount": 5
+    "kind": "damage",
+    "mult": 1.5,
+    "duration": 240
    },
    "categories": [
     "T1",
@@ -975762,14 +975764,14 @@
    "value": 6,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795311520179,
+   "savedAt": 1795311586073,
    "moreEffects": [
     {
      "kind": "hurt",
      "amount": 10
     }
    ],
-   "editedFrom": 1795297503509
+   "editedFrom": 1795311520179
   },
   {
    "id": "whtstn1",
