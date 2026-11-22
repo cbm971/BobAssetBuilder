@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape, floorEndAnim, animScreenFit, animTalkOpen, ANIM_TALK_BEATS, ANIM_TALK_FPS, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, CLOTH_LOOK, clothLook, CLOTH_DOT_LIGHTER, CLOTH_SEAM_DARKER, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape, floorEndAnim, animScreenFit, animTalkOpen, ANIM_TALK_BEATS, ANIM_TALK_FPS, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -248,6 +248,23 @@ describe("🛏 a blanket (cloth layer)", () => {
     const st = { keys: [{ id: "k0", t: 0, v: { c: { cover: 2.8, lift: 0, fx: 10 } } }, { id: "k1", t: 1, v: { c: { cover: 0.5, lift: 2, fx: 12 } } }] };
     expect(animLayerAt(a, st, a.layers[1], 0.5)).toMatchObject({ cover: 1.65, lift: 1, fx: 11 });
     expect(animMirrorValues({ x: 2, fx: 8, y: 7 }, 17)).toMatchObject({ x: 15, fx: 9 });
+  });
+  // Blake, 2026-11-21: purple blankets for the second Trailer Park start room. A blanket with no colour
+  // (every one saved before) is his rust quilt exactly; with one, the dots and seam follow it.
+  test("a blanket is his rust quilt unless the layer has its own colour, and then dots and seam follow it", () => {
+    expect(clothLook({ id: "c", kind: "cloth" })).toBe(CLOTH_LOOK);
+    expect(clothLook({ kind: "cloth", color: "#C1440E" })).toBe(CLOTH_LOOK);          // his own rust picked: unchanged
+    for (const bad of ["", "purple", "#12345", 7, null]) expect(clothLook({ kind: "cloth", color: bad })).toBe(CLOTH_LOOK);
+    const L = clothLook({ kind: "cloth", color: "#6a2c91" });
+    expect(L.fill).toBe("#6a2c91"); expect(L.sheet).toBe(CLOTH_LOOK.sheet);
+    const lum = (h) => { const n = parseInt(h.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255]; return (Math.max(...c) + Math.min(...c)) / 2 / 2.55; };
+    expect(lum(L.dot) - lum(L.fill)).toBeCloseTo(CLOTH_DOT_LIGHTER, 0);
+    expect(lum(L.fill) - lum(L.seam)).toBeCloseTo(CLOTH_SEAM_DARKER, 0);
+    const hue = (h) => { const n = parseInt(h.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255]; return Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b); };
+    expect(hue(L.dot)).toBeCloseTo(hue(L.fill), 1); expect(hue(L.seam)).toBeCloseTo(hue(L.fill), 1);
+    // migrate keeps the colour on the layer, so a saved purple blanket stays purple
+    const a = migrateAnim({ ...newAnim(mkId), id: "a", layers: [{ id: "b", kind: "actor" }, { id: "c", kind: "cloth", color: "#6a2c91" }] }, mkId);
+    expect(a.layers[1].color).toBe("#6a2c91");
   });
   test("on an empty bed it lies flat its own thickness up, hanging to its hem, sheet at the head end", () => {
     const g = animClothShape(V, layer(6), null);

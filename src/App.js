@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animShotsBetween, animMirrorValues, animPropTransform, animStateDur, animStep, animCanSkip, ANIM_SKIP_LEAVE_MS, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animShotsBetween, animMirrorValues, animPropTransform, animStateDur, animStep, animCanSkip, ANIM_SKIP_LEAVE_MS, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, clothLook, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
@@ -25086,7 +25086,7 @@ export default function AssetStudio({ game = false } = {}) {
         const g = animClothShape(v, l, clothBody);
         if (!g) continue;
         const d = (pts) => "M" + pts.map((q) => q[0].toFixed(3) + " " + q[1].toFixed(3)).join("L") + "Z";
-        const L = CLOTH_LOOK;
+        const L = clothLook(l);   // his rust quilt unless the layer has its own Colour
         kids.push(<svg key={l.id} className={cls + " animCloth"} viewBox={"0 0 " + anim.w + " " + anim.h} style={{ left: 0, top: 0, width: anim.w * cellPx, height: anim.h * cellPx, opacity }}>
           <g className="clothHit" data-ly={ly}>
             {g.scallops.map((q, i) => <circle key={"s" + i} cx={q[0].toFixed(3)} cy={q[1].toFixed(3)} r={q[2]} fill={L.fill} />)}
@@ -28690,6 +28690,7 @@ export default function AssetStudio({ game = false } = {}) {
                   {sliderRow("Cover", selV.cover ?? 2.8, 0, 5, 0.05, " cells", (v) => setV({ cover: v }))}
                   {sliderRow("Lift", selV.lift || 0, 0, 4, 0.05, " cells", (v) => setV({ lift: v }))}
                   {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
+                  <label className="catfield">Colour <input type="color" value={clothLook(sel).fill} onChange={(e) => put(animSetLayer(d, sel.id, { color: e.target.value }))} /></label>
                 </> : sel.kind === "text" ? <>
                   <input className="catinline" value={sel.title || ""} onChange={(e) => put(animSetLayer(d, sel.id, { title: e.target.value }))} placeholder="Title" />
                   <textarea className="animTextEdit" rows={8} value={sel.text || ""} onChange={(e) => put(animSetLayer(d, sel.id, { text: e.target.value }))} placeholder="Text" />

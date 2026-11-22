@@ -11218,6 +11218,27 @@ describe("runs", () => {
     const ren = buildRun(pool, "1", { floor: "Trailer Park" }); expect(ren.nodes[ren.order[0]].level.id).toBe("INTRO");
   });
 
+  // Blake, 2026-11-21: "make a different version of Trailor Park S1 so it sometimes spawns in a
+  // different enviornment ... Make sure it stays compadible". Trailer Park S2 is a second Intro with
+  // S1's gates. buildRun's one seeded pick among the floor's Intros decides which room a seed wakes up
+  // in, and that pick draws ONE number whatever the count, so every level after the start lays exactly
+  // as it did with S1 alone: a game saved in a later level still finds its level in its own slot.
+  test("two Intros on one floor: a seed starts in either, and the rest of the run is the same as with one", () => {
+    const INTRO2 = { ...INTRO, id: "INTRO2" };
+    const wide = [A, B, C, D, { ...A, id: "A2" }, { ...B, id: "B2" }, { ...C, id: "C2" }, { ...D, id: "D2" }, EXIT];
+    const starts = new Set();
+    for (let i = 0; i < 40; i++) {
+      const sd = "s2-" + i;
+      const one = buildRun([...wide, INTRO], sd, { floor: "Trailer Park" }), two = buildRun([...wide, INTRO, INTRO2], sd, { floor: "Trailer Park" });
+      const ids1 = one.order.map((k) => one.nodes[k].level.id), ids2 = two.order.map((k) => two.nodes[k].level.id);
+      expect(["INTRO", "INTRO2"]).toContain(ids2[0]); starts.add(ids2[0]);
+      expect(two.order).toEqual(one.order);
+      expect(ids2.slice(1)).toEqual(ids1.slice(1));
+      expect(two.hasExit).toBe(one.hasExit);
+    }
+    expect([...starts].sort()).toEqual(["INTRO", "INTRO2"]);   // both rooms come up over 40 seeds
+  });
+
   test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {
     const pool = [A, B, C, D, SEWER, SEWER2];
     // The start of a run without an Intro is a seeded pick among east-open levels, so take the first

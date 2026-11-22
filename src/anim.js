@@ -498,6 +498,37 @@ export const CLOTH = { step: 0.05, thick: 0.2, slope: 1.1, reach: 1.4, liftSpan:
   scallopGap: 0.31, scallopR: 0.13, dotGap: 0.5, dotRow: 0.4, dotFirst: 0.3, dotR: 0.08 };
 // Blake's blanket (blnkt01): rust quilt, light dots, the cream sheet turned down over its head end.
 export const CLOTH_LOOK = { fill: "#c1440e", dot: "#e8743a", sheet: "#f5f5dc", seam: "#9e3609" };
+// A BLANKET CAN BE ANOTHER COLOUR (2026-11-21, Blake: a second Trailer Park start room, "I am leaning
+// towards purple blankets on the next one"). The colour was this one constant, so every bed in the
+// game had his rust quilt. A cloth layer may now carry `color` (the 🛏 layer's Colour box): that is
+// the quilt, and its dots and seam are worked out from it the way his rust ones sit beside his rust
+// (dots lighter, seam darker, same hue), so one pick recolours the whole blanket the way 🪣 would.
+// No colour, or his own rust, is exactly CLOTH_LOOK, so every blanket saved before draws as it did.
+const hexHsl = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return [0, 0, l * 100];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, s * 100, l * 100];
+};
+const hslHex = (h, s, l) => {
+  s = Math.max(0, Math.min(100, s)) / 100; l = Math.max(0, Math.min(100, l)) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return "#" + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("");
+};
+// His dots sit 16 points of lightness over his quilt and his seam 8 under it (#c1440e → #e8743a / #9e3609).
+export const CLOTH_DOT_LIGHTER = 16, CLOTH_SEAM_DARKER = 8;
+export const clothLook = (layer) => {
+  const fill = layer && typeof layer.color === "string" ? layer.color.trim().toLowerCase() : "";
+  const hsl = fill && fill !== CLOTH_LOOK.fill ? hexHsl(fill) : null;
+  if (!hsl) return CLOTH_LOOK;
+  const [h, s, l] = hsl;
+  return { fill, dot: hslHex(h, s, Math.min(92, l + CLOTH_DOT_LIGHTER)), sheet: CLOTH_LOOK.sheet, seam: hslHex(h, s, Math.max(4, l - CLOTH_SEAM_DARKER)) };
+};
 // Sutherland–Hodgman: the part of a convex polygon where keep(p) >= 0.
 const clipPoly = (pts, keep) => {
   const out = [];
