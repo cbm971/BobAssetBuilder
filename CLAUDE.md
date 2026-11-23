@@ -1119,6 +1119,13 @@ plus traps it does not cover:
   Shop Keeper (`63edlrj`, seek, his `95e2gzd`, gearTags Meelee + T1). The keeper is the room's item source. Every
   Shaq room has both (`vshqNNs` / `vshqNNe`, named "<room> Shop Keeper" / "<room> Evil Shop Keeper") and keeps
   its own residents; a door rolls any of the 12 with one draw. A new Shaq room gets its two versions too.
+- **Drug dens** (Blake, 2026-11-23: "you enter a shaq and it is a drug dealers den and two people attack you", plus
+  "a simular Trailor room"). VShaq 5 (`vshaq05` + `vshq05s` / `vshq05e`, so the Shaq pool is 15) is VShaq's shell
+  with Bamboo walls and the Packed Earth floor; Trailer Int13 (`trlnt13`) is his Trailer Int11 shell with Wood panelling,
+  the new `dshag01` Dirty Shag Carpet and a stained ceiling. Each has two 🎲 tag units on Seek at 17,10 / 17,27 that
+  rush you the moment you walk in (Vietkong Meelee + Gun; Trailer Meelee + Meelee), no dialogue, and one pedestal of
+  tag "Drug" at 18,31 (Extended Range Pill, Joint, Ritalin, Steroids: one blue at most). Props `dd*`: Dirty Mattress,
+  Deal Table, Foil Window, Bead Curtain (Interior), Trash Pile, Bong, Wrapped Bricks (Decoration), Opium Bed (Vietnam).
 - **A look's name is record keeping too.** A talker is named by its tree's speaker (`talkerName`):
   the "Talk to …" prompt and the box. A 🎲 tag placement rolls a different look every Playtest.
 - There is no 👹 enemy flag and no weapon picker in Dress Bob. What a character carries is set per
