@@ -6089,3 +6089,22 @@ His ask: "On Bob can you make another Vietnam level that has a tree tops entranc
   both ways. In a real 🏁 run (seed 89521 on the dev library: Vietnam S1, Forest M21, …) walked out of S1
   into M21 and climbed the trunk straight into Tree Tops 5 (its trunk ladder at col 47, still climbing).
 - Generator `gen21.js` (+ `props21.js`, `setup21.js`) stays in that session's scratchpad.
+
+## Shaq rooms: VShaq 4 and the Shop Keeper versions (2026-11-22)
+
+- **Ask:** "make another Shaq interior? Also ... make sure there are 3 varients of each, one with a shop keeper, one
+  with an evil shop keeper and whatever the base is."
+- **VShaq 4 (`vshaq04`):** a 1960s village barber's hut on VShaq 3's shell (roof, bamboo sides, plane, fences, door).
+  Back wall in his Wood planks texture, a new Clay Tile floor (`bhtile1`), and 12 `bh*` props: Barber Chair, Hanging
+  Mirror, Strop and Shears, Razor Shelf, Basin Stand, Bamboo Bench, Transistor Radio, Tea Table, Towel Line, Bamboo
+  Blind, Rolled Mat, Bird Cage. Viatnamese 4 (`dd1w8a2`) is the Barber at 17,16: "Sit. I cut hair at the firebase
+  too." (`dlgbrb1`, "Shave, please." heals). One T1 pedestal at 19,27, like VShaq 2/3.
+- **The versions copy HIS pattern,** found in the online save: Trailer Int3/4/6 are Int1/2/5 cell for cell with the
+  pedestal gone and The Shop Keeper standing in; Int7/8/9 the same with the Evil Shop Keeper (seek, gearTags
+  Meelee/T1). No new character or dialogue was made. The keeper stands on the plane at the pedestal's column (VShaq 2/3:
+  17,27; VShaq 4: 17,29); VShaq has no pedestal, so his keeper stands at 17,30, right of the squirrel.
+- **Measured in the running game (?mute&god):** every version loads from the Room Creator's Shaq group (12 rooms);
+  walking up to each keeper shows "Talk to The Shop Keeper" / "Talk to Evil Shop Keep"; the Shop Keeper's first
+  choice opens the shop (3 T1 rows), and the Evil one's line turns him hostile; he closes in and hits.
+- VShaq 1 keeps its Tree Warden, whose tree already has a shop (Vietnam), so its Shop Keeper version has two shops.
+- Generators: `var/gen.js` (versions) and `vshaq04/gen.js` + `props.js` stay in that session's scratchpad.
