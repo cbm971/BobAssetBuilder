@@ -1,5 +1,5 @@
 {
- "set": "cfaaa7ff1de2e014",
+ "set": "cf8bade92a814d26",
  "part": 4,
  "levels": [
   {
@@ -255883,9 +255883,9 @@
     "35,21": "#171d35",
     "35,22": "#171d35",
     "35,23": "#171d35",
-    "35,24": "#171d35",
-    "35,25": "#171d35",
-    "35,26": "#171d35",
+    "35,24": "#2a2017",
+    "35,25": "#2a2017",
+    "35,26": "#2a2017",
     "35,27": "#171d35",
     "35,28": "#171d35",
     "35,29": "#171d35",
@@ -256547,24 +256547,6 @@
       "ox": 0,
       "oy": 0.02,
       "z": 30
-     }
-    ],
-    "26,45": [
-     {
-      "kind": "prop",
-      "propId": "mnpian1",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "size": 8,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0,
-      "z": 31
      }
     ],
     "24,38": [
@@ -257358,6 +257340,24 @@
       "oy": 0.2,
       "z": 75
      }
+    ],
+    "27,45": [
+     {
+      "kind": "prop",
+      "propId": "mnpian1",
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "size": 8,
+      "lay": "bg",
+      "ox": 0,
+      "oy": 0,
+      "z": 31
+     }
     ]
    },
    "climb": {
@@ -257752,8 +257752,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795296634018,
-   "editedFrom": 1795296604853
+   "savedAt": 1795435206240,
+   "editedFrom": 1795435194883
   },
   {
    "id": "vcfrm19",
