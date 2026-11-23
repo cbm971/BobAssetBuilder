@@ -1,5 +1,5 @@
 {
- "set": "deffe6866a3821c1",
+ "set": "5c470d0ebd18d329",
  "part": 4,
  "levels": [
   {
@@ -326312,7 +326312,63 @@
      "upsideDown": true
     },
     "12,173": "#4a5a28",
-    "12,174": "#4a5a28"
+    "12,174": "#4a5a28",
+    "36,175": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 2,
+     "step": 0,
+     "upsideDown": true
+    },
+    "36,176": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 2,
+     "step": 1,
+     "upsideDown": true
+    },
+    "36,177": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "36,57": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "36,55": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 2,
+     "step": 0,
+     "upsideDown": true
+    },
+    "36,56": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 2,
+     "step": 1,
+     "upsideDown": true
+    },
+    "40,60": {
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 2,
+     "step": 0
+    },
+    "40,61": {
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 2,
+     "step": 1
+    }
    },
    "fx": {
     "15,165": [
@@ -329413,78 +329469,6 @@
       "z": 208
      }
     ],
-    "32,51": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.9,
-      "oy": 0.57,
-      "z": 209
-     }
-    ],
-    "32,55": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.4,
-      "oy": 0.57,
-      "z": 210
-     }
-    ],
-    "32,171": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.9,
-      "oy": 0.57,
-      "z": 211
-     }
-    ],
-    "32,175": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.4,
-      "oy": 0.57,
-      "z": 212
-     }
-    ],
     "33,24": [
      {
       "kind": "prop",
@@ -330071,7 +330055,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795389061008
+   "savedAt": 1795433532911,
+   "editedFrom": 1795389061008
   },
   {
    "id": "vshaq01",
