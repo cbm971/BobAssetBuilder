@@ -6108,3 +6108,30 @@ His ask: "On Bob can you make another Vietnam level that has a tree tops entranc
   choice opens the shop (3 T1 rows), and the Evil one's line turns him hostile; he closes in and hits.
 - VShaq 1 keeps its Tree Warden, whose tree already has a shop (Vietnam), so its Shop Keeper version has two shops.
 - Generators: `var/gen.js` (versions) and `vshaq04/gen.js` + `props.js` stay in that session's scratchpad.
+
+## 📶 STAIRS, THE FIFTH CLIMB KIND (2026-11-24)
+
+Blake, on Forest M18: the grand stair (a solid wood wedge with a red carpet ramp) "comes off as a red
+ramp", and "another climbing surface would be ideal here ... the steps can be in a layer behind the
+player": W to get on when passing it, a key to hop off, and while on it you walk on it.
+
+- **Data:** `{ kind: "stairs" }` on the Climb layer. The surface is read from the cells: the tread of a
+  column is the top of a run of stairs cells; between column centres the feet follow the line to the
+  next tread (`stairSurfaceY`). A one-cell band and a whole wedge give the same treads.
+- **Player:** `p.stairs`. RAW W boards within a step of a tread (`STAIRS_BOARD_REACH_CELLS`), RAW S hops
+  off (he wrote "D", but D walks you up a flight rising right; S already lets go of bars), walking off
+  an end leaves it, Space hops (`p.stairHop`) and lands back on it, W held in any fall catches it.
+  Only C ducks on it. Kept out of every grip test and climbRunsOf's hangs.
+- **Units:** `unitClimbRoute` returns `{ kind: "stairs", x, toX, toFeet, dir }`; the loop boards at x,
+  walks to toX and off the end (`ep.stairs`, `ep.stairsTo`), hops land back on it.
+- **Measured traps on M18:**
+  - BoB's box is ~4.6 cells wide, so on a 45° flight his shoulder meets the deck above 1.6 rows before
+    his feet do. A one-step wall allowance stopped him dead there. The allowance is half the body
+    width plus a cell, plus this frame's step (`stairsStepPx`). Without the step, a unit's 65 px box,
+    stepping 14 px a frame, stopped two steps from the top.
+  - Walking up at ~14 px/frame outruns a jump's ~6 px/frame rise, so a "land when falling" test let an
+    uphill jump sink through the steps into the hallway. The re-land is "the feet went from above the
+    surface to on or under it" (`p.stairGap`), and while still rising the feet ride up onto it.
+- **M18 now:** both flights are Background planks + stringer wood with 📶 cells corner to corner
+  (grand 34,59 → 24,69; office 24,99 → 14,109). The top tread cells are deck planks. The hallway
+  under each flight is open, so the foyer walks straight into the dining room and F2 into the bedroom.

@@ -145,6 +145,7 @@
   { "k": "🪜", "l": "Ladder", "g": "Level editor", "d": "gi:ladder" },
   { "k": "🙌", "l": "Bars", "g": "Level editor", "d": "gi:hand" },
   { "k": "🚶", "l": "Top-down", "g": "Level editor", "d": "gi:walk" },
+  { "k": "📶", "l": "Stairs", "g": "Level editor", "d": "gi:stairs" },
   { "k": "📍", "l": "Markers", "g": "Level editor", "d": "mdi:map-marker" },
   { "k": "🖌", "l": "Paint", "g": "Level editor", "d": "mdi:brush" },
   { "k": "🪣", "l": "Fill", "g": "Level editor", "d": "mdi:format-color-fill" },

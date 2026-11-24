@@ -13884,7 +13884,7 @@ describe("units find a way up, down or onto the plane", () => {
     });
     test("the loop asks for it only for one tagging along", () => {
       const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-      expect(src).toContain("topdown: navMeTopdown, follower: following }");
+      expect(src).toContain("topdown: navMeTopdown, follower: following,"); // (📶 stairs: !!ep.stairs rides after it)
     });
   });
   test("the climb layer is read once per level", () => {
@@ -17405,5 +17405,86 @@ describe("tail hold", () => {
     expect(tailHoldPose(0)).toMatchObject({ tilt: 0, bob: 0 });
     expect(easeTailHoldAim(0, true, 1)).toBeGreaterThan(0);
     expect(easeTailHoldAim(1, false, 100)).toBeLessThan(0.01);
+  });
+});
+
+import {
+  CLIMB_KIND_STAIRS,
+  isStairsKind,
+  stairTreadTop,
+  stairSurfaceY,
+  stairsWallHits,
+  stairsStepPx,
+  climbRunsOf as stairsClimbRunsOf,
+  climbKindAt as stairsClimbKindAt,
+  resolveClimbKind as stairsResolveClimbKind,
+  unitClimbRoute as stairsUnitClimbRoute,
+} from "./App";
+
+// Blake, 2026-11-24: a 📶 Stairs climb kind — a flight in the background you board with W, walk with
+// A/D and hop off with S, so a stair can stand beside a hallway instead of walling it off.
+describe("📶 stairs: a flight you choose to walk on", () => {
+  const C = 30;
+  // A 45° flight rising to the right: col 2 at row 10 (floor level, feet 300) up to col 7 at row 5
+  // (feet 150) — a one-cell band painted corner to corner.
+  const band = {}; for (let i = 0; i <= 5; i++) band[(10 - i) + "," + (2 + i)] = { kind: CLIMB_KIND_STAIRS };
+  const lv = { cols: 12, rows: 14, climb: band };
+  // ...and the same flight painted as the whole wedge under it: the same treads.
+  const wedge = {}; for (let i = 0; i <= 5; i++) for (let r = 10 - i; r <= 10; r++) wedge[r + "," + (2 + i)] = { kind: CLIMB_KIND_STAIRS };
+  const lvW = { cols: 12, rows: 14, climb: wedge };
+
+  test("the kind", () => {
+    expect(isStairsKind("stairs")).toBe(true);
+    expect(isStairsKind("ladder")).toBe(false);
+  });
+  test("a column's tread is the top of its stairs cells, found only within reach of the feet", () => {
+    expect(stairTreadTop(lv, 4, 240, C, C)).toBe(240);
+    expect(stairTreadTop(lvW, 4, 240, C, C)).toBe(240); // the wedge has the same tops
+    expect(stairTreadTop(lv, 4, 300, C, C)).toBeNull(); // rows over the head of someone in the hallway
+    expect(stairTreadTop(lv, 9, 150, C, C)).toBeNull(); // no stair in that column
+  });
+  test("the feet follow a straight line between treads, and a flat landing past the end column", () => {
+    // col 4's centre is x 135 (tread 240); a quarter cell right is 7.5 px further up toward col 5's 210
+    expect(stairSurfaceY(lv, 135, 240, C, C, C)).toBeCloseTo(240);
+    expect(stairSurfaceY(lv, 142.5, 240, C, C, C)).toBeCloseTo(232.5);
+    expect(stairSurfaceY(lv, 127.5, 240, C, C, C)).toBeCloseTo(247.5);
+    expect(stairSurfaceY(lvW, 142.5, 240, C, C, C)).toBeCloseTo(232.5);
+    // past the head column's centre there is no next step: flat at its tread
+    expect(stairSurfaceY(lv, 7.9 * C, 150, C, C, C)).toBeCloseTo(150);
+    // and off the flight altogether
+    expect(stairSurfaceY(lv, 9 * C, 150, C, C, C)).toBeNull();
+  });
+  test("walking it 1 px at a time is a smooth 45° line, never a jump", () => {
+    let feet = 300, last = 300;
+    for (let x = 2 * C + 15; x <= 7 * C + 15; x += 1) {
+      const y = stairSurfaceY(lv, x, feet, C * 1.5, C, C);
+      expect(y).not.toBeNull();
+      expect(Math.abs(y - last)).toBeLessThanOrEqual(1.001);
+      last = feet = y;
+    }
+    expect(feet).toBeCloseTo(150);
+  });
+  test("nothing grips a stair: it is not a ladder, bars or a ledge", () => {
+    expect(stairsClimbKindAt(lv, 3 * C, 6 * C, 60, 210, C, C)).toBeNull();
+    expect(stairsResolveClimbKind(lv, 3 * C, 6 * C, 60, 210, C, C, true, null)).toBeNull();
+    const runs = stairsClimbRunsOf(lv);
+    expect(runs.hangs).toEqual([]);
+    expect(runs.stairs).toEqual([{ foot: { c: 2, r: 10 }, head: { c: 7, r: 5 } }]);
+    expect(stairsClimbRunsOf(lvW).stairs).toEqual([{ foot: { c: 2, r: 10 }, head: { c: 7, r: 5 } }]);
+  });
+  test("on a flight, the deck the leading edge meets is floor; anything higher is a wall", () => {
+    const hits = [{ r: 9, c: 5 }, { r: 8, c: 5 }, { r: 7, c: 5 }, { r: 3, c: 5 }];
+    expect(stairsWallHits(hits, 270, stairsStepPx(30, C, C), C)).toEqual([{ r: 7, c: 5 }, { r: 3, c: 5 }]); // a thin body: one step
+    expect(stairsStepPx(138, C, C)).toBe(84); // BoB's box, 4.6 cells: 2.8 rows
+    expect(stairsStepPx(65.4, C, C, -14)).toBeCloseTo(61.7); // a unit's box, plus the 14 px it steps this frame
+    expect(stairsWallHits(hits, 270, stairsStepPx(138, C, C), C)).toEqual([{ r: 3, c: 5 }]);
+  });
+  test("a unit coming for a target up at the head boards at the foot; one coming down boards at the head", () => {
+    expect(stairsUnitClimbRoute(lv, { cx: 30, feet: 300, h: 210 }, { cx: 300, feet: 150 }, 90, C, C))
+      .toEqual({ kind: "stairs", x: 75, toX: 225, toFeet: 150, dir: 1 });
+    expect(stairsUnitClimbRoute(lv, { cx: 300, feet: 150, h: 210 }, { cx: 30, feet: 300 }, 90, C, C))
+      .toEqual({ kind: "stairs", x: 225, toX: 75, toFeet: 300, dir: -1 });
+    // already on the flight: the loop walks it
+    expect(stairsUnitClimbRoute(lv, { cx: 150, feet: 240, h: 210, stairs: true }, { cx: 300, feet: 150 }, 90, C, C)).toBeNull();
   });
 });

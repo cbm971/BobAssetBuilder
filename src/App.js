@@ -11523,6 +11523,67 @@ export const topdownAt = (lv, x, feetY, pw, CW, CH) => {
 // ground", which is exactly the player's own rule, so it is shared rather than copied.
 export const topdownHolds = (onPlane, vy, y, jumpY) =>
   !!onPlane && (jumpY == null || (vy >= 0 && y >= jumpY - 0.001));
+// 📶 STAIRS ARE THE FIFTH CLIMB KIND (Blake, 2026-11-24, on Forest M18's grand stair: the solid wood
+// flight with a red carpet ramp up it "comes off as a red ramp", and "another climbing surface would
+// be ideal here ... the steps can be in a layer behind the player"). A flight painted on the Climb
+// layer is a floor you CHOOSE to walk on. Walking the hallway past it you go straight by — it is
+// behind you, drawn on the Background. W at its foot or its head puts your feet on it, and from then
+// on A/D walk you up and down it the way a ramp would; S hops off, back down onto whatever floor is
+// in front, and walking off either end leaves it onto the floor there. So a stair can stand BESIDE a
+// hallway, which a solid stair in side view never can (it walls off its own storey — CLAUDE.md,
+// Forest M18). He asked for "D" to hop off; D walks you up a flight that rises to the right, so S —
+// the key that already lets go of bars and ledges — is the one that hops off.
+//
+// The surface is read from the cells, so any flight he paints works, either way round. The TREAD of
+// a column is the top of a run of stairs cells in it: a one-cell band painted corner to corner and
+// the whole wedge under it have the same tops. Between two column centres the feet follow the
+// straight line from one tread to the next, so a 45° flight walks as smoothly as a 45° ramp; a column
+// with no step beside it is a flat landing.
+//
+// Like 🚶 Top-down it is found by the FEET, never by box overlap, and it is kept out of every grip
+// test (climbKindAt, resolveClimbKind, climbRunsOf's hangs): nothing hangs from a stair.
+export const CLIMB_KIND_STAIRS = "stairs";
+export const isStairsKind = (kind) => kind === CLIMB_KIND_STAIRS;
+const stairsCellAt = (lv, r, c) => r >= 0 && c >= 0 && r < lv.rows && c < lv.cols && isStairsKind(climbKindOf(lv.climb[cellKey(r, c)]));
+// The tread in column c nearest `feetY`, no further than `reach` from it: its y, or null.
+export const stairTreadTop = (lv, c, feetY, reach, CH) => {
+  if (!lv || !lv.climb || c < 0 || c >= lv.cols) return null;
+  let best = null;
+  for (let r = Math.floor((feetY - reach) / CH); r <= Math.floor((feetY + reach) / CH); r++) {
+    if (!stairsCellAt(lv, r, c) || stairsCellAt(lv, r - 1, c)) continue;
+    const top = r * CH, d = Math.abs(top - feetY);
+    if (d <= reach + 1e-6 && (best === null || d < Math.abs(best - feetY))) best = top;
+  }
+  return best;
+};
+// Where the feet stand on a flight at x `cx`: that column's tread (within `reach` of the feet), eased
+// toward the next column's tread — the one at most a row from it — by how far past the column's
+// centre `cx` is. null when there is no stair under the feet there.
+export const stairSurfaceY = (lv, cx, feetY, reach, CW, CH) => {
+  const c = Math.floor(cx / CW);
+  const t = stairTreadTop(lv, c, feetY, reach, CH);
+  if (t === null) return null;
+  const f = cx / CW - (c + 0.5);
+  const nt = stairTreadTop(lv, c + (f < 0 ? -1 : 1), t, CH * 1.01, CH);
+  return nt === null ? t : t + (nt - t) * Math.abs(f);
+};
+// W boards a flight only from a step's height of it: at its foot from the floor beside it, at its
+// head from the deck it reaches. Under the middle of a flight its treads are rows over your head and
+// W does nothing — you are walking the hallway in front of it.
+export const STAIRS_BOARD_REACH_CELLS = 1;
+// How far a tread may be from the feet of a body already on the flight and still hold it: a step and
+// a half, so a long frame's walk down a 45° flight never outruns the surface.
+export const STAIRS_HOLD_REACH_CELLS = 1.5;
+// On a flight, a solid low enough beside the feet is the floor the flight is carrying you onto (the
+// deck's lip at the top, the hallway at the foot), not a wall. The body is cells wide — BoB's box is
+// over four — and on a 45° flight its leading edge meets the deck as many rows below it as it is
+// columns ahead of the feet, so the allowance is half the body's width plus a cell (a step, at the
+// least). Measured in the game: with a one-step allowance BoB stopped dead 1.6 rows short of M18's F2
+// with his shoulder against the deck's edge. Plus this frame's step `dx`: the walls are tested at the
+// new x with the feet still where they were, and a unit's 65 px box (stepping 14 px a frame) stopped
+// two steps short of the top for exactly that difference. Anything higher is a wall or a roof.
+export const stairsStepPx = (w, CW, CH, dx = 0) => Math.max(CH, w / 2 + CW / 2) + Math.abs(dx);
+export const stairsWallHits = (hits, feetY, stepPx, CH) => hits.filter((h) => h.r * CH < feetY - stepPx - 0.5);
 // ...AND A UNIT WALKS UP AND DOWN THE PLANE TO GET AT YOU (2026-09-28). Until now a unit on a plane
 // held whatever height it stepped on at — enough for a crosswalk painted on the street, where the
 // street IS the line — but a whole room is a plane now (Blake's trailer interiors), and there you
@@ -12747,7 +12808,7 @@ export const climbKindAt = (lv, x, y, pw, ph, CW, CH) => {
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
     if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
     const kind = climbKindOf(lv.climb && lv.climb[cellKey(r, c)]);
-    if (!kind || isTopdownKind(kind)) continue;
+    if (!kind || isTopdownKind(kind) || isStairsKind(kind)) continue; // 📶 a stair is walked on, never gripped
     if (kind === "ladder") return "ladder";
     if (!found) found = kind;
   }
@@ -12804,7 +12865,7 @@ export const resolveClimbKind = (lv, x, y, pw, ph, CW, CH, wantsUp, curKind) => 
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
     if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
     const kind = climbKindOf(lv.climb && lv.climb[cellKey(r, c)]);
-    if (!kind || isTopdownKind(kind)) continue; // a 🚶 Top-down plane is walked on by the feet (topdownAt), never gripped
+    if (!kind || isTopdownKind(kind) || isStairsKind(kind)) continue; // a 🚶 Top-down plane or a 📶 flight of stairs is walked on by the feet (topdownAt, stairSurfaceY), never gripped
     if (kind === "ladder") { if (cx >= c * CW - CW / 2 && cx <= (c + 1) * CW + CW / 2) ladder = true; }
     else if (!other) other = kind;
   }
@@ -12834,10 +12895,10 @@ export const resolveClimbKind = (lv, x, y, pw, ph, CW, CH, wantsUp, curKind) => 
 const CLIMB_RUNS_CACHE = new WeakMap();
 export const climbRunsOf = (lv) => {
   const climb = lv && lv.climb;
-  if (!climb) return { ladders: [], hangs: [], planeOf: new Map(), planes: [] };
+  if (!climb) return { ladders: [], hangs: [], planeOf: new Map(), planes: [], stairs: [] };
   const hit = CLIMB_RUNS_CACHE.get(climb);
   if (hit) return hit;
-  const ladderCols = new Map(), hangRows = new Map(), planeCells = new Set();
+  const ladderCols = new Map(), hangRows = new Map(), planeCells = new Set(), stairCells = new Set();
   for (const key of Object.keys(climb)) {
     const kind = climbKindOf(climb[key]);
     if (!kind) continue;
@@ -12845,6 +12906,7 @@ export const climbRunsOf = (lv) => {
     if (!(r >= 0 && c >= 0 && r < lv.rows && c < lv.cols)) continue;
     if (kind === "ladder") { if (!ladderCols.has(c)) ladderCols.set(c, []); ladderCols.get(c).push(r); }
     else if (isTopdownKind(kind)) planeCells.add(key);
+    else if (isStairsKind(kind)) stairCells.add(key);
     else { const rk = r + "|" + kind; if (!hangRows.has(rk)) hangRows.set(rk, { r, kind, cs: [] }); hangRows.get(rk).cs.push(c); }
   }
   const runsOf = (nums) => { const s = [...nums].sort((a, b) => a - b), out = []; for (const n of s) { const last = out[out.length - 1]; if (last && n === last[1] + 1) last[1] = n; else if (!last || n > last[1]) out.push([n, n]); } return out; };
@@ -12863,7 +12925,25 @@ export const climbRunsOf = (lv) => {
     }
     planes.push(cells);
   }
-  const out = { ladders, hangs, planeOf, planes };
+  // 📶 Each flight of stairs (8-connected: one painted corner to corner is one flight) by its two
+  // ENDS, the treads of its end columns: a unit boards at the end on its own floor and leaves at the
+  // end on its target's (unitClimbRoute). A flight that does not rise is not a way anywhere.
+  const stairs = [], seenS = new Set();
+  for (const start of stairCells) {
+    if (seenS.has(start)) continue;
+    const tread = new Map(), stack = [start];
+    seenS.add(start);
+    while (stack.length) {
+      const key = stack.pop(); const [r, c] = key.split(",").map(Number);
+      if (!stairCells.has(cellKey(r - 1, c)) && !(tread.get(c) <= r)) tread.set(c, r);
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { const n = cellKey(r + dr, c + dc); if (stairCells.has(n) && !seenS.has(n)) { seenS.add(n); stack.push(n); } }
+    }
+    const cs = [...tread.keys()].sort((a, b) => a - b), c0 = cs[0], c1 = cs[cs.length - 1];
+    const e0 = { c: c0, r: tread.get(c0) }, e1 = { c: c1, r: tread.get(c1) };
+    if (e0.r === e1.r) continue;
+    stairs.push(e0.r > e1.r ? { foot: e0, head: e1 } : { foot: e1, head: e0 });
+  }
+  const out = { ladders, hangs, planeOf, planes, stairs };
   CLIMB_RUNS_CACHE.set(climb, out);
   return out;
 };
@@ -12888,6 +12968,7 @@ const planeIdAt = (runs, cx, feet, CW, CH) => {
 // Cheapest by sideways walking: to the climb, then from it to the target.
 export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
   if (!lv || !me || !tgt || tgt.feet == null) return null;
+  if (me.stairs) return null; // 📶 on a flight already: the loop walks it to the end it boarded for
   const runs = climbRunsOf(lv);
   const dy = tgt.feet - me.feet;
   const colX = (c) => (c + 0.5) * CW;
@@ -12983,6 +13064,17 @@ export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
       if (!walkable(x)) continue;
       consider(Math.abs(x - me.cx) + Math.abs(xOut - x) + Math.abs(tgt.cx - xOut) + CW, { kind: "hang", x, r: H.r, c0: H.c0, c1: H.c1 });
     }
+  }
+  // 📶 A FLIGHT OF STAIRS: boarded at the end on this unit's floor (its tread within a step of the
+  // feet, as yours must be for W), and walked to the other end. Up: the target is no higher than a
+  // jump off the head. Down: the target is no higher than a step above the foot.
+  for (const S of runs.stairs) {
+    const from = dy < 0 ? S.foot : S.head, to = dy < 0 ? S.head : S.foot;
+    const fromY = from.r * CH, toY = to.r * CH, fromX = colX(from.c), toX = colX(to.c);
+    if (Math.abs(fromY - me.feet) > CH * STAIRS_BOARD_REACH_CELLS + 0.5) continue;
+    if (dy < 0 ? tgt.feet < toY - jumpPx - CH * 0.5 : tgt.feet < toY - CH) continue;
+    if (!walkable(fromX)) continue;
+    consider(Math.abs(fromX - (me.fx ?? me.cx)) + Math.abs(toX - fromX) + Math.abs(tgt.cx - toX), { kind: "stairs", x: fromX, toX, toFeet: toY, dir: Math.sign(toX - fromX) || 1 });
   }
   if (dy > 0) { const d = unitDropSpot(lv, me, tgt, CW, CH, floorAt, fol ? { reachCells: FOLLOW_DROP_REACH_CELLS, anyDistance: true, ok: (x) => walkable(x, true) } : null); if (d) consider(Math.abs(d.x - (me.fx ?? me.cx)) + Math.abs(d.x - tgt.cx), { kind: "drop", x: d.x }); }
   return best && best.route;
@@ -14272,7 +14364,7 @@ export const unitFloorY = (P, cx, cy, lv, seams, cell = LV_CELL) => {
 // moved), so a taken key simply slides to the nearest free column.
 export const moveRunUnit = (k, from, to, off, cell = LV_CELL, fit = null) => {
   const spawn = from.enemies[k], ep = from.ePos && from.ePos[k];
-  if (ep) { ep.x += off.x; ep.y += off.y; if (ep.tdJumpY != null) ep.tdJumpY += off.y; }
+  if (ep) { ep.x += off.x; ep.y += off.y; if (ep.tdJumpY != null) ep.tdJumpY += off.y; if (ep.stairsTo) ep.stairsTo = { ...ep.stairsTo, x: ep.stairsTo.x + off.x, feet: ep.stairsTo.feet + off.y }; }
   const i = k.indexOf(",");
   let r = +k.slice(0, i) + Math.round(off.y / cell), c = +k.slice(i + 1) + Math.round(off.x / cell);
   if (fit && (r < 0 || c < 0 || r >= fit.rows || c >= fit.cols)) {
@@ -14359,7 +14451,7 @@ export const catchUpFollowers = (run, node, buckets, spot, boxOf, cell = LV_CELL
   const place = (ep, box) => {
     ep.x = spot.x - box.w / 2; ep.y = spot.feet - box.h; ep.vy = 0; ep.onGround = false;
     ep.climbing = null; ep.climbJump = false; ep.navHangJump = false; ep.navDropCd = 0; ep.crouch = false; ep.duckUnder = false;
-    ep.topdown = false; ep.tdJumpY = null; ep.regroup = false; ep.strandT = 0; ep.blockT = 0; ep.trailN = null; ep.trailT = 0; ep.trailCd = 0;
+    ep.topdown = false; ep.tdJumpY = null; ep.stairs = false; ep.stairHop = false; ep.stairsTo = null; ep.regroup = false; ep.strandT = 0; ep.blockT = 0; ep.trailN = null; ep.trailT = 0; ep.trailCd = 0;
   };
   for (const k of Object.keys(live.enemies)) {
     const ep = live.ePos[k], box = ep ? boxOf(k, live.enemies[k], ep, lb) : null;
@@ -15712,7 +15804,7 @@ export default function AssetStudio({ game = false } = {}) {
   const [lPedCat1, setLPedCat1] = useState("");        // pedestal search: first category filter (blank = any)
   const [lPedCat2, setLPedCat2] = useState("");        // pedestal search: second category filter (blank = any)
   const [lPedLogic, setLPedLogic] = useState("or");     // pedestal search logic: "or" (either tag) | "and" (both tags)
-  const [lClimbKind, setLClimbKind] = useState("ladder"); // ladder | bars | cliff | topdown — which climb kind paints
+  const [lClimbKind, setLClimbKind] = useState("ladder"); // ladder | bars | cliff | topdown | stairs — which climb kind paints
   const [lHazDps, setLHazDps] = useState(DEFAULT_HAZARD_DPS.fire); // fire hazard damage-per-second the Hazard tool paints with
   const [lHazLife, setLHazLife] = useState(DEFAULT_HAZARD_LIFE);   // seconds a painted fire burns before going out (0 = permanent)
   const [lHazHide, setLHazHide] = useState(false);                // paint fire that's INVISIBLE during play (still deals damage) — so you can lay your own pixel-art fire Object on top of it via the Front layer
@@ -16020,7 +16112,7 @@ export default function AssetStudio({ game = false } = {}) {
   // Climb glyphs are directly erasable: Erase tool + click the glyph = gone, no matter which
   // layer tab is active. Erasing a visible thing by clicking it should just work — requiring
   // the Climb layer tab to be selected first made climb cells feel impossible to delete.
-  const lvClimbLayer = useMemo(() => level && level.climb ? <div style={CELL_LAYER_STYLE}>{Object.keys(level.climb).map((k) => { const [r, c] = k.split(",").map(Number); const kind = climbKindOf(level.climb[k]); const glyph = kind === "bars" ? "🙌" : kind === "cliff" ? "🧗" : isTopdownKind(kind) ? "🚶" : "🪜"; const label = kind === "bars" ? "Monkey bars — hang & shimmy ← →, ↓ to drop" : kind === "cliff" ? "Cliff ledge — hang & shimmy ← →, ↓ to drop (forward-facing)" : isTopdownKind(kind) ? "Top-down walkway — A/D walk as normal, W/S walk up/down the screen (back/front view), no gravity while your feet are on it" : "Ladder — climb straight up/down"; return <div key={"cl" + k} className={"lclimb kind-" + kind} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={label} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv) => { const climb = { ...lv.climb }; delete climb[k]; return { ...lv, climb }; }); } : undefined}>{glyph}</div>; })}</div> : null, [level, lTool]);
+  const lvClimbLayer = useMemo(() => level && level.climb ? <div style={CELL_LAYER_STYLE}>{Object.keys(level.climb).map((k) => { const [r, c] = k.split(",").map(Number); const kind = climbKindOf(level.climb[k]); const glyph = kind === "bars" ? "🙌" : kind === "cliff" ? "🧗" : isTopdownKind(kind) ? "🚶" : isStairsKind(kind) ? "📶" : "🪜"; const label = kind === "bars" ? "Monkey bars — hang & shimmy ← →, ↓ to drop" : kind === "cliff" ? "Cliff ledge — hang & shimmy ← →, ↓ to drop (forward-facing)" : isStairsKind(kind) ? "Stairs — W on, S off" : isTopdownKind(kind) ? "Top-down walkway — A/D walk as normal, W/S walk up/down the screen (back/front view), no gravity while your feet are on it" : "Ladder — climb straight up/down"; return <div key={"cl" + k} className={"lclimb kind-" + kind} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={label} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv) => { const climb = { ...lv.climb }; delete climb[k]; return { ...lv, climb }; }); } : undefined}>{glyph}</div>; })}</div> : null, [level, lTool]);
   // Fire hazard cells: shown in the editor AND during play (it's a real, visible danger volume,
   // not an invisible marker). Erasable by clicking with the Erase tool on any layer, same as
   // climb. The flicker is CSS-only, so re-rendering this list every playtest frame isn't needed —
@@ -16076,7 +16168,7 @@ export default function AssetStudio({ game = false } = {}) {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -17692,7 +17784,7 @@ export default function AssetStudio({ game = false } = {}) {
     const vehSeat = (p, car) => {
       const pw0 = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, ph0 = CH * PLAYER_H_CELLS;
       p.x = car.x + car.w / 2 - pw0 / 2; p.y = car.y + car.h - ph0;
-      p.vx = 0; p.vy = 0; p.onGround = true; p.climbing = false; p.climbKind = null; p.topdown = false; p.crouch = false; p.face = car.face;
+      p.vx = 0; p.vy = 0; p.onGround = true; p.climbing = false; p.climbKind = null; p.topdown = false; p.stairs = false; p.stairHop = false; p.crouch = false; p.face = car.face;
       p.knock = null; p.walking = false; p.invuln = Math.max(p.invuln || 0, 2);
     };
     // The driver's window, in level px (the Stock drawing's 🪟 block, or an open car's 🪑 seat,
@@ -17829,7 +17921,7 @@ export default function AssetStudio({ game = false } = {}) {
     const respawnAtEntry = (p) => {
       const here = lv.runKey || lv.id, rs = respawnSpec.current;
       const spec = rs && rs.at === here ? rs.spec : (lv.isRoom ? { roomDoor: true } : { gate: true });
-      p.crouch = false; p.climbing = false; p.climbJump = false; p.topdown = false; p.tdJumpY = null;
+      p.crouch = false; p.climbing = false; p.climbJump = false; p.topdown = false; p.tdJumpY = null; p.stairs = false; p.stairHop = false;
       p.stun = 0; p.down = 0; p.downCd = 0; p.ignite = 0; p.burnPool = 0; p.chill = 0; p.chillPool = 0; p.poison = 0; p.poisonDps = 0; p.onPoison = 0; p.poisonPool = 0; p.inFlameAura = 0; p.inIceAura = 0;
       placeSpawn(p, spec, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS);
       camRef.current.init = false; // a respawn is a cut, like a door — not a pan across the level
@@ -18086,7 +18178,7 @@ export default function AssetStudio({ game = false } = {}) {
         if (p.transitioning.t >= DOOR_ENTER_FRAMES) {
           const tr = p.transitioning;
           p.walking = false;
-          p.transitioning = null; p.climbing = false; p.topdown = false; p.tdJumpY = null; p.crouch = false; p.vy = 0;
+          p.transitioning = null; p.climbing = false; p.topdown = false; p.tdJumpY = null; p.stairs = false; p.stairHop = false; p.crouch = false; p.vy = 0;
           // No state is cleared here — each level/room keeps its own PERSISTENT bucket (roomState),
           // repointed at the top of the effect, so a level remembers what you did and a room you
           // re-enter is the same room in the same state. Worn gear and item buffs travel with you.
@@ -18124,7 +18216,7 @@ export default function AssetStudio({ game = false } = {}) {
       // also squash you flat. And the plane counts as ground for STARTING a crouch: it is the
       // floor you are standing on, even though onGround stays false there like on a ladder.
       const tdHere = topdownAt(lv, p.x, p.y + oldPh, pw, CW, CH);
-      const crouch = resolvePlayerCrouch(tdHere ? !!(!frozen && RK.crouch) : K.crouch, p.onGround || p.topdown, wasCrouch);
+      const crouch = resolvePlayerCrouch((tdHere || p.stairs) ? !!(!frozen && RK.crouch) : K.crouch, p.onGround || p.topdown, wasCrouch); // 📶 on a flight of stairs S hops off it, so there too only C ducks
       const ph = crouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
       if (ph !== oldPh) p.y += (oldPh - ph); // keep the feet planted — only the head should move when crouch toggles
       p.crouch = crouch;
@@ -18346,12 +18438,13 @@ export default function AssetStudio({ game = false } = {}) {
       // a ramp's backing is a wall like any other, or you walk into it and sink through it (M15's
       // manhole) or jump into it and fall through it (M14's saucer). `grounded` is this frame's start.
       let wallHits = sideWallsW(hits, p.y + ph, p.x + pw / 2, p.topdown, grounded);
+      if (p.stairs) wallHits = stairsWallHits(wallHits, p.y + ph, stairsStepPx(pw, CW, CH, dx), CH); // 📶 the deck a flight carries you onto is floor, not wall
       // Step-assist: a single-cell-tall lip (a genuine stair) is walked over, not blocked. Snap
       // up to exactly the blocking row's top, capped at one cell, and only if the raised spot is
       // actually clear. Skipped while climbing a ladder. The PHYSICS snap stays instant (so
       // collision is always exact) but the RENDER eases up over a few frames via p.stepEase —
       // the old same-frame visual jump was the "jarring teleport up one block".
-      if (shouldStepAssist(wallHits.length, dx, p.climbing || p.topdown, p.onSlope, p.offLedge)) { // a 🚶 Top-down plane owns its own height too: a solid on it is an obstacle, not a stair; a walk-off falls into the hole it walked into
+      if (shouldStepAssist(wallHits.length, dx, p.climbing || p.topdown || p.stairs, p.onSlope, p.offLedge)) { // a 🚶 Top-down plane owns its own height too: a solid on it is an obstacle, not a stair; a walk-off falls into the hole it walked into
         const targetY = Math.min(...wallHits.map((h) => h.r * CH)) - ph;
         const rise = p.y - targetY;
         if (rise > 0 && rise <= CH && cellsHit(p.x, targetY, pw, ph).length === 0) { p.y = targetY; p.stepEase = Math.min(CH, (p.stepEase || 0) + rise); wallHits = []; }
@@ -18519,6 +18612,24 @@ export default function AssetStudio({ game = false } = {}) {
       const tdOverlap = !pCreatureFlies && !climbing && topdownAt(lv, p.x, p.y + ph, pw, CW, CH);
       let topdown = topdownHolds(tdOverlap, p.vy, p.y, p.tdJumpY);
       if (topdown && p.tdJumpY != null) { if (p.y - p.tdJumpY <= Math.abs(p.vy * dtMul) + 0.01) p.y = p.tdJumpY; p.tdJumpY = null; }
+      // 📶 STAIRS (see stairSurfaceY). On a flight already, the feet stay on it until S hops off, a
+      // jump leaves it or the walk carries them off an end; off one, W boards it where a tread is
+      // within a step of the feet and the head has room there. RAW W/S, as on a 🚶 plane, so aiming
+      // with ↑/↓ never boards or leaves a flight. A real climb or a plane resolved above wins.
+      let stairs = false, stairY = null, stairBoard = false;
+      if (!climbing && !topdown && !pCreatureFlies && !p.flying && !p.tailHold) {
+        const sCx = p.x + pw / 2, sFeet = p.y + ph;
+        if (p.stairs) {
+          if (!(!frozen && RK.down && !RK.up)) { stairY = stairSurfaceY(lv, sCx, sFeet, CH * STAIRS_HOLD_REACH_CELLS, CW, CH); stairs = stairY !== null; }
+        } else if (!frozen && RK.up && !RK.down && p.onGround) {
+          stairY = stairSurfaceY(lv, sCx, sFeet, CH * STAIRS_BOARD_REACH_CELLS, CW, CH);
+          if (stairY !== null && Math.abs(stairY - sFeet) <= CH * STAIRS_BOARD_REACH_CELLS + 0.01) {
+            const inBox = new Set(cellsHit(p.x, p.y, pw, ph).map((h) => h.r + "," + h.c));
+            stairBoard = !stairsWallHits(cellsHit(p.x, stairY - ph, pw, ph), stairY, stairsStepPx(pw, CW, CH), CH).some((h) => !inBox.has(h.r + "," + h.c));
+          }
+          stairs = stairBoard;
+        }
+      }
       let climbMove = 0, tdMove = 0;
       p.hsFall = false; // 👢 re-armed below by a fall that qualifies (headStompArmed); a climb, a plane or a flight never does
       if (climbing && climbKindHere === "ladder") {
@@ -18584,6 +18695,27 @@ export default function AssetStudio({ game = false } = {}) {
           // character is drawn best in — on screen whenever it can be.
           if (dx !== 0 && (K.left || K.right)) p.tdView = "side"; else if (tdMove > 0) p.tdView = vdir < 0 ? "back" : "front";
           p.vy = 0; p.onGround = false;
+        }
+      } else if (stairs) {
+        if (K.jump) {
+          // A jump off a flight lands back on it (p.stairHop, taken in the fall below) — or on whatever
+          // real floor the fall meets first. Taken here, as the plane's hop is, so the gravity branch
+          // cannot also hand a Double Jump cape its bonus jump on the same press.
+          sndEvent("jump", p.x, p.y); p.stairHop = true; p.stairGap = 0; stairs = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0;
+        } else {
+          // Walking UP the flight, a roof the head would newly go into stops the walk — the step is
+          // undone, as your jump's head stops at one. The deck's lip a step up is floor (stairsWallHits).
+          if (!stairBoard && stairY - ph < p.y - 0.01) {
+            const inBox = new Set(cellsHit(prevX, p.y, pw, ph).map((h) => h.r + "," + h.c));
+            if (stairsWallHits(cellsHit(p.x, stairY - ph, pw, ph), stairY, stairsStepPx(pw, CW, CH, p.x - prevX), CH).some((h) => !inBox.has(h.r + "," + h.c))) {
+              p.x = prevX; p.vx = 0;
+              const back = stairSurfaceY(lv, p.x + pw / 2, p.y + ph, CH * STAIRS_HOLD_REACH_CELLS, CW, CH);
+              if (back !== null) stairY = back;
+            }
+          }
+          const lift = p.y - (stairY - ph);
+          if (stairBoard && lift > 0) p.stepEase = Math.min(CH, (p.stepEase || 0) + lift); // boarding a step up is drawn easing up, as a kerb is
+          p.y = stairY - ph; p.vy = 0; p.onGround = true; p.stairHop = false;
         }
       } else {
         // 🐒 TAIL HOLD (tailHoldStep) is asked first: a press that catches or lets go is the hold's,
@@ -18668,6 +18800,26 @@ export default function AssetStudio({ game = false } = {}) {
           }
           p.hsFeet0 = p.y + ph; // 👢 the feet before this frame's fall, for the swept head test (headStompLands)
           p.vy = Math.min(60, p.vy + 0.175 * dtMul * gravMul); p.y += p.vy * dtMul; p.onGround = false;
+          // 📶 ...in the air after a jump off a flight of stairs, the feet land back on it where they meet
+          // it — and so do they with W held, whatever the fall: W boards a flight you pass through.
+          // "Meet" is the feet going from above the surface to on or under it (p.stairGap, last frame's
+          // height over it), rising or falling: jumping while walking UP a 45° flight, the steps climb
+          // past the feet before the jump's top, and a falling-only test let the body sink through them
+          // into the hallway (measured on M18's grand stair). The flight comes up to meet you, as a step
+          // does. A body that was never above the surface (a jump in the hallway under it) never meets it.
+          if ((p.stairHop || (!frozen && RK.up && !RK.down)) && !p.tailHold) {
+            const sy = stairSurfaceY(lv, p.x + pw / 2, p.y + ph, Math.max(CH * STAIRS_HOLD_REACH_CELLS, Math.abs(p.vy * dtMul) + CH), CW, CH);
+            const gap = sy === null ? null : sy - (p.y + ph);
+            // Still RISING when the steps meet the feet, the jump carries on from the step it met (the
+            // feet are lifted onto it and keep going up) rather than ending: walking up M18's grand stair
+            // the steps rise ~14 px a frame against the jump's ~6, and catching the feet there ended every
+            // uphill jump on its first frame — a jump that never showed.
+            if (gap !== null && gap <= 0 && p.stairGap != null && p.stairGap >= -0.5) {
+              p.y = sy - ph;
+              if (p.vy < 0) p.stairGap = 0;
+              else { p.vy = 0; p.onGround = true; stairs = true; p.stairHop = false; p.stairGap = null; }
+            } else p.stairGap = gap;
+          } else p.stairGap = null;
           p.hsAir = headStompAirStep(p.hsAir, false, p.y, p.vy, false);
           p.hsFall = headStompArmed(headStompEffect, p.hsAir, p.y, p.vy, CH, p.gliding);
         }
@@ -18677,6 +18829,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (climbing || topdown) { p.tailHold = false; p.thUsed = false; p.thT = 0; } // 🐒 caught something real: the hold is handed back, as Double Jump's is
       p.thAim = p.tailHold ? easeTailHoldAim(p.thAim, !!(p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking), dtMul) : 0;
       p.topdown = topdown;
+      p.stairs = stairs;
       // Off the plane you are simply side-on again — but not during the hop off it, so a jump
       // taken while walking up the road lands you still walking up the road.
       if (!topdown && p.tdJumpY == null) p.tdView = "side";
@@ -18741,7 +18894,7 @@ export default function AssetStudio({ game = false } = {}) {
       // run first — that was the stair-step / teleport bug: centerHits included hill backing cells
       // in the centre column and snapped the player to the plateau lip before the ramp pass ran.
       p.onSlope = false; p.slopeDir = 0; p.slopeRun = 0;
-      if (!climbing && !topdown) { // a 🚶 Top-down plane owns the feet's height exactly as a ladder does — a ramp in reach must not snap them off it
+      if (!climbing && !topdown && !stairs) { // a 🚶 Top-down plane (and a 📶 flight of stairs) owns the feet's height exactly as a ladder does — a ramp in reach must not snap them off it
         const feetBottom = p.y + ph;
         const slopeHit = slopeSurfaceForPlayer(lv, p.x + pw / 2, p.y, feetBottom, p.vy, dx, dtMul, CW, CH);
         if (slopeHit) {
@@ -18893,6 +19046,7 @@ export default function AssetStudio({ game = false } = {}) {
       }
       if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; if (!pCreatureFlies) p.flying = false; else p.onGround = false; p.flyUsed = 0; }
       if (climbing) { p.gliding = false; p.flying = false; p.flyUsed = 0; } // a grip refills the 🦸 flight time as the ground does
+      if ((p.onGround && !stairs) || climbing || topdown) { p.stairHop = false; p.stairGap = null; } // 📶 came down on real ground (or caught something): the hop off the flight is over
       if (p.onGround || topdown || climbing) { p.hsAir = null; p.hsHits = null; p.hsFall = false; p.hsFallT = 0; } // 👢 back on something: the next time in the air starts its own record
       else if (p.hsFall) p.hsFallT = (p.hsFallT || 0) + dtMul; // the pose's arm flutter
       // ...unless you are coming DOWN out of a tree top (skyFall, set at that handoff): the level you
@@ -19603,9 +19757,10 @@ export default function AssetStudio({ game = false } = {}) {
           // from for two seconds (measured) until the idle grip let go. No route is asked until it lands.
           if (ep.wallHop && (ep.onGround || ep.topdown || ep.climbing)) ep.wallHop = false;
           const navRouteLv = !eCreatureFlies && navPursuing && navOff && !ep.climbing && !eFlyUp && !ep.wallHop
-            ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, w: epw, topdown: navMeTopdown, follower: following }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
+            ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, w: epw, topdown: navMeTopdown, follower: following, stairs: !!ep.stairs }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
             : null;
-          const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
+          const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy,
+            ...(navRouteLv.toX == null ? {} : { toX: navRouteLv.toX + navPart.ox, toFeet: navRouteLv.toFeet + navPart.oy }) };
           const navAirborne = !ep.climbing && !ep.onGround && !ep.topdown;
           // How long a follower has stood on a floor with whoever it follows on another and no way
           // found to them (followCanLead: after FOLLOW_STRANDED_FRAMES the ones behind it stop
@@ -19641,12 +19796,19 @@ export default function AssetStudio({ game = false } = {}) {
             else if (eFlyUp) dxMove = towardTarget * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1)); // flying: straight at it, at the item's Air speed
             else if (ep.climbing === "ladder") dxMove = navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH ? towardTarget : 0;
             else if (ep.climbing) dxMove = (following && navTgt && navTgt.climbing && navTgt.climbing !== "ladder") ? followStep : towardTarget; // along the bars behind one that is on them too: a follow range back, not into it
+            else if (ep.stairs && ep.stairsTo && navPursuing) {
+              // 📶 On a flight: along it to the end it boarded for, then on off that end — or straight at
+              // a target whose feet are level with its own.
+              const sd = ep.stairsTo.x - (ep.x + epw / 2), sSpeed = charging ? chargeSpeed : aiSpeed;
+              dxMove = (navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH) ? towardTarget
+                : Math.abs(sd) > CW * 0.25 ? Math.sign(sd) * Math.min(Math.abs(sd), sSpeed) : (ep.stairsTo.dir || 1) * sSpeed;
+            }
             else if (navAirborne && ep.climbJump) dxMove = towardTarget;
             else if (navAirborne && ep.navHangJump) dxMove = 0;
             else if (navQueued && navRoute && !navAirborne && (navRoute.kind === "drop" || navRoute.dir === 1)) dxMove = 0; // waiting its turn at the top of the way down
             else if (navRoute && navRoute.kind === "plane" && navRoute.feet != null && Math.abs(navRoute.feet - myFeetY) <= 2) dxMove = towardTarget; // at the way off the plane: off it, toward the target
             else if (navRoute && (!navAirborne || navRoute.kind === "ladder")) { // dropping down a hole onto a ladder steers into it
-              const d = navRoute.x - (navRoute.kind === "plane" || navRoute.kind === "drop" ? ep.x + epw / 2 : eCenterXNow); // a drop is fitted to the landing box (unitDropSpot)
+              const d = navRoute.x - (navRoute.kind === "plane" || navRoute.kind === "drop" || navRoute.kind === "stairs" ? ep.x + epw / 2 : eCenterXNow); // a flight is boarded by the feet // a drop is fitted to the landing box (unitDropSpot)
               dxMove = Math.abs(d) < 0.5 ? 0 : Math.sign(d) * Math.min(Math.abs(d), charging ? chargeSpeed : aiSpeed);
             }
           }
@@ -19759,7 +19921,7 @@ export default function AssetStudio({ game = false } = {}) {
             // a Lion chasing you down the sewer would sink through its side, and a dodge-hop into M14's
             // saucer would rise into the mound.
             // ...and the ceiling its head already grazes runs on (ceilingGrazeFree): Sewer M2's rats.
-            const eWallHits = sideWallsW(wallBoxHits(nx, ep.y), ep.y + newEph, nx + epw / 2, ep.topdown, !!(ep.onGround || ep.climbing)).filter((h) => !eInside.has(h.r + "," + h.c));
+            const eWallHits = sideWallsW(wallBoxHits(nx, ep.y), ep.y + newEph, nx + epw / 2, ep.topdown, !!(ep.onGround || ep.climbing)).filter((h) => !eInside.has(h.r + "," + h.c) && (!ep.stairs || h.r * CH < ep.y + newEph - stairsStepPx(epw, CW, CH, nx - ep.x) - 0.5)); // 📶 on a flight the deck it is carried onto is floor (stairsWallHits)
             const eMoveHits = ceilingGrazeFree(eWallHits, eInside, ep.y + eWallTop, CH);
             if (!eMoveHits.length) ep.x = nx;
             else {
@@ -19825,7 +19987,14 @@ export default function AssetStudio({ game = false } = {}) {
           const cbWant = navTgtFeet == null ? 0 : followClimbWant(navTgtFeet - (ep.y + newEph), navTgtOnLadder, newEph, navTgtH); // < 0: the target is above (a body's length short of one it follows up or down a ladder)
           let eClimbMove = 0;
           if (eCreatureFlies) ep.climbing = null;
-          if (!eCreatureFlies && !ep.climbing && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned && !(navQueued && !navAirborne)) {
+          // 📶 Boarding the flight its route goes by: at the end column, on its feet, the tread within a
+          // step of them — your W.
+          if (!eCreatureFlies && !ep.climbing && !ep.stairs && navRoute && navRoute.kind === "stairs" && ep.onGround && !ep.topdown && !stunned
+              && Math.abs(navRoute.x - (ep.x + epw / 2)) <= CW * 0.5) {
+            const sFeet = ep.y + newEph - eStand.oy, sy = stairSurfaceY(eStand.lv, ep.x + epw / 2 - eStand.ox, sFeet, CH * STAIRS_BOARD_REACH_CELLS, CW, CH);
+            if (sy !== null && Math.abs(sy - sFeet) <= CH * STAIRS_BOARD_REACH_CELLS + 0.01) { ep.stairs = true; ep.stairHop = false; ep.stairsTo = { x: navRoute.toX, feet: navRoute.toFeet, dir: navRoute.dir }; }
+          }
+          if (!eCreatureFlies && !ep.climbing && !ep.stairs && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned && !(navQueued && !navAirborne)) {
             // ...and from the deck a ladder's top is flush with, the step onto it (ladderUnderFeet), your rule.
             if (navRoute.kind === "ladder" && navRoute.dir === 1 && ep.onGround && !ep.topdown && Math.abs(navRoute.x - cbCX) <= CW * 0.5
                 && ladderUnderFeet(eStand.lv, cbX, cbY, epw, newEph, CW, CH, (yy) => cellsHitW(ep.x, yy + eStand.oy, epw, newEph), unitLadderAt, cbCX)) { ep.y += 1; cbY = ep.y - eStand.oy; }
@@ -19898,7 +20067,19 @@ export default function AssetStudio({ game = false } = {}) {
             ep.climbIdleT = (ep.climbIdleT || 0) + dtMul;
             if (ep.climbIdleT > CLIMB_IDLE_LET_GO_FRAMES) { ep.climbing = null; ep.navDropCd = 45; ep.climbIdleT = 0; }
           } else ep.climbIdleT = 0;
-          const eTdOverlap = !eCreatureFlies && !ep.climbing && topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
+          // 📶 ON A FLIGHT OF STAIRS the feet are on its surface (stairSurfaceY), as yours are. A hop (a
+          // dodge) leaves it and lands back on it (ep.stairHop, in the fall below); walking off an end,
+          // being knocked flat or taking off leaves it.
+          let eStairY = null, eStairLanded = false;
+          if (ep.stairs) {
+            if (eCreatureFlies || ep.climbing || ep.flying || ep.tailHold || (ep.down || 0) > 0) { ep.stairs = false; ep.stairsTo = null; }
+            else if (ep.vy < -0.01) { ep.stairs = false; ep.stairHop = true; ep.stairGap = 0; }
+            else {
+              const sy = stairSurfaceY(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y + newEph - eStand.oy, CH * STAIRS_HOLD_REACH_CELLS, CW, CH);
+              if (sy === null) { ep.stairs = false; ep.stairsTo = null; } else eStairY = sy + eStand.oy;
+            }
+          }
+          const eTdOverlap = !eCreatureFlies && !ep.climbing && eStairY === null && topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
           const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
           let eTdStep = 0; // how far it walked up/down the plane this frame — its legs cycle for that too
           let eHsArmed = false, eHsFeet0 = 0; // 👢 a Stomp armed for this frame's fall, and the feet before it (headStompArmed / headStompLands)
@@ -19931,6 +20112,8 @@ export default function AssetStudio({ game = false } = {}) {
               eTdStep = Math.abs(feet1 - feet0);
               ep.y = feet1 - newEph;
             }
+          } else if (eStairY !== null) {
+            ep.y = eStairY - newEph; ep.vy = 0; ep.onGround = true; ep.tdJumpY = null; ep.stairHop = false;
           } else if (!ep.climbing) { // a unit on a ladder, bars or a ledge is held there (above), not falling
             if (eCreatureFlies && !((ep.down || 0) > 0)) {
               // 🦸 A flying creature (`flies: true`) stays airborne without gravity while alive and not
@@ -20022,6 +20205,15 @@ export default function AssetStudio({ game = false } = {}) {
                 eHsFeet0 = ep.y + newEph;
                 ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
                 ep.y += ep.vy * dtMul;
+                if (ep.stairHop) { // 📶 back onto the flight it hopped off, where its feet meet it — your rule (p.stairGap)
+                  const sy = stairSurfaceY(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y + newEph - eStand.oy, Math.max(CH * STAIRS_HOLD_REACH_CELLS, Math.abs(ep.vy * dtMul) + CH), CW, CH);
+                  const gap = sy === null ? null : sy - (ep.y + newEph - eStand.oy);
+                  if (gap !== null && gap <= 0 && ep.stairGap != null && ep.stairGap >= -0.5) {
+                    ep.y = sy + eStand.oy - newEph;
+                    if (ep.vy < 0) ep.stairGap = 0; // still rising: the hop carries on from the step it met
+                    else { ep.vy = 0; ep.onGround = true; ep.stairs = true; ep.stairHop = false; ep.stairGap = null; eStairLanded = true; }
+                  } else ep.stairGap = gap;
+                }
                 if (eHeadStomp) {
                   ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, false);
                   eHsArmed = headStompArmed(eHeadStomp, ep.hsAir, ep.y, ep.vy, CH, ep.gliding);
@@ -20032,8 +20224,8 @@ export default function AssetStudio({ game = false } = {}) {
               // walk up the hill buried them, down the few a walk down it left them hanging. Only while
               // not rising, the player's rule too, so a dodge-hop off a ramp is not snapped straight
               // back onto it. Asked of the unit's own level, in that level's pixels.
-              let eOnRamp = false;
-              if (ep.vy >= 0) {
+              let eOnRamp = eStairLanded; // 📶 landed back on its flight: no ramp or floor under it to find
+              if (ep.vy >= 0 && !eStairLanded) { // (eStairLanded: on its flight again)
                 const sHit = slopeSurfaceForPlayer(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y - eStand.oy, ep.y + newEph - eStand.oy, ep.vy, stepX, dtMul, CW, CH);
                 if (sHit) { ep.y = sHit.y + eStand.oy - newEph; ep.vy = 0; ep.onGround = true; eOnRamp = true; }
               }
@@ -20050,6 +20242,7 @@ export default function AssetStudio({ game = false } = {}) {
               const eFloorY = unitFloorY(eStand, ep.x + epw / 2, ep.y + newEph / 2, lv, seams, CW); // its own level's floor — or none, over an open bottom gate
               if (ep.y > eFloorY - newEph) { ep.y = eFloorY - newEph; ep.vy = 0; ep.onGround = true; }
               if (ep.onGround) ep.tdJumpY = null; // real ground under it again: the hop's line is forgotten, as the player's is
+              if (ep.onGround && !ep.stairs) { ep.stairHop = false; ep.stairsTo = null; } // 📶 ...and so is the flight it hopped off
             }
           }
           ep.topdown = eTopdown;
@@ -27103,7 +27296,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -29962,7 +30155,7 @@ export default function AssetStudio({ game = false } = {}) {
             </>
           ) : lLayer === "climb" ? (
             <>
-              <div className="seg"><button className={lClimbKind === "ladder" ? "on" : ""} onClick={() => setLClimbKind("ladder")}>🪜 Ladder</button><button className={lClimbKind === "bars" ? "on" : ""} onClick={() => setLClimbKind("bars")}>🙌 Bars</button><button className={lClimbKind === "cliff" ? "on" : ""} onClick={() => setLClimbKind("cliff")}>🧗 Cliff</button><button className={isTopdownKind(lClimbKind) ? "on" : ""} onClick={() => setLClimbKind(CLIMB_KIND_TOPDOWN)} title="A patch of the level played top-down, like a crosswalk intersection: no gravity, W/S walk up and down the screen">🚶 Top-down</button></div>
+              <div className="seg"><button className={lClimbKind === "ladder" ? "on" : ""} onClick={() => setLClimbKind("ladder")}>🪜 Ladder</button><button className={lClimbKind === "bars" ? "on" : ""} onClick={() => setLClimbKind("bars")}>🙌 Bars</button><button className={lClimbKind === "cliff" ? "on" : ""} onClick={() => setLClimbKind("cliff")}>🧗 Cliff</button><button className={isTopdownKind(lClimbKind) ? "on" : ""} onClick={() => setLClimbKind(CLIMB_KIND_TOPDOWN)} title="A patch of the level played top-down, like a crosswalk intersection: no gravity, W/S walk up and down the screen">🚶 Top-down</button><button className={isStairsKind(lClimbKind) ? "on" : ""} onClick={() => setLClimbKind(CLIMB_KIND_STAIRS)}>📶 Stairs</button></div>
             </>
           ) : lLayer === "hazard" ? (
             <>
@@ -34104,6 +34297,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .lclimb{position:absolute;pointer-events:none;z-index:4000;background:repeating-linear-gradient(135deg,rgba(122,162,214,.28) 0 4px,transparent 4px 9px);border:1px dashed rgba(122,162,214,.55);box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
 .lclimb.kind-bars{background:repeating-linear-gradient(135deg,rgba(214,162,90,.28) 0 4px,transparent 4px 9px);border-color:rgba(214,162,90,.6)}
 .lclimb.kind-cliff{background:repeating-linear-gradient(135deg,rgba(150,122,214,.28) 0 4px,transparent 4px 9px);border-color:rgba(150,122,214,.6)}
+.lclimb.kind-stairs{background:repeating-linear-gradient(45deg,rgba(214,122,170,.26) 0 4px,transparent 4px 9px);border-color:rgba(214,122,170,.65)}
 .lclimb.kind-topdown{background:repeating-linear-gradient(0deg,rgba(108,196,138,.22) 0 4px,transparent 4px 9px);border-color:rgba(108,196,138,.6)}
 .lmarker{position:absolute;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:7000;background:rgba(0,0,0,.3);border:1px dashed #c8a23c;border-radius:4px;box-sizing:border-box;cursor:default}
 .catinline{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:170px}

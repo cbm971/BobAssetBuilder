@@ -369,7 +369,7 @@ plus traps it does not cover:
 - `solidDefault` sets the Solid box when the prop is picked (still editable). Solid means collision
   and nothing else; the drawing layer is `lay` (bg / fg / front).
 - **Props cannot be climbed.** Climbing comes only from the level's Climb layer (ladder, bars,
-  cliff, 🚶 top-down), painted cell by cell. To let Bob WALK over a prop (the M14 saucer), paint
+  cliff, 🚶 top-down, 📶 stairs), painted cell by cell. To let Bob WALK over a prop (the M14 saucer), paint
   hidden Foreground (`hideInPlay`) blocks under its top with a 45° ramp wherever the height
   changes, each column at most one row from the next. A SLOPED top (M8's tilted saucer) is drawn as
   ONE straight line through cell corners (1 row per 3 cols = `run: 3` ramps); a curved or off-grid top
@@ -706,10 +706,16 @@ plus traps it does not cover:
   is exactly 7 rows tall, so a roofed room over a ladder needs 8 rows inside (M19, 2026-11-06).
   Holding Space through a bar/cliff catch jumps you straight back off it (a climb jump), so a line caught
   at the very top of a jump bounces until Space is let go; that is normal, not a missed gate.
-- **A flight of stairs walls off its own storey** (Forest M18, 2026-11-21). In side view nothing can pass under a stair
-  except where 8+ rows clear it, so the solid wedge under a flight is a wall, and a storey a flight stands on is split in
-  two. Lay the route OVER a flight (up one storey, across, down a hatch ladder), keep the hole above it open for a
-  climbing head (body 7 rows over the step), and never spawn a unit over a hatch: it falls through at once.
+- **A stair is a 📶 Stairs flight, not solid blocks** (Blake, 2026-11-24: M18's solid wedge with a red carpet ramp
+  "comes off as a red ramp"). Paint the steps on the BACKGROUND (plank tread on top of each column, his wood under it,
+  no ramp, no red) and the walk on the Climb layer's 📶 Stairs: one cell per column corner to corner, the foot cell IN the
+  floor row (tread = floor top) and the top cell IN the deck row (make that deck cell a plank). The surface is the top of
+  each column's stairs cells, eased column to column (`stairSurfaceY`). W boards it within a step of a tread (the foot
+  or the head), A/D walk it, S hops off, walking off an end leaves it, a jump lands back on it, W held in a fall catches it;
+  units board it by `unitClimbRoute`'s `stairs` route. The hallway in front passes straight by, so a flight no longer
+  walls off its storey — but a SOLID flight still does, so never draw one. Keep the hole above a flight open for the
+  climbing head (body 7 rows over the step); a walker on the deck above falls through that hole, it does not board.
+  Never spawn a unit over a hatch: it falls through at once.
 - **A ladder you must climb DOWN needs a hole a body fits through.** Climbing down tests the whole body
   box (`cellsHit`; every character is 2.18 cells, 65.4 px) against solid cells and stops at any; climbing
   up tests nothing. So a 1-cell trapdoor is up-only (right for an Agility gate), and S on its deck only
