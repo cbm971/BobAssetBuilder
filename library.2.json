@@ -1,5 +1,5 @@
 {
- "set": "9919699875234995",
+ "set": "a14f51b5d7c694a2",
  "part": 2,
  "assets": [
   {
@@ -52555,9 +52555,9 @@
     "crouch": []
    },
    "effect": {
-    "kind": "heal",
-    "amount": 100,
-    "full": true
+    "kind": "slowmo",
+    "mult": 0.5,
+    "duration": 21
    },
    "categories": [
     "T1",
@@ -52567,27 +52567,14 @@
    "value": 8,
    "rank": "common",
    "dropWeight": 1,
-   "savedAt": 1795297503511,
-   "moreEffects": [
-    {
-     "kind": "stat",
-     "stat": "intelligence",
-     "amount": -2,
-     "duration": 60
-    },
-    {
-     "kind": "stat",
-     "stat": "speed",
-     "amount": -2,
-     "duration": 60
-    }
-   ],
+   "savedAt": 1795650409488,
    "screenFx": {
     "kind": "tint",
     "color": "#ff8a1e",
     "amount": 0.22,
     "duration": 10
-   }
+   },
+   "editedFrom": 1795297503511
   },
   {
    "id": "jrgjngl",
