@@ -1,5 +1,5 @@
 {
- "set": "a14f51b5d7c694a2",
+ "set": "9f6904a437a86209",
  "part": 2,
  "assets": [
   {
@@ -52564,17 +52564,17 @@
     "Drug",
     "Heal"
    ],
-   "value": 8,
-   "rank": "common",
+   "value": 14,
+   "rank": "rare",
    "dropWeight": 1,
-   "savedAt": 1795650409488,
+   "savedAt": 1795650437209,
    "screenFx": {
     "kind": "tint",
     "color": "#ff8a1e",
     "amount": 0.22,
-    "duration": 10
+    "duration": 20
    },
-   "editedFrom": 1795297503511
+   "editedFrom": 1795650429830
   },
   {
    "id": "jrgjngl",
