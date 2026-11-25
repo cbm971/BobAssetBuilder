@@ -5859,6 +5859,23 @@ export const groupLooks = (assets) => groupByCategory(assets, "character");
 export const groupVehicles = (assets) => groupByCategory(assets, "vehicle");
 export const groupPlaceables = (assets) => groupByCategory(assets, ["prop", "vehicle"]);
 export const placeIcon = (a) => (a && a.type === "vehicle" ? "🚗" : "🌿");
+// FINDING A PROP BY NAME (Blake, 2026-11-25: "add a search function ... just to search for the
+// name. It can be hard to find where a prop is stored"). He remembers what a prop is called, not
+// which 📂 folder it was filed under, so the search reads EVERY folder whatever the folder dropdown
+// says, and keeps the folders as the result's groups — the optgroup heading is the answer to
+// "where is it stored". Name only, as asked; every word typed must appear in the name, in any
+// order. `keepId` is the prop already picked: it stays listed even when it doesn't match, so the
+// dropdown never claims nothing is picked while a click on the grid would still place it.
+// Nothing typed returns the groups untouched (same array), so callers can compare by identity.
+export const searchPlaceGroups = (groups, q, keepId = "") => {
+  const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return groups;
+  return (groups || [])
+    .map((g) => ({ ...g, props: g.props.filter((a) => a.id === keepId || words.every((w) => String(a.name || "").toLowerCase().includes(w))) }))
+    .filter((g) => g.props.length);
+};
+// The folder a placeable is filed in (its group key), so picking a search result can open its folder.
+export const placeGroupKeyOf = (groups, id) => { const g = (groups || []).find((x) => x.props.some((a) => a.id === id)); return g ? g.key : ""; };
 // THE CHARACTER PICKERS' FOLDERS — the Level Creator's 👹 Enemy picker and the Playtest player
 // picker. Both listed every look as optgroup headings inside ONE dropdown, which past twenty-odd
 // characters is still "just one big list". They now work the way the 🌿 Object picker does: a
@@ -15546,6 +15563,7 @@ export default function AssetStudio({ game = false } = {}) {
   // browsing one never disturbs the other: which sub-category is open, which prop is picked, and
   // which of that prop's animation frames Place copies.
   const [propStampCat, setPropStampCat] = useState("");
+  const [propStampQ, setPropStampQ] = useState("");     // the shelf's name search (searchPlaceGroups) — reads every folder
   const [propStampPick, setPropStampPick] = useState("");
   const [propStampFrame, setPropStampFrame] = useState(0);
   useEffect(() => { setGroupIds([]); setMultiSelect(false); }, [angle, asset?.id]);
@@ -15721,6 +15739,7 @@ export default function AssetStudio({ game = false } = {}) {
   const [lObjShape, setLObjShape] = useState("rect");   // shape used when lObjKind === "shape": rect/circle/tri/tri2, same vocabulary as the piece editor
   const [lPropId, setLPropId] = useState("");           // which saved prop asset the Objects layer paints when lObjKind === "prop"
   const [lPropCat, setLPropCat] = useState("");         // which prop sub-category the Object picker is narrowed to ("" = all of them)
+  const [lPropQ, setLPropQ] = useState("");             // the Object picker's name search (searchPlaceGroups) — reads every folder
   const [lTint, setLTint] = useState(null);             // tint for placed emoji objects (null = natural colors) — doubles as the fill color when lObjKind === "shape"
   const [lSolid, setLSolid] = useState(true);           // do placed objects block the player? (on by default — decoration is the exception, not the rule)
   const [lInFront, setLInFront] = useState(false);      // render placed objects in front of the player instead of behind (off by default — matches how it always worked before)
@@ -27157,7 +27176,10 @@ export default function AssetStudio({ game = false } = {}) {
   // none is chosen. `pickedPropStamp` resolves against that SAME list rather than the whole library,
   // so narrowing the category can never leave Place armed on something that is no longer on screen —
   // and widening it back brings the pick straight back, because the id itself is never cleared.
-  const propShelfList = propStampCat ? ((placeGroupsAll.find((g) => g.key === propStampCat) || { props: [] }).props) : placeGroupsAll.flatMap((g) => g.props);
+  // A name typed in the shelf's Search box searches every folder instead (searchPlaceGroups), grouped
+  // by folder so the result says where each prop is stored; the current pick is kept listed.
+  const propShelfGroups = propStampQ.trim() ? searchPlaceGroups(placeGroupsAll, propStampQ, propStampPick) : null;
+  const propShelfList = propShelfGroups ? propShelfGroups.flatMap((g) => g.props) : propStampCat ? ((placeGroupsAll.find((g) => g.key === propStampCat) || { props: [] }).props) : placeGroupsAll.flatMap((g) => g.props);
   const pickedPropStamp = propShelfList.find((a) => a.id === propStampPick) || null;
   const pickedPropFrames = pickedPropStamp ? (pickedPropStamp.frames || []).length : 0;
   const catSuggest = useMemo(() => [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => itemTagList(a).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => NUMERIC_COLLATOR.compare(a, b)), [allAssets]);
@@ -30030,12 +30052,20 @@ export default function AssetStudio({ game = false } = {}) {
                   // empty picker, so narrowing can never strand Blake with no Objects at all.
                   const groups = placeGroupsAll;
                   const catSel = groups.find((g) => g.key === lPropCat) || null;
-                  const shownGroups = catSel ? [catSel] : groups;
+                  // Typing a name searches EVERY folder (searchPlaceGroups), folder dropdown or not:
+                  // the point is finding a prop whose folder he doesn't remember. The results keep
+                  // their 📂 folder headings, and picking one opens that folder and clears the box,
+                  // so the folder dropdown is left naming where it is stored.
+                  const searching = !!lPropQ.trim();
+                  const shownGroups = searching ? searchPlaceGroups(groups, lPropQ, lPropId) : catSel ? [catSel] : groups;
+                  const found = searching ? searchPlaceGroups(groups, lPropQ).reduce((n, g) => n + g.props.length, 0) : 0;
                   return groups.length ? (<>
+                    <input className="propSearch" type="search" aria-label="Search Objects by name" value={lPropQ} onChange={(e) => setLPropQ(e.target.value)} placeholder="Search" />
                     {groups.length > 1 && (
                       <select className="big" value={catSel ? catSel.key : ""} onChange={(e) => {
                         const key = e.target.value;
                         setLPropCat(key);
+                        setLPropQ("");
                         const g = groups.find((x) => x.key === key);
                         if (g && lPropId && !g.props.some((x) => x.id === lPropId)) { setLPropId(""); setLFxSel(null); setLFxEditIdx(null); }
                       }}>
@@ -30044,14 +30074,15 @@ export default function AssetStudio({ game = false } = {}) {
                       </select>
                     )}
                     <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); setLFxSel(null); setLFxEditIdx(null); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size);
+                      if (searching && id) { setLPropCat(placeGroupKeyOf(groups, id)); setLPropQ(""); }
                       // "Solid by default" is set per prop in the Object editor and was read NOWHERE — the Solid box
                       // simply kept whatever it was last, so a stage flagged solid placed as decor after a row of
                       // pews, and a bookshelf flagged solid blocked nothing. The size above already follows the prop;
                       // the flag follows it the same way. The box stays editable, so this is only the starting value.
                       if (pa) setLSolid(!!pa.solidDefault); }}>
-                      <option value="">— pick an Object —</option>
+                      <option value="">{searching ? (found ? found + " found" : "No matches") : "— pick an Object —"}</option>
                       {shownGroups.map((g) => (
-                        <optgroup key={g.key} label={g.label}>
+                        <optgroup key={g.key} label={searching ? "📂 " + g.label : g.label}>
                           {g.props.map((a) => <option key={a.id} value={a.id}>{placeIcon(a)} {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
                         </optgroup>
                       ))}
@@ -32706,13 +32737,19 @@ export default function AssetStudio({ game = false } = {}) {
               another asset: nothing about the prop changes, and nothing about it is loaded. */}
           {placeGroupsAll.length > 0 && <div className="stampShelf propShelf">
             <span>🌿 Object art</span>
-            <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => setPropStampCat(e.target.value)}>
+            <input className="propSearch" type="search" aria-label="Search Objects by name" value={propStampQ} onChange={(e) => setPropStampQ(e.target.value)} placeholder="Search" />
+            <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => { setPropStampCat(e.target.value); setPropStampQ(""); }}>
               <option value="">📂 All ({placeGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
               {placeGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
             </select>
-            <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { setPropStampPick(e.target.value); setPropStampFrame(0); }}>
-              <option value="">Choose an object…</option>
-              {propShelfList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { const id = e.target.value; setPropStampPick(id); setPropStampFrame(0); if (propShelfGroups && id) { setPropStampCat(placeGroupKeyOf(placeGroupsAll, id)); setPropStampQ(""); } }}>
+              {propShelfGroups ? (() => { const n = searchPlaceGroups(placeGroupsAll, propStampQ).reduce((s, g) => s + g.props.length, 0); return <>
+                <option value="">{n ? n + " found" : "No matches"}</option>
+                {propShelfGroups.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>)}
+              </>; })() : <>
+                <option value="">Choose an object…</option>
+                {propShelfList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </>}
             </select>
             {/* Only an ANIMATED prop offers a frame, and it has to: frame 1 of a flickering sign is
                 half the art, and the whole reason to reach for one here is to lift a single still. */}
@@ -34137,6 +34174,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .symHeadText{display:flex;flex-direction:column;flex:1;min-width:0}
 .symReset{display:inline-flex;align-items:center;gap:6px}
 .symTools{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.propSearch{width:130px;flex:0 0 auto;background:#0d1119;border:1px solid #333c52;border-radius:8px;padding:6px 10px;color:inherit;font:inherit}
 .symSearch{flex:1 1 160px;min-width:120px;background:#0d1119;border:1px solid #333c52;border-radius:8px;padding:6px 10px}
 .symGrid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:4px;align-content:start;min-height:0}
 .symCell{height:46px;display:flex;align-items:center;justify-content:center;background:#151a26;border:1px solid #262d40;border-radius:6px;cursor:pointer;padding:0}

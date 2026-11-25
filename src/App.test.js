@@ -17488,3 +17488,33 @@ describe("📶 stairs: a flight you choose to walk on", () => {
     expect(stairsUnitClimbRoute(lv, { cx: 150, feet: 240, h: 210, stairs: true }, { cx: 300, feet: 150 }, 90, C, C)).toBeNull();
   });
 });
+
+describe("searchPlaceGroups — the 🌿 Object pickers' name search", () => {
+  const { searchPlaceGroups, placeGroupKeyOf, groupPlaceables } = require("./App");
+  const groups = groupPlaceables([
+    { id: "a", type: "prop", name: "Canned Ham Trailer", category: "Vehicles" },
+    { id: "b", type: "prop", name: "Liquor Store Sign", category: "Signs" },
+    { id: "c", type: "prop", name: "Pink Flamingo", category: "Yard" },
+    { id: "d", type: "vehicle", name: "Xe Lam", category: "Vehicles" },
+  ]);
+  it("returns the groups untouched when nothing is typed", () => {
+    expect(searchPlaceGroups(groups, "")).toBe(groups);
+    expect(searchPlaceGroups(groups, "   ")).toBe(groups);
+  });
+  it("searches every folder by name, keeping the folder headings", () => {
+    const r = searchPlaceGroups(groups, "SIGN");
+    expect(r.map((g) => g.label)).toEqual(["Signs"]);
+    expect(r[0].props.map((a) => a.id)).toEqual(["b"]);
+  });
+  it("needs every word, in any order", () => {
+    expect(searchPlaceGroups(groups, "trailer ham").flatMap((g) => g.props.map((a) => a.id))).toEqual(["a"]);
+    expect(searchPlaceGroups(groups, "ham flamingo")).toEqual([]);
+  });
+  it("keeps the current pick listed even when it doesn't match", () => {
+    expect(searchPlaceGroups(groups, "flamingo", "d").flatMap((g) => g.props.map((a) => a.id)).sort()).toEqual(["c", "d"]);
+  });
+  it("names the folder a prop is stored in", () => {
+    expect(placeGroupKeyOf(groups, "c")).toBe(groups.find((g) => g.label === "Yard").key);
+    expect(placeGroupKeyOf(groups, "zzz")).toBe("");
+  });
+});
