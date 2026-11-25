@@ -79,6 +79,7 @@
   { "k": "❄", "l": "Ice damage", "g": "Abilities", "d": "gi:snowflake-1", "c": "#bfe8ff" },
   { "k": "⏩", "l": "Double shot", "g": "Abilities", "d": "gi:double-shot" },
   { "k": "🍄", "l": "One up", "g": "Abilities", "d": "gi:super-mushroom", "c": "#7cd67a" },
+  { "k": "🐢", "l": "Game speed", "g": "Abilities", "d": "gi:turtle", "c": "#7cd67a" },
   { "k": "➕", "l": "Magazine / amount", "g": "Abilities", "d": "mdi:plus-box" },
   { "k": "✨", "l": "Effects", "g": "Abilities", "d": "gi:sparkles" },
   { "k": "👻", "l": "Translucent", "g": "Abilities", "d": "gi:ghost" },

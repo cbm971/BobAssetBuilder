@@ -3853,6 +3853,12 @@ export const normItemEffect = (e) => {
   // the run spends it instead. It is never a 🐱 Extra Life, which gets you up where you fell and is
   // the worn ability's alone (he split those two apart on 2026-10-18). Whole lives, at least one.
   if (e.kind === "oneUp") return { kind: "oneUp", lives: Math.max(1, Math.round(Number.isFinite(e.lives) ? e.lives : 1)) };
+  // 🐢 GAME SPEED (2026-11-25, Blake: "add the ability to slow down the game speed. I am going to
+  // replace Joints ability with that"). The WHOLE world runs at `mult` of its speed for `duration`
+  // seconds: you, every unit, every shot, gravity, fire, reloads, the other drinks' timers. It is
+  // not bullet time for you alone; he asked for the game's speed. Kept between ×0.1 and ×0.9: ×1 is
+  // an item that does nothing, and below ×0.1 the world is a photograph for the whole duration.
+  if (e.kind === "slowmo") return { kind: "slowmo", mult: Number.isFinite(e.mult) ? Math.max(0.1, Math.min(0.9, e.mult)) : 0.5, duration: Number.isFinite(e.duration) ? Math.max(1, e.duration) : 10 };
   // ❤️ `full` (2026-11-21, the Joint "should refill HP") heals to the top whatever the max is, so
   // a look with 300 HP is refilled as surely as one with 100. The amount is kept for unticking.
   const heal = { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
@@ -3869,6 +3875,7 @@ export const itemEffectSummary = (e) => {
     : x.kind === "damage" ? "Damage ×" + x.mult + " for " + x.duration + "s"
     : x.kind === "tagDamage" ? (x.tag.trim() || "Tagged") + " damage ×" + x.mult + " for " + x.duration + "s"
     : x.kind === "oneUp" ? "+" + x.lives + (x.lives === 1 ? " life" : " lives")
+    : x.kind === "slowmo" ? "Game speed ×" + x.mult + " for " + x.duration + "s"
     : (x.amount < 0 ? "" : "+") + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
 };
 // AN ITEM CAN DO SEVERAL THINGS AT ONCE (2026-11-21, Blake: a steroid that "increases strength a
@@ -3941,6 +3948,7 @@ export const ITEM_EFFECT_KINDS = [
   { kind: "range", label: "🎯 Range", fresh: () => ({ kind: "range", mult: 1.5, duration: 8 }) },
   { kind: "tagDamage", label: "🏹 Tag damage", fresh: () => ({ kind: "tagDamage", tag: "", mult: 1.5, duration: 8 }) },
   { kind: "oneUp", label: "🍄 One up", fresh: () => ({ kind: "oneUp", lives: 1 }) },
+  { kind: "slowmo", label: "🐢 Game speed", fresh: () => ({ kind: "slowmo", mult: 0.5, duration: 10 }) },
 ];
 export const isMoneyItem = (a) => !!a && a.type === "item" && normItemEffect(a.effect).kind === "money";
 
@@ -4154,6 +4162,31 @@ export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.u
 // `until` back by the real time that frame took, so a buff has exactly as long left when the world
 // moves again as it had when it stopped.
 export const holdBuffs = (buffs, ms) => (ms > 0 && buffs && buffs.length ? buffs.map((b) => (b && typeof b.until === "number" ? { ...b, until: b.until + ms } : b)) : buffs || []);
+// 🐢 HOW FAST THE WORLD RUNS RIGHT NOW: 1 normally, the slowest running 🐢 Game speed item's `mult`
+// while one is on (two at once do not multiply into a freeze; the slower one wins). It eases in over
+// SLOWMO_EASE_IN_MS and back out over the last SLOWMO_EASE_OUT_MS, so the world slides down to the
+// slow speed and back up rather than snapping, the same way a screen filter fades. Pure.
+export const SLOWMO_EASE_IN_MS = 350, SLOWMO_EASE_OUT_MS = 1200;
+export const gameSpeedAt = (buffs, nowMs) => {
+  let speed = 1;
+  for (const b of (buffs || [])) {
+    if (!b || b.kind !== "slowmo" || !(b.until > nowMs)) continue;
+    const left = b.until - nowMs, total = Math.max(1, b.total || left), gone = total - left;
+    const k = Math.max(0, Math.min(1, gone / SLOWMO_EASE_IN_MS, left / SLOWMO_EASE_OUT_MS));
+    speed = Math.min(speed, 1 - (1 - Math.max(0.1, Math.min(1, b.mult || 1))) * k);
+  }
+  return speed;
+};
+// ...AND THE OTHER DRINKS SLOW WITH IT. A buff ends at a wall-clock time, and in a world at half
+// speed a 60 s Speed drink would otherwise be over in 30 s of the world's time, which is the
+// cutscene bug holdBuffs fixed, at half strength. So each slowed frame gives back the share of it
+// the world did not run. The 🐢 buff itself is NOT held (it would stretch itself forever: a 10 s
+// Joint lasts 10 s on the clock) and nor is a 🌀 screen filter (a look, timed in real seconds).
+export const holdBuffsForGameSpeed = (buffs, frameMs, speed) => {
+  if (!(frameMs > 0) || !(speed < 1) || !buffs || !buffs.length) return buffs || [];
+  const back = frameMs * (1 - Math.max(0, speed));
+  return buffs.map((b) => (b && typeof b.until === "number" && b.kind !== "slowmo" && b.kind !== "screen" ? { ...b, until: b.until + back } : b));
+};
 // ...AND THEY GO WITH YOU TO THE NEXT FLOOR. A new floor is a new Playtest underneath, which starts
 // with no buffs, so the drink was lost at the floor's end whatever the cutscene did. A save keeps
 // each live buff as the time it has LEFT (a wall-clock time means nothing to another page load),
@@ -16996,6 +17029,14 @@ export default function AssetStudio({ game = false } = {}) {
       itemBuffs.current.push({ kind: "tagDamage", tag: eff.tag.trim(), mult: eff.mult, until: nowMs + eff.duration * 1000 });
       line = itemEffectSummary(eff);
       if (!quiet) flash("🏹 " + item.name + " · " + line + tail);
+    } else if (eff.kind === "slowmo") {
+      // 🐢 The timed list again, so a door, a gate, a save and a pause all treat it like any drink.
+      // A second one restarts the slow-down rather than stacking (gameSpeedAt takes the slowest anyway).
+      const nowMs = playNowMs(), total = eff.duration * 1000;
+      itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs).filter((x) => x.kind !== "slowmo");
+      itemBuffs.current.push({ kind: "slowmo", mult: eff.mult, total, until: nowMs + total });
+      line = itemEffectSummary(eff);
+      if (!quiet) flash("🐢 " + item.name + " · " + line + tail);
     } else if (eff.kind === "oneUp") {
       // 🍄 Another head on the run's row (see normItemEffect's ONE UP). In the game that is the run's
       // own count, saved with the checkpoint at once so quitting cannot lose it; in the studio's
@@ -18074,7 +18115,11 @@ export default function AssetStudio({ game = false } = {}) {
       if (myGen !== __ptLoopGen) return; // a newer loop exists — stop; don't touch player or reschedule
       const p = player.current, RK = keys.current;
       const nowT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      const dtMul = lastT == null ? firstDt : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
+      // dtReal is the frame as the clock saw it; dtMul is the frame as the WORLD runs it, which is
+      // the same thing until a 🐢 Game speed item is on (set below the pause returns, where it starts
+      // to matter: a reroll hold, a death's fall and a cutscene keep real time).
+      const dtReal = lastT == null ? firstDt : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
+      let dtMul = dtReal;
       const frameMs = lastT == null ? 0 : Math.max(0, nowT - lastT); // the REAL time this frame took, unclamped: what a paused frame gives back to the buffs (holdBuffs)
       lastT = nowT;
       // A CONVERSATION PAUSES THE WORLD, and it pauses it HERE — one return, above everything —
@@ -18122,7 +18167,11 @@ export default function AssetStudio({ game = false } = {}) {
       // which the tackler that floored you can't instantly floor you again.
       // SCORE: the clock of the level you are in. Below the pause returns above, so a conversation, a
       // shop or a cutscene never costs points; a run counts per level node, a plain Playtest per level.
-      { const sc = scoreRef.current, sk = runNow ? runNow.curKey : (lv.id || "level"); sc.secs[sk] = (sc.secs[sk] || 0) + dtMul / 60; }
+      // ...counted in REAL seconds (dtReal), so a 🐢 slow-down is never a way to bank a faster time.
+      { const sc = scoreRef.current, sk = runNow ? runNow.curKey : (lv.id || "level"); sc.secs[sk] = (sc.secs[sk] || 0) + dtReal / 60; }
+      // 🐢 GAME SPEED: from here down every motion and frame-counted timer in the world reads dtMul,
+      // so scaling it is the whole slow-down; the drinks' wall-clock timers are slowed to match.
+      { const gs = gameSpeedAt(itemBuffs.current, nowT); if (gs < 1) { dtMul = dtReal * gs; itemBuffs.current = holdBuffsForGameSpeed(itemBuffs.current, frameMs, gs); } }
       if (p.stun > 0) p.stun = Math.max(0, p.stun - dtMul);
       if (p.down > 0) { p.down = Math.max(0, p.down - dtMul); if (p.down <= 0) p.downCd = TACKLE_GETUP_GRACE_FRAMES; }
       if (p.downCd > 0) p.downCd = Math.max(0, p.downCd - dtMul);
@@ -33135,6 +33184,11 @@ export default function AssetStudio({ game = false } = {}) {
                     </>
                   ) : eff.kind === "hurt" ? (
                     <label className="slider">💔 HP lost<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, Math.round(+e.target.value || 1)) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
+                  ) : eff.kind === "slowmo" ? (
+                    <>
+                      <label className="slider">🐢 Game speed ×<input type="range" min="0.1" max="0.9" step="0.05" value={eff.mult} onChange={(e) => setEff({ mult: Math.round(+e.target.value * 100) / 100 })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
+                      <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                    </>
                   ) : eff.kind === "oneUp" ? (
                     <label className="slider">🍄 Lives<input type="number" min="1" max="9" value={eff.lives} onChange={(e) => setEff({ lives: Math.max(1, Math.min(9, Math.round(+e.target.value || 1))) })} style={{ width: 60 }} /></label>
                   ) : eff.kind === "money" ? (

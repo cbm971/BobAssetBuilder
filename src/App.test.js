@@ -1,5 +1,9 @@
 import {
   nextRerollHold,
+  gameSpeedAt,
+  holdBuffsForGameSpeed,
+  SLOWMO_EASE_IN_MS,
+  SLOWMO_EASE_OUT_MS,
   REROLL_HOLD_FRAMES,
   REROLL_SHOW_FRAMES,
   nextAimSideGrace,
@@ -15713,7 +15717,7 @@ describe("🍄 One up (item effect, 2026-10-21)", () => {
     expect(inferAssetType({ effect: { kind: "oneUp", lives: 1 } })).toBe("item");
   });
   test("the item editor's Effect dropdown lists every kind, One up included, each starting valid", () => {
-    expect(ITEM_EFFECT_KINDS.map((x) => x.kind)).toEqual(["heal", "hurt", "stat", "damage", "money", "range", "tagDamage", "oneUp"]);
+    expect(ITEM_EFFECT_KINDS.map((x) => x.kind)).toEqual(["heal", "hurt", "stat", "damage", "money", "range", "tagDamage", "oneUp", "slowmo"]);
     for (const x of ITEM_EFFECT_KINDS) expect(normItemEffect(x.fresh()).kind).toBe(x.kind);
   });
 });
@@ -17516,5 +17520,32 @@ describe("searchPlaceGroups — the 🌿 Object pickers' name search", () => {
   it("names the folder a prop is stored in", () => {
     expect(placeGroupKeyOf(groups, "c")).toBe(groups.find((g) => g.label === "Yard").key);
     expect(placeGroupKeyOf(groups, "zzz")).toBe("");
+  });
+});
+
+describe("🐢 Game speed item (2026-11-25)", () => {
+  test("normalises and clamps between x0.1 and x0.9", () => {
+    expect(normItemEffect({ kind: "slowmo" })).toEqual({ kind: "slowmo", mult: 0.5, duration: 10 });
+    expect(normItemEffect({ kind: "slowmo", mult: 0, duration: 0 })).toEqual({ kind: "slowmo", mult: 0.1, duration: 1 });
+    expect(normItemEffect({ kind: "slowmo", mult: 1.5, duration: 20 }).mult).toBe(0.9);
+    expect(itemEffectSummary({ kind: "slowmo", mult: 0.5, duration: 10 })).toBe("Game speed ×0.5 for 10s");
+    expect(ITEM_EFFECT_KINDS.some((k) => k.kind === "slowmo")).toBe(true);
+  });
+  test("eases in, holds, eases out, and the slowest wins", () => {
+    const b = { kind: "slowmo", mult: 0.5, total: 10000, until: 10000 };
+    expect(gameSpeedAt([], 0)).toBe(1);
+    expect(gameSpeedAt([b], 0)).toBe(1);
+    expect(gameSpeedAt([b], SLOWMO_EASE_IN_MS / 2)).toBeCloseTo(0.75);
+    expect(gameSpeedAt([b], 5000)).toBe(0.5);
+    expect(gameSpeedAt([b], 10000 - SLOWMO_EASE_OUT_MS / 2)).toBeCloseTo(0.75);
+    expect(gameSpeedAt([b], 10000)).toBe(1);
+    expect(gameSpeedAt([b, { ...b, mult: 0.2 }], 5000)).toBeCloseTo(0.2);
+    expect(gameSpeedAt([{ stat: "speed", amount: 2, until: 9e9 }], 5000)).toBe(1);
+  });
+  test("other drinks slow with the world; the slow-down and screen filters keep real time", () => {
+    const buffs = [{ kind: "slowmo", mult: 0.5, until: 1000 }, { kind: "screen", fx: "blur", until: 1000 }, { stat: "speed", amount: 2, until: 1000 }];
+    const out = holdBuffsForGameSpeed(buffs, 100, 0.5);
+    expect(out.map((b) => b.until)).toEqual([1000, 1000, 1050]);
+    expect(holdBuffsForGameSpeed(buffs, 100, 1)).toBe(buffs);
   });
 });
