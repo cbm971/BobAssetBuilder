@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed, GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, floorEndView, carryToNextFloor } from "./gameFront";
+import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, menuSceneLevels, MENU_SCENE_PINNED, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed, GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, floorEndView, carryToNextFloor } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // library.json is an index naming its part files (libraryParts.js: one file would pass GitHub's 100 MB
 // limit). Both published copies are read through it; an old one-file library still reads as it is.
@@ -28180,12 +28180,25 @@ export default function AssetStudio({ game = false } = {}) {
   // level's own placed units plus every Starter look, each drawn the way a walking unit is drawn
   // (bake the Side pose, hatsUnderArms, then the legs swung by identifyLimbs / multiLegPivot or
   // addBackLeg + applyLimbSwing at 28° — the unit pass's walk branch). Only the rows the view shows
-  // are built. EACH SCREEN HAS ITS OWN LEVEL (sceneLevelFor), and each level's scene is built the
+  // are built. EACH SCREEN HAS ITS OWN LEVEL (menuSceneLevels), and each level's scene is built the
   // first time a screen asks for it and kept (menuSceneCache) until the textures or the library
   // change under it; gameShell.js SceneBackdrop moves the camera and the cast.
-  // ?scene=<level name> in the game's address pins the MAIN MENU's level (case-insensitive), for
-  // looking at how a level reads behind it; the other screens keep their own.
+  // The main menu is pinned to his UFO crash site (MENU_SCENE_PINNED, by id), and no two screens
+  // share a level (menuSceneLevels hands each level out once). ?scene=<level name> in the game's
+  // address pins the MAIN MENU's level instead (case-insensitive), for looking at how a level reads
+  // behind it; the other screens then skip that level too.
   const menuLineup = useMemo(() => (game && gameLevelsIn ? menuLevelLineup(levelLib) : []), [game, gameLevelsIn]);
+  const menuScenes = useMemo(() => {
+    if (!menuLineup.length) return {};
+    const byId = (id) => (id ? levelLib.find((l) => l && l.id === id) || null : null);
+    const pins = {};
+    for (const v of Object.keys(MENU_SCENE_PINNED)) { const l = byId(MENU_SCENE_PINNED[v]); if (l) pins[v] = l; }
+    let want = "";
+    try { want = (new URLSearchParams(window.location.search).get("scene") || "").trim().toLowerCase(); } catch { /* no address */ }
+    const asked = want ? levelLib.find((l) => l && String(l.name || "").trim().toLowerCase() === want) : null;
+    if (asked) pins.menu = asked;
+    return menuSceneLevels(menuLineup, pins);
+  }, [menuLineup]);
   // The floors a run can start on — the floors of his intro levels (runRole), in library order — for
   // the medals on the character select's player card (gameFront.js lookFloorMedals). Then the floors
   // coming later (PLANNED_FLOORS: Vietnam), so their medals show before a run can reach them.
@@ -28200,13 +28213,7 @@ export default function AssetStudio({ game = false } = {}) {
   const menuSceneCache = useRef(new Map());
   const menuSceneFor = (view) => {
     if (!menuLineup.length) return null;
-    let lv = sceneLevelFor(menuLineup, view);
-    if (view === "menu") {
-      let want = "";
-      try { want = (new URLSearchParams(window.location.search).get("scene") || "").trim().toLowerCase(); } catch { /* no address */ }
-      const pinned = want ? levelLib.find((l) => l && String(l.name || "").trim().toLowerCase() === want) : null;
-      if (pinned) lv = pinned;
-    }
+    const lv = menuScenes[view] || menuScenes.menu || null;
     if (!lv) return null;
     const hit = menuSceneCache.current.get(lv.id);
     if (hit && hit.lv === lv && hit.tex === texLib && hit.assets === allAssets) return hit.scene;

@@ -5,7 +5,7 @@ import {
   makeGameSave, sortGameSaves, upsertGameSave, dropGameSave, GAME_SAVES_MAX, resumeNodeKey, formatPlayTime, scorePlaySecs,
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
-  pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
+  pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS, menuSceneLevels, MENU_SCENE_PINNED,
   enemiesDefeatedCount,
   starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, selectBoxPx, keepsSavedOutfit, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
   GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, floorEndView, carryToNextFloor,
@@ -283,6 +283,37 @@ describe("the menu's backdrop scene", () => {
     expect(sceneLevelFor(line, "nope").id).toBe("b");
     expect(sceneLevelFor([], "menu")).toBe(null);
     expect(new Set(MENU_SCENE_VIEWS).size).toBe(MENU_SCENE_VIEWS.length);
+  });
+  // Blake 2026-11-25: the mansion (M25) out-ranked the UFO crash site (M14) and took the title; and
+  // "make sure no two menus reuse a level".
+  test("the main menu is pinned to the UFO crash site by id", () => {
+    expect(MENU_SCENE_PINNED.menu).toBe("eb4dqst");
+  });
+  test("a pinned level is the menu's, and the next screen does not get it again", () => {
+    const levels = ["m25", "m14", "e1", "m24", "m21", "m19", "m15", "m20", "m17"].map((id, i) => lv(id, { fx: fx(50 - i) }));
+    const line = menuLevelLineup(levels);
+    const m14 = levels.find((l) => l.id === "m14");
+    const all = menuSceneLevels(line, { menu: m14 });
+    expect(all.menu.id).toBe("m14");
+    expect(all.select.id).toBe("m25");
+    expect(all.load.id).toBe("e1");
+    const ids = MENU_SCENE_VIEWS.map((v) => all[v].id);
+    expect(new Set(ids).size).toBe(MENU_SCENE_VIEWS.length);
+    expect(sceneLevelFor(line, "select", { menu: m14 }).id).toBe("m25");
+  });
+  test("a pin from outside the lineup still leaves every screen its own level", () => {
+    const levels = Array.from({ length: 8 }, (_, i) => lv("s" + i, { fx: fx(20 - i) }));
+    const all = menuSceneLevels(menuLevelLineup(levels), { menu: lv("room", { isRoom: true }) });
+    const ids = MENU_SCENE_VIEWS.map((v) => all[v].id);
+    expect(ids[0]).toBe("room");
+    expect(new Set(ids).size).toBe(MENU_SCENE_VIEWS.length);
+  });
+  test("the other floors' street levels fill in before any level repeats", () => {
+    const levels = [lv("a", { fx: fx(3) }), lv("b", { fx: fx(2) }), lv("c", { fx: fx(1) }), lv("d", { fx: fx(9) }), lv("x", { floor: "Jungle", fx: fx(1) }), lv("y", { floor: "Jungle", fx: fx(8) }), lv("z", { floor: "Jungle" })];
+    const line = menuLevelLineup(levels);
+    expect(line.map((l) => l.id)).toEqual(["d", "a", "b", "c", "y", "x", "z"]);
+    const all = menuSceneLevels(line, {});
+    expect(new Set(MENU_SCENE_VIEWS.map((v) => all[v].id)).size).toBe(MENU_SCENE_VIEWS.length);
   });
   test("the surface is the first ground with a body's height of air over it", () => {
     // Column 0: ground at row 20. Column 1: a canopy at row 5 with only 3 rows over it, ground at 20.

@@ -180,10 +180,23 @@ export const deathEndsRun = (diffId, deathsBefore, oneUps) => runLivesLeft(diffI
 //
 // EACH SCREEN HAS ITS OWN LEVEL (Blake, 2026-10-18: "when you went to different sub menus it used
 // different menus / level screenshots"). MENU_SCENE_VIEWS gives every screen its slot in that
-// ranked lineup — the main menu the best, the character select the next, and so on — wrapping when
-// he has fewer levels than screens.
+// ranked lineup — the main menu the best, the character select the next, and so on.
+//
+// THE MAIN MENU IS PINNED TO THE UFO CRASH SITE (Blake, 2026-11-25: "the title level changed from
+// the UFO one to the mansion one, I prefer the UFO one there how it was"). The ranking alone let
+// Trailer Park M25 (the Miami mansion, 262) climb over M14 (231) the day it was saved, and the title
+// changed under him without anyone touching the menu. So MENU_SCENE_PINNED names the menu's level
+// by id (a rename cannot unpin it); only if that level is gone does the menu fall back to the best.
+//
+// NO TWO SCREENS EVER SHARE A LEVEL (Blake, same day: "make sure no two menus reuse a level").
+// menuSceneLevels hands out the pinned levels first and then the lineup in order, skipping every
+// level already given out, so a pin can never make the next screen show the same level again (the
+// old slot-by-index sceneLevelFor gave the select screen M14 the moment M14 stopped being first,
+// and a ?scene pin doubled up the same way). The lineup runs on into the other floors' street levels
+// after the main floor's, so a level only repeats if he has fewer street levels than screens in all.
 export const MENU_SCENE_PROP_CAP = 160;
 export const MENU_SCENE_VIEWS = ["menu", "select", "load", "options", "unlocks", "gameOver", "toBeContinued"];
+export const MENU_SCENE_PINNED = { menu: "eb4dqst" }; // Trailer Park M14, the UFO crash site
 export const menuLevelScore = (l) => {
   const objs = Object.values((l && l.fx) || {}).flat().filter(Boolean);
   const props = objs.filter((o) => o.kind === "prop").length;
@@ -196,13 +209,29 @@ export const menuLevelLineup = (levels) => {
   const floors = {};
   for (const l of street) floors[l.floor || ""] = (floors[l.floor || ""] || 0) + 1;
   const main = Object.keys(floors).sort((a, b) => floors[b] - floors[a] || (a < b ? -1 : 1))[0];
-  return street.filter((l) => (l.floor || "") === main).sort((a, b) => menuLevelScore(b) - menuLevelScore(a) || (a.id < b.id ? -1 : 1));
+  const rank = (a, b) => menuLevelScore(b) - menuLevelScore(a) || (a.id < b.id ? -1 : 1);
+  return [...street.filter((l) => (l.floor || "") === main).sort(rank), ...street.filter((l) => (l.floor || "") !== main).sort(rank)];
 };
 export const pickMenuLevel = (levels) => menuLevelLineup(levels)[0] || null;
-export const sceneLevelFor = (lineup, view) => {
-  if (!lineup || !lineup.length) return null;
-  const i = MENU_SCENE_VIEWS.indexOf(view);
-  return lineup[(i < 0 ? 0 : i) % lineup.length];
+// Every screen's level, { view: level }. `pins` is { view: level } (a level the caller found, or
+// nothing); a pinned level is that screen's and no other screen's.
+export const menuSceneLevels = (lineup, pins = {}) => {
+  const out = {};
+  if (!lineup || !lineup.length) return out;
+  const used = new Set();
+  for (const v of MENU_SCENE_VIEWS) { const p = pins && pins[v]; if (p && !used.has(p.id)) { out[v] = p; used.add(p.id); } }
+  const rest = lineup.filter((l) => !used.has(l.id));
+  let i = 0;
+  for (const v of MENU_SCENE_VIEWS) {
+    if (out[v]) continue;
+    // Fewer levels than screens in all: only then does one come round again.
+    out[v] = rest.length ? rest[i++ % rest.length] : lineup[i++ % lineup.length];
+  }
+  return out;
+};
+export const sceneLevelFor = (lineup, view, pins) => {
+  const all = menuSceneLevels(lineup, pins);
+  return all[view] || all.menu || null;
 };
 // The row each column's walkable top surface is on: the first solid cell from the top with a body's
 // height of open air over it (so a tree canopy or a roof with no room under the sky is skipped
