@@ -437,7 +437,7 @@ describe("locked starters", () => {
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob", "the general", "bobena"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob", "the general", "bob the builder", "bobena"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();
@@ -457,6 +457,24 @@ describe("locked starters", () => {
     r = recordFloorDone(r, "Vietnam", 10, "Rob", "hard");
     expect(starterLock(look("Viet Bob"), r, assets)).toBeNull();
     expect(starterLock(look("VietBob"), r, assets)).toBeNull();
+  });
+  test("Bob the builder opens once five different fighters have beaten Vietnam on Hard", () => {
+    let r = newGameRecord();
+    expect(starterLock(look("Bob the builder"), r, assets)).toEqual({ need: "Beat Vietnam on Hard With 5 Unique Characters", have: 0, of: 5 });
+    r = recordFloorDone(r, "Vietnam", 10, "Bob", "hard");
+    r = recordFloorDone(r, "Vietnam", 10, "Bob", "hard");   // a repeat by the same fighter is not a new one
+    r = recordFloorDone(r, "Vietnam", 10, "Viet Bob", "hard");
+    r = recordFloorDone(r, "Vietnam", 10, "VietBob", "hard"); // same fighter, spaces ignored
+    r = recordFloorDone(r, "Vietnam", 10, "Rob", "medium");   // not Hard
+    r = recordFloorDone(r, "Trailor Park", 10, "Bobby", "hard"); // wrong floor
+    expect(starterLock(look("Bob The Builder"), r, assets).have).toBe(2);
+    const before = recordFloorDone(r, "Vietnam", 10, "Robert", "hard");
+    expect(starterLock(look("Bob the builder"), before, assets).have).toBe(3);
+    const four = recordFloorDone(before, "Vietnam", 10, "Bobette", "hard");
+    expect(starterLock(look("Bob the builder"), four, assets)).not.toBeNull();
+    const five = recordFloorDone(four, "Vietnam", 10, "Bobbi", "hard");
+    expect(starterLock(look("Bob the builder"), five, assets)).toBeNull();
+    expect(newlyUnlocked([look("Bob the builder")], four, five).map((a) => a.name)).toEqual(["Bob the builder"]);
   });
   test("Bob Li opens once the Bob Li conversation has been met, and the record keeps it", () => {
     let r = newGameRecord();

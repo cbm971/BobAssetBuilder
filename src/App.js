@@ -28645,6 +28645,7 @@ export default function AssetStudio({ game = false } = {}) {
     const eq = { ...(c.equipment || {}) };
     for (const slot of ["shirt", "pants"]) {
       if (slot === "shirt" && eq.shirt) continue; // already wearing one (Super Bob's Super Shirt): the card keeps it
+      if (slot === "pants" && (eq.pants || (eq.jacket && normCats(eq.jacket.categories).includes("pants")))) continue; // Bob the builder's Overalls carry the pants
       const it = (hit && hit.rolled[slot]) || roll(slot);
       if (it) eq[slot] = it;
     }

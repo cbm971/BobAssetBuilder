@@ -539,6 +539,7 @@ export const STARTER_LOCKS = [
   { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
   { name: "the general", kills: 500, on: "Vietnam" }, // Blake (2026-11-07): "the general should be unlocked by defeating 500 enemies in Vietnam" (was 1,000 ranged kills, earlier the same day)
+  { name: "bob the builder", floor: "Vietnam", diff: "hard", characters: 5 }, // Blake (2026-11-26): "Beat Vietnam on Hard with five unique characters" — five different looks, each having beaten Vietnam on Hard (record.floorsDiff)
   { name: "bobena", enemies: 50 }, // Blake (2026-11-07): "50 unique enemies. Like the stats show how many enemies you have met"
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
@@ -555,6 +556,12 @@ const floorDiffRank = (rec, floor, as) => {
   let best = 0;
   for (const f of Object.keys(rec.floorsDiff || {})) if (floorKey(f) === k) for (const who of Object.keys(rec.floorsDiff[f])) if (!as || who === as) best = Math.max(best, rec.floorsDiff[f][who]);
   return best;
+};
+// How many DIFFERENT fighters beat a floor on `minRank` or harder ("VietBob" and "Viet Bob" are one).
+const floorDiffCharacters = (rec, floor, minRank) => {
+  const k = floorKey(floor), who = new Set();
+  for (const f of Object.keys(rec.floorsDiff || {})) if (floorKey(f) === k) for (const n of Object.keys(rec.floorsDiff[f])) if (rec.floorsDiff[f][n] >= minRank) who.add(lockKey(n));
+  return who.size;
 };
 // Items found that are items (the Unlocks screen's Items tab), not every id in `found`.
 export const itemsFoundCount = (rec, assets) => {
@@ -585,6 +592,10 @@ export const starterLock = (look, rec, assets) => {
   if (lock.items) {
     const have = itemsFoundCount(r, assets);
     return have >= lock.items ? null : { need: "Unlock " + lock.items + " Items", have, of: lock.items };
+  }
+  if (lock.diff && lock.characters) {
+    const have = floorDiffCharacters(r, lock.floor, diffRank(lock.diff));
+    return have >= lock.characters ? null : { need: "Beat " + lock.floor + " on " + difficultyOf(lock.diff).label + " With " + lock.characters + " Unique Characters", have, of: lock.characters };
   }
   if (lock.diff) {
     const rank = diffRank(lock.diff);
