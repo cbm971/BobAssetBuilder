@@ -15750,7 +15750,7 @@ describe("🍄 One up (item effect, 2026-10-21)", () => {
     expect(inferAssetType({ effect: { kind: "oneUp", lives: 1 } })).toBe("item");
   });
   test("the item editor's Effect dropdown lists every kind, One up included, each starting valid", () => {
-    expect(ITEM_EFFECT_KINDS.map((x) => x.kind)).toEqual(["heal", "hurt", "stat", "damage", "money", "range", "tagDamage", "oneUp", "slowmo"]);
+    expect(ITEM_EFFECT_KINDS.map((x) => x.kind)).toEqual(["heal", "hurt", "stat", "damage", "money", "range", "tagDamage", "oneUp", "slowmo", "nonHostile"]);
     for (const x of ITEM_EFFECT_KINDS) expect(normItemEffect(x.fresh()).kind).toBe(x.kind);
   });
 });
@@ -17584,9 +17584,9 @@ describe("🐢 Game speed item (2026-11-25)", () => {
 });
 
 import {
-  soundWaveOf, makeSoundWave, soundWaveBand, soundWaveStep, soundWaveCatchesBox, soundWaveCatchesPoint, soundWaveMoves,
+  soundWaveOf, makeSoundWave, soundWaveBand, soundWaveArcs, soundWaveStep, soundWaveCatchesBox, soundWaveCatchesPoint, soundWaveMoves,
   blowShotBack, blowThrowBack, unitWantsSoundWave, SOUND_WAVE_DEFAULT_REACH, SOUND_WAVE_DEFAULT_PUSH, SOUND_WAVE_SPEED_CELLS,
-  SOUND_WAVE_FADE_FRAMES,
+  SOUND_WAVE_FADE_FRAMES, enemiesNonHostile,
 } from "./App";
 
 describe("📢 Sound wave (hold Block to push enemies and shots back)", () => {
@@ -17756,5 +17756,92 @@ describe("item comparison & conditional item name visibility behind Front", () =
     const front = sheet(6, 11, 8, 13);
     const box = pedBoxAt(10, 10);
     expect(itemCoverState(front, [], box, C, C, null, () => true)).toEqual({ hidden: false, shared: false });
+  });
+});
+
+describe("🕊️ Non-hostile item ability & Zanex / Anti Physcotic pills (2026-11-26)", () => {
+  test("normalises duration, summarises cleanly, and registers in ITEM_EFFECT_KINDS", () => {
+    expect(normItemEffect({ kind: "nonHostile" })).toEqual({ kind: "nonHostile", duration: 15 });
+    expect(normItemEffect({ kind: "nonHostile", duration: 25 })).toEqual({ kind: "nonHostile", duration: 25 });
+    expect(normItemEffect({ kind: "nonHostile", duration: 0 })).toEqual({ kind: "nonHostile", duration: 1 });
+    expect(itemEffectSummary({ kind: "nonHostile", duration: 15 })).toBe("Enemies non-hostile for 15s");
+    expect(itemEffectSummary({ kind: "nonHostile", duration: 25 })).toBe("Enemies non-hostile for 25s");
+    expect(ITEM_EFFECT_KINDS.some((k) => k.kind === "nonHostile")).toBe(true);
+  });
+
+  test("enemiesNonHostile and unitSide make hostiles neutral for the buff's duration while keeping allies friendly", () => {
+    const buffs = [{ kind: "nonHostile", total: 15000, until: 15000 }];
+    expect(enemiesNonHostile([], 1000)).toBe(false);
+    expect(enemiesNonHostile(buffs, 1000)).toBe(true);
+    expect(enemiesNonHostile(buffs, 15000)).toBe(false);
+    const foe = { type: "enemy" };
+    expect(unitSide(foe, {}, false)).toBe("hostile");
+    expect(unitSide(foe, {}, true)).toBe("neutral");
+    expect(unitSide(foe, { turned: "hostile" }, true)).toBe("neutral");
+    // Allies stay friendly so they follow you instead of stalling as neutral statues
+    expect(unitSide(foe, { friendly: true }, true)).toBe("friendly");
+    // Un-pacified unitSide (used for kill score & unlocks) still recognises a real enemy
+    expect(unitSide(foe, {})).toBe("hostile");
+    // Slows with 🐢 Game speed and rides save/load like any timed drink
+    expect(holdBuffsForGameSpeed(buffs, 100, 0.5)[0].until).toBe(15050);
+    const saved = buffsToSave(buffs, 5000);
+    expect(saved).toEqual([{ kind: "nonHostile", total: 15000, left: 10000 }]);
+    expect(buffsFromSave(saved, 20000)[0].until).toBe(30000);
+  });
+
+  test("Zanex (15s) and Anti Physcotic (25s) ship in library.json with zero editorReachIssues", () => {
+    const libFiles = require("./libraryFiles");
+    const path = require("path");
+    const lib = libFiles.readLibraryFile(path.join(__dirname, "..", "asset-data", "library.json"));
+    const zanex = (lib.assets || []).find((a) => a && a.id === "zanex01");
+    const anti = (lib.assets || []).find((a) => a && a.id === "antips1");
+    expect(zanex).toBeTruthy();
+    expect(anti).toBeTruthy();
+    expect(zanex.name).toBe("Zanex");
+    expect(anti.name).toBe("Anti Physcotic");
+    expect(normItemEffect(zanex.effect)).toEqual({ kind: "nonHostile", duration: 15 });
+    expect(normItemEffect(anti.effect)).toEqual({ kind: "nonHostile", duration: 25 });
+    expect(editorReachIssues(zanex)).toEqual([]);
+    expect(editorReachIssues(anti)).toEqual([]);
+  });
+});
+
+describe("📢 Megaphone horn-mouth sound wave cone (2026-11-26)", () => {
+  const C = 30;
+  test("spawns at the held weapon's horn mouth while keeping body-front & chest-height sweep across seams", () => {
+    const box = { x: 100, y: 200, w: 40, h: 210 };
+    const mouth = { x: 175, y: 252 }; // outstretched megaphone horn bell ahead of & above waist
+    const b = makeSoundWave(box, 1, { reach: 6, push: 2 }, "player", "player", C, mouth);
+    expect([b.x, b.y]).toEqual([175, 252]);
+    soundWaveStep(b, 1, C, () => false);
+    const band = soundWaveBand(b);
+    // Swept band reaches back to body front (140) so an enemy tucked under the outstretched arm is caught,
+    // and centres vertically on the body's middle (305)
+    expect(band.x0).toBe(140);
+    expect(band.x1).toBe(190);
+    expect((band.y0 + band.y1) / 2).toBeCloseTo(305, 5);
+    // Seam shift on b.x / b.y moves both the mouth and the relative body sweep together
+    b.x += 500; b.y -= 60;
+    const shifted = soundWaveBand(b);
+    expect([shifted.x0, shifted.x1]).toEqual([640, 690]);
+    expect((shifted.y0 + shifted.y1) / 2).toBeCloseTo(245, 5);
+  });
+
+  test("soundWaveArcs starts compact at the horn rim and fans out in concentric arcs without curving behind the mouth", () => {
+    const b = makeSoundWave({ x: 100, y: 200, w: 40, h: 210 }, 1, { reach: 6, push: 2 }, "player", "player", C, { x: 175, y: 252 });
+    expect(soundWaveArcs(b, C)).toEqual([]);
+    soundWaveStep(b, 1, C, () => false); // r = 15
+    const nearArcs = soundWaveArcs(b, C);
+    expect(nearArcs.length).toBeGreaterThanOrEqual(2);
+    for (const a of nearArcs) {
+      expect(a.xEnd).toBeGreaterThanOrEqual(0); // never behind the megaphone's horn rim
+      expect((a.xEnd + a.xCtrl) / 2).toBeCloseTo(a.dist, 5); // quadratic curve tip sits on dist
+    }
+    for (let i = 0; i < 6; i++) soundWaveStep(b, 1, C, () => false); // r = 105
+    const farArcs = soundWaveArcs(b, C);
+    expect(farArcs.length).toBe(3);
+    expect(farArcs[0].halfH).toBeGreaterThan(nearArcs[0].halfH); // cone opens out with distance
+    expect(farArcs[0].halfH).toBeGreaterThan(farArcs[1].halfH);  // outer arc taller than inner trailing arcs
+    expect(farArcs[1].halfH).toBeGreaterThan(farArcs[2].halfH);
   });
 });

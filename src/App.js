@@ -2020,6 +2020,9 @@ export const SOUND_WAVE_DEFAULT_PUSH = 2;   // cells each ring shoves what it ca
 export const SOUND_WAVE_EVERY_FRAMES = 8;   // a fresh ring this often while the guard is up (4 per 30-frame guard)
 export const SOUND_WAVE_SPEED_CELLS = 0.5;  // cells a frame the ring's front moves out
 export const SOUND_WAVE_SPREAD = 0.25;      // the ring grows this much taller (each way) per px it travels
+export const SOUND_WAVE_MOUTH_HALF_CELLS = 0.36; // visual half-height right at the horn's rim (~22 px tall)
+export const SOUND_WAVE_CONE_SPREAD = 0.45;      // visual cone flare per px travelled from the horn
+export const SOUND_WAVE_ARC_GAP_CELLS = 0.34;    // spacing between concentric arcs in one wave pulse
 export const SOUND_WAVE_FADE_FRAMES = 6;    // the ring fades over this once it has stopped
 export const SOUND_WAVE_BLOW_FRAMES = 12;   // frames a blown-back shot takes to cover its push
 // { reach, push } in cells for a weapon that has it, else null. Melee only: a gun's Q/V is a pistol-whip
@@ -2029,23 +2032,50 @@ export const soundWaveOf = (w) => {
   const num = (v, def, lo, hi) => Math.max(lo, Math.min(hi, Number(v) || def));
   return { reach: num(w.soundWaveReach, SOUND_WAVE_DEFAULT_REACH, 1, 20), push: num(w.soundWavePush, SOUND_WAVE_DEFAULT_PUSH, 0.5, 10) };
 };
-// A fresh ring leaving the front edge of `box` (the wielder's body box, world px) facing `dir`. It is a
+// A fresh ring leaving `mouth` (the held weapon's far tip — the Megaphone's horn bell — in world px,
+// falling back to the front edge of `box` when no arm/weapon geometry is present) facing `dir`. It is a
 // `booms` entry so it rides every seam shift and level change the booms already get; `wave` marks it.
-// side: "player" or "friendly" (yours) or "hostile". owner: "player" or the unit's key (never pushed by
-// its own ring).
-export const makeSoundWave = (box, dir, sw, side, owner, cell) => {
+// `backDx` and `centerDy` are relative to (b.x, b.y) so seam shifts on b.x/b.y keep the body-height
+// sweep exact while the drawn cone originates right at the horn's mouth.
+export const makeSoundWave = (box, dir, sw, side, owner, cell, mouth) => {
   const d = dir < 0 ? -1 : 1, reachPx = sw.reach * cell;
+  const bodyFrontX = d > 0 ? box.x + box.w : box.x, bodyMidY = box.y + box.h / 2;
+  const hasMouth = !!(mouth && Number.isFinite(mouth.x) && Number.isFinite(mouth.y));
+  const x = hasMouth ? mouth.x : bodyFrontX, y = hasMouth ? mouth.y : bodyMidY;
+  const backDx = hasMouth ? Math.max(0, d * (x - bodyFrontX)) : 0;
+  const centerDy = hasMouth ? bodyMidY - y : 0;
   return {
-    x: d > 0 ? box.x + box.w : box.x, y: box.y + box.h / 2, life: 0,
+    x, y, life: 0,
     maxLife: Math.ceil(reachPx / (SOUND_WAVE_SPEED_CELLS * cell)) + SOUND_WAVE_FADE_FRAMES,
-    wave: { dir: d, r: 0, reach: reachPx, push: sw.push * cell, halfH0: Math.max(cell, box.h / 2), side, owner, hit: {} },
+    wave: { dir: d, r: 0, reach: reachPx, push: sw.push * cell, halfH0: Math.max(cell, box.h / 2), backDx, centerDy, side, owner, hit: {} },
   };
 };
-// The strip a ring has swept so far: from the mouth out to its front, as tall as the wielder at the
-// mouth and growing with distance (world px).
+// The strip a ring has swept so far: from the wielder's front out to the wave's front, across the
+// wielder's height and growing with distance (world px).
 export const soundWaveBand = (b) => {
   const w = b.wave, halfH = w.halfH0 + w.r * SOUND_WAVE_SPREAD, fx = b.x + w.dir * w.r;
-  return { x0: Math.min(b.x, fx), x1: Math.max(b.x, fx), y0: b.y - halfH, y1: b.y + halfH, halfH, fx };
+  const sx = b.x - w.dir * (w.backDx || 0), cy = b.y + (w.centerDy || 0);
+  return { x0: Math.min(sx, fx), x1: Math.max(sx, fx), y0: cy - halfH, y1: cy + halfH, halfH, fx };
+};
+// Concentric curved arcs for a sound wave cone emerging from (b.x, b.y) — the megaphone's horn rim.
+// Starts compact at the horn's mouth (SOUND_WAVE_MOUTH_HALF_CELLS) and fans out along SOUND_WAVE_CONE_SPREAD
+// as w.r advances; trailing arcs peel out of the horn mouth once the front is past their gap, and no arc's
+// ends ever curve behind d = 0 (the horn rim). Pure, in horn-relative local px (x = 0 at mouth, +x forward).
+export const soundWaveArcs = (b, cell) => {
+  const w = b && b.wave;
+  if (!w || !(w.r > 0.5)) return [];
+  const gap = cell * SOUND_WAVE_ARC_GAP_CELLS, mouthHalf = cell * SOUND_WAVE_MOUTH_HALF_CELLS;
+  const alphas = [1, 0.78, 0.52];
+  const out = [];
+  for (let idx = 0; idx < alphas.length; idx++) {
+    const dist = w.r - idx * gap;
+    if (dist < (idx === 0 ? 0.5 : 2)) continue;
+    const halfH = mouthHalf + dist * SOUND_WAVE_CONE_SPREAD;
+    const bow = Math.min(dist, Math.max(4, halfH * 0.28));
+    const xEnd = dist - bow, xCtrl = dist + bow;
+    out.push({ dist, halfH, xEnd, xCtrl, alpha: alphas[idx] });
+  }
+  return out;
 };
 export const soundWaveCatchesBox = (band, bx) => !!bx && bx.x < band.x1 && bx.x + bx.w > band.x0 && bx.y < band.y1 && bx.y + bx.h > band.y0;
 export const soundWaveCatchesPoint = (band, x, y) => x >= band.x0 && x <= band.x1 && y >= band.y0 && y <= band.y1;
@@ -2058,9 +2088,10 @@ export const soundWaveMoves = (side, foe) => (side === "hostile" ? !foe : !!foe)
 export const soundWaveStep = (b, dt, cell, solidAt) => {
   const w = b.wave;
   if (w.stopped) return w.r;
+  const probeY = b.y + (w.centerDy || 0);
   const next = Math.min(w.reach, w.r + SOUND_WAVE_SPEED_CELLS * cell * (dt > 0 ? dt : 0));
   for (let r = Math.min(next, w.r + cell / 2); ; r = Math.min(next, r + cell / 2)) {
-    if (solidAt && solidAt(b.x + w.dir * r, b.y)) { w.stopped = true; break; }
+    if (solidAt && solidAt(b.x + w.dir * r, probeY)) { w.stopped = true; break; }
     w.r = r;
     if (r >= next) break;
   }
@@ -3954,6 +3985,11 @@ export const normItemEffect = (e) => {
   // not bullet time for you alone; he asked for the game's speed. Kept between ×0.1 and ×0.9: ×1 is
   // an item that does nothing, and below ×0.1 the world is a photograph for the whole duration.
   if (e.kind === "slowmo") return { kind: "slowmo", mult: Number.isFinite(e.mult) ? Math.max(0.1, Math.min(0.9, e.mult)) : 0.5, duration: Number.isFinite(e.duration) ? Math.max(1, e.duration) : 10 };
+  // 🕊️ NON-HOSTILE ENEMIES (2026-11-26, Blake: "add an ability that makes all enemies non hostile
+  // for a brief time ... Zanex and Anti Physcotic ... 15 seconds and 25 seconds"). Every enemy acts
+  // as neutral for `duration` seconds: no sensing, chasing, shooting, swinging, tackling or hostile
+  // auras; your allies hold fire and follow you; you can still fight or walk right past them.
+  if (e.kind === "nonHostile") return { kind: "nonHostile", duration: Number.isFinite(e.duration) ? Math.max(1, e.duration) : 15 };
   // ❤️ `full` (2026-11-21, the Joint "should refill HP") heals to the top whatever the max is, so
   // a look with 300 HP is refilled as surely as one with 100. The amount is kept for unticking.
   const heal = { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
@@ -3971,6 +4007,7 @@ export const itemEffectSummary = (e) => {
     : x.kind === "tagDamage" ? (x.tag.trim() || "Tagged") + " damage ×" + x.mult + " for " + x.duration + "s"
     : x.kind === "oneUp" ? "+" + x.lives + (x.lives === 1 ? " life" : " lives")
     : x.kind === "slowmo" ? "Game speed ×" + x.mult + " for " + x.duration + "s"
+    : x.kind === "nonHostile" ? "Enemies non-hostile for " + x.duration + "s"
     : (x.amount < 0 ? "" : "+") + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
 };
 // AN ITEM CAN DO SEVERAL THINGS AT ONCE (2026-11-21, Blake: a steroid that "increases strength a
@@ -4044,6 +4081,7 @@ export const ITEM_EFFECT_KINDS = [
   { kind: "tagDamage", label: "🏹 Tag damage", fresh: () => ({ kind: "tagDamage", tag: "", mult: 1.5, duration: 8 }) },
   { kind: "oneUp", label: "🍄 One up", fresh: () => ({ kind: "oneUp", lives: 1 }) },
   { kind: "slowmo", label: "🐢 Game speed", fresh: () => ({ kind: "slowmo", mult: 0.5, duration: 10 }) },
+  { kind: "nonHostile", label: "🕊️ Non-hostile", fresh: () => ({ kind: "nonHostile", duration: 15 }) },
 ];
 export const isMoneyItem = (a) => !!a && a.type === "item" && normItemEffect(a.effect).kind === "money";
 
@@ -4272,6 +4310,10 @@ export const gameSpeedAt = (buffs, nowMs) => {
   }
   return speed;
 };
+// 🕊️ WHETHER ALL ENEMIES ARE TEMPORARILY NON-HOSTILE (Zanex / Anti Physcotic): true while any
+// running `nonHostile` buff has time left. Rides the timed buff list, so pauses, game-speed slowmo,
+// doors, seams and checkpoints hold and carry it like any other pill or drink. Pure.
+export const enemiesNonHostile = (buffs, nowMs) => (buffs || []).some((b) => b && b.kind === "nonHostile" && b.until > nowMs);
 // ...AND THE OTHER DRINKS SLOW WITH IT. A buff ends at a wall-clock time, and in a world at half
 // speed a 60 s Speed drink would otherwise be over in 30 s of the world's time, which is the
 // cutscene bug holdBuffs fixed, at half strength. So each slowed frame gives back the share of it
@@ -4742,8 +4784,9 @@ export const enemyIsHostile = (ea) => !ea || ea.hostile !== false;
 // enemyPos lives in the per-level roomState bucket and therefore survives walking out through a
 // door and coming back. `ep.peaceful` is the softer half: it is set at spawn for anyone carrying a
 // dialogue, and it only holds until something (a choice, or your first punch) says otherwise.
-export const unitSide = (ea, ep) => {
+export const unitSide = (ea, ep, pacified) => {
   if (ep && ep.friendly) return "friendly";
+  if (pacified) return "neutral";
   if (ep && ep.turned === "hostile") return "hostile";
   if (ep && ep.turned === "neutral") return "neutral";
   if (ep && ep.peaceful) return "neutral";
@@ -17195,6 +17238,17 @@ export default function AssetStudio({ game = false } = {}) {
       itemBuffs.current.push({ kind: "slowmo", mult: eff.mult, total, until: nowMs + total });
       line = itemEffectSummary(eff);
       if (!quiet) flash("🐢 " + item.name + " · " + line + tail);
+    } else if (eff.kind === "nonHostile") {
+      // 🕊️ Every enemy acts non-hostile for `duration` seconds. A shorter pill taken while a longer
+      // one is still running keeps the later end time so it never cuts your truce short.
+      const nowMs = playNowMs(), total = eff.duration * 1000;
+      let prevUntil = 0;
+      for (const x of itemBuffs.current) if (x && x.kind === "nonHostile" && x.until > prevUntil) prevUntil = x.until;
+      const until = Math.max(prevUntil, nowMs + total);
+      itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs).filter((x) => x.kind !== "nonHostile");
+      itemBuffs.current.push({ kind: "nonHostile", total: until - nowMs, until });
+      line = itemEffectSummary(eff);
+      if (!quiet) flash("🕊️ " + item.name + " · " + line + tail);
     } else if (eff.kind === "oneUp") {
       // 🍄 Another head on the run's row (see normItemEffect's ONE UP). In the game that is the run's
       // own count, saved with the checkpoint at once so quitting cannot lose it; in the studio's
@@ -18383,6 +18437,7 @@ export default function AssetStudio({ game = false } = {}) {
       // goes through pstats, so a boost fades on its own the moment its timer runs out — no re-key.
       itemBuffs.current = pruneBuffs(itemBuffs.current, nowT);
       const buffSum = activeBuffSum(itemBuffs.current, nowT);
+      const pacified = enemiesNonHostile(itemBuffs.current, nowT);
       const pstats = {
         speed: (playerAsset?.stats?.speed ?? 5) + (buffSum.speed || 0),
         agility: (playerAsset?.stats?.agility ?? 5) + (buffSum.agility || 0),
@@ -19297,7 +19352,7 @@ export default function AssetStudio({ game = false } = {}) {
           if (enemyHP.current[k0] !== undefined && enemyHP.current[k0] <= 0) continue;
           const ea0 = unitAssetAt(k0, lv.enemies[k0]); if (!ea0) continue;
           const a0 = auraEffectsOf(ea0.effects); if (!a0.length) continue;
-          const s0 = unitSide(ea0, ep0);
+          const s0 = unitSide(ea0, ep0, pacified);
           if (s0 === "hostile") hostileAuraSources.push({ box: unitBodyBox(ea0, ep0, CW), auras: a0 });
           else if (s0 === "friendly") friendlyAuraSources.push({ box: unitBodyBox(ea0, ep0, CW), auras: a0 });
         }
@@ -19383,7 +19438,7 @@ export default function AssetStudio({ game = false } = {}) {
           if (enemyHP.current[k0] !== undefined && enemyHP.current[k0] <= 0) continue;
           const ea0 = unitAssetAt(k0, lv.enemies[k0]); if (!ea0) continue;
           const b0 = allyMaxHPBonus(ea0.effects); if (!b0) continue;
-          const s0 = unitSide(ea0, ep0); if (s0 === "hostile" || s0 === "friendly") sideAllyHp[s0] += b0;
+          const s0 = unitSide(ea0, ep0, pacified); if (s0 === "hostile" || s0 === "friendly") sideAllyHp[s0] += b0;
         }
         // 🧍 YOUR FOLLOWERS GET IN WITH YOU (2026-11-01, Blake: "passenger seats so your human NPC
         // followers can try to get in vehichles with you"). While you are at the wheel, each free
@@ -19536,7 +19591,7 @@ export default function AssetStudio({ game = false } = {}) {
           // ...and what its own side's 🟣 Ally Health wearers owe it (see sideAllyHp above). Only when
           // the figure changes, and never into a body (a corpse is not topped up — applyAllyHPBonus).
           {
-            const mySide = unitSide(ea, ep);
+            const mySide = unitSide(ea, ep, pacified);
             const want = (mySide === "hostile" || mySide === "friendly") ? Math.max(0, sideAllyHp[mySide] - allyMaxHPBonus(ea.effects)) : 0;
             if (want !== (ep.sideHpBonus || 0) && !(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0)) {
               const ownMax = enemyMaxHP(ea) + ((ep.friendly) ? Math.max(0, Math.round(allyHpBonus || 0)) : 0);
@@ -19658,7 +19713,7 @@ export default function AssetStudio({ game = false } = {}) {
             // Only the OTHER side's rounds are a threat. A shot is flagged `foe` when a hostile fired
             // it, so a hostile watches your side's rounds and a unit fighting FOR you watches the
             // hostiles' (it used to watch yours as well, which fly straight through it).
-            const dodgeSide = unitSide(ea, ep);
+            const dodgeSide = unitSide(ea, ep, pacified);
             let threat = null;
             for (const pr of projectiles.current) {
               if (!!pr.foe !== (dodgeSide === "friendly")) continue; // nobody flinches at its own side's shots
@@ -19700,7 +19755,7 @@ export default function AssetStudio({ game = false } = {}) {
                 if (!ep2 || !(ep2.swingT > 0) || !ep2.swingHit || typeof ep2.swingHit !== "object") continue; // a weapon swing in progress (enemyMeleeGeom's)
                 if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue;
                 const ea2 = unitAssetAt(k2, lv.enemies[k2]); if (!ea2) continue;
-                const s2 = unitSide(ea2, ep2);
+                const s2 = unitSide(ea2, ep2, pacified);
                 if (!((dodgeSide === "hostile" && s2 === "friendly") || (dodgeSide === "friendly" && s2 === "hostile"))) continue;
                 const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
                 if (swingComingAt(myCX, epw / 2, ep2.x + sh2.centerFrac * rw2, rw2 * sh2.fraction / 2, ep2.face, lookPx)) return true;
@@ -19759,8 +19814,9 @@ export default function AssetStudio({ game = false } = {}) {
           const eCenterXNow = ep.x + eShape.centerFrac * eRenderW;
           // Sides. A resurrected unit is friendly and fights FOR you; a normal enemy is hostile; a
           // "Not hostile" NPC is neutral (idles, never fights). Only friendly/hostile units act.
-          const side = unitSide(ea, ep);
+          const side = unitSide(ea, ep, pacified);
           const hostile = side === "hostile", friendly = side === "friendly", acts = hostile || friendly;
+          if (!acts) { ep.reactT = 0; ep.aimHold = 0; ep.burstLeft = 0; ep.autoFire = false; ep.stomp = null; if (ep.swingT > 0) { ep.swingT = 0; ep.swingHit = null; } if (ep.waveGuard != null) { ep.waveGuard = null; ep.waveCd = 0; } }
           // Pick a target on the opposite side. Friendly → nearest hostile (else follow you, no attack).
           // Hostile → nearest of you and your friendlies (a real brawl). Neutral → nothing.
           const unitCenter = (ea2, ep2) => ep2.x + sideBodyShape(ea2).centerFrac * enemyRenderW(ea2, CW);
@@ -19771,7 +19827,7 @@ export default function AssetStudio({ game = false } = {}) {
               const ep2 = enemyPos.current[k2]; if (!ep2 || ep2.ride) continue; // 🧍 one riding in your car is in the car, not a target
               const ea2 = unitAssetAt(k2, lv.enemies[k2]); if (!ea2) continue;
               if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // corpse
-              const s2 = unitSide(ea2, ep2);
+              const s2 = unitSide(ea2, ep2, pacified);
               if (wantFriendly ? (s2 === "friendly") : (s2 === "hostile")) out.push({ key: k2, cx: unitCenter(ea2, ep2), ea: ea2, ep: ep2 });
             }
             return out;
@@ -20991,7 +21047,7 @@ export default function AssetStudio({ game = false } = {}) {
             ep.waveGuard = eGuard.t; ep.waveGuardCd = eGuard.cd;
             if (ep.waveGuard != null && eWave) {
               ep.waveCd = (ep.waveCd || 0) - dtMul;
-              if (ep.waveCd <= 0) { booms.current.push(makeSoundWave(unitBodyBox(ea, ep, CW), ep.face, eWave, hostile ? "hostile" : "friendly", k, CW)); ep.waveCd += SOUND_WAVE_EVERY_FRAMES; }
+              if (ep.waveCd <= 0) { const eMouth = enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, 0); booms.current.push(makeSoundWave(unitBodyBox(ea, ep, CW), ep.face, eWave, hostile ? "hostile" : "friendly", k, CW, eMouth)); ep.waveCd += SOUND_WAVE_EVERY_FRAMES; }
             }
           }
           const rangedReady = !rangedEnemy || canFireNow(ep.weaponAmmo);
@@ -21348,13 +21404,40 @@ export default function AssetStudio({ game = false } = {}) {
       else p.blocking = { t: guard.t };
       p.blockCd = guard.cd;
       // 📢 A Sound wave weapon held out sends a ring every SOUND_WAVE_EVERY_FRAMES while the guard is up,
-      // the first on the frame it goes up. The rings are moved and do their pushing in the booms pass
-      // (stepSoundWaves, below the projectiles), where a unit's rings are moved too.
+      // the first on the frame it goes up, right from the held weapon's far tip (the Megaphone's horn
+      // bell, heldShotPoint on the level-extended block arm). The rings are moved and do their pushing in
+      // the booms pass below the projectiles, where a unit's rings are moved too.
       const pWave = p.blocking ? soundWaveOf(playtestWeapon) : null;
       if (!pWave) p.waveCd = 0;
       else {
         p.waveCd = (p.waveCd || 0) - dtMul;
-        if (p.waveCd <= 0) { booms.current.push(makeSoundWave({ x: p.x, y: p.y, w: pw, h: ph }, p.face, pWave, "player", "player", CW)); p.waveCd += SOUND_WAVE_EVERY_FRAMES; }
+        if (p.waveCd <= 0) {
+          const pWaveMouth = (() => {
+            if (!playerAsset || !playtestWeapon) return null;
+            const angleW = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
+            const heldMirW = playerSpriteMirrored(basePlayerAsset, p.face);
+            const heldPoseW = (ang) => (heldMirW ? bake(playerAsset, ang) : (playerAsset.angles[ang] || []));
+            const poseBlocksW = heldPoseW(angleW);
+            const armPieceW = heldArmOf(poseBlocksW, heldMirW);
+            if (!armPieceW) return null;
+            const baseArmRotW = armPieceW.rot || 0, wPoseW = weaponArtPose(angleW);
+            const curArmW = { ...armPieceW, rot: armAimAbs(armPieceW.armPivot) * armMirrorTwist(armPieceW) };
+            const wfitW = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
+            const guideHandW = handForGuideId(wfitW.guideId)[wPoseW] || DEFAULT_HAND[wPoseW];
+            const wBaseW = wPoseW === angleW ? baseArmRotW : armBaseFrom(heldArmOf(heldPoseW(wPoseW), heldMirW), armPieceW, baseArmRotW);
+            const heldRestW = attachHeldToArms(bake({ ...playtestWeapon, angles: wfitW.states.rest || blankAngles() }, wPoseW), curArmW, null, guideHandW, wBaseW);
+            const mpW = heldShotPoint(heldRestW, heldRestW, heldArmView(curArmW));
+            if (!mpW) return null;
+            const renderWW = CW * PLAYER_RENDER_W_CELLS;
+            const wrapLeftW = p.x - (bodyShape.centerFrac * renderWW - pw / 2);
+            const lxW = (mpW.x / W) * renderWW;
+            const cpW = p.crouch ? crouchArtPlane(poseBlocksW, renderWW, ph) : null;
+            const wyW = cpW ? p.y + (p.stepEase || 0) + cpW.top + (mpW.y / H) * cpW.height : p.y + (p.stepEase || 0) + (mpW.y / H) * ph;
+            return { x: wrapLeftW + (heldMirW ? renderWW - lxW : lxW), y: wyW };
+          })();
+          booms.current.push(makeSoundWave({ x: p.x, y: p.y, w: pw, h: ph }, p.face, pWave, "player", "player", CW, pWaveMouth));
+          p.waveCd += SOUND_WAVE_EVERY_FRAMES;
+        }
       }
       // DEFINED HERE, ABOVE BOTH OF ITS CALLERS — NOT INSIDE THE PROJECTILE BLOCK FURTHER DOWN (2026-09-28).
       // It used to be a `const` in that block, and the melee PARRY just below calls it as well: a swing
@@ -32184,29 +32267,34 @@ export default function AssetStudio({ game = false } = {}) {
                 })}
                 {play && booms.current.map((b, i) => {
                   if (b.wave) {
-                    // 📢 A sound wave ring: two bowed arcs at its front, ")" the way it travels, as tall as the
-                    // strip it is sweeping, thinning and fading as it goes out. A dark under-stroke keeps it
-                    // readable on a pale sky, the light one on top on a dark wall.
-                    const band = soundWaveBand(b);
+                    // 📢 A sound wave cone emerging from (b.x, b.y) — the megaphone's horn rim: compact at
+                    // the mouth and fanning out in concentric ")" arcs as it travels, thinning and fading
+                    // toward its reach. Dark under-stroke on pale sky, bright cyan-white stroke on dark walls.
+                    const arcs = soundWaveArcs(b, LV_CELL);
+                    if (!arcs.length) return null;
                     const w = b.wave, prog = Math.min(1, w.r / Math.max(1, w.reach));
                     const fadeOut = b.life > b.maxLife - SOUND_WAVE_FADE_FRAMES ? Math.max(0, (b.maxLife - b.life) / SOUND_WAVE_FADE_FRAMES) : 1;
-                    const op = (1 - prog * 0.65) * fadeOut * Math.min(1, w.r / (LV_CELL * 0.6));
+                    const op = (1 - prog * 0.6) * fadeOut;
                     if (!(op > 0.02)) return null;
-                    const hgt = band.halfH * 2, bow = Math.max(6, hgt * 0.22), gap = LV_CELL * 0.35;
-                    const sw = Math.max(1.5, LV_CELL * (0.16 - prog * 0.09));
-                    const boxW = bow + gap + sw * 4;
-                    // In the svg's own frame the ring travels right; facing left it is mirrored.
-                    const arc = (off) => "M " + (sw * 2 + off) + " " + sw + " Q " + (sw * 2 + off + bow * 2) + " " + (hgt / 2 + sw) + " " + (sw * 2 + off) + " " + (hgt + sw);
-                    const peak = sw * 2 + gap + bow; // the outer arc's tip, in the svg's frame: it sits ON the front
-                    const left = w.dir > 0 ? band.fx - peak : band.fx - boxW + peak;
+                    const sw = Math.max(1.6, LV_CELL * (0.15 - prog * 0.07));
+                    const pad = Math.ceil(sw * 2.5);
+                    const halfHMax = arcs[0].halfH;
+                    const boxW = Math.ceil(w.r + pad * 2), boxH = Math.ceil((halfHMax + pad) * 2), midY = halfHMax + pad;
+                    // In the svg's own frame x = pad is the horn's mouth and +x is forward; facing left,
+                    // scaleX(-1) mirrors about boxW/2 so left = b.x - boxW + pad puts x = pad at b.x too.
+                    const left = w.dir > 0 ? b.x - pad : b.x - boxW + pad;
+                    const dOf = (a) => "M " + (pad + a.xEnd).toFixed(1) + " " + (midY - a.halfH).toFixed(1) + " Q " + (pad + a.xCtrl).toFixed(1) + " " + midY.toFixed(1) + " " + (pad + a.xEnd).toFixed(1) + " " + (midY + a.halfH).toFixed(1);
                     return (
-                      <svg key={"wave" + i} className="soundWave" width={boxW} height={hgt + sw * 2} style={{ position: "absolute", left, top: b.y - band.halfH - sw, zIndex: 9000, opacity: op, pointerEvents: "none", overflow: "visible", transform: w.dir < 0 ? "scaleX(-1)" : undefined }}>
-                        {[0, gap].map((off) => (
-                          <g key={off} fill="none" strokeLinecap="round">
-                            <path d={arc(off)} stroke="rgba(20,30,50,0.55)" strokeWidth={sw * 2.2} />
-                            <path d={arc(off)} stroke="#e8f6ff" strokeWidth={sw} />
-                          </g>
-                        ))}
+                      <svg key={"wave" + i} className="soundWave" width={boxW} height={boxH} style={{ position: "absolute", left, top: b.y - midY, zIndex: 9000, opacity: op, pointerEvents: "none", overflow: "visible", transform: w.dir < 0 ? "scaleX(-1)" : undefined }}>
+                        {arcs.map((a, ai) => {
+                          const d = dOf(a), k = sw * (1 - ai * 0.16);
+                          return (
+                            <g key={ai} fill="none" strokeLinecap="round" opacity={a.alpha}>
+                              <path d={d} stroke="rgba(20,30,50,0.58)" strokeWidth={k * 2.15} />
+                              <path d={d} stroke="#e8f6ff" strokeWidth={k} />
+                            </g>
+                          );
+                        })}
                       </svg>
                     );
                   }
@@ -33542,6 +33630,8 @@ export default function AssetStudio({ game = false } = {}) {
                       <label className="slider">🐢 Game speed ×<input type="range" min="0.1" max="0.9" step="0.05" value={eff.mult} onChange={(e) => setEff({ mult: Math.round(+e.target.value * 100) / 100 })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
                       <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
                     </>
+                  ) : eff.kind === "nonHostile" ? (
+                    <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
                   ) : eff.kind === "oneUp" ? (
                     <label className="slider">🍄 Lives<input type="number" min="1" max="9" value={eff.lives} onChange={(e) => setEff({ lives: Math.max(1, Math.min(9, Math.round(+e.target.value || 1))) })} style={{ width: 60 }} /></label>
                   ) : eff.kind === "money" ? (
