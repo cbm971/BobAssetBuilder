@@ -1,5 +1,5 @@
 {
- "set": "e361f05d2b681e7c",
+ "set": "5d5de478df5c438b",
  "part": 2,
  "assets": [
   {
@@ -892190,7 +892190,7 @@
    "projectileRange": 20,
    "damage": 5,
    "fireRate": 9,
-   "clipSize": 17,
+   "clipSize": 16,
    "reloadTime": 1.9,
    "weight": 3,
    "landEffect": "fire",
@@ -900635,8 +900635,8 @@
      }
     ]
    },
-   "savedAt": 1795734561594,
-   "editedFrom": 1795734536889
+   "savedAt": 1795734588574,
+   "editedFrom": 1795734561594
   },
   {
    "id": "tntcot1",
