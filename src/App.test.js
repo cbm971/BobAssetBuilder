@@ -18097,3 +18097,45 @@ describe("the throwable stack", () => {
     expect(src).toContain("throwStackSeed.current = throwStackFromSave(s, isThrowableId);");
   });
 });
+
+describe("Mini Gun, Tommy Gun, Fireman's Axe, and Stick Grenade (minign1, tmmygn1, frmnaxe, stkgren)", () => {
+  const libFiles = require("./libraryFiles");
+  const path = require("path");
+  const lib = () => libFiles.readLibraryFile(path.join(__dirname, "..", "asset-data", "library.json"));
+
+  test("all four weapons ship fitted to BoB and Bobbett with zero editorReachIssues", () => {
+    const assets = lib().assets;
+    for (const [id, name, wtype] of [
+      ["minign1", "Mini Gun", "ranged"],
+      ["tmmygn1", "Tommy Gun", "ranged"],
+      ["frmnaxe", "Fireman's Axe", "melee"],
+      ["stkgren", "Stick Grenade", "throw"],
+    ]) {
+      const w = assets.find((a) => a.id === id);
+      expect(w).toBeDefined();
+      expect(w.name).toBe(name);
+      expect(w.type).toBe("weapon");
+      expect(w.wtype).toBe(wtype);
+      expect(w.confirmedFits).toEqual(expect.arrayContaining(["telfv37", "oipvf3l"]));
+      expect(editorReachIssues(w)).toEqual([]);
+      for (const fit of ["default", "telfv37", "oipvf3l"]) {
+        for (const pose of editablePoses("weapon", wtype)) {
+          expect(w.variants[fit].states.rest[pose].length).toBeGreaterThan(0);
+          expect(w.variants[fit].states.fire[pose].length).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  test("Stick Grenade uses throwBlast + stun without entering Tent Int 2's Army grenade or M23's Rare grenade pools", () => {
+    const assets = lib().assets;
+    const stick = assets.find((a) => a.id === "stkgren");
+    expect(stick.throwBlast).toBe(true);
+    expect(stick.weight).toBe(1);
+    expect(stick.stun).toBe(0.5);
+    expect(pedestalItemPool(assets, ["Grenade", "Army"], "and").map((a) => a.id)).toEqual(["gr3nad3"]);
+    expect(pedestalItemPool(assets, ["Grenade", "Rare"], "and").map((a) => a.id)).toEqual(["mnnuke1"]);
+    expect(pedestalItemPool(assets, ["Grenade", "Vietnam"], "and").map((a) => a.id)).toContain("stkgren");
+  });
+});
+
