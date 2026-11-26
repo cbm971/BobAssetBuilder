@@ -1,5 +1,5 @@
 {
- "set": "fd7dc52da5fd51ac",
+ "set": "0a87bdeb89a7e19a",
  "part": 3,
  "levels": [
   {
@@ -964177,6 +964177,14 @@
       "Common"
      ],
      "logic": "and"
+    },
+    "13,13": {
+     "kind": "pedestal",
+     "cats": [
+      "Grenade",
+      "Army"
+     ],
+     "logic": "and"
     }
    },
    "enemies": {},
@@ -964214,7 +964222,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794312191456
+   "savedAt": 1795712246472,
+   "editedFrom": 1794312191456
   },
   {
    "id": "vtnme1a",

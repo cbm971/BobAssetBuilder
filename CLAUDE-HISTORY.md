@@ -6249,3 +6249,44 @@ grenades etc. You acquire them based on when they are picked up."
   [2,3], [1,3], then [Football 3]. In `/game`: Quit to Main Menu wrote `throws`; Load Game brought
   the row back over a poisoned in-memory stack; an old save (no `throws`, Football ×4) loaded as one
   group and was re-written in the new shape; a page reload then loaded a three-group row from disk.
+
+## FOREST M23 DOOM TOWN, THE MINI NUKE AND THE TENT GRENADE (2026-11-26)
+
+His ask: a Vietnamese "Doom Town" (a mock village built for a Mini Nuke test: stilt houses, thatch, a
+market stall, posed mannequins in conical hats, a tower holding the device, an observation bunker,
+cable runs, blast-measuring poles, scorched outer buildings), the Mini Nuke grenade itself, and a
+grenade source in the supply tent on Vietnam S1.
+
+- **The level** is Forest M23 (`vcfrm23`), a middle Vietnam level, W2/E2, its edge columns copied
+  from M22. West to east: jungle and the one Restricted Area sign, the bunker under its earth bank
+  (stair up onto the roof; computer, console, radio and the Heal OR Food pedestal inside), the
+  village with gauge poles and cable, the Test Tower with the Mini Nuke on its deck, more village,
+  scorched huts. New props: Mushroom Cloud `mshcld1` (Effects, 4 frames), Test Tower `dttowr1`,
+  Blast Gauge Pole `dtpole1` (Science), Mannequin / Waving / Basket `dtmnq01-03`, Market Stall
+  `dtstal1`, Scorched Hut `dtscrh1` (Vietnam), Cable Spool `dtspol1` (Equipment).
+- **The Mini Nuke** (`mnnuke1`) is his Grenade (`gr3nad3`, newest saves copy) with new art in every
+  pose (yellow bomb body, tail fins, black trefoil, stock shapes, no outline), his landing fire,
+  sounds and fits kept. Purple Rare, pickupCount 1, tags Grenade only, so no unit gear roll or
+  Vietnam/Army pedestal hands it out. Elsewhere it can roll from his existing Rare/Grenade pedestals
+  (Forest M2, M11, M13, Tree Int 1, Trailer Park M17, M18) and stock at Harembe and The Chaplin.
+- **Why a new 💥 Blast switch and not `explode`:** a throw never read `explode`, and his Grenade has
+  carried a stale `explode: true` for months; making it live would have been a damage change to every
+  grenade already built. Blast calls the shot's `detonate`, so armour, 🪖, crits, cars and your own
+  blast all behave as they do for an RPG round.
+- **Found in the running app:** the cloud was drawn for ONE frame. The nuke's landing paints fire,
+  that re-runs the play effect, and the effect emptied `booms` on every re-run. Booms now clear only
+  when the place changes (the same key the thrown list already used). Measured after: 128 frames.
+- **Size:** first 10-cell radius under a 20-cell cloud. At his 29-row view (870 px, measured in the
+  studio Playtest at 2200x1200) the camera tops out at row 17 when you stand on the ground, and the
+  20-cell cloud's box started at y 478 against a view top of 508: the cap was cut. Now radius 9 and
+  boom 18 (Match the blast agrees): box top y 544, the whole cloud on screen under the score.
+- **Self-damage, measured with Bob (?god keeps HP, the hit still lands):** a plain G lob flies 17
+  cells and leaves him untouched; G with ↑ hit a unit 5 cells out and went off there, and Bob took
+  the blast (invuln 40). Kept on purpose: like an RPG, your own nuke hurts you.
+- **Kills, measured:** at radius 10, three units 5 cells from the impact and two 7-8 cells off went
+  from 25-40 HP to 0, and one 17 cells off did not. At radius 9 the 7-cell one still died and the
+  8-cell one lived (its body stands just outside). The pedestal on the tower deck gave `throwStack`
+  [mnnuke1 ×1], and the HUD mini reads as a yellow bomb with the trefoil.
+- **The tent:** `tntint2` got one marker, 13,13 = Grenade AND Army (his Grenade only), on the left
+  footlocker; the record is otherwise byte-identical. In the app the pedestal showed Grenade and E
+  gave `throwStack` [gr3nad3 ×3].

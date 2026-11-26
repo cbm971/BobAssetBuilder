@@ -1848,13 +1848,13 @@ export const StatusFx = ({ body, left, top, width, height }) => {
 //           only its burn is gone. Burning is stopped where the burn pool is fed, so no site that
 //           calls igniteBody needs to know.
 //   Blast = every body an explosion reaches (detonate: the shot's splash, your own blast, the
-//           shooter's), and the contact hit of an EXPLOSIVE throwable (explode or Cluster — a
-//           grenade, its bomblets). A Rock's hit is not a blast. A grenade's fire is fire's.
+//           shooter's), and the contact hit of an EXPLOSIVE throwable (explode, Cluster or 💥 Blast —
+//           a grenade, its bomblets, the Mini Nuke). A Rock's hit is not a blast. A grenade's fire is fire's.
 export const wearsEffect = (effects, type) => (effects || []).some((e) => e && e.type === type);
 export const fireImmune = (effects) => wearsEffect(effects, "fireImmune");
 export const blastImmune = (effects) => wearsEffect(effects, "blastImmune");
 export const shotIsFlame = (pr) => !!pr && (pr.ignite || 0) > 0;
-export const throwIsExplosive = (a) => !!a && (!!a.explode || Math.round(a.clusterCount || 0) > 0);
+export const throwIsExplosive = (a) => !!a && (!!a.explode || !!a.throwBlast || Math.round(a.clusterCount || 0) > 0);
 // Floating "Immune" callout when a player/friendly attack lands on an enemy wearing immunity to it
 // (blastImmune vs explosions/explosive throws; fireImmune vs flame rounds). Clamped to the struck
 // body box so splash hits still label the immune enemy, and throttled per target so rapid-fire
@@ -2863,6 +2863,22 @@ export const WEAPON_ABILITIES = {
     isOn: (a) => !!a && isThrowable(a.wtype) && (a.captureMax ?? 0) > 0,
     on: { captureMax: 1 }, off: { captureMax: 0 },
   },
+  // 💥 BLAST (2026-11-26, for the Mini Nuke): the throwable GOES OFF where it lands, through the
+  // same detonate a shot's 💥 Explode uses — radius, boom look, boom size and boom time are the
+  // Explode card's own controls, and the damage is the weapon's Damage. It is its OWN flag and not
+  // `explode`, on purpose: Blake's Grenade (and the Football Grenade cloned from it) has carried a
+  // stale `explode: true` since before throws had payloads, and a throw has never read it. Making
+  // `explode` live on throws would have turned every grenade already built into a 2-cell bomb
+  // overnight ("If you make throwables really explode, that is a damage change to every grenade
+  // already built — ask first", CLAUDE-HISTORY). A new switch changes nothing until it is ticked.
+  // Your own blast still hurts you (detonate's rule for every blast), so a big one is balanced by
+  // how far it is thrown: Weight sets the reach the Blast radius has to stay inside.
+  throwBlast: {
+    icon: "💥", label: "Blast", types: ["throw"],
+    blurb: "It goes off where it lands: everything within the blast radius takes the weapon's Damage, you included if you are standing in it, and the explosion you pick rises from the ground there.",
+    brief: (a) => "goes off in a " + briefNum(a.explodeRadius ?? 2) + "-cell blast",
+    on: { throwBlast: true }, off: { throwBlast: false },
+  },
 };
 // Is this ability actually switched on for this weapon? Most are a plain flag named after the
 // ability, but a payload whose switch is a number under a different name says so with `isOn`.
@@ -2897,6 +2913,13 @@ export const editablePoses = (type, wtype) =>
   : ANGLES;
 export const DEFAULT_THROW_WEIGHT = 3;      // 1 (light, flies far) .. 10 (heavy, drops short)
 export const DEFAULT_LAND_RADIUS = 1;       // cells of landing effect painted around the impact point (1 = a 3x3 splash)
+// The Explode card's ceilings (a shot's 💥 Explode and a throwable's 💥 Blast share the card). They
+// were 5 cells of blast and 8 of boom, which the RPG already sat on; the Mini Nuke (2026-11-26, a
+// 9-cell blast under an 18-cell mushroom cloud) needed more, and Blake's rule is that a value only
+// ships if his editor can make it — so the sliders grew rather than the record carrying a number
+// no slider reaches. detonate and boomLayout have no ceiling of their own.
+export const BLAST_RADIUS_MAX = 12;
+export const BOOM_SIZE_MAX = 24;
 // How much of the base throw a given Weight actually gets. This is a MULTIPLIER, and it is the
 // whole reason Weight is worth setting.
 //
@@ -7424,7 +7447,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.throwBlast = false; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
@@ -17897,7 +17920,8 @@ export default function AssetStudio({ game = false } = {}) {
     // on someone. A door or a new session still clears them, and any boomerang among them is handed back
     // to whoever threw it first (enemyPos is still the level being left here), so a door never eats one.
     const thrownPlace = playRunId.current + "|" + (lv.runKey || lv.id);
-    if (!fromSeam && thrownPlaceKey.current !== thrownPlace) {
+    const leftThrownPlace = thrownPlaceKey.current !== thrownPlace;
+    if (!fromSeam && leftThrownPlace) {
       followTrail.current = []; // the way you went through a place you have left by a door leads nowhere here
       for (const g of thrown.current) {
         if (!g.boomerang) continue;
@@ -17908,7 +17932,10 @@ export default function AssetStudio({ game = false } = {}) {
       thrown.current = [];
     }
     thrownPlaceKey.current = thrownPlace;
-    if (!fromSeam) { throwCd.current = 0; booms.current = []; }
+    // 💥 The booms go with the place too, not with every re-run: a 💥 Blast throwable's own landing paint
+    // re-runs this effect the frame it goes off, and clearing them here wiped its mushroom cloud after one
+    // frame (the same trap the thrown list above fell into). A door or a new session still clears them.
+    if (!fromSeam) { throwCd.current = 0; if (leftThrownPlace) booms.current = []; }
     // PERSISTENT per-level state (this play session). Point the live refs at THIS level's bucket, so
     // everything you did here — pedestals taken, enemies defeated, fires burned down — is still here
     // when you leave through a door and come back. Each level/room gets its own bucket by id; only a
@@ -21702,7 +21729,10 @@ export default function AssetStudio({ game = false } = {}) {
         const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
         if (pr.snd) bobAudio.moment({ asset: pr.snd, slot: "hit", x: ix, y: iy, minGain: EXPLOSION_MIN_GAIN }); // 🔊 an explosive round going off is its weapon's Hit, heard even off screen (EXPLOSION_MIN_GAIN)
         // `noBoom`: the second half of a pair that already drew its burst and reached the cars (a car's own explosion, below).
-        if (!pr.noBoom) booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
+        // `boomRise`: a thrown 💥 Blast went off ON the ground it landed on, so its boom stands there (bottom
+        // on the impact point) instead of centring on it — a mushroom cloud centred on the ground drew its
+        // stem and base surge down into the earth. A shot's boom still centres where the round struck.
+        if (!pr.noBoom) booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)), ...(pr.boomRise ? { rise: true } : {}) });
         if (!pr.noBoom) vehBlast(ix, iy, radPx, pr.damage ?? 5); // 🚗 every car in it, four times over (vehicleTakeHit)
         const baseDmg = pr.damage ?? 5;
         // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
@@ -22251,6 +22281,21 @@ export default function AssetStudio({ game = false } = {}) {
             }
             flash("💥 " + (a.name || "Grenade") + " burst into " + clusterCount);
             continue;
+          }
+          // 💥 BLAST (WEAPON_ABILITIES.throwBlast): the throwable goes off here through detonate, so a
+          // thrown blast hits exactly who a shot's blast would — the other side's bodies, cars, and the
+          // one who threw it if they stand in it (no `shooterKey` = you; a unit's throw names itself).
+          // Its damage is the throw's own (impactDmg, a Damage drink included); a body it struck on
+          // contact is in its i-frames and so is not hit twice. Off the sides of the world it is gone,
+          // but one that crossed the floor line between two fast frames still goes off ON the floor
+          // (min with gFloor), or a nuke thrown hard enough would have been a dud.
+          if (a.throwBlast && g.x >= gPart.ox && g.x <= gPart.ox + gPart.lv.cols * CW) {
+            detonate({
+              explode: true, explodeRadius: a.explodeRadius ?? 2, explodePropId: a.explodePropId || null,
+              explodeChar: a.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: a.explodeSize ?? 3, explodeLife: a.explodeLife ?? 0.5,
+              damage: impactDmg, ignoreArmor: !!a.ignoreArmor, foe: !!g.foe,
+              shooterKey: g.throwerKey || null, shooterFx: g.throwerFx || null, boomRise: true,
+            }, g.x, Math.min(g.y, gFloor));
           }
           const landProp = a.landPropId ? findA(a.landPropId) : null;   // a chosen Object/Prop draws the fire instead of the 🔥 emoji
           const propSize = landProp ? (landProp.size || 1) : 1;
@@ -24345,8 +24390,8 @@ export default function AssetStudio({ game = false } = {}) {
               <label className="slider">Rounds per burst<input type="range" min="2" max="10" step="1" value={Math.max(2, burstShotCount(asset.burst))} onChange={(e) => setAsset((a) => ({ ...a, burst: +e.target.value }))} /><span className="hint2">{Math.max(2, burstShotCount(asset.burst))}</span></label>
               <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((a) => ({ ...a, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s</span></label>
             </>)}
-            {k === "explode" && (<>
-              <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells</span></label>
+            {(k === "explode" || k === "throwBlast") && (<>
+              <label className="slider">Blast radius<input type="range" min="1" max={BLAST_RADIUS_MAX} step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells</span></label>
               <span className="wslab">Boom look:</span>
               <div className="row2">
                 {/* The emoji was hard-coded at 💥 with no control anywhere, so the only way to change
@@ -24361,13 +24406,14 @@ export default function AssetStudio({ game = false } = {}) {
               </div>
               {/* Explode is resolved where a SHOT lands (see detonate). A thrown object's landing is
                   a different code path entirely and reads none of these, so say so on the card
-                  rather than letting four controls sit there looking live. */}
-              {isThrowable(asset.wtype) && <p className="tip warn">⚠ Thrown weapons don't use these.</p>}
+                  rather than letting four controls sit there looking live. The 💥 Blast card shows
+                  the same controls for a throwable, and those ARE live (it calls detonate). */}
+              {k === "explode" && isThrowable(asset.wtype) && <p className="tip warn">⚠ Thrown weapons don't use these.</p>}
               {/* Boom size is the ART; blast radius is the DAMAGE. They're separate numbers,
                   and the default 3-cell art under a 2-cell radius draws a fireball much
                   smaller than the area that actually hurts — "the fire was smaller than I
                   expected". One tap matches them rather than us silently resizing anyone's art. */}
-              <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells{(() => { const want = Math.min(8, Math.max(1, Math.round((asset.explodeRadius ?? 2) * 2 * 2) / 2)); return Math.abs((asset.explodeSize ?? 3) - want) > 0.4 ? <> <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, explodeSize: want }))}>Match the blast</button></> : null; })()}</span></label>
+              <label className="slider">Boom size<input type="range" min="1" max={BOOM_SIZE_MAX} step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells{(() => { const want = Math.min(BOOM_SIZE_MAX, Math.max(1, Math.round((asset.explodeRadius ?? 2) * 2 * 2) / 2)); return Math.abs((asset.explodeSize ?? 3) - want) > 0.4 ? <> <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, explodeSize: want }))}>Match the blast</button></> : null; })()}</span></label>
               <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">{(asset.explodeLife ?? 0.5)}s</span></label>
             </>)}
           </div>
@@ -25575,7 +25621,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.throwBlast === undefined) a.throwBlast = false; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
@@ -32619,7 +32665,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const frameIdx = Math.min(frames - 1, Math.floor(prog * frames));
                   const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
                   return (
-                    <div key={"boom" + i} className="lobj infront" style={{ left: b.x - lay.width / 2, top: b.y - lay.height / 2, width: lay.width, height: lay.height, zIndex: 9000, opacity: fade }}>
+                    <div key={"boom" + i} className="lobj infront" style={{ left: b.x - lay.width / 2, top: b.rise ? b.y - lay.height : b.y - lay.height / 2, width: lay.width, height: lay.height, zIndex: 9000, opacity: fade }}>
                       {pa ? propArtInner(pa, lay.width, lay.height, frameIdx, "boom" + i, lay.box) : slotPick ? sym(slotKey, null, Math.max(lay.width, lay.height) * 0.8) : <span style={{ fontSize: Math.max(lay.width, lay.height) * 0.7 + "px", lineHeight: 1, fontFamily: ART_EMOJI_FONT }}>{b.char}</span>}
                     </div>
                   );

@@ -388,6 +388,8 @@ import {
   shotIsIce,
   shotIsFlame,
   throwIsExplosive,
+  BLAST_RADIUS_MAX,
+  BOOM_SIZE_MAX,
   igniteDpsOf,
   tickIgnite,
   DEFAULT_IGNITE_DPS,
@@ -4536,7 +4538,26 @@ describe("which abilities a weapon may carry", () => {
     // It used to fall through to the MELEE list, so the picker offered a thrown rock Ignore Armor
     // and a Resurrect staff. A throw has no code path for either — they were controls wired to
     // nothing, which is the same trap the Rock's own Impact damage was in.
-    expect(weaponAbilitiesFor("throw").sort()).toEqual(["boomerang", "burn", "capture", "cluster", "stun"]);
+    expect(weaponAbilitiesFor("throw").sort()).toEqual(["boomerang", "burn", "capture", "cluster", "stun", "throwBlast"]);
+  });
+
+  test("💥 Blast is its own switch: a grenade's old explode flag does not set it off", () => {
+    // Blake's Grenade (and the Football Grenade cloned from it) carry `explode: true` from before
+    // throws had payloads, and a throw has never read it. Blast had to be a NEW flag so that turning
+    // the Mini Nuke's on did not quietly turn every grenade already built into a bomb.
+    const hisGrenade = { wtype: "throw", explode: true, explodeRadius: 2, damage: 12, landEffectDps: 10 };
+    expect(weaponAbilityOn(hisGrenade, "throwBlast")).toBe(false);
+    expect(weaponAbilityOn({ ...hisGrenade, ...WEAPON_ABILITIES.throwBlast.on }, "throwBlast")).toBe(true);
+    expect(WEAPON_ABILITIES.throwBlast.types).toEqual(["throw"]);
+    expect(weaponAbilitiesFor("ranged")).not.toContain("throwBlast");
+    expect(WEAPON_ABILITIES.throwBlast.brief({ explodeRadius: 10 })).toContain("10-cell");
+  });
+
+  test("the Explode card's sliders reach the Mini Nuke's numbers", () => {
+    // A value ships only if the editor can make it: the Mini Nuke is a 9-cell blast under an
+    // 18-cell cloud, past the old 5 and 8 ceilings.
+    expect(BLAST_RADIUS_MAX).toBeGreaterThanOrEqual(9);
+    expect(BOOM_SIZE_MAX).toBeGreaterThanOrEqual(18);
   });
 
   test("every ability names the types it belongs to", () => {
@@ -4592,7 +4613,7 @@ describe("which abilities a weapon may carry", () => {
   });
 
   test("adding then removing a payload leaves it off", () => {
-    for (const k of ["burn", "cluster", "capture", "stun"]) {
+    for (const k of ["burn", "cluster", "capture", "stun", "throwBlast"]) {
       const added = { wtype: "throw", ...WEAPON_ABILITIES[k].on };  // wtype matters: a payload is only on for something throwable
       expect(weaponAbilityOn(added, k)).toBe(true);
       const removed = { ...added, ...WEAPON_ABILITIES[k].off };
@@ -15402,6 +15423,7 @@ describe("🧯 Fire Immunity / 🪖 Explosion Immunity", () => {
   test("an explosive throwable is a grenade or a cluster, never a rock or a molotov", () => {
     expect(throwIsExplosive({ wtype: "throw", explode: true, damage: 12 })).toBe(true);
     expect(throwIsExplosive({ wtype: "throw", clusterCount: 4 })).toBe(true);
+    expect(throwIsExplosive({ wtype: "throw", throwBlast: true })).toBe(true); // 💥 Blast (the Mini Nuke): a 🪖 helmet shrugs it
     expect(throwIsExplosive({ wtype: "throw", damage: 25, landEffect: "none" })).toBe(false);
     expect(throwIsExplosive({ wtype: "throw", landEffectDps: 6 })).toBe(false);
   });
