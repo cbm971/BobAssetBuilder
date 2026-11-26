@@ -1,5 +1,5 @@
 {
- "set": "7de3f79e7be3756d",
+ "set": "791b38a9e26e31e4",
  "part": 2,
  "assets": [
   {
@@ -892177,8 +892177,8 @@
    "id": "tmmygn1",
    "name": "Tommy Gun",
    "type": "weapon",
-   "guideId": "telfv37",
-   "lastFit": "telfv37",
+   "guideId": "oipvf3l",
+   "lastFit": "oipvf3l",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -894248,8 +894248,8 @@
         {
          "id": "brb6",
          "kind": "roundrect",
-         "x": 151.5,
-         "y": 195.9,
+         "x": 153,
+         "y": 196,
          "w": 13.5,
          "h": 6,
          "color": "#8a5a2b",
@@ -894462,8 +894462,8 @@
         {
          "id": "brs6",
          "kind": "roundrect",
-         "x": 90,
-         "y": 203,
+         "x": 91.5,
+         "y": 204,
          "w": 13.5,
          "h": 6,
          "color": "#8a5a2b",
@@ -894679,7 +894679,7 @@
         {
          "id": "bru6",
          "kind": "roundrect",
-         "x": 136.5,
+         "x": 134.5,
          "y": 4,
          "w": 13.5,
          "h": 6,
@@ -894892,7 +894892,7 @@
         {
          "id": "brc6",
          "kind": "roundrect",
-         "x": 142,
+         "x": 142.5,
          "y": 210,
          "w": 13.5,
          "h": 6,
@@ -896122,8 +896122,8 @@
         {
          "id": "frb6",
          "kind": "roundrect",
-         "x": 143.5,
-         "y": 186.8,
+         "x": 145,
+         "y": 187,
          "w": 13.5,
          "h": 6,
          "color": "#8a5a2b",
@@ -896336,7 +896336,7 @@
         {
          "id": "frs6",
          "kind": "roundrect",
-         "x": 89,
+         "x": 91.5,
          "y": 187,
          "w": 13.5,
          "h": 6,
@@ -896553,8 +896553,8 @@
         {
          "id": "fru6",
          "kind": "roundrect",
-         "x": 136.5,
-         "y": 4,
+         "x": 135,
+         "y": 3.5,
          "w": 13.5,
          "h": 6,
          "color": "#8a5a2b",
@@ -896771,8 +896771,8 @@
         {
          "id": "frc6",
          "kind": "roundrect",
-         "x": 144,
-         "y": 185.6,
+         "x": 147,
+         "y": 186.5,
          "w": 13.5,
          "h": 6,
          "color": "#8a5a2b",
@@ -897882,10 +897882,10 @@
      "front": [],
      "back": [
       {
-       "id": "brb0",
+       "id": "frb0",
        "kind": "poly",
-       "x": 146.2,
-       "y": 135.9,
+       "x": 136.5,
+       "y": 126.8,
        "w": 21,
        "h": 27,
        "color": "#8a5a2b",
@@ -897914,14 +897914,14 @@
          1
         ]
        ],
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "brb1",
+       "id": "frb1",
        "kind": "roundrect",
-       "x": 148.8,
-       "y": 164,
+       "x": 139.7,
+       "y": 155,
        "w": 14,
        "h": 6.5,
        "color": "#8a5a2b",
@@ -897932,14 +897932,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 15,
+       "rot": 13,
        "behindBody": true
       },
       {
-       "id": "brb2",
+       "id": "frb2",
        "kind": "rect",
-       "x": 160.5,
-       "y": 160.2,
+       "x": 151.7,
+       "y": 150.8,
        "w": 10.5,
        "h": 30,
        "color": "#2b2b2b",
@@ -897950,14 +897950,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "brb3",
+       "id": "frb3",
        "kind": "rect",
-       "x": 163.2,
-       "y": 165.2,
+       "x": 154.3,
+       "y": 155.9,
        "w": 4,
        "h": 14,
        "color": "#1d1b1b",
@@ -897968,14 +897968,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "brb4",
+       "id": "frb4",
        "kind": "roundrect",
-       "x": 143.7,
-       "y": 179.6,
+       "x": 135.2,
+       "y": 170.6,
        "w": 24,
        "h": 9.5,
        "color": "#1d1b1b",
@@ -897986,14 +897986,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "brb5",
+       "id": "frb5",
        "kind": "rect",
-       "x": 141.3,
-       "y": 183.2,
+       "x": 132.8,
+       "y": 174.6,
        "w": 4,
        "h": 4.5,
        "color": "#4f4f4f",
@@ -898004,14 +898004,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "brb6",
+       "id": "frb6",
        "kind": "roundrect",
-       "x": 151.5,
-       "y": 195.9,
+       "x": 145,
+       "y": 187,
        "w": 13.5,
        "h": 6,
        "color": "#8a5a2b",
@@ -898022,14 +898022,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 7,
+       "rot": 5,
        "behindBody": true
       },
       {
-       "id": "brb7",
+       "id": "frb7",
        "kind": "rect",
-       "x": 165.3,
-       "y": 189.1,
+       "x": 157.5,
+       "y": 179.7,
        "w": 5,
        "h": 26,
        "color": "#2b2b2b",
@@ -898040,14 +898040,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "brb8",
+       "id": "frb8",
        "kind": "trapezoid",
-       "x": 165.6,
-       "y": 213,
+       "x": 158.3,
+       "y": 203.5,
        "w": 7.5,
        "h": 7.5,
        "color": "#4f4f4f",
@@ -898058,14 +898058,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 175,
+       "rot": 173,
        "behindBody": true
       },
       {
-       "id": "brb9",
+       "id": "frb9",
        "kind": "tri",
-       "x": 171.5,
-       "y": 212.6,
+       "x": 164.1,
+       "y": 203,
        "w": 4.5,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -898076,14 +898076,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "brba",
+       "id": "frba",
        "kind": "circle",
-       "x": 161.8,
-       "y": 216,
+       "x": 154.6,
+       "y": 206.5,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -898095,16 +898095,16 @@
         "bright": 1
        },
        "isMuzzle": true,
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       }
      ],
      "side": [
       {
-       "id": "brs0",
+       "id": "frs0",
        "kind": "poly",
-       "x": 89,
-       "y": 143,
+       "x": 88,
+       "y": 127,
        "w": 21,
        "h": 27,
        "color": "#8a5a2b",
@@ -898136,10 +898136,10 @@
        "behindArm": true
       },
       {
-       "id": "brs1",
+       "id": "frs1",
        "kind": "roundrect",
-       "x": 90,
-       "y": 171,
+       "x": 89,
+       "y": 155,
        "w": 14,
        "h": 6.5,
        "color": "#8a5a2b",
@@ -898154,10 +898154,10 @@
        "behindArm": true
       },
       {
-       "id": "brs2",
+       "id": "frs2",
        "kind": "rect",
-       "x": 101,
-       "y": 168,
+       "x": 100,
+       "y": 152,
        "w": 10.5,
        "h": 30,
        "color": "#2b2b2b",
@@ -898171,10 +898171,10 @@
        "behindArm": true
       },
       {
-       "id": "brs3",
+       "id": "frs3",
        "kind": "rect",
-       "x": 104,
-       "y": 173,
+       "x": 103,
+       "y": 157,
        "w": 4,
        "h": 14,
        "color": "#1d1b1b",
@@ -898188,10 +898188,10 @@
        "behindArm": true
       },
       {
-       "id": "brs4",
+       "id": "frs4",
        "kind": "roundrect",
-       "x": 83.5,
-       "y": 186.5,
+       "x": 82.5,
+       "y": 170.5,
        "w": 24,
        "h": 9.5,
        "color": "#1d1b1b",
@@ -898205,10 +898205,10 @@
        "behindArm": true
       },
       {
-       "id": "brs5",
+       "id": "frs5",
        "kind": "rect",
-       "x": 81,
-       "y": 189,
+       "x": 80,
+       "y": 173,
        "w": 4,
        "h": 4.5,
        "color": "#4f4f4f",
@@ -898222,10 +898222,10 @@
        "behindArm": true
       },
       {
-       "id": "brs6",
+       "id": "frs6",
        "kind": "roundrect",
-       "x": 90,
-       "y": 203,
+       "x": 91.5,
+       "y": 187,
        "w": 13.5,
        "h": 6,
        "color": "#8a5a2b",
@@ -898240,10 +898240,10 @@
        "behindArm": true
       },
       {
-       "id": "brs7",
+       "id": "frs7",
        "kind": "rect",
-       "x": 103.5,
-       "y": 197,
+       "x": 102.5,
+       "y": 181,
        "w": 5,
        "h": 26,
        "color": "#2b2b2b",
@@ -898257,10 +898257,10 @@
        "behindArm": true
       },
       {
-       "id": "brs8",
+       "id": "frs8",
        "kind": "trapezoid",
-       "x": 102.5,
-       "y": 221,
+       "x": 101.5,
+       "y": 205,
        "w": 7.5,
        "h": 7.5,
        "color": "#4f4f4f",
@@ -898275,10 +898275,10 @@
        "behindArm": true
       },
       {
-       "id": "brs9",
+       "id": "frs9",
        "kind": "tri",
-       "x": 108.5,
-       "y": 221,
+       "x": 107.5,
+       "y": 205,
        "w": 4.5,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -898293,10 +898293,10 @@
        "behindArm": true
       },
       {
-       "id": "brsa",
+       "id": "frsa",
        "kind": "circle",
-       "x": 98,
-       "y": 224,
+       "x": 97,
+       "y": 208,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -898313,7 +898313,7 @@
      ],
      "up": [
       {
-       "id": "bru0",
+       "id": "fru0",
        "kind": "poly",
        "x": 130,
        "y": 43,
@@ -898349,7 +898349,7 @@
        "behindArm": true
       },
       {
-       "id": "bru1",
+       "id": "fru1",
        "kind": "roundrect",
        "x": 136,
        "y": 35.5,
@@ -898367,7 +898367,7 @@
        "behindArm": true
       },
       {
-       "id": "bru2",
+       "id": "fru2",
        "kind": "rect",
        "x": 128.5,
        "y": 15,
@@ -898385,7 +898385,7 @@
        "behindArm": true
       },
       {
-       "id": "bru3",
+       "id": "fru3",
        "kind": "rect",
        "x": 132,
        "y": 26,
@@ -898403,7 +898403,7 @@
        "behindArm": true
       },
       {
-       "id": "bru4",
+       "id": "fru4",
        "kind": "roundrect",
        "x": 132.5,
        "y": 17,
@@ -898421,7 +898421,7 @@
        "behindArm": true
       },
       {
-       "id": "bru5",
+       "id": "fru5",
        "kind": "rect",
        "x": 155,
        "y": 19.5,
@@ -898439,10 +898439,10 @@
        "behindArm": true
       },
       {
-       "id": "bru6",
+       "id": "fru6",
        "kind": "roundrect",
-       "x": 136.5,
-       "y": 4,
+       "x": 135,
+       "y": 3.5,
        "w": 13.5,
        "h": 6,
        "color": "#8a5a2b",
@@ -898457,7 +898457,7 @@
        "behindArm": true
       },
       {
-       "id": "bru7",
+       "id": "fru7",
        "kind": "rect",
        "x": 131.5,
        "y": -10,
@@ -898475,7 +898475,7 @@
        "behindArm": true
       },
       {
-       "id": "bru8",
+       "id": "fru8",
        "kind": "trapezoid",
        "x": 130,
        "y": -15.5,
@@ -898492,7 +898492,7 @@
        "behindArm": true
       },
       {
-       "id": "bru9",
+       "id": "fru9",
        "kind": "tri",
        "x": 127,
        "y": -13.5,
@@ -898510,7 +898510,7 @@
        "behindArm": true
       },
       {
-       "id": "brua",
+       "id": "frua",
        "kind": "circle",
        "x": 126,
        "y": -27,
@@ -898531,10 +898531,10 @@
      ],
      "crouch": [
       {
-       "id": "brc0",
+       "id": "frc0",
        "kind": "poly",
-       "x": 141,
-       "y": 150,
+       "x": 134.4,
+       "y": 125.9,
        "w": 21,
        "h": 27,
        "color": "#8a5a2b",
@@ -898563,13 +898563,14 @@
          1
         ]
        ],
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "brc1",
+       "id": "frc1",
        "kind": "roundrect",
-       "x": 142,
-       "y": 178,
+       "x": 138.5,
+       "y": 154,
        "w": 14,
        "h": 6.5,
        "color": "#8a5a2b",
@@ -898580,14 +898581,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 20,
+       "rot": 10,
        "behindArm": true
       },
       {
-       "id": "brc2",
+       "id": "frc2",
        "kind": "rect",
-       "x": 153,
-       "y": 175,
+       "x": 150.9,
+       "y": 149.3,
        "w": 10.5,
        "h": 30,
        "color": "#2b2b2b",
@@ -898598,13 +898599,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "brc3",
+       "id": "frc3",
        "kind": "rect",
-       "x": 156,
-       "y": 180,
+       "x": 153.4,
+       "y": 154.4,
        "w": 4,
        "h": 14,
        "color": "#1d1b1b",
@@ -898615,13 +898617,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "brc4",
+       "id": "frc4",
        "kind": "roundrect",
-       "x": 135.5,
-       "y": 193.5,
+       "x": 135,
+       "y": 169.5,
        "w": 24,
        "h": 9.5,
        "color": "#1d1b1b",
@@ -898632,13 +898635,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "brc5",
+       "id": "frc5",
        "kind": "rect",
-       "x": 133,
-       "y": 196,
+       "x": 132.7,
+       "y": 174.2,
        "w": 4,
        "h": 4.5,
        "color": "#4f4f4f",
@@ -898649,13 +898653,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "brc6",
+       "id": "frc6",
        "kind": "roundrect",
-       "x": 142,
-       "y": 210,
+       "x": 147,
+       "y": 186.5,
        "w": 13.5,
        "h": 6,
        "color": "#8a5a2b",
@@ -898666,14 +898671,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 12,
+       "rot": 2,
        "behindArm": true
       },
       {
-       "id": "brc7",
+       "id": "frc7",
        "kind": "rect",
-       "x": 155.5,
-       "y": 204,
+       "x": 158.1,
+       "y": 177.9,
        "w": 5,
        "h": 26,
        "color": "#2b2b2b",
@@ -898684,13 +898689,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "brc8",
+       "id": "frc8",
        "kind": "trapezoid",
-       "x": 154.5,
-       "y": 228,
+       "x": 159.7,
+       "y": 201.7,
        "w": 7.5,
        "h": 7.5,
        "color": "#4f4f4f",
@@ -898701,14 +898707,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 180,
+       "rot": 170,
        "behindArm": true
       },
       {
-       "id": "brc9",
+       "id": "frc9",
        "kind": "tri",
-       "x": 160.5,
-       "y": 228,
+       "x": 165.4,
+       "y": 200.9,
        "w": 4.5,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -898719,14 +898725,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "brca",
+       "id": "frca",
        "kind": "circle",
-       "x": 150,
-       "y": 231,
+       "x": 156.4,
+       "y": 204.6,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -898738,6 +898744,7 @@
         "bright": 1
        },
        "isMuzzle": true,
+       "rot": 350,
        "behindArm": true
       }
      ]
@@ -898746,10 +898753,10 @@
      "front": [],
      "back": [
       {
-       "id": "bfb0",
+       "id": "ffb0",
        "kind": "poly",
-       "x": 146.2,
-       "y": 135.9,
+       "x": 136.5,
+       "y": 126.8,
        "w": 21,
        "h": 27,
        "color": "#8a5a2b",
@@ -898778,14 +898785,14 @@
          1
         ]
        ],
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "bfb1",
+       "id": "ffb1",
        "kind": "roundrect",
-       "x": 148.8,
-       "y": 164,
+       "x": 139.7,
+       "y": 155,
        "w": 14,
        "h": 6.5,
        "color": "#8a5a2b",
@@ -898796,14 +898803,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 15,
+       "rot": 13,
        "behindBody": true
       },
       {
-       "id": "bfb2",
+       "id": "ffb2",
        "kind": "rect",
-       "x": 160.5,
-       "y": 160.2,
+       "x": 151.7,
+       "y": 150.8,
        "w": 10.5,
        "h": 30,
        "color": "#2b2b2b",
@@ -898814,14 +898821,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "bfb3",
+       "id": "ffb3",
        "kind": "rect",
-       "x": 163.2,
-       "y": 165.2,
+       "x": 154.3,
+       "y": 155.9,
        "w": 4,
        "h": 14,
        "color": "#1d1b1b",
@@ -898832,14 +898839,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "bfb4",
+       "id": "ffb4",
        "kind": "roundrect",
-       "x": 143.7,
-       "y": 179.6,
+       "x": 135.2,
+       "y": 170.6,
        "w": 24,
        "h": 9.5,
        "color": "#1d1b1b",
@@ -898850,14 +898857,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "bfb5",
+       "id": "ffb5",
        "kind": "rect",
-       "x": 141.3,
-       "y": 183.2,
+       "x": 132.8,
+       "y": 174.6,
        "w": 4,
        "h": 4.5,
        "color": "#4f4f4f",
@@ -898868,14 +898875,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "bfb6",
+       "id": "ffb6",
        "kind": "roundrect",
-       "x": 151.5,
-       "y": 195.9,
+       "x": 143.5,
+       "y": 186.8,
        "w": 13.5,
        "h": 6,
        "color": "#8a5a2b",
@@ -898886,14 +898893,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 7,
+       "rot": 5,
        "behindBody": true
       },
       {
-       "id": "bfb7",
+       "id": "ffb7",
        "kind": "rect",
-       "x": 165.3,
-       "y": 189.1,
+       "x": 157.5,
+       "y": 179.7,
        "w": 5,
        "h": 26,
        "color": "#2b2b2b",
@@ -898904,14 +898911,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       },
       {
-       "id": "bfb8",
+       "id": "ffb8",
        "kind": "trapezoid",
-       "x": 165.6,
-       "y": 213,
+       "x": 158.3,
+       "y": 203.5,
        "w": 7.5,
        "h": 7.5,
        "color": "#4f4f4f",
@@ -898922,14 +898929,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 175,
+       "rot": 173,
        "behindBody": true
       },
       {
-       "id": "bfb9",
+       "id": "ffb9",
        "kind": "tri",
-       "x": 171.5,
-       "y": 212.6,
+       "x": 164.1,
+       "y": 203,
        "w": 4.5,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -898940,14 +898947,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "bfba",
+       "id": "ffba",
        "kind": "tri",
-       "x": 164.3,
-       "y": 220.5,
+       "x": 157.4,
+       "y": 210.9,
        "w": 12.5,
        "h": 19,
        "color": "#ff8a1f",
@@ -898958,14 +898965,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 175,
+       "rot": 173,
        "behindBody": true
       },
       {
-       "id": "bfbb",
+       "id": "ffbb",
        "kind": "tri",
-       "x": 166.4,
-       "y": 220.5,
+       "x": 159.4,
+       "y": 210.9,
        "w": 7.5,
        "h": 11,
        "color": "#ffd23f",
@@ -898976,14 +898983,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 175,
+       "rot": 173,
        "behindBody": true
       },
       {
-       "id": "bfbc",
+       "id": "ffbc",
        "kind": "circle",
-       "x": 161.8,
-       "y": 216,
+       "x": 154.6,
+       "y": 206.5,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -898995,16 +899002,16 @@
         "bright": 1
        },
        "isMuzzle": true,
-       "rot": 355,
+       "rot": 353,
        "behindBody": true
       }
      ],
      "side": [
       {
-       "id": "bfs0",
+       "id": "ffs0",
        "kind": "poly",
-       "x": 89,
-       "y": 143,
+       "x": 88,
+       "y": 127,
        "w": 21,
        "h": 27,
        "color": "#8a5a2b",
@@ -899036,10 +899043,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs1",
+       "id": "ffs1",
        "kind": "roundrect",
-       "x": 90,
-       "y": 171,
+       "x": 89,
+       "y": 155,
        "w": 14,
        "h": 6.5,
        "color": "#8a5a2b",
@@ -899054,10 +899061,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs2",
+       "id": "ffs2",
        "kind": "rect",
-       "x": 101,
-       "y": 168,
+       "x": 100,
+       "y": 152,
        "w": 10.5,
        "h": 30,
        "color": "#2b2b2b",
@@ -899071,10 +899078,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs3",
+       "id": "ffs3",
        "kind": "rect",
-       "x": 104,
-       "y": 173,
+       "x": 103,
+       "y": 157,
        "w": 4,
        "h": 14,
        "color": "#1d1b1b",
@@ -899088,10 +899095,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs4",
+       "id": "ffs4",
        "kind": "roundrect",
-       "x": 83.5,
-       "y": 186.5,
+       "x": 82.5,
+       "y": 170.5,
        "w": 24,
        "h": 9.5,
        "color": "#1d1b1b",
@@ -899105,10 +899112,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs5",
+       "id": "ffs5",
        "kind": "rect",
-       "x": 81,
-       "y": 189,
+       "x": 80,
+       "y": 173,
        "w": 4,
        "h": 4.5,
        "color": "#4f4f4f",
@@ -899122,10 +899129,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs6",
+       "id": "ffs6",
        "kind": "roundrect",
-       "x": 90,
-       "y": 203,
+       "x": 89,
+       "y": 187,
        "w": 13.5,
        "h": 6,
        "color": "#8a5a2b",
@@ -899140,10 +899147,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs7",
+       "id": "ffs7",
        "kind": "rect",
-       "x": 103.5,
-       "y": 197,
+       "x": 102.5,
+       "y": 181,
        "w": 5,
        "h": 26,
        "color": "#2b2b2b",
@@ -899157,10 +899164,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs8",
+       "id": "ffs8",
        "kind": "trapezoid",
-       "x": 102.5,
-       "y": 221,
+       "x": 101.5,
+       "y": 205,
        "w": 7.5,
        "h": 7.5,
        "color": "#4f4f4f",
@@ -899175,10 +899182,10 @@
        "behindArm": true
       },
       {
-       "id": "bfs9",
+       "id": "ffs9",
        "kind": "tri",
-       "x": 108.5,
-       "y": 221,
+       "x": 107.5,
+       "y": 205,
        "w": 4.5,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -899193,10 +899200,10 @@
        "behindArm": true
       },
       {
-       "id": "bfsa",
+       "id": "ffsa",
        "kind": "tri",
-       "x": 100,
-       "y": 228.5,
+       "x": 99,
+       "y": 212.5,
        "w": 12.5,
        "h": 19,
        "color": "#ff8a1f",
@@ -899211,10 +899218,10 @@
        "behindArm": true
       },
       {
-       "id": "bfsb",
+       "id": "ffsb",
        "kind": "tri",
-       "x": 102.5,
-       "y": 228.5,
+       "x": 101.5,
+       "y": 212.5,
        "w": 7.5,
        "h": 11,
        "color": "#ffd23f",
@@ -899229,10 +899236,10 @@
        "behindArm": true
       },
       {
-       "id": "bfsc",
+       "id": "ffsc",
        "kind": "circle",
-       "x": 98,
-       "y": 224,
+       "x": 97,
+       "y": 208,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -899249,7 +899256,7 @@
      ],
      "up": [
       {
-       "id": "bfu0",
+       "id": "ffu0",
        "kind": "poly",
        "x": 130,
        "y": 43,
@@ -899285,7 +899292,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu1",
+       "id": "ffu1",
        "kind": "roundrect",
        "x": 136,
        "y": 35.5,
@@ -899303,7 +899310,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu2",
+       "id": "ffu2",
        "kind": "rect",
        "x": 128.5,
        "y": 15,
@@ -899321,7 +899328,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu3",
+       "id": "ffu3",
        "kind": "rect",
        "x": 132,
        "y": 26,
@@ -899339,7 +899346,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu4",
+       "id": "ffu4",
        "kind": "roundrect",
        "x": 132.5,
        "y": 17,
@@ -899357,7 +899364,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu5",
+       "id": "ffu5",
        "kind": "rect",
        "x": 155,
        "y": 19.5,
@@ -899375,7 +899382,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu6",
+       "id": "ffu6",
        "kind": "roundrect",
        "x": 136.5,
        "y": 4,
@@ -899393,7 +899400,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu7",
+       "id": "ffu7",
        "kind": "rect",
        "x": 131.5,
        "y": -10,
@@ -899411,7 +899418,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu8",
+       "id": "ffu8",
        "kind": "trapezoid",
        "x": 130,
        "y": -15.5,
@@ -899428,7 +899435,7 @@
        "behindArm": true
       },
       {
-       "id": "bfu9",
+       "id": "ffu9",
        "kind": "tri",
        "x": 127,
        "y": -13.5,
@@ -899446,7 +899453,7 @@
        "behindArm": true
       },
       {
-       "id": "bfua",
+       "id": "ffua",
        "kind": "tri",
        "x": 127.5,
        "y": -34.5,
@@ -899463,7 +899470,7 @@
        "behindArm": true
       },
       {
-       "id": "bfub",
+       "id": "ffub",
        "kind": "tri",
        "x": 130,
        "y": -26.5,
@@ -899480,7 +899487,7 @@
        "behindArm": true
       },
       {
-       "id": "bfuc",
+       "id": "ffuc",
        "kind": "circle",
        "x": 126,
        "y": -27,
@@ -899501,10 +899508,10 @@
      ],
      "crouch": [
       {
-       "id": "bfc0",
+       "id": "ffc0",
        "kind": "poly",
-       "x": 141,
-       "y": 150,
+       "x": 134.4,
+       "y": 125.9,
        "w": 21,
        "h": 27,
        "color": "#8a5a2b",
@@ -899533,13 +899540,14 @@
          1
         ]
        ],
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "bfc1",
+       "id": "ffc1",
        "kind": "roundrect",
-       "x": 142,
-       "y": 178,
+       "x": 138.5,
+       "y": 154,
        "w": 14,
        "h": 6.5,
        "color": "#8a5a2b",
@@ -899550,14 +899558,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 20,
+       "rot": 10,
        "behindArm": true
       },
       {
-       "id": "bfc2",
+       "id": "ffc2",
        "kind": "rect",
-       "x": 153,
-       "y": 175,
+       "x": 150.9,
+       "y": 149.3,
        "w": 10.5,
        "h": 30,
        "color": "#2b2b2b",
@@ -899568,13 +899576,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "bfc3",
+       "id": "ffc3",
        "kind": "rect",
-       "x": 156,
-       "y": 180,
+       "x": 153.4,
+       "y": 154.4,
        "w": 4,
        "h": 14,
        "color": "#1d1b1b",
@@ -899585,13 +899594,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "bfc4",
+       "id": "ffc4",
        "kind": "roundrect",
-       "x": 135.5,
-       "y": 193.5,
+       "x": 135,
+       "y": 169.5,
        "w": 24,
        "h": 9.5,
        "color": "#1d1b1b",
@@ -899602,13 +899612,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "bfc5",
+       "id": "ffc5",
        "kind": "rect",
-       "x": 133,
-       "y": 196,
+       "x": 132.7,
+       "y": 174.2,
        "w": 4,
        "h": 4.5,
        "color": "#4f4f4f",
@@ -899619,13 +899630,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "bfc6",
+       "id": "ffc6",
        "kind": "roundrect",
-       "x": 142,
-       "y": 210,
+       "x": 144,
+       "y": 185.6,
        "w": 13.5,
        "h": 6,
        "color": "#8a5a2b",
@@ -899636,14 +899648,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 12,
+       "rot": 2,
        "behindArm": true
       },
       {
-       "id": "bfc7",
+       "id": "ffc7",
        "kind": "rect",
-       "x": 155.5,
-       "y": 204,
+       "x": 158.1,
+       "y": 177.9,
        "w": 5,
        "h": 26,
        "color": "#2b2b2b",
@@ -899654,13 +899666,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
+       "rot": 350,
        "behindArm": true
       },
       {
-       "id": "bfc8",
+       "id": "ffc8",
        "kind": "trapezoid",
-       "x": 154.5,
-       "y": 228,
+       "x": 159.7,
+       "y": 201.7,
        "w": 7.5,
        "h": 7.5,
        "color": "#4f4f4f",
@@ -899671,14 +899684,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 180,
+       "rot": 170,
        "behindArm": true
       },
       {
-       "id": "bfc9",
+       "id": "ffc9",
        "kind": "tri",
-       "x": 160.5,
-       "y": 228,
+       "x": 165.4,
+       "y": 200.9,
        "w": 4.5,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -899689,14 +899702,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "bfca",
+       "id": "ffca",
        "kind": "tri",
-       "x": 152,
-       "y": 235.5,
+       "x": 159.5,
+       "y": 209,
        "w": 12.5,
        "h": 19,
        "color": "#ff8a1f",
@@ -899707,14 +899720,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 180,
+       "rot": 170,
        "behindArm": true
       },
       {
-       "id": "bfcb",
+       "id": "ffcb",
        "kind": "tri",
-       "x": 154.5,
-       "y": 235.5,
+       "x": 161.3,
+       "y": 209,
        "w": 7.5,
        "h": 11,
        "color": "#ffd23f",
@@ -899725,14 +899738,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "rot": 180,
+       "rot": 170,
        "behindArm": true
       },
       {
-       "id": "bfcc",
+       "id": "ffcc",
        "kind": "circle",
-       "x": 150,
-       "y": 231,
+       "x": 156.4,
+       "y": 204.6,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -899744,6 +899757,7 @@
         "bright": 1
        },
        "isMuzzle": true,
+       "rot": 350,
        "behindArm": true
       }
      ]
@@ -899753,10 +899767,10 @@
     "front": [],
     "back": [
      {
-      "id": "brb0",
+      "id": "frb0",
       "kind": "poly",
-      "x": 146.2,
-      "y": 135.9,
+      "x": 136.5,
+      "y": 126.8,
       "w": 21,
       "h": 27,
       "color": "#8a5a2b",
@@ -899785,14 +899799,14 @@
         1
        ]
       ],
-      "rot": 355,
+      "rot": 353,
       "behindBody": true
      },
      {
-      "id": "brb1",
+      "id": "frb1",
       "kind": "roundrect",
-      "x": 148.8,
-      "y": 164,
+      "x": 139.7,
+      "y": 155,
       "w": 14,
       "h": 6.5,
       "color": "#8a5a2b",
@@ -899803,14 +899817,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 15,
+      "rot": 13,
       "behindBody": true
      },
      {
-      "id": "brb2",
+      "id": "frb2",
       "kind": "rect",
-      "x": 160.5,
-      "y": 160.2,
+      "x": 151.7,
+      "y": 150.8,
       "w": 10.5,
       "h": 30,
       "color": "#2b2b2b",
@@ -899821,14 +899835,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 355,
+      "rot": 353,
       "behindBody": true
      },
      {
-      "id": "brb3",
+      "id": "frb3",
       "kind": "rect",
-      "x": 163.2,
-      "y": 165.2,
+      "x": 154.3,
+      "y": 155.9,
       "w": 4,
       "h": 14,
       "color": "#1d1b1b",
@@ -899839,14 +899853,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 355,
+      "rot": 353,
       "behindBody": true
      },
      {
-      "id": "brb4",
+      "id": "frb4",
       "kind": "roundrect",
-      "x": 143.7,
-      "y": 179.6,
+      "x": 135.2,
+      "y": 170.6,
       "w": 24,
       "h": 9.5,
       "color": "#1d1b1b",
@@ -899857,14 +899871,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 355,
+      "rot": 353,
       "behindBody": true
      },
      {
-      "id": "brb5",
+      "id": "frb5",
       "kind": "rect",
-      "x": 141.3,
-      "y": 183.2,
+      "x": 132.8,
+      "y": 174.6,
       "w": 4,
       "h": 4.5,
       "color": "#4f4f4f",
@@ -899875,14 +899889,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 355,
+      "rot": 353,
       "behindBody": true
      },
      {
-      "id": "brb6",
+      "id": "frb6",
       "kind": "roundrect",
-      "x": 151.5,
-      "y": 195.9,
+      "x": 145,
+      "y": 187,
       "w": 13.5,
       "h": 6,
       "color": "#8a5a2b",
@@ -899893,14 +899907,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 7,
+      "rot": 5,
       "behindBody": true
      },
      {
-      "id": "brb7",
+      "id": "frb7",
       "kind": "rect",
-      "x": 165.3,
-      "y": 189.1,
+      "x": 157.5,
+      "y": 179.7,
       "w": 5,
       "h": 26,
       "color": "#2b2b2b",
@@ -899911,14 +899925,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 355,
+      "rot": 353,
       "behindBody": true
      },
      {
-      "id": "brb8",
+      "id": "frb8",
       "kind": "trapezoid",
-      "x": 165.6,
-      "y": 213,
+      "x": 158.3,
+      "y": 203.5,
       "w": 7.5,
       "h": 7.5,
       "color": "#4f4f4f",
@@ -899929,14 +899943,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 175,
+      "rot": 173,
       "behindBody": true
      },
      {
-      "id": "brb9",
+      "id": "frb9",
       "kind": "tri",
-      "x": 171.5,
-      "y": 212.6,
+      "x": 164.1,
+      "y": 203,
       "w": 4.5,
       "h": 5.5,
       "color": "#2b2b2b",
@@ -899947,14 +899961,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "brba",
+      "id": "frba",
       "kind": "circle",
-      "x": 161.8,
-      "y": 216,
+      "x": 154.6,
+      "y": 206.5,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -899966,16 +899980,16 @@
        "bright": 1
       },
       "isMuzzle": true,
-      "rot": 355,
+      "rot": 353,
       "behindBody": true
      }
     ],
     "side": [
      {
-      "id": "brs0",
+      "id": "frs0",
       "kind": "poly",
-      "x": 89,
-      "y": 143,
+      "x": 88,
+      "y": 127,
       "w": 21,
       "h": 27,
       "color": "#8a5a2b",
@@ -900007,10 +900021,10 @@
       "behindArm": true
      },
      {
-      "id": "brs1",
+      "id": "frs1",
       "kind": "roundrect",
-      "x": 90,
-      "y": 171,
+      "x": 89,
+      "y": 155,
       "w": 14,
       "h": 6.5,
       "color": "#8a5a2b",
@@ -900025,10 +900039,10 @@
       "behindArm": true
      },
      {
-      "id": "brs2",
+      "id": "frs2",
       "kind": "rect",
-      "x": 101,
-      "y": 168,
+      "x": 100,
+      "y": 152,
       "w": 10.5,
       "h": 30,
       "color": "#2b2b2b",
@@ -900042,10 +900056,10 @@
       "behindArm": true
      },
      {
-      "id": "brs3",
+      "id": "frs3",
       "kind": "rect",
-      "x": 104,
-      "y": 173,
+      "x": 103,
+      "y": 157,
       "w": 4,
       "h": 14,
       "color": "#1d1b1b",
@@ -900059,10 +900073,10 @@
       "behindArm": true
      },
      {
-      "id": "brs4",
+      "id": "frs4",
       "kind": "roundrect",
-      "x": 83.5,
-      "y": 186.5,
+      "x": 82.5,
+      "y": 170.5,
       "w": 24,
       "h": 9.5,
       "color": "#1d1b1b",
@@ -900076,10 +900090,10 @@
       "behindArm": true
      },
      {
-      "id": "brs5",
+      "id": "frs5",
       "kind": "rect",
-      "x": 81,
-      "y": 189,
+      "x": 80,
+      "y": 173,
       "w": 4,
       "h": 4.5,
       "color": "#4f4f4f",
@@ -900093,10 +900107,10 @@
       "behindArm": true
      },
      {
-      "id": "brs6",
+      "id": "frs6",
       "kind": "roundrect",
-      "x": 90,
-      "y": 203,
+      "x": 91.5,
+      "y": 187,
       "w": 13.5,
       "h": 6,
       "color": "#8a5a2b",
@@ -900111,10 +900125,10 @@
       "behindArm": true
      },
      {
-      "id": "brs7",
+      "id": "frs7",
       "kind": "rect",
-      "x": 103.5,
-      "y": 197,
+      "x": 102.5,
+      "y": 181,
       "w": 5,
       "h": 26,
       "color": "#2b2b2b",
@@ -900128,10 +900142,10 @@
       "behindArm": true
      },
      {
-      "id": "brs8",
+      "id": "frs8",
       "kind": "trapezoid",
-      "x": 102.5,
-      "y": 221,
+      "x": 101.5,
+      "y": 205,
       "w": 7.5,
       "h": 7.5,
       "color": "#4f4f4f",
@@ -900146,10 +900160,10 @@
       "behindArm": true
      },
      {
-      "id": "brs9",
+      "id": "frs9",
       "kind": "tri",
-      "x": 108.5,
-      "y": 221,
+      "x": 107.5,
+      "y": 205,
       "w": 4.5,
       "h": 5.5,
       "color": "#2b2b2b",
@@ -900164,10 +900178,10 @@
       "behindArm": true
      },
      {
-      "id": "brsa",
+      "id": "frsa",
       "kind": "circle",
-      "x": 98,
-      "y": 224,
+      "x": 97,
+      "y": 208,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -900184,7 +900198,7 @@
     ],
     "up": [
      {
-      "id": "bru0",
+      "id": "fru0",
       "kind": "poly",
       "x": 130,
       "y": 43,
@@ -900220,7 +900234,7 @@
       "behindArm": true
      },
      {
-      "id": "bru1",
+      "id": "fru1",
       "kind": "roundrect",
       "x": 136,
       "y": 35.5,
@@ -900238,7 +900252,7 @@
       "behindArm": true
      },
      {
-      "id": "bru2",
+      "id": "fru2",
       "kind": "rect",
       "x": 128.5,
       "y": 15,
@@ -900256,7 +900270,7 @@
       "behindArm": true
      },
      {
-      "id": "bru3",
+      "id": "fru3",
       "kind": "rect",
       "x": 132,
       "y": 26,
@@ -900274,7 +900288,7 @@
       "behindArm": true
      },
      {
-      "id": "bru4",
+      "id": "fru4",
       "kind": "roundrect",
       "x": 132.5,
       "y": 17,
@@ -900292,7 +900306,7 @@
       "behindArm": true
      },
      {
-      "id": "bru5",
+      "id": "fru5",
       "kind": "rect",
       "x": 155,
       "y": 19.5,
@@ -900310,10 +900324,10 @@
       "behindArm": true
      },
      {
-      "id": "bru6",
+      "id": "fru6",
       "kind": "roundrect",
-      "x": 136.5,
-      "y": 4,
+      "x": 135,
+      "y": 3.5,
       "w": 13.5,
       "h": 6,
       "color": "#8a5a2b",
@@ -900328,7 +900342,7 @@
       "behindArm": true
      },
      {
-      "id": "bru7",
+      "id": "fru7",
       "kind": "rect",
       "x": 131.5,
       "y": -10,
@@ -900346,7 +900360,7 @@
       "behindArm": true
      },
      {
-      "id": "bru8",
+      "id": "fru8",
       "kind": "trapezoid",
       "x": 130,
       "y": -15.5,
@@ -900363,7 +900377,7 @@
       "behindArm": true
      },
      {
-      "id": "bru9",
+      "id": "fru9",
       "kind": "tri",
       "x": 127,
       "y": -13.5,
@@ -900381,7 +900395,7 @@
       "behindArm": true
      },
      {
-      "id": "brua",
+      "id": "frua",
       "kind": "circle",
       "x": 126,
       "y": -27,
@@ -900402,10 +900416,10 @@
     ],
     "crouch": [
      {
-      "id": "brc0",
+      "id": "frc0",
       "kind": "poly",
-      "x": 141,
-      "y": 150,
+      "x": 134.4,
+      "y": 125.9,
       "w": 21,
       "h": 27,
       "color": "#8a5a2b",
@@ -900434,13 +900448,14 @@
         1
        ]
       ],
+      "rot": 350,
       "behindArm": true
      },
      {
-      "id": "brc1",
+      "id": "frc1",
       "kind": "roundrect",
-      "x": 142,
-      "y": 178,
+      "x": 138.5,
+      "y": 154,
       "w": 14,
       "h": 6.5,
       "color": "#8a5a2b",
@@ -900451,14 +900466,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 20,
+      "rot": 10,
       "behindArm": true
      },
      {
-      "id": "brc2",
+      "id": "frc2",
       "kind": "rect",
-      "x": 153,
-      "y": 175,
+      "x": 150.9,
+      "y": 149.3,
       "w": 10.5,
       "h": 30,
       "color": "#2b2b2b",
@@ -900469,13 +900484,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "rot": 350,
       "behindArm": true
      },
      {
-      "id": "brc3",
+      "id": "frc3",
       "kind": "rect",
-      "x": 156,
-      "y": 180,
+      "x": 153.4,
+      "y": 154.4,
       "w": 4,
       "h": 14,
       "color": "#1d1b1b",
@@ -900486,13 +900502,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "rot": 350,
       "behindArm": true
      },
      {
-      "id": "brc4",
+      "id": "frc4",
       "kind": "roundrect",
-      "x": 135.5,
-      "y": 193.5,
+      "x": 135,
+      "y": 169.5,
       "w": 24,
       "h": 9.5,
       "color": "#1d1b1b",
@@ -900503,13 +900520,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "rot": 350,
       "behindArm": true
      },
      {
-      "id": "brc5",
+      "id": "frc5",
       "kind": "rect",
-      "x": 133,
-      "y": 196,
+      "x": 132.7,
+      "y": 174.2,
       "w": 4,
       "h": 4.5,
       "color": "#4f4f4f",
@@ -900520,13 +900538,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "rot": 350,
       "behindArm": true
      },
      {
-      "id": "brc6",
+      "id": "frc6",
       "kind": "roundrect",
-      "x": 142,
-      "y": 210,
+      "x": 147,
+      "y": 186.5,
       "w": 13.5,
       "h": 6,
       "color": "#8a5a2b",
@@ -900537,14 +900556,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 12,
+      "rot": 2,
       "behindArm": true
      },
      {
-      "id": "brc7",
+      "id": "frc7",
       "kind": "rect",
-      "x": 155.5,
-      "y": 204,
+      "x": 158.1,
+      "y": 177.9,
       "w": 5,
       "h": 26,
       "color": "#2b2b2b",
@@ -900555,13 +900574,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
+      "rot": 350,
       "behindArm": true
      },
      {
-      "id": "brc8",
+      "id": "frc8",
       "kind": "trapezoid",
-      "x": 154.5,
-      "y": 228,
+      "x": 159.7,
+      "y": 201.7,
       "w": 7.5,
       "h": 7.5,
       "color": "#4f4f4f",
@@ -900572,14 +900592,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 180,
+      "rot": 170,
       "behindArm": true
      },
      {
-      "id": "brc9",
+      "id": "frc9",
       "kind": "tri",
-      "x": 160.5,
-      "y": 228,
+      "x": 165.4,
+      "y": 200.9,
       "w": 4.5,
       "h": 5.5,
       "color": "#2b2b2b",
@@ -900590,14 +900610,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "brca",
+      "id": "frca",
       "kind": "circle",
-      "x": 150,
-      "y": 231,
+      "x": 156.4,
+      "y": 204.6,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -900609,11 +900629,13 @@
        "bright": 1
       },
       "isMuzzle": true,
+      "rot": 350,
       "behindArm": true
      }
     ]
    },
-   "savedAt": 1795732041869
+   "savedAt": 1795732715333,
+   "editedFrom": 1795732041869
   },
   {
    "id": "tntcot1",
