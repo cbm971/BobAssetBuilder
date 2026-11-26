@@ -1,5 +1,5 @@
 {
- "set": "fc62ac54e532762f",
+ "set": "ff735f779781a792",
  "part": 2,
  "assets": [
   {
@@ -945803,7 +945803,7 @@
       "y": 170,
       "w": 156,
       "h": 80,
-      "color": "#45552a",
+      "color": "#a08d5f",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -945819,7 +945819,7 @@
       "y": 118,
       "w": 184,
       "h": 56,
-      "color": "#3d4a28",
+      "color": "#8a7850",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -945899,7 +945899,7 @@
       "y": 164,
       "w": 20,
       "h": 86,
-      "color": "#3d4a28",
+      "color": "#8a7850",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -945933,7 +945933,7 @@
       "y": 164,
       "w": 20,
       "h": 86,
-      "color": "#3d4a28",
+      "color": "#8a7850",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -945983,7 +945983,7 @@
       "y": 196,
       "w": 38,
       "h": 14,
-      "color": "#c8a23c",
+      "color": "#3b3022",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -946001,7 +946001,7 @@
       "y": 196,
       "w": 38,
       "h": 14,
-      "color": "#c8a23c",
+      "color": "#3b3022",
       "mirror": false,
       "fx": {
        "opacity": 1,
