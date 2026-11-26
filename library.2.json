@@ -1,5 +1,5 @@
 {
- "set": "47b47857d2805082",
+ "set": "1f805ff1632be430",
  "part": 2,
  "assets": [
   {
@@ -291568,9 +291568,9 @@
    "projectileId": "6ufkkia",
    "projectileSpeed": 18,
    "projectileRange": 26,
-   "damage": 5,
-   "fireRate": 14,
-   "clipSize": 20,
+   "damage": 6,
+   "fireRate": 15,
+   "clipSize": 25,
    "reloadTime": 4,
    "weight": 3,
    "landEffect": "fire",
@@ -299305,8 +299305,8 @@
      }
     ]
    },
-   "savedAt": 1795734418414,
-   "editedFrom": 1795734367813
+   "savedAt": 1795734510312,
+   "editedFrom": 1795734472984
   },
   {
    "id": "mmabacs",
@@ -892188,9 +892188,9 @@
    "projectileId": "6ufkkia",
    "projectileSpeed": 14,
    "projectileRange": 20,
-   "damage": 5,
+   "damage": 7,
    "fireRate": 9,
-   "clipSize": 15,
+   "clipSize": 17,
    "reloadTime": 3.2,
    "weight": 3,
    "landEffect": "fire",
@@ -900635,8 +900635,8 @@
      }
     ]
    },
-   "savedAt": 1795734411458,
-   "editedFrom": 1795734346101
+   "savedAt": 1795734503152,
+   "editedFrom": 1795734459443
   },
   {
    "id": "tntcot1",
