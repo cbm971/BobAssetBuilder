@@ -1,5 +1,5 @@
 {
- "set": "ae7a8b72d100f77f",
+ "set": "55da0caeba7cc723",
  "part": 2,
  "assets": [
   {
@@ -212380,10 +212380,13 @@
     "hit": "aghad42",
     "fire": "dti525c"
    },
-   "savedAt": 1794915849806,
-   "editedFrom": 1794880768637,
+   "savedAt": 1795688791540,
+   "editedFrom": 1794915849806,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "soundVol": {
+    "hit": 0.2
+   }
   },
   {
    "id": "lamaid1",
@@ -255047,9 +255050,9 @@
    "boomerang": false,
    "pickupCount": 3,
    "soundVol": {
-    "hit": 0.55
+    "hit": 0.15
    },
-   "savedAt": 1795312687454
+   "savedAt": 1795688845600
   },
   {
    "id": "mdetsd1",
