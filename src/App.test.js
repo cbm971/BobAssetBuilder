@@ -4508,8 +4508,8 @@ describe("weapon magazines and enemy reloads", () => {
 
 describe("which abilities a weapon may carry", () => {
   test("a melee weapon is offered exactly the powers a swing can carry", () => {
-    expect(weaponAbilitiesFor("melee").sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "stun", "swingSpeed"]);
-    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "stun", "swingSpeed"]); // older saves have no wtype
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]); // older saves have no wtype
   });
 
   test("a ranged weapon gets every ranged ability (excluding melee-only and throw-only powers)", () => {
@@ -17547,5 +17547,106 @@ describe("🐢 Game speed item (2026-11-25)", () => {
     const out = holdBuffsForGameSpeed(buffs, 100, 0.5);
     expect(out.map((b) => b.until)).toEqual([1000, 1000, 1050]);
     expect(holdBuffsForGameSpeed(buffs, 100, 1)).toBe(buffs);
+  });
+});
+
+import {
+  soundWaveOf, makeSoundWave, soundWaveBand, soundWaveStep, soundWaveCatchesBox, soundWaveCatchesPoint, soundWaveMoves,
+  blowShotBack, blowThrowBack, unitWantsSoundWave, SOUND_WAVE_DEFAULT_REACH, SOUND_WAVE_DEFAULT_PUSH, SOUND_WAVE_SPEED_CELLS,
+  SOUND_WAVE_FADE_FRAMES,
+} from "./App";
+
+describe("📢 Sound wave (hold Block to push enemies and shots back)", () => {
+  const C = 30;
+  test("only a melee weapon carries it, with its Reach and Push clamped", () => {
+    expect(soundWaveOf({ wtype: "melee", soundWave: true })).toEqual({ reach: SOUND_WAVE_DEFAULT_REACH, push: SOUND_WAVE_DEFAULT_PUSH });
+    expect(soundWaveOf({ soundWave: true, soundWaveReach: 9, soundWavePush: 3 })).toEqual({ reach: 9, push: 3 }); // no wtype = melee
+    expect(soundWaveOf({ wtype: "melee", soundWave: true, soundWaveReach: 99, soundWavePush: 0.1 })).toEqual({ reach: 20, push: 0.5 });
+    expect(soundWaveOf({ wtype: "ranged", soundWave: true })).toBeNull();
+    expect(soundWaveOf({ wtype: "throw", soundWave: true })).toBeNull();
+    expect(soundWaveOf({ wtype: "melee", soundWave: false })).toBeNull();
+    expect(weaponAbilityOn({ wtype: "melee", ...WEAPON_ABILITIES.soundWave.on }, "soundWave")).toBe(true);
+    expect(weaponAbilityOn({ wtype: "melee", ...WEAPON_ABILITIES.soundWave.on, ...WEAPON_ABILITIES.soundWave.off }, "soundWave")).toBe(false);
+    expect(weaponAbilitiesFor("ranged")).not.toContain("soundWave");
+  });
+
+  test("a ring leaves the front edge of the body it came from, whichever way it faces", () => {
+    const box = { x: 100, y: 200, w: 40, h: 200 };
+    const r = makeSoundWave(box, 1, { reach: 6, push: 2 }, "player", "player", C);
+    expect([r.x, r.y]).toEqual([140, 300]);
+    expect(r.wave).toMatchObject({ dir: 1, r: 0, reach: 180, push: 60, side: "player" });
+    const l = makeSoundWave(box, -1, { reach: 6, push: 2 }, "hostile", "3,4", C);
+    expect([l.x, l.wave.dir]).toEqual([100, -1]);
+    expect(r.maxLife).toBe(Math.ceil(180 / (SOUND_WAVE_SPEED_CELLS * C)) + SOUND_WAVE_FADE_FRAMES);
+  });
+
+  test("it runs out to its reach, sweeping a strip that grows taller as it goes", () => {
+    const b = makeSoundWave({ x: 0, y: 0, w: 40, h: 200 }, 1, { reach: 6, push: 2 }, "player", "player", C);
+    soundWaveStep(b, 1, C, () => false);
+    const near = soundWaveBand(b);
+    expect(b.wave.r).toBe(15);
+    for (let i = 0; i < 40; i++) soundWaveStep(b, 1, C, () => false);
+    const far = soundWaveBand(b);
+    expect(b.wave.r).toBe(180);
+    expect(b.wave.stopped).toBe(true);
+    expect(far.halfH).toBeGreaterThan(near.halfH);
+    expect([far.x0, far.x1]).toEqual([40, 220]);
+    // a body anywhere between the mouth and the front is caught, one past it is not
+    expect(soundWaveCatchesBox(far, { x: 200, y: 50, w: 30, h: 100 })).toBe(true);
+    expect(soundWaveCatchesBox(far, { x: 230, y: 50, w: 30, h: 100 })).toBe(false);
+    expect(soundWaveCatchesBox(far, { x: 0, y: 50, w: 30, h: 100 })).toBe(false); // behind the mouth
+    expect(soundWaveCatchesPoint(far, 120, 100)).toBe(true);
+  });
+
+  test("a wall stops the ring where it stands, so nothing is pushed through it", () => {
+    const b = makeSoundWave({ x: 0, y: 0, w: 40, h: 100 }, 1, { reach: 10, push: 2 }, "player", "player", C);
+    const wallAt = 100; // a solid cell from x = 100
+    for (let i = 0; i < 40; i++) soundWaveStep(b, 1, C, (x) => x >= wallAt);
+    expect(40 + b.wave.r).toBeLessThan(wallAt);
+    expect(b.wave.stopped).toBe(true);
+    // a slow frame cannot step over a thin wall
+    const s = makeSoundWave({ x: 0, y: 0, w: 40, h: 100 }, 1, { reach: 10, push: 2 }, "player", "player", C);
+    soundWaveStep(s, 6, C, (x) => x >= 60 && x < 75);
+    expect(40 + s.wave.r).toBeLessThan(60);
+  });
+
+  test("whose shots a ring moves: yours move theirs, theirs move yours", () => {
+    expect(soundWaveMoves("player", true)).toBe(true);
+    expect(soundWaveMoves("player", false)).toBe(false);
+    expect(soundWaveMoves("friendly", true)).toBe(true);
+    expect(soundWaveMoves("hostile", false)).toBe(true);
+    expect(soundWaveMoves("hostile", true)).toBe(false);
+  });
+
+  test("a blown-back shot travels the ring's way as a dud and then falls", () => {
+    const pr = { x: 300, y: 100, vx: -12, vy: 0, homing: true, homeKey: "1,1" };
+    blowShotBack(pr, 1, 60, C);
+    expect(pr.drop.backLeft).toBe(60);
+    expect(pr.homing).toBe(false);
+    const x0 = pr.x;
+    for (let i = 0; i < 30; i++) deflectedShotStep(pr, 1, C, () => false);
+    expect(pr.x).toBeCloseTo(x0 + 60, 5); // pushed the way the ring goes (right), not the way it was flying
+    expect(pr.y).toBeGreaterThan(100);    // ...and falling
+    const left = { x: 300, y: 100, vx: 12, vy: 0 };
+    blowShotBack(left, -1, 60, C);
+    for (let i = 0; i < 30; i++) deflectedShotStep(left, 1, C, () => false);
+    expect(left.x).toBeCloseTo(240, 5);
+  });
+
+  test("a thrown thing coming at the wielder is turned round", () => {
+    expect(blowThrowBack({ vx: -8 }, 1, 60).vx).toBe(8);
+    expect(blowThrowBack({ vx: -1 }, 1, 60).vx).toBeGreaterThan(1);
+    expect(blowThrowBack({ vx: 8 }, -1, 60).vx).toBe(-8);
+  });
+
+  test("a unit raises it when its target is in front, on its floor, inside the Reach", () => {
+    const sw = { reach: 6, push: 2 };
+    const base = { sw, gapPx: 100, cell: C, inFront: true, sameFloor: true, busy: false };
+    expect(unitWantsSoundWave(base)).toBe(true);
+    expect(unitWantsSoundWave({ ...base, gapPx: 181 })).toBe(false);
+    expect(unitWantsSoundWave({ ...base, inFront: false })).toBe(false);
+    expect(unitWantsSoundWave({ ...base, sameFloor: false })).toBe(false);
+    expect(unitWantsSoundWave({ ...base, busy: true })).toBe(false);
+    expect(unitWantsSoundWave({ ...base, sw: null })).toBe(false);
   });
 });

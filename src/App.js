@@ -2001,6 +2001,92 @@ export const reflectShot = (pr, tx, ty, side) => {
   if (pr.pierce) pr.hits = side.wearer != null ? [side.wearer] : [];
   return pr;
 };
+// 📢 SOUND WAVE (2026-11-25). Blake: "add an meelee weapons where holding block to hold it out creates
+// a sort of wave looking like a sound wave that pushes enemies and projectiles back. I want to add it to
+// the megaphone." A melee weapon ability (WEAPON_ABILITIES.soundWave). While the guard is up (Q/V with
+// the weapon in hand, advanceBlock — the same up/down rhythm, the same melee block underneath), a ring
+// leaves the front of the body every SOUND_WAVE_EVERY_FRAMES and runs out to the weapon's Reach:
+// * every body of the other side it sweeps over is shoved Push cells away from the wielder, once per
+//   ring, through the 🦎 tail swing's `knock` channel — so a wall stops the shove and a unit is frozen
+//   while it slides, exactly as a tail swing leaves it;
+// * every SHOT of the other side it sweeps over is blown back the way the ring is going and falls as a
+//   dud (blowShotBack -> deflectedShotStep, 🐞 Lucky's fall): it hurts nobody, a rocket included;
+// * a THROWN thing of the other side is turned round to fly back the way the ring goes.
+// A ring stops at the first solid cell at its height (soundWaveStep), so nothing is pushed through a wall.
+// It works both ways (bab-abilities-work-both-ways): a unit holding one raises it when its target is in
+// front of it inside the Reach, and its rings shove YOU, your allies and your shots.
+export const SOUND_WAVE_DEFAULT_REACH = 6;  // cells a ring travels
+export const SOUND_WAVE_DEFAULT_PUSH = 2;   // cells each ring shoves what it catches
+export const SOUND_WAVE_EVERY_FRAMES = 8;   // a fresh ring this often while the guard is up (4 per 30-frame guard)
+export const SOUND_WAVE_SPEED_CELLS = 0.5;  // cells a frame the ring's front moves out
+export const SOUND_WAVE_SPREAD = 0.25;      // the ring grows this much taller (each way) per px it travels
+export const SOUND_WAVE_FADE_FRAMES = 6;    // the ring fades over this once it has stopped
+export const SOUND_WAVE_BLOW_FRAMES = 12;   // frames a blown-back shot takes to cover its push
+// { reach, push } in cells for a weapon that has it, else null. Melee only: a gun's Q/V is a pistol-whip
+// with no guard to hold out, and a throwable is not held at all.
+export const soundWaveOf = (w) => {
+  if (!w || !w.soundWave || isRanged(w.wtype) || isThrowable(w.wtype)) return null;
+  const num = (v, def, lo, hi) => Math.max(lo, Math.min(hi, Number(v) || def));
+  return { reach: num(w.soundWaveReach, SOUND_WAVE_DEFAULT_REACH, 1, 20), push: num(w.soundWavePush, SOUND_WAVE_DEFAULT_PUSH, 0.5, 10) };
+};
+// A fresh ring leaving the front edge of `box` (the wielder's body box, world px) facing `dir`. It is a
+// `booms` entry so it rides every seam shift and level change the booms already get; `wave` marks it.
+// side: "player" or "friendly" (yours) or "hostile". owner: "player" or the unit's key (never pushed by
+// its own ring).
+export const makeSoundWave = (box, dir, sw, side, owner, cell) => {
+  const d = dir < 0 ? -1 : 1, reachPx = sw.reach * cell;
+  return {
+    x: d > 0 ? box.x + box.w : box.x, y: box.y + box.h / 2, life: 0,
+    maxLife: Math.ceil(reachPx / (SOUND_WAVE_SPEED_CELLS * cell)) + SOUND_WAVE_FADE_FRAMES,
+    wave: { dir: d, r: 0, reach: reachPx, push: sw.push * cell, halfH0: Math.max(cell, box.h / 2), side, owner, hit: {} },
+  };
+};
+// The strip a ring has swept so far: from the mouth out to its front, as tall as the wielder at the
+// mouth and growing with distance (world px).
+export const soundWaveBand = (b) => {
+  const w = b.wave, halfH = w.halfH0 + w.r * SOUND_WAVE_SPREAD, fx = b.x + w.dir * w.r;
+  return { x0: Math.min(b.x, fx), x1: Math.max(b.x, fx), y0: b.y - halfH, y1: b.y + halfH, halfH, fx };
+};
+export const soundWaveCatchesBox = (band, bx) => !!bx && bx.x < band.x1 && bx.x + bx.w > band.x0 && bx.y < band.y1 && bx.y + bx.h > band.y0;
+export const soundWaveCatchesPoint = (band, x, y) => x >= band.x0 && x <= band.x1 && y >= band.y0 && y <= band.y1;
+// Does a ring of `side` move a shot / throw carrying this `foe` flag? A hostile's ring moves yours and
+// your allies' (foe false); yours and an ally's move a hostile's (foe true).
+export const soundWaveMoves = (side, foe) => (side === "hostile" ? !foe : !!foe);
+// One frame of a ring's front: out by its speed, up to its reach, stopping at the first solid cell at
+// its height (`solidAt(x, y)`), probed every half cell so a slow frame cannot step over a thin wall.
+// A ring that stops starts its fade. Returns the front distance (px).
+export const soundWaveStep = (b, dt, cell, solidAt) => {
+  const w = b.wave;
+  if (w.stopped) return w.r;
+  const next = Math.min(w.reach, w.r + SOUND_WAVE_SPEED_CELLS * cell * (dt > 0 ? dt : 0));
+  for (let r = Math.min(next, w.r + cell / 2); ; r = Math.min(next, r + cell / 2)) {
+    if (solidAt && solidAt(b.x + w.dir * r, b.y)) { w.stopped = true; break; }
+    w.r = r;
+    if (r >= next) break;
+  }
+  if (w.r >= w.reach) w.stopped = true;
+  if (w.stopped) b.maxLife = Math.min(b.maxLife, b.life + SOUND_WAVE_FADE_FRAMES);
+  return w.r;
+};
+// Blow a shot back the way the ring is going: it travels `pushPx` along `dir` with a small hop, then
+// falls, rests and fades as a dud, the 🐞 Lucky deflection's own fall (deflectedShotStep moves it by
+// -drop.dir, so drop.dir is the way it came from).
+export const blowShotBack = (pr, dir, pushPx, cell) => {
+  const d = dir < 0 ? -1 : 1, dist = Math.max(cell, pushPx || 0);
+  pr.drop = { dir: -d, backLeft: dist, vx: d * dist / SOUND_WAVE_BLOW_FRAMES, vy: -cell * DEFLECT_HOP_CELLS, spin: d * 9, rest: 0, alpha0: pr.alpha ?? 1 };
+  pr.homing = false; pr.homeKey = null;
+  return pr;
+};
+// A thrown thing in the ring is turned round to fly the way the ring goes, at least as fast as a push.
+export const blowThrowBack = (g, dir, pushPx) => {
+  const d = dir < 0 ? -1 : 1;
+  g.vx = d * Math.max(Math.abs(g.vx || 0), (pushPx || 0) / SOUND_WAVE_BLOW_FRAMES);
+  return g;
+};
+// Should a unit holding a Sound wave weapon raise it this frame? Its target is in front of it, on its
+// floor, inside the Reach, and nothing else has its arms (a swing, a ladder, a stun, a talk).
+export const unitWantsSoundWave = ({ sw, gapPx, cell, inFront, sameFloor, busy }) =>
+  !!sw && !busy && !!sameFloor && !!inFront && gapPx <= sw.reach * cell;
 // What is left of fire damage after every worn Fire Resistance (1 = none worn).
 export const fireDamageMult = (effects) => {
   let m = 1;
@@ -2687,6 +2773,15 @@ export const WEAPON_ABILITIES = {
     melee: true,
     isOn: (a) => !!a && !isThrowable(a.wtype) && !!a.poison,
     on: { poison: POISON_DAMAGE_SECS, poisonDps: POISON_DAMAGE_DPS }, off: { poison: 0 },
+  },
+  // 📢 see soundWaveOf. Hold Block (Q/V) and the guard throws out rings that shove.
+  soundWave: {
+    icon: "📢", label: "Sound wave", types: ["melee"],
+    blurb: "Hold Block (Q / V) to hold it out: it sends out a sound wave that pushes enemies back and blows their shots and throws back the way the wave goes. Reach is how far the wave travels; Push is how far each wave shoves. A wall stops it. The block still blocks. Works in both directions: in a 👹 Enemy's hands it pushes YOU back.",
+    brief: (a) => { const sw = soundWaveOf(a) || { reach: SOUND_WAVE_DEFAULT_REACH, push: SOUND_WAVE_DEFAULT_PUSH }; return "hold Block to push enemies and shots back " + briefNum(sw.push) + " cells"; },
+    melee: true,
+    isOn: (a) => !!soundWaveOf(a),
+    on: { soundWave: true, soundWaveReach: SOUND_WAVE_DEFAULT_REACH, soundWavePush: SOUND_WAVE_DEFAULT_PUSH }, off: { soundWave: false },
   },
   swingSpeed: {
     icon: "💨", label: "Swing speed", types: ["melee"],
@@ -20792,6 +20887,25 @@ export default function AssetStudio({ game = false } = {}) {
           // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
           // the whole time the target is in their sights, not just the shot frame.
           if (inSight && rangedEnemy && !ep.reloading) ep.aimHold = 14; else if (ep.aimHold > 0) ep.aimHold -= dtMul;
+          // 📢 YOUR SOUND WAVE, ON IT. A unit holding a Sound wave weapon raises it — the player's guard
+          // clock exactly (advanceBlock: up BLOCK_FRAMES, then BLOCK_RECOVER_FRAMES down) — while its
+          // target is in front of it on its floor inside the Reach, and it rings out on the player's
+          // rhythm. It turns to face the target as the guard goes up. The rings do their pushing in the
+          // booms pass, by the same rules as yours. The arm is drawn held out level (the render's
+          // eWaveGuard), as yours is.
+          const eWave = (!rangedEnemy && acts && !unitTalkImmune(ep)) ? soundWaveOf(ew) : null;
+          if (eWave || ep.waveGuard != null) {
+            const tgtDir = Math.sign(tgtAimCX - eCenterXFinal) || ep.face || 1;
+            const eBusy = stunned || !!ep.climbing || (ep.swingT || 0) > 0 || (ep.throwT || 0) > 0 || !!ep.stomp;
+            const wants = unitWantsSoundWave({ sw: eWave, gapPx: gapNow, cell: CW, inFront: attacking && detected && (ep.waveGuard != null ? tgtDir === ep.face : true), sameFloor, busy: eBusy });
+            const eGuard = advanceBlock(ep.waveGuard ?? null, ep.waveGuardCd || 0, wants, !!eWave && !eBusy, dtMul);
+            if (eGuard.t != null && ep.waveGuard == null) { ep.face = tgtDir; ep.waveCd = 0; }
+            ep.waveGuard = eGuard.t; ep.waveGuardCd = eGuard.cd;
+            if (ep.waveGuard != null && eWave) {
+              ep.waveCd = (ep.waveCd || 0) - dtMul;
+              if (ep.waveCd <= 0) { booms.current.push(makeSoundWave(unitBodyBox(ea, ep, CW), ep.face, eWave, hostile ? "hostile" : "friendly", k, CW)); ep.waveCd += SOUND_WAVE_EVERY_FRAMES; }
+            }
+          }
           const rangedReady = !rangedEnemy || canFireNow(ep.weaponAmmo);
           if (!inSight || !rangedReady) ep.reactT = 0; // lost the target or is reloading: abandon the wind-up, don't bank the delay
           else if (ep.attackT <= 0) {
@@ -21145,6 +21259,15 @@ export default function AssetStudio({ game = false } = {}) {
       else if (p.blocking) p.blocking.t = guard.t;
       else p.blocking = { t: guard.t };
       p.blockCd = guard.cd;
+      // 📢 A Sound wave weapon held out sends a ring every SOUND_WAVE_EVERY_FRAMES while the guard is up,
+      // the first on the frame it goes up. The rings are moved and do their pushing in the booms pass
+      // (stepSoundWaves, below the projectiles), where a unit's rings are moved too.
+      const pWave = p.blocking ? soundWaveOf(playtestWeapon) : null;
+      if (!pWave) p.waveCd = 0;
+      else {
+        p.waveCd = (p.waveCd || 0) - dtMul;
+        if (p.waveCd <= 0) { booms.current.push(makeSoundWave({ x: p.x, y: p.y, w: pw, h: ph }, p.face, pWave, "player", "player", CW)); p.waveCd += SOUND_WAVE_EVERY_FRAMES; }
+      }
       // DEFINED HERE, ABOVE BOTH OF ITS CALLERS — NOT INSIDE THE PROJECTILE BLOCK FURTHER DOWN (2026-09-28).
       // It used to be a `const` in that block, and the melee PARRY just below calls it as well: a swing
       // that struck an explosive shot (an enemy's RPG) threw "ReferenceError: detonate is not defined"
@@ -22081,6 +22204,47 @@ export default function AssetStudio({ game = false } = {}) {
         });
       }
 
+      // 📢 SOUND WAVE RINGS (soundWaveOf): each moves out, then shoves every body, shot and throw of the
+      // other side it has swept over — a body once per ring. Yours and a friendly unit's catch hostiles;
+      // a hostile's catches you and your friendlies. The wielder's own ring never moves the wielder.
+      if (booms.current.length) {
+        for (const b of booms.current) {
+          if (!b.wave) continue;
+          const w = b.wave;
+          soundWaveStep(b, dtMul, CW, (x, y) => cellsHitW(x, y, 1, 1).length > 0);
+          if (w.r <= 0) continue;
+          const band = soundWaveBand(b);
+          const shove = (key, body, box) => {
+            if (w.hit[key] || !soundWaveCatchesBox(band, box)) return;
+            w.hit[key] = true;
+            body.knock = { left: w.push, dir: w.dir };
+          };
+          for (const k of Object.keys(lv.enemies || {})) {
+            if (k === w.owner) continue;
+            const ep = enemyPos.current[k];
+            // A unit nothing has hurt yet has no enemyHP entry at all (every hit site fills it in on first
+            // contact), so "no entry" is alive, not dead: asking `> 0` skipped every fresh unit.
+            const eHp = enemyHP.current[k];
+            if (!ep || (eHp !== undefined && !(eHp > 0)) || unitTalkImmune(ep)) continue; // a shove, not a blow: no i-frames or revive grace asked
+            if ((w.side === "hostile") !== !!ep.friendly) continue; // a hostile's ring moves friendlies; yours moves hostiles
+            const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
+            shove(k, ep, unitBodyBox(ea, ep, CW));
+          }
+          if (w.side === "hostile" && playerHP.current > 0) shove("player", p, { x: p.x, y: p.y, w: pw, h: ph });
+          for (const pr of projectiles.current) {
+            if (pr.drop || pr.wavedBy === w || !soundWaveMoves(w.side, pr.foe)) continue;
+            if (!soundWaveCatchesPoint(band, pr.x, pr.y)) continue;
+            pr.wavedBy = w;
+            blowShotBack(pr, w.dir, w.push, CW);
+          }
+          for (const g of thrown.current) {
+            if (g.boomerang || g.wavedBy === w || !soundWaveMoves(w.side, g.foe)) continue;
+            if (Math.sign(g.vx || 0) === w.dir || !soundWaveCatchesPoint(band, g.x, g.y)) continue; // already going away
+            g.wavedBy = w;
+            blowThrowBack(g, w.dir, w.push);
+          }
+        }
+      }
       if (booms.current.length) { for (const b of booms.current) b.life += dtMul; booms.current = booms.current.filter((b) => b.life <= b.maxLife); }
 
       // 🚗 FIRE, THE FUSE AND THE BANG. A car that has come alive burns in the level's fire like a body
@@ -23721,6 +23885,10 @@ export default function AssetStudio({ game = false } = {}) {
             {k === "poison" && (
               <label className="slider">Poison / tick<input type="range" min="1" max="20" step="1" value={asset.poisonDps ?? POISON_DAMAGE_DPS} onChange={(e) => setAsset((a) => ({ ...a, poisonDps: +e.target.value }))} /><span className="hint2">{(asset.poisonDps ?? POISON_DAMAGE_DPS)} HP/tick · {POISON_DAMAGE_SECS}s</span></label>
             )}
+            {k === "soundWave" && (<>
+              <label className="slider">Reach<input type="range" min="2" max="14" step="1" value={asset.soundWaveReach || SOUND_WAVE_DEFAULT_REACH} onChange={(e) => setAsset((a) => ({ ...a, soundWaveReach: +e.target.value }))} /><span className="hint2">{(asset.soundWaveReach || SOUND_WAVE_DEFAULT_REACH)} cells</span></label>
+              <label className="slider">Push<input type="range" min="0.5" max="6" step="0.5" value={asset.soundWavePush || SOUND_WAVE_DEFAULT_PUSH} onChange={(e) => setAsset((a) => ({ ...a, soundWavePush: +e.target.value }))} /><span className="hint2">{(asset.soundWavePush || SOUND_WAVE_DEFAULT_PUSH)} cells</span></label>
+            </>)}
             {k === "swingSpeed" && (
               <label className="slider">Speed ×<input type="range" min="1.1" max="3" step="0.1" value={weaponSwingSpeedMult(asset)} onChange={(e) => { const m = +e.target.value; setAsset((a) => ({ ...a, swingSpeed: m, swingSpeedMult: m })); }} /><span className="hint2">×{weaponSwingSpeedMult(asset).toFixed(1)}</span></label>
             )}
@@ -31448,10 +31616,13 @@ export default function AssetStudio({ game = false } = {}) {
                   // on a ladder the same capped hand pump as yours, on bars/a ledge held still. A
                   // drawn creature keeps its paws as drawn, as it does flying.
                   const eClimbArms = !!(ep && ep.climbing && eRealArm && !eUseAtkPose && !eFrontPose && !isCreatureUnit(ea));
+                  // 📢 A Sound wave weapon held out (ep.waveGuard, the unit's guard clock): the arm goes out level,
+                  // the player's block pose, for as long as the guard is up. A swing or a throw outranks it.
+                  const eWaveGuard = !!(ep && ep.waveGuard != null && !eRanged && !eThrowingNow && !(ep.swingT > 0));
                   if (eClimbArms) {
                     eBlocks = driveUnitArms(eBlocks, eArm0, (a) => armClimbAbs(a.armPivot));
                     if (ep.climbing === "ladder") eBlocks = applyLimbSwing(eBlocks, new Set(), identifyLimbs(eBlocks).armIds, 0, { alternate: true, armReach: Math.sin(ep.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP });
-                  } else if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged))) {
+                  } else if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged) || eWaveGuard)) {
                     const eSwDur = eThrowingNow ? ATTACK_SWING_FRAMES : (ep.swingDur || ATTACK_SWING_FRAMES);
                     const eSwingA = meleeSwingAngle(eSwDur - (eThrowingNow ? ep.throwT : ep.swingT), eSwDur);
                     // A ranged unit's arm follows the shot it just fired (ep.shotTilt, facing-frame
@@ -31477,7 +31648,7 @@ export default function AssetStudio({ game = false } = {}) {
                     // The aim is an ABSOLUTE angle, so a twin's flip multiplies the whole of it; the swing
                     // is a turn FROM the arm's own drawn rot, so the flip multiplies only the turn.
                     const primary = eArm0;
-                    const armAimingNow = eRanged && !eThrowingNow;
+                    const armAimingNow = (eRanged && !eThrowingNow) || eWaveGuard;
                     const armRotOf = (a) => armAimingNow
                       ? (armAimAbsFacing(a.armPivot, eFacesRight) + eShotTilt) * armMirrorTwist(a)
                       : (a.rot || 0) + armForwardSign(a.armPivot, eFacesRight) * eSwingA * armMirrorTwist(a);
@@ -31857,6 +32028,33 @@ export default function AssetStudio({ game = false } = {}) {
                   );
                 })}
                 {play && booms.current.map((b, i) => {
+                  if (b.wave) {
+                    // 📢 A sound wave ring: two bowed arcs at its front, ")" the way it travels, as tall as the
+                    // strip it is sweeping, thinning and fading as it goes out. A dark under-stroke keeps it
+                    // readable on a pale sky, the light one on top on a dark wall.
+                    const band = soundWaveBand(b);
+                    const w = b.wave, prog = Math.min(1, w.r / Math.max(1, w.reach));
+                    const fadeOut = b.life > b.maxLife - SOUND_WAVE_FADE_FRAMES ? Math.max(0, (b.maxLife - b.life) / SOUND_WAVE_FADE_FRAMES) : 1;
+                    const op = (1 - prog * 0.65) * fadeOut * Math.min(1, w.r / (LV_CELL * 0.6));
+                    if (!(op > 0.02)) return null;
+                    const hgt = band.halfH * 2, bow = Math.max(6, hgt * 0.22), gap = LV_CELL * 0.35;
+                    const sw = Math.max(1.5, LV_CELL * (0.16 - prog * 0.09));
+                    const boxW = bow + gap + sw * 4;
+                    // In the svg's own frame the ring travels right; facing left it is mirrored.
+                    const arc = (off) => "M " + (sw * 2 + off) + " " + sw + " Q " + (sw * 2 + off + bow * 2) + " " + (hgt / 2 + sw) + " " + (sw * 2 + off) + " " + (hgt + sw);
+                    const peak = sw * 2 + gap + bow; // the outer arc's tip, in the svg's frame: it sits ON the front
+                    const left = w.dir > 0 ? band.fx - peak : band.fx - boxW + peak;
+                    return (
+                      <svg key={"wave" + i} className="soundWave" width={boxW} height={hgt + sw * 2} style={{ position: "absolute", left, top: b.y - band.halfH - sw, zIndex: 9000, opacity: op, pointerEvents: "none", overflow: "visible", transform: w.dir < 0 ? "scaleX(-1)" : undefined }}>
+                        {[0, gap].map((off) => (
+                          <g key={off} fill="none" strokeLinecap="round">
+                            <path d={arc(off)} stroke="rgba(20,30,50,0.55)" strokeWidth={sw * 2.2} />
+                            <path d={arc(off)} stroke="#e8f6ff" strokeWidth={sw} />
+                          </g>
+                        ))}
+                      </svg>
+                    );
+                  }
                   if (b.text) {
                     const prog = b.life / Math.max(1, b.maxLife);
                     const fade = prog > 0.6 ? Math.max(0, 1 - (prog - 0.6) / 0.4) : 1;
