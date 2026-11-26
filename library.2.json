@@ -1,5 +1,5 @@
 {
- "set": "7b34184dcbea2c7c",
+ "set": "7b90012a7070c915",
  "part": 2,
  "assets": [
   {
@@ -458068,7 +458068,8 @@
     "Vietnam"
    ],
    "sounds": {
-    "fire": "o9gfu7z"
+    "fire": "o9gfu7z",
+    "hit": "vh9v0ul"
    },
    "groups": {
     "front": [],
@@ -464531,10 +464532,10 @@
      }
     ]
    },
-   "savedAt": 1795696910059,
+   "savedAt": 1795696994195,
    "iceDamage": 10,
    "iceDamageDps": 1,
-   "editedFrom": 1795696898145
+   "editedFrom": 1795696910059
   },
   {
    "id": "nstlmp1",
