@@ -4476,6 +4476,31 @@ export const withTimedTagBoosts = (effects, buffs, nowMs) => {
 // The 💥 timed Damage share alone, for a hit no weapon's tags speak for (fists, a bite, a throw).
 export const timedDamageMult = (buffs, nowMs) => anyDamageMult(withTimedTagBoosts(null, buffs, nowMs));
 // Drop buffs whose timer has elapsed (called every frame so the list can't grow unbounded).
+export const hudBuffGroups = (buffs, nowMs) => {
+  const STAT = { speed: "stat.spd", agility: "stat.agi", strength: "stat.str", intelligence: "stat.int" };
+  const groups = new Map();
+  for (const b of (buffs || [])) {
+    if (!b || !(b.until > nowMs)) continue;
+    let key, sym, label, tier = 0, neg = false;
+    if (b.stat) { key = "s:" + b.stat; sym = STAT[b.stat] || "✨"; label = String(b.stat).slice(0, 3).toUpperCase(); const a = b.amount || 0; neg = a < 0; tier = Math.abs(a) >= 3 ? 2 : Math.abs(a) >= 2 ? 1 : 0; }
+    else {
+      const m = b.mult || 1, g = m < 1 && m > 0 ? 1 / m : m; tier = g >= 2 ? 2 : g >= 1.5 ? 1 : 0;
+      if (b.kind === "damage") { key = "damage"; sym = "💥"; }
+      else if (b.kind === "range") { key = "range"; sym = "🎯"; }
+      else if (b.kind === "tagDamage") { key = "tag:" + b.tag; sym = "🏹"; }
+      else if (b.kind === "slowmo") { key = "slowmo"; sym = "🐢"; }
+      else if (b.kind === "nonHostile") { key = "peace"; sym = "🕊"; }
+      else if (b.kind === "screen") { key = "fx:" + b.fx + (b.color || ""); sym = "🌀"; }
+      else { key = "k:" + b.kind; sym = "✨"; }
+    }
+    if (!groups.has(key)) groups.set(key, { key, sym, label, items: [] });
+    groups.get(key).items.push({ secs: Math.max(1, Math.ceil((b.until - nowMs) / 1000)), tier, neg });
+  }
+  const out = [...groups.values()];
+  for (const g of out) g.items.sort((a, b) => a.secs - b.secs);
+  out.sort((a, b) => a.items[0].secs - b.items[0].secs);
+  return out;
+};
 export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.until > nowMs);
 // A PAUSED WORLD HOLDS YOUR BUFFS (2026-11-15). Blake, on the crawl between Trailer Park and
 // Vietnam: "have it so any time based buffs get paused during animations so skipping or not will
@@ -18623,7 +18648,12 @@ export default function AssetStudio({ game = false } = {}) {
       // ...and a paused world holds your buffs (holdBuffs): the four pauses on these lines are the
       // only frames the world does not run, and each gives the time it took back.
       if (talkRef.current || shopRef.current || gamePauseRef.current || p.dying || cutRef.current) itemBuffs.current = holdBuffs(itemBuffs.current, frameMs);
-      if (talkRef.current || shopRef.current || gamePauseRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
+      if (talkRef.current || shopRef.current || gamePauseRef.current) {
+        if (talkRef.current) lastTalkSig = "";
+        // ...but the SCORE clock keeps running through plain dialogue (only the shop and the pause menu stop it).
+        if (talkRef.current && !shopRef.current && !gamePauseRef.current) { const sc = scoreRef.current, sk = runNow ? runNow.curKey : (lv.id || "level"); sc.secs[sk] = (sc.secs[sk] || 0) + dtReal / 60; }
+        raf = requestAnimationFrame(loop); return;
+      }
       // 🎲 HOLD R (rerollRun): read off the RAW keys and before the cutscene return below, so it works
       // while a stun has your intent zeroed or the wake-up animation is playing — a run you do not
       // want is one you do not want to sit through the opening of either.
@@ -31089,7 +31119,7 @@ export default function AssetStudio({ game = false } = {}) {
                   the camera does the centring (centreRoomInView). .zoomed drops will-change: a
                   will-change:transform layer is rasterised at the scale it had when it was made and
                   never again, so a street-made layer scaled up for a room would be a blurry stretch. */}
-              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (play && (camRef.current.z || 1) !== 1 ? " zoomed" : "") + (runNodeNow ? " inRun" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: runNodeNow ? runOrigin.current.w : lvW, height: runNodeNow ? runOrigin.current.h : lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? (() => {
+              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (play && (camRef.current.z || 1) !== 1 ? " zoomed" : "") + (runNodeNow ? " inRun" : "") + (game && play ? " noGrid" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: runNodeNow ? runOrigin.current.w : lvW, height: runNodeNow ? runOrigin.current.h : lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? (() => {
                 const z = camRef.current.z || 1, cx = camRef.current.x + (runNodeNow ? runOrigin.current.x : 0), cy = camRef.current.y + (runNodeNow ? runOrigin.current.y : 0);
                 if (z === 1) return { transform: "translate3d(" + (-Math.round(cx * 2) / 2) + "px, " + (-Math.round(cy * 2) / 2) + "px, 0)" };
                 return { transform: "translate3d(" + (-Math.round(cx * z * 2) / 2) + "px, " + (-Math.round(cy * z * 2) / 2) + "px, 0) scale(" + z + ")", transformOrigin: "0 0", margin: 0 };
@@ -32862,11 +32892,20 @@ export default function AssetStudio({ game = false } = {}) {
                   <>
                   <div className="hudBot">
                     <div key={"money" + walletRises.current} className={"hudMoney" + (walletRises.current ? " gain" : "")}>{sym("hud.money", null, 22)}<span>{walletUI}</span></div>
+                    <div className="hudRight">
+                    {(() => { const bg = hudBuffGroups(itemBuffs.current, playNowMs()); return bg.length > 0 && (
+                      <div className="hudBuffs">{bg.map((g) => (
+                        <div key={g.key} className="hudBuff">
+                          <span className="hudBuffIc">{sym(g.sym, null, 16)}</span>
+                          <span className="hudBuffT">{g.items.slice(0, g.items.length > 2 ? 1 : 2).map((it, i) => <span key={i} className={"hb" + (it.neg ? "N" : it.tier)}>{it.secs}</span>)}{g.items.length > 2 && <span className="hb0">...</span>}</span>
+                        </div>))}
+                      </div>); })()}
                     <div className={"hudWpn" + (atk.d > 0 ? " up" : atk.d < 0 ? " down" : "")}>
                       <div className="hudWpnArt" style={{ width: wBoxW, height: wBoxH }}>
                         {wHudEl || sym("stat.atk", null, 34)}
                       </div>
                       <span className="hudWpnDmg">{formatDps(dps)}<small className="hudWpnUnit">DPS</small></span>
+                    </div>
                     </div>
                   </div>
                   {/* 🎯 OBJECTIVES: each one up now on its own line, top and center, under the
@@ -35060,6 +35099,12 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudMoney.gain span{animation:hudMoneyGlow .9s ease-out}
 @keyframes hudMoneyGain{0%{transform:scale(1)}25%{transform:scale(1.35)}100%{transform:scale(1)}}
 @keyframes hudMoneyGlow{0%,40%{color:#8fe08a}100%{color:#fff}}
+.hudRight{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.hudBuffs{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;width:192px;opacity:.75}
+.hudBuff{display:flex;align-items:center;gap:3px;width:58px;box-sizing:border-box;padding:2px 3px;background:rgba(10,10,14,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;font-size:12px;font-weight:700;line-height:1.1}
+.hudBuffIc{flex:none;display:flex;align-items:center;font-size:14px}
+.hudBuffT{display:flex;flex-direction:column;min-width:0}
+.hb0{color:#fff}.hb1{color:#8ef59a}.hb2{color:#ffd166}.hbN{color:#ff7b7b}
 .hudWpn{display:flex;align-items:center;gap:8px;line-height:1}
 .hudWpnArt{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 0 1px rgba(255,255,255,.6)) drop-shadow(0 1px 3px rgba(0,0,0,.8))}
 .hudWpnDmg{font-size:22px;font-weight:700;letter-spacing:.04em;min-width:26px;text-align:right}
@@ -35170,6 +35215,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .ubArt>div{filter:drop-shadow(0 4px 0 rgba(0,0,0,.25))}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
 .lgrid.inRun{background:none}
+.lgrid.noGrid,.lgrid.noGrid.inRun .seamStrip{background-image:none !important}
 .lgrid.inRun .seamStrip{background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);background-size:30px 30px}
 .runhud{color:#ffd166;background:#1d1a12;border-color:#4a3f1e}
 .runhud .runnote{color:#c9a15a;font-weight:400}
