@@ -1,5 +1,5 @@
 {
- "set": "8b10bfaa054bb4f7",
+ "set": "33fe422d89dd31f6",
  "part": 1,
  "assets": [
   {
@@ -670674,10 +670674,11 @@
      "y": 98
     }
    },
-   "editedFrom": 1793183562096,
-   "savedAt": 1793266832545,
-   "poison": false,
-   "poisonDps": 2
+   "editedFrom": 1793266832545,
+   "savedAt": 1795696542041,
+   "sounds": {
+    "attack": "ieg9jd6"
+   }
   },
   {
    "id": "ekowow7",

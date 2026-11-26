@@ -1,5 +1,5 @@
 {
- "set": "8b10bfaa054bb4f7",
+ "set": "33fe422d89dd31f6",
  "part": 4,
  "levels": [
   {
@@ -610767,6 +610767,17 @@
    "savedAt": 1791641359667
   },
   {
+   "id": "3gw4je8",
+   "type": "sound",
+   "name": "571273__princeofworms__hawkeagle-cry-distant",
+   "category": "Animal",
+   "clip": "01ca1e2dfe324b117473a8c7ed27.mp3",
+   "bytes": 68256,
+   "dur": 4.53,
+   "savedAt": 1795696532571,
+   "editedFrom": 1795696527842
+  },
+  {
    "id": "4283rx2",
    "type": "sound",
    "name": "Landing Edit",
@@ -610885,6 +610896,17 @@
    "dur": 5.43,
    "savedAt": 1791749095101,
    "editedFrom": 1791749074160
+  },
+  {
+   "id": "7lutoni",
+   "type": "sound",
+   "name": "810192__mokasza__pitched-eagle",
+   "category": "Animal",
+   "clip": "1f5f5f3452434008b4588f64236c.mp3",
+   "bytes": 33481,
+   "dur": 2.09,
+   "savedAt": 1795696536619,
+   "editedFrom": 1795696521914
   },
   {
    "id": "7o54mwd",
@@ -611175,6 +611197,17 @@
    "bytes": 17510,
    "dur": 1.39,
    "savedAt": 1791641717874
+  },
+  {
+   "id": "ne71tos",
+   "type": "sound",
+   "name": "697363__grayepic__eagle-s",
+   "category": "Animal",
+   "clip": "1c21d9cc40d55b006f80596923d9.mp3",
+   "bytes": 44380,
+   "dur": 2.06,
+   "savedAt": 1795696533466,
+   "editedFrom": 1795696525082
   },
   {
    "id": "o6l42yz",
