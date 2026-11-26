@@ -1,5 +1,5 @@
 {
- "set": "7772c3cece8a34f3",
+ "set": "81eba89a07855a3d",
  "part": 1,
  "assets": [
   {
@@ -444043,10 +444043,14 @@
      }
     ]
    },
-   "savedAt": 1795696773953,
-   "editedFrom": 1794880768630,
+   "savedAt": 1795696811686,
+   "editedFrom": 1795696807150,
    "sounds": {
-    "fire": "u2f4b15"
+    "fire": "u2f4b15",
+    "hit": "ynj37i2"
+   },
+   "soundVol": {
+    "hit": 0.3
    }
   },
   {
