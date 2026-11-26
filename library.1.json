@@ -1,5 +1,5 @@
 {
- "set": "33fe422d89dd31f6",
+ "set": "28aa9f4ba96a6058",
  "part": 1,
  "assets": [
   {
@@ -588492,13 +588492,14 @@
      }
     ]
    },
-   "savedAt": 1795696260875,
+   "savedAt": 1795696601792,
    "flies": false,
    "sounds": {
     "attack": "qfyfnw5",
-    "hurt": "wxa9m13"
+    "hurt": "wxa9m13",
+    "death": "ieg9jd6"
    },
-   "editedFrom": 1795696256834,
+   "editedFrom": 1795696260875,
    "soundVol": {
     "hurt": 0.15
    }
@@ -670674,10 +670675,16 @@
      "y": 98
     }
    },
-   "editedFrom": 1793266832545,
-   "savedAt": 1795696542041,
+   "editedFrom": 1795696579453,
+   "savedAt": 1795696583499,
    "sounds": {
-    "attack": "ieg9jd6"
+    "attack": "7lutoni",
+    "hurt": "ne71tos",
+    "death": "3gw4je8"
+   },
+   "soundVol": {
+    "attack": 0.35,
+    "hurt": 0.45
    }
   },
   {
