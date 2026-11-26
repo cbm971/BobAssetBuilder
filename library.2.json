@@ -1,5 +1,5 @@
 {
- "set": "7d3f6589c145d800",
+ "set": "c0f2da0c6af8294f",
  "part": 2,
  "assets": [
   {
@@ -756681,10 +756681,10 @@
      {
       "id": "s039",
       "kind": "rect",
-      "x": 74,
-      "y": 131,
-      "w": 69,
-      "h": 25,
+      "x": 84,
+      "y": 121,
+      "w": 46,
+      "h": 20,
       "color": "#2b2b2b",
       "mirror": true,
       "fx": {
@@ -756714,7 +756714,7 @@
        "bright": 1.1
       },
       "rot": 9,
-      "overArms": true
+      "overArms": false
      },
      {
       "id": "p03b",
@@ -758566,10 +758566,10 @@
       {
        "id": "s039",
        "kind": "rect",
-       "x": 74,
-       "y": 131,
-       "w": 69,
-       "h": 25,
+       "x": 84,
+       "y": 121,
+       "w": 46,
+       "h": 20,
        "color": "#2b2b2b",
        "mirror": true,
        "fx": {
@@ -758599,7 +758599,7 @@
         "bright": 1.1
        },
        "rot": 9,
-       "overArms": true
+       "overArms": false
       },
       {
        "id": "p03b",
@@ -758936,8 +758936,8 @@
    ],
    "value": 20,
    "rank": "legendary",
-   "savedAt": 1794915849817,
-   "editedFrom": 1793458364468
+   "savedAt": 1795698927918,
+   "editedFrom": 1794915849817
   },
   {
    "id": "splsign",
