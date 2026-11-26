@@ -505,6 +505,9 @@ plus traps it does not cover:
   blast / landing / shot emoji or prop, emoji pieces and level emoji objects are HIS art and stay
   as he chose (`ART_EMOJI_FONT`). The weapon defaults 💥 / 🔥 count as "use the slot".
   A new in-game effect gets an `fx.*` slot and is drawn with `sym(key, null, px)`.
+- **A thrown Blast stands on its ground disc** (2026-11-26, Mini Nuke): if the blast prop's lowest piece is a
+  flat oval (`boomGroundLine`), that oval's CENTRE LINE is the ground; its far half draws at `BOOM_GROUND_BACK_Z`
+  (behind bodies) and its near half in front. A Blast with Burn off paints nothing on landing: the boom is the landing.
 - The icons are game-icons.net (`gi:`, **CC BY 3.0, so the game's credits must name it**) and
   Material Design Icons (`mdi:`, Apache 2.0). `tools/build-symbols.js` writes them into
   `public/symbols/library.json` (fetched only by the Symbols screen) and `src/symbolArt.json` (the

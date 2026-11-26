@@ -390,6 +390,12 @@ import {
   throwIsExplosive,
   BLAST_RADIUS_MAX,
   BOOM_SIZE_MAX,
+  boomGroundLine,
+  boomGroundSplit,
+  BOOM_GROUND_BACK_Z,
+  walkRampStep,
+  WALK_RAMP_FRAMES,
+  WALK_RAMP_START,
   igniteDpsOf,
   tickIgnite,
   DEFAULT_IGNITE_DPS,
@@ -4562,6 +4568,53 @@ describe("which abilities a weapon may carry", () => {
     // 18-cell cloud, past the old 5 and 8 ceilings.
     expect(BLAST_RADIUS_MAX).toBeGreaterThanOrEqual(9);
     expect(BOOM_SIZE_MAX).toBeGreaterThanOrEqual(18);
+    expect(BOOM_SIZE_MAX).toBeGreaterThanOrEqual(27); // "50 % bigger" (2026-11-26)
+  });
+
+  // His Mushroom Cloud: a stem standing in the middle of a flat oval. The ground is the oval's
+  // centre line; the far half draws on the ground, the near half in front.
+  const cloud = (extra = []) => ({ id: "mc", type: "prop", frames: [
+    { front: [
+      { id: "ring", kind: "circle", x: 10, y: 222, w: 180, h: 28, color: "#b0504f" },
+      { id: "stem", kind: "stadium", x: 80, y: 120, w: 40, h: 112, color: "#ff7b00" },
+      { id: "foot", kind: "stadium", x: 80, y: 228, w: 40, h: 8, color: "#ff7b00" },
+      ...extra,
+    ] },
+    { front: [
+      { id: "ring2", kind: "circle", x: 6, y: 222, w: 188, h: 28, color: "#4f4f4f" },
+      { id: "smoke", kind: "circle", x: 18, y: 222, w: 72, h: 28, color: "#33302e" },
+      { id: "stem2", kind: "stadium", x: 84, y: 72, w: 32, h: 160, color: "#b0504f" },
+    ] },
+  ] });
+
+  test("a blast with a flat ground disc stands on the disc's centre line, the same line in every frame", () => {
+    expect(boomGroundLine(cloud())).toBe(236);
+  });
+
+  test("a blast with no flat disc at the bottom keeps standing on its bottom edge", () => {
+    // The lowest piece here is a round ball, not a disc lying on the floor.
+    const ball = { id: "b", type: "prop", frames: [{ front: [{ id: "x", kind: "circle", x: 40, y: 140, w: 120, h: 110, color: "#f80" }] }] };
+    expect(boomGroundLine(ball)).toBe(null);
+    expect(boomGroundLine(null)).toBe(null);
+  });
+
+  test("the disc is the pieces centred on or below the ground line; the stem and its foot stand in front", () => {
+    const a = cloud(), sp = boomGroundSplit(a, boomGroundLine(a));
+    expect(sp.disc.frames.map((f) => f.front.map((p) => p.id))).toEqual([["ring"], ["ring2", "smoke"]]);
+    expect(sp.rest.frames.map((f) => f.front.map((p) => p.id))).toEqual([["stem", "foot"], ["stem2"]]);
+    // His record is untouched, and the split is the same object on the next frame (no re-filtering per frame).
+    expect(a.frames[0].front.length).toBe(3);
+    expect(boomGroundSplit(a, 236)).toBe(sp);
+  });
+
+  test("the far half of the disc draws on the ground: over Foreground, under every body", () => {
+    expect(BOOM_GROUND_BACK_Z).toBeGreaterThan(2001);
+    expect(BOOM_GROUND_BACK_Z).toBeLessThan(4900);
+  });
+
+  test("a Blast throw with Burn off leaves nothing on the ground; with Burn on it still burns", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("if (a.throwBlast && !((a.landEffectDps ?? 0) > 0)) keys = [];");
   });
 
   test("every ability names the types it belongs to", () => {
@@ -18366,3 +18419,36 @@ describe("🔴 Brimstone laser (chargeLaser) + Brimstone Demon & Brimstone Launc
     expect(pedestalItemPool(assets, ["Odd", "Legendary"], "and").map((a) => a.id)).toEqual(["qesn4h8"]);
   });
 });
+
+describe("walking winds up (2026-11-26: a tap off a ladder flung you two feet)", () => {
+  test("a held direction starts slow and reaches full speed over WALK_RAMP_FRAMES", () => {
+    let r = 0, dir = 0, frames = 0;
+    r = walkRampStep(r, 1, dir, 1); dir = 1; frames++;
+    expect(r).toBeCloseTo(WALK_RAMP_START, 9);
+    while (r < 1 && frames < 100) { r = walkRampStep(r, 1, dir, 1); frames++; }
+    expect(frames).toBe(WALK_RAMP_FRAMES + 1);
+    expect(walkRampStep(1, 1, 1, 1)).toBe(1);
+  });
+
+  test("a two-frame tap moves a small fraction of what full speed would", () => {
+    const a = walkRampStep(0, 1, 0, 1), b = walkRampStep(a, 1, 1, 1);
+    expect(a + b).toBeLessThan(0.5); // was 2 whole frames of speed
+  });
+
+  test("letting go stops you dead, and turning round winds up again", () => {
+    expect(walkRampStep(1, 0, 1, 1)).toBe(0);
+    expect(walkRampStep(1, -1, 1, 1)).toBeCloseTo(WALK_RAMP_START, 9);
+  });
+
+  test("it is real time: a 30fps frame (dtMul 2) winds up twice as far", () => {
+    const one = walkRampStep(0.5, 1, 1, 1) - 0.5, two = walkRampStep(0.5, 1, 1, 2) - 0.5;
+    expect(two).toBeCloseTo(one * 2, 9);
+  });
+
+  test("the player loop walks at the wound-up speed only on the ground and never with a Slide item", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("const walkSpeed = grounded && !slideResolved ? speed * (p.walkRamp ?? 1) : speed;");
+    expect(src).toContain("dx = horizVel(K, walkSpeed, grounded, p.vx, airSteer, slideResolved, dtMul);");
+  });
+});
+

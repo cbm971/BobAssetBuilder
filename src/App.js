@@ -2995,9 +2995,10 @@ export const DEFAULT_LAND_RADIUS = 1;       // cells of landing effect painted a
 // were 5 cells of blast and 8 of boom, which the RPG already sat on; the Mini Nuke (2026-11-26, a
 // 9-cell blast under an 18-cell mushroom cloud) needed more, and Blake's rule is that a value only
 // ships if his editor can make it — so the sliders grew rather than the record carrying a number
-// no slider reaches. detonate and boomLayout have no ceiling of their own.
+// no slider reaches. detonate and boomLayout have no ceiling of their own. Boom size went 24 -> 30 the same
+// day: "its big fire ball ... should be like 50 % bigger" put the Mini Nuke at 27.
 export const BLAST_RADIUS_MAX = 12;
-export const BOOM_SIZE_MAX = 24;
+export const BOOM_SIZE_MAX = 30;
 // How much of the base throw a given Weight actually gets. This is a MULTIPLIER, and it is the
 // whole reason Weight is worth setting.
 //
@@ -6022,6 +6023,25 @@ export const horizVel = (K, speed, grounded, prevVx, glide, slide, dtMul) => {
     return prevVx || 0;
   }
   return prevVx || 0;
+};
+// 🚶 WALKING WINDS UP (Blake, 2026-11-26: "at times when trying to go off a ladder when you barely
+// touch the stick it slings you like two feet sideways and you can't get where you want to go ...
+// when walking it takes a little time to get up to your speed and so just tapping left or right
+// won't fling you"). A key used to give your FULL walk speed on its first frame, and that speed is
+// also the momentum you carry when you leave the ground (horizVel stores it as p.vx) — so a
+// two-frame tap off a ladder at Speed 10 stepped you ~23 px and then flew you sideways at 11.5 px a
+// frame all the way down. Now a held direction starts at WALK_RAMP_START of your speed and reaches
+// all of it over WALK_RAMP_FRAMES (a fifth of a second): a tap nudges, a hold walks as before.
+// Letting go still stops you dead (no slide was asked for, and Slide items keep their own easing),
+// turning round starts the wind-up again, and in the air it is left alone, so a running jump lands
+// running. Returns the new fraction of your speed (0..1) for this frame.
+export const WALK_RAMP_FRAMES = 12;
+export const WALK_RAMP_START = 0.15;
+export const walkRampStep = (ramp, dir, prevDir, dtMul) => {
+  if (!dir) return 0;
+  const from = dir === prevDir ? Math.max(0, ramp || 0) : 0;
+  const r = Math.max(WALK_RAMP_START, from + ((1 - WALK_RAMP_START) / WALK_RAMP_FRAMES) * (dtMul || 1));
+  return r > 1 - 1e-9 ? 1 : r; // snap: twelve float steps land a hair under 1
 };
 // Airborne momentum may carry the ground speed, but jumping must never create a faster horizontal
 // speed. This also normalizes a long takeoff frame: the old code stored dtMul-scaled displacement
@@ -9469,6 +9489,55 @@ export const boomLayout = (propAsset, size, cellPx) => {
   const fp = levelObjectFootprint({ kind: "prop", size: size || 3, fitArt: true }, propAsset || null);
   return { width: fp.cols * cellPx, height: fp.rows * cellPx, box: fp.box };
 };
+// ☢️ A BLAST THAT STANDS ON THE GROUND HAS ITS GROUND DISC HALF IN FRONT (Blake, 2026-11-26, the Mini
+// Nuke: "actually look like half of the bottom oval blast radius bit is in the front layer while the
+// other half is on the ground to really achieve the 3D effect with it. as is it floats on the oval").
+// His Mushroom Cloud is drawn as a stem standing in the MIDDLE of a flat oval (the base ring, 180x28
+// on the canvas, centre y 236, where the stem's foot is). A rising boom (`rise`, a thrown 💥 Blast) was
+// stood on the BOTTOM of its art, so the oval's lowest edge touched the ground and the stem's foot hung
+// half an oval above it: a cloud floating on a plate. The ground is the oval's CENTRE LINE: the half
+// above it is the far side of a ring lying on the floor (drawn on the ground, behind everyone standing
+// in it) and the half below is the near side (in the Front layer, over their feet).
+// The disc is the art's LOWEST piece, taken across every frame so the ground line never jumps between
+// frames, and only if it is flat (2.5x wider than tall) — a blast prop with no ground disc stays
+// stood on its bottom exactly as before, and is never sunk into the floor by half its last piece.
+// Returns that centre line in canvas units, or null.
+const BOOM_GROUND_CACHE = new WeakMap();
+const boomArtFrames = (propAsset) => (propAsset && propAsset.frames && propAsset.frames.length) ? propAsset.frames : [propAsset && propAsset.angles].filter(Boolean);
+const boomArtPiece = (p) => !!p && !p.isHitbox && !p.isMuzzle && !p.isCutter && p.kind !== "text";
+export const boomGroundLine = (propAsset) => {
+  if (!propAsset || typeof propAsset !== "object") return null;
+  const hit = BOOM_GROUND_CACHE.get(propAsset);
+  if (hit && hit.frames === propAsset.frames && hit.angles === propAsset.angles) return hit.y;
+  let low = null;
+  for (const f of boomArtFrames(propAsset)) for (const p of ((f && f.front) || [])) {
+    if (!boomArtPiece(p) || (p.rot || 0) % 180) continue;
+    if (!low || p.y + p.h > low.y + low.h) low = p;
+  }
+  const y = low && low.w >= low.h * 2.5 ? low.y + low.h / 2 : null;
+  BOOM_GROUND_CACHE.set(propAsset, { frames: propAsset.frames, angles: propAsset.angles, y });
+  return y;
+};
+// The same art split in two at that line: `disc` = the pieces centred on or below it (the base ring and
+// the smoke lying on it), `rest` = everything that stands up out of it (stem, cap, its foot). The boom
+// draws the disc twice, clipped at the line — far half on the ground, near half in front — and the rest
+// once, between them. Same records otherwise (alpha, fps), so every frame stays his art piece for piece.
+const BOOM_SPLIT_CACHE = new WeakMap();
+export const boomGroundSplit = (propAsset, groundY) => {
+  const hit = BOOM_SPLIT_CACHE.get(propAsset);
+  if (hit && hit.frames === propAsset.frames && hit.angles === propAsset.angles && hit.groundY === groundY) return hit;
+  const inDisc = (p) => boomArtPiece(p) && p.y + p.h / 2 >= groundY - 0.5;
+  const keep = (want) => {
+    const pick = (f) => f && { ...f, front: ((f.front) || []).filter((p) => !!inDisc(p) === want) };
+    return { ...propAsset, frames: propAsset.frames ? propAsset.frames.map(pick) : propAsset.frames, angles: propAsset.angles ? pick(propAsset.angles) : propAsset.angles };
+  };
+  const out = { frames: propAsset.frames, angles: propAsset.angles, groundY, disc: keep(true), rest: keep(false) };
+  BOOM_SPLIT_CACHE.set(propAsset, out);
+  return out;
+};
+// The far half of a blast's ground disc sits on the ground: over the Foreground paint and its objects
+// (2000/2001), under every body (players and units ~5000) and the Front layer.
+export const BOOM_GROUND_BACK_Z = 2002;
 export const objFootprintAnchor = (r, c, footprint) => {
   const rows = Math.max(1, (footprint && footprint.rows) || 1);
   const cols = Math.max(1, (footprint && footprint.cols) || 1);
@@ -19322,7 +19391,11 @@ export default function AssetStudio({ game = false } = {}) {
       const flyMove = flyState(flyEffect, FK, p.onGround, p.climbing || p.topdown, p.flying, p.flyUsed, CH);
       const glideMove = flyMove ? null : glideState(glideEffect, K, p.onGround, p.climbing || p.topdown, p.vy);
       const airSteer = flyMove || glideMove;
-      dx = horizVel(K, speed, grounded, p.vx, airSteer, slideResolved, dtMul);
+      // 🚶 The walk winds up (walkRampStep): on your feet, a ladder or a plane, without a Slide item
+      // (that one already eases). Only ground frames move the wind-up; the air keeps what you had.
+      if (grounded && !slideResolved) { const keyDir = K.right ? 1 : K.left ? -1 : 0; p.walkRamp = walkRampStep(p.walkRamp, keyDir, p.walkDir, dtMul); p.walkDir = keyDir; }
+      const walkSpeed = grounded && !slideResolved ? speed * (p.walkRamp ?? 1) : speed;
+      dx = horizVel(K, walkSpeed, grounded, p.vx, airSteer, slideResolved, dtMul);
       if (!grounded && !(airSteer && airSteer.active)) dx = capAirborneSpeed(dx, speed);
       if (p.tailHold) dx = 0; // 🐒 hanging by the tail: you stay where you caught; A/D (above) only turn you round
       // Ramp feel: last frame's slope check set p.onSlope/p.slideVx. Standing on a ramp with
@@ -22768,6 +22841,12 @@ export default function AssetStudio({ game = false } = {}) {
           const cellState = (r, c) => { const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell)) return "block"; if (fxBlocks(r, c)) return "block"; if (fgSlopeFills(cell).length) return "ground"; return null; };
           let keys = groundedLandingCells(r0, c0, radius, lv.rows, lv.cols, cellState);
           if (!keys.length) keys = [r0 + "," + c0]; // never a total dud: if nothing is grounded (rare), fall back to the impact cell
+          // ☢️ A 💥 Blast with 🔥 Burn OFF leaves nothing on the ground: the boom IS its landing. It used to
+          // paint its landing mark across the splash anyway, and the Mini Nuke (whose mark was his Explosion
+          // prop) set off three small explosions in a row beside its mushroom cloud (Blake, 2026-11-26:
+          // "spawns 3 random normal explosions while it's big fireball is the explosion"). With Burn on, the
+          // fire still burns there as it always did.
+          if (a.throwBlast && !((a.landEffectDps ?? 0) > 0)) keys = [];
           // Its FIRE is painted only on THIS level. A level across a gate draws no fires and burns
           // nothing until it is the live one, so a fire painted there would be invisible and could
           // not go out on schedule; a grenade that lands over there still hits, stuns and captures
@@ -33292,6 +33371,24 @@ export default function AssetStudio({ game = false } = {}) {
                   const prog = b.life / Math.max(1, b.maxLife);
                   const frameIdx = Math.min(frames - 1, Math.floor(prog * frames));
                   const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
+                  // ☢️ A standing blast whose art has a ground disc (boomGroundLine): the disc's centre
+                  // line is ON the ground, its far half drawn on the ground behind everyone, the stem
+                  // and cloud in front as before, and the disc's near half in front of those.
+                  const groundY = b.rise && pa && lay.box ? boomGroundLine(pa) : null;
+                  if (groundY != null) {
+                    const scale = Math.min(lay.width / lay.box.w, lay.height / lay.box.h);
+                    const cut = (groundY - lay.box.minY) * scale; // px from the box's top to the ground line
+                    const split = boomGroundSplit(pa, groundY);
+                    const box = { left: b.x - lay.width / 2, top: b.y - cut, width: lay.width, height: lay.height, opacity: fade };
+                    // Negative side insets so a piece's glow past the art box is not shaved off.
+                    return (
+                      <React.Fragment key={"boom" + i}>
+                        <div className="lobj" style={{ ...box, zIndex: BOOM_GROUND_BACK_Z, clipPath: "inset(-50% -50% " + Math.max(0, lay.height - cut) + "px -50%)" }}>{propArtInner(split.disc, lay.width, lay.height, frameIdx, "boomB" + i, lay.box)}</div>
+                        <div className="lobj infront" style={{ ...box, zIndex: 9000 }}>{propArtInner(split.rest, lay.width, lay.height, frameIdx, "boomR" + i, lay.box)}</div>
+                        <div className="lobj infront" style={{ ...box, zIndex: 9000, clipPath: "inset(" + cut + "px -50% -50% -50%)" }}>{propArtInner(split.disc, lay.width, lay.height, frameIdx, "boomF" + i, lay.box)}</div>
+                      </React.Fragment>
+                    );
+                  }
                   return (
                     <div key={"boom" + i} className="lobj infront" style={{ left: b.x - lay.width / 2, top: b.rise ? b.y - lay.height : b.y - lay.height / 2, width: lay.width, height: lay.height, zIndex: 9000, opacity: fade }}>
                       {pa ? propArtInner(pa, lay.width, lay.height, frameIdx, "boom" + i, lay.box) : slotPick ? sym(slotKey, null, Math.max(lay.width, lay.height) * 0.8) : <span style={{ fontSize: Math.max(lay.width, lay.height) * 0.7 + "px", lineHeight: 1, fontFamily: ART_EMOJI_FONT }}>{b.char}</span>}
