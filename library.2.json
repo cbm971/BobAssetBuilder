@@ -1,5 +1,5 @@
 {
- "set": "28863a13503355f4",
+ "set": "8b10bfaa054bb4f7",
  "part": 2,
  "assets": [
   {
@@ -188300,7 +188300,7 @@
     ]
    },
    "scale": 1.25,
-   "savedAt": 1795696073257,
+   "savedAt": 1795696336141,
    "holdPoint": {
     "side": {
      "x": 62,
@@ -188310,11 +188310,11 @@
    "sounds": {
     "attack": "jgcarlo",
     "hurt": "bv8x5o6",
-    "death": "lx4ot2r"
+    "death": "1yvyvbi"
    },
-   "editedFrom": 1792267404800,
+   "editedFrom": 1795696333293,
    "soundVol": {
-    "death": 0.05
+    "death": 0.35
    }
   },
   {
