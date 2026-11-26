@@ -6155,3 +6155,57 @@ player": W to get on when passing it, a key to hop off, and while on it you walk
 - **M18 now:** both flights are Background planks + stringer wood with 📶 cells corner to corner
   (grand 34,59 → 24,69; office 24,99 → 14,109). The top tread cells are deck planks. The hallway
   under each flight is open, so the foyer walks straight into the dining room and F2 into the bedroom.
+
+## SHOP BUY / SELL TABS (2026-11-26)
+
+Blake: "The shop should now have a buy and a sell menu. The buy menu should be as it is. The sell menu
+should not let you sell underwear top or bottom."
+
+- **The panel.** Two square tabs, Buy and Sell, on the left of the header with the Wallet chip pushed
+  right; nothing else was added (no counts, no line saying what a tab is for). Every visit opens on Buy
+  (`openShop` puts `tab: "buy"` on the shop state; `setShopTab` switches it and plays the menu click).
+  The Buy rows are the old rows: the art drawing and the "what" line were lifted into two local helpers
+  (`artOf`, `whatOf`) shared by both tabs, and the Buy rows' outerHTML was hashed with the old App.js and
+  the new one on the same seed and shelf (Vietnam S1's PX Clerk, Army Bob, first Playtest): identical
+  (78ff79b3, 9,248 chars), Done identical too. Only the header and the modal changed.
+- **It hangs from the top now (`.shopModal`).** The two tabs are different lengths (two things on the PX
+  shelf, seven on Army Bob), and the centred `.modal` moved the panel ~80 px up the screen as you
+  switched, taking the tabs away from the mouse. Hung from 8vh, the tabs stay put.
+- **What Sell lists** (`shopSellables`, pure): the held weapon, each carried throwable with one LEFT, and
+  every worn garment from `wornEquipMap` (the look's own clothes too, as the Buy side's trade-in and
+  `shopUnowned` already count them): weapon, throwables, then hat, jacket, shirt, pants, shoes. Stable
+  order, not a price ladder: a timed Int boost running out would otherwise reshuffle the rows.
+  **Underwear is never listed** (`shopSellsSlot`): asked of the slot key AND the garment's own `slot`, so
+  an underwear piece filed under another key is still refused. `sellToShop(key)` re-derives the list and
+  sells only an entry found in it, so the rule cannot be bypassed by a row the panel drew.
+- **The price** (`shopSellPrice`) is `shopTradeInValue`, the number the Buy tab knocks off when the same
+  thing is traded in, so the tabs agree (seen in play: the Buy tab's Veteren Killer shirt was 18 after a
+  6 trade-in for the Army Shirt, and Sell offered +6 for the Army Shirt). A throwable is priced per
+  grenade: its value is the box's (`throwPickupCount`: 3, or 52 cards), so it sells for the box's trade-in
+  times count / box, rounded once (2 of 3 Grenades sold for 3, the full box for 5). Trade-in never reaches
+  the buy price, so selling and buying back is always a loss; a test checks it at every Intelligence.
+  The button is the blue `.gain` face with "+N" and SELL, the colour the Buy tab already uses for money
+  coming to you.
+- **A sale**: `setWallet(wallet + price)`, then the thing leaves: weapon → `setPlaytestWeaponId("")` (the
+  Playtest picker's ✋ Unarmed), garment → `equipped[slot] = null` (emptied on purpose, so the look's own
+  garment does not come back), throwable → `sellThrow`. Then buy's settle-up: HP clamped to the new max,
+  `settleAllyHPCeiling`, `setEquipGen`, `bobAudio.event("menuClick")`. No flash.
+- **The throwable seam.** Another agent is turning the single carried throwable into a stack, so the Sell
+  tab touches the G slot only through `sellableThrows()` (→ `[{ item, count }]`) and `sellThrow(item)`,
+  written against `playtestThrowId` + `throwCarry`. `sellThrow` zeroes `throwCarry` at once (the HUD pips
+  read it on the render the sale causes) and clears `playtestThrowId`, after which the play effect keeps
+  the count at 0. `shopSellables` already takes a LIST of throwables.
+- **Nothing is put on the shelf.** Selling something the stall rolled brings its row back on Buy through
+  `shopUnowned`, which is how it already worked after a trade (seen: Army Boots, the PX's third roll,
+  came back at 7 after selling for 5).
+- **Verified in the running app** (dev server, hidden Browser pane at 1280x800, gated rAF shim, real
+  clicks on the panel's buttons, each button's box checked inside the panel): Playtest on Vietnam S1 as
+  Army Bob with the M16 and 3 Grenades. Sell listed M16 +12, Grenade ×3 +5, Army Hat +9, Jacket +5,
+  Shirt +6, Fatigues +5, Boots +5 and no Tidy Whiteys or Undershirt. Each sale paid the shown price
+  (wallet 0→9→14→26→31), the hat took DEF 22→17 and INT 2→3, the grenades' pips went 3→0 and the throwable
+  picker to none, the M16's ammo bar emptied and the weapon picker went to Unarmed. A bought +1 HP shirt
+  sold with HP forced to 40/40 came back to 35/35. Selling everything left "Nothing to sell." and the
+  equipped map hat/jacket/shirt/pants/shoes = null with the underwear untouched. Tabs switched both ways;
+  Done and Esc closed; re-opening was on Buy. In the game at `/game` (a Load Game save on Vietnam with
+  the same kit): the same list, M16 sold for 12, a grenade thrown then the 2 left sold for 3, the hat for 9
+  (wallet 24), and Quit to Main Menu saved `weaponId ""`, `throwId ""`, `equipped.hat null`, wallet 24.

@@ -4210,6 +4210,60 @@ export const shopUnowned = (items, owned) => {
     return !worn.has(it.id);
   });
 };
+// THE SELL TAB (Blake, 2026-11-26: "The shop should now have a buy and a sell menu. The buy menu
+// should be as it is. The sell menu should not let you sell underwear top or bottom."). What you can
+// hand over the counter for money, one row each: the weapon in your hands, every throwable you carry,
+// and every garment you wear EXCEPT the two underwear slots.
+//
+//   * UNDERWEAR IS NEVER FOR SALE, and the rule lives HERE rather than in the panel: sellToShop only
+//     sells an entry this list hands back, so a row the panel forgot to hide would still be refused.
+//     It is asked of the SLOT key and of the garment's own `slot` both, so an underwear piece filed
+//     under some other key (an old save, a hand-edited look) is caught as well. Every fighter wears
+//     its underwear as part of being dressed at all; selling it strips him to the bare body for
+//     pocket money, which is what Blake ruled out.
+//   * THE LOOK'S OWN CLOTHES ARE SELLABLE. wornEquipMap counts them as worn, exactly as the buy
+//     side's trade-in and shopUnowned already do, so the two tabs agree about what you have on.
+//     Selling one empties its slot ON PURPOSE (null), or the look's garment would be straight back on.
+//   * A CONSUMABLE IS NEVER CARRIED: it is used the moment you take it, so there is nothing to list.
+//   * A THROWABLE IS LISTED ONLY WHILE ONE IS LEFT. A G slot you have thrown empty is not a thing.
+//   * A slot emptied on purpose (null in the map) is not worn and is not listed.
+//
+// `carried` = { weapon, throws: [{ item, count }], worn: slot -> item }. The throwables are a LIST so
+// several kinds carried at once drop straight in without touching this. The order is STABLE — the
+// weapon, the throwables, then the clothes head to toe — and not the buy side's price ladder: a sell
+// price moves with a timed Int boost, and rows hopping about as a drink wears off reads as the list
+// changing under your mouse.
+export const SHOP_SELL_SLOT_ORDER = ["hat", "jacket", "shirt", "pants", "shoes"];
+export const shopSellsSlot = (slot, item) => !UNDER_SLOTS.has(slot) && !(item && UNDER_SLOTS.has(item.slot));
+export const shopSellables = (carried) => {
+  const c = carried || {}, out = [];
+  const w = c.weapon;
+  if (w && w.type === "weapon" && !isThrowable(w.wtype)) out.push({ key: "w:" + w.id, kind: "weapon", item: w });
+  (c.throws || []).forEach((t, i) => {
+    const n = Math.max(0, Math.floor((t && t.count) || 0));
+    if (t && t.item && n > 0) out.push({ key: "t:" + i + ":" + t.item.id, kind: "throw", item: t.item, count: n });
+  });
+  const worn = c.worn || {};
+  const ord = (s) => { const i = SHOP_SELL_SLOT_ORDER.indexOf(s); return i < 0 ? SHOP_SELL_SLOT_ORDER.length : i; };
+  const slots = Object.keys(worn).sort((a, b) => ord(a) - ord(b) || (a < b ? -1 : a > b ? 1 : 0));
+  for (const sl of slots) { const g = worn[sl]; if (g && shopSellsSlot(sl, g)) out.push({ key: "g:" + sl, kind: "worn", item: g, slot: sl }); }
+  return out;
+};
+// WHAT HE PAYS FOR IT: the trade-in value, the very number the Buy tab knocks off a price when the
+// same thing is handed over in a swap (shopTradeInValue), so selling a rifle and trading it in are
+// worth the same and the counter cannot be played one tab against the other. Because a trade-in
+// never reaches the buy price at any Intelligence, selling and buying back is always a loss.
+//
+// A THROWABLE IS PRICED PER GRENADE. Its value is the price of the BOX it is bought or found in
+// (throwPickupCount: 3 unless it says, a pack of 52 cards), so what you carry is that box's trade-in
+// times the share of it you still hold: a full box sells for the box, one grenade of three for a
+// third, rounded once at the end. A Playtest "Start with" stock above the box sells pro rata too.
+export const shopSellPrice = (entry, intelligence) => {
+  if (!entry || !entry.item) return 0;
+  const box = shopTradeInValue(entry.item, intelligence);
+  if (entry.kind !== "throw") return box;
+  return Math.max(0, Math.round(box * Math.max(0, entry.count || 0) / throwPickupCount(entry.item)));
+};
 // Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
 export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
 // How much extra maximum HP the worn kit gives everything fighting for you. Several items stack,
@@ -17058,10 +17112,14 @@ export default function AssetStudio({ game = false } = {}) {
     // different things, which is the entire point of not putting the whole pool on one shelf.
     const rk = (key || "") + "|" + (tag || "").trim().toLowerCase();
     if (!shopRolls.current[rk]) shopRolls.current[rk] = rollShopStock(allAssets, tag, playRunId.current + "|" + rk).map((a) => a.id);
-    const s = { tag, name: name || "", roll: rk };
+    // `tab` is which half of the counter is up. Every visit opens on Buy (Blake: "The buy menu
+    // should be as it is"), so walking up to a shopkeeper looks exactly as it always has.
+    const s = { tag, name: name || "", roll: rk, tab: "buy" };
     shopRef.current = s; setShop(s);
   };
-  const closeShop = () => { shopRef.current = null; setShop(null); };  // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
+  const closeShop = () => { shopRef.current = null; setShop(null); };
+  const setShopTab = (tab) => { const cur = shopRef.current; if (!cur || cur.tab === tab) return; bobAudio.event("menuClick"); const s = { ...cur, tab }; shopRef.current = s; setShop(s); };
+  // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
   // the player — so on a 160-column level the person you just walked up to is very often outside
   // the scrolled viewport, and so is what they are saying. Scoped as tightly as it can be: only on
   // opening, only if it is not already fully visible, and `block/inline: nearest` so a bubble that
@@ -17331,6 +17389,57 @@ export default function AssetStudio({ game = false } = {}) {
     equipped.current = nextMap;
     const parts = equipEffectSummary(before, after);
     flash("🛒 Equipped " + item.name + (parts.length ? " · " + parts.join(" · ") : " · no stat change") + paid);
+    playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
+    settleAllyHPCeiling(after, level && level.enemies);
+    setEquipGen((g) => g + 1);
+  };
+  // ── THE SELL TAB'S THROWABLES: the ONE place it reads or writes the G slot. ──────────────────
+  // Today you carry one throwable (playtestThrowId) and a count of it (throwCarry). These two are
+  // the whole of what the Sell tab knows about that model, so when the throwables become a stack
+  // only these two change: `sellableThrows` hands back what you hold as [{ item, count }] in the
+  // order you would throw it, and `sellThrow(item)` takes every one of that kind off you.
+  const sellableThrows = () => {
+    const it = playtestThrowId ? findA(playtestThrowId) : null;
+    const n = Math.max(0, Math.floor(throwCarry.current || 0));
+    return it && isThrowable(it.wtype) && n > 0 ? [{ item: it, count: n }] : [];
+  };
+  const sellThrow = (item) => {
+    if (!item || playtestThrowId !== item.id) return;
+    // The count goes to 0 NOW, not when the play effect next re-runs: the HUD's pips read it on the
+    // very render this sale causes, and a grenade still drawn there would be a grenade you sold.
+    throwCarry.current = 0; throwPickup.current = null;
+    setPlaytestThrowId(""); // and the play effect, seeing no throwable, keeps the count at 0
+  };
+  // What you are carrying, as the Sell tab lists it (shopSellables). Read fresh each time — the
+  // panel's rows and the sale itself both come through here, so a row is only ever sold if it is
+  // still something you have.
+  const shopSellList = () => shopSellables({
+    weapon: playtestWeaponId ? findA(playtestWeaponId) : null,
+    throws: sellableThrows(),
+    worn: wornEquipMap(findA(playerId), equipped.current),
+  });
+  // SELLING: the money in, the thing out, and then the same settle-up a purchase does, because a
+  // sale moves your kit exactly as a swap does. The entry is looked up again by its key in a FRESH
+  // list rather than trusted from the row, so underwear (never in that list, see shopSellables) and
+  // anything that has already left you cannot be sold, whatever the panel happened to draw.
+  const sellToShop = (key) => {
+    const entry = shopSellList().find((e) => e.key === key);
+    if (!entry) return;
+    bobAudio.event("menuClick"); // 🔊 the same press as a purchase
+    const price = shopSellPrice(entry, shopperIntelligence()); // quoted BEFORE it leaves: a hat's own Int is in the price it fetches
+    if (entry.kind === "weapon") setPlaytestWeaponId(""); // bare hands — the same "" as the Playtest picker's ✋ Unarmed
+    else if (entry.kind === "throw") sellThrow(entry.item);
+    else {
+      // NULL, not delete, for buyFromShop's reason: deleting reads as "never touched" and puts the
+      // look's own garment straight back on you while the shopkeeper is holding it.
+      equipped.current = { ...equipped.current, [entry.slot]: null };
+    }
+    setWallet(wallet.current + price);
+    const base = findA(playerId);
+    const after = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
+    // A garment that carried +HP takes it with it: the bar comes down to the new ceiling, and the
+    // allies' share of a worn ally-HP bonus is trimmed the same way it is on any swap. Done for a
+    // weapon or a throwable too: it changes nothing there, and one path means no sale can skip it.
     playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
     settleAllyHPCeiling(after, level && level.enemies);
     setEquipGen((g) => g + 1);
@@ -32750,35 +32859,75 @@ export default function AssetStudio({ game = false } = {}) {
             weaponId: playtestWeaponId, throwId: playtestThrowId, throwLeft: throwCarry.current,
             wornIds: Object.values(wornNow || {}).map((g) => g && g.id),
           }), intel);
+          const tab = shop.tab === "sell" ? "sell" : "buy";
+          // One drawing of an item for both tabs, so a rifle on the shelf and the same rifle in
+          // your Sell list are the same picture (the ground art, shrunk into the 44px square).
+          const box = 44;
+          const artOf = (it) => {
+            const { pieces: artPieces, bb } = groundArt(it);
+            let plane = null;
+            if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) }; }
+            return (
+              <div className="shopArt" style={{ width: box, height: box }}>
+                {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", alpha: assetAlpha(it), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
+                    : <span className="shopArtIcon">{(it.name || "?").trim().charAt(0).toUpperCase()}</span>}
+              </div>
+            );
+          };
+          // The "what" line under the name. A throwable says how many come in the box on the shelf
+          // and how many you HAVE in the Sell list, because that is what each row is pricing.
+          const whatOf = (it, count) => it.type === "item" ? itemSummary(it)
+            : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×" + (count ?? throwPickupCount(it)) : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
+            : ((SLOTS[it.slot] && SLOTS[it.slot].label) || "Worn") + (it.defense ? " · Defense " + it.defense : "");
+          const selling = tab === "sell" ? shopSellList() : [];
           return (
-            <div className="modal" onClick={closeShop}>
+            <div className="modal shopModal" onClick={closeShop}>
               <div className="dlg shopDlg" onClick={(e) => e.stopPropagation()}>
                 {/* NO EMOJI ANYWHERE IN HERE — Blake's call, and it is why the money symbol is
                     gone too: with nothing to hang a 💵 on, the amounts are labelled in words
                     instead of being given an invented currency sign. Prices are bare numbers and
                     the "Wallet" chip is what anchors them as money. */}
                 <div className="dt">{(shop.name || "Shop").trim()}</div>
-                <div className="shopHead"><span className="shopWallet">Wallet {walletUI}</span></div>
-                {!rolled.length && <p className="mini">He has nothing to sell — nothing in your library is tagged <b>{shop.tag}</b>.</p>}
-                {!!rolled.length && !stock.length && <p className="mini">You already have everything he sells.</p>}
-                {stock.map((it) => {
+                {/* BUY AND SELL (Blake, 2026-11-26): two tabs and nothing else up here — no count on
+                    them and no line saying what each one does. Buy is the shelf exactly as it was. */}
+                <div className="shopHead">
+                  <div className="shopTabs">
+                    <button className={"shopTab" + (tab === "buy" ? " on" : "")} onClick={() => setShopTab("buy")}>Buy</button>
+                    <button className={"shopTab" + (tab === "sell" ? " on" : "")} onClick={() => setShopTab("sell")}>Sell</button>
+                  </div>
+                  <span className="shopWallet">Wallet {walletUI}</span>
+                </div>
+                {tab === "sell" && !selling.length && <p className="mini">Nothing to sell.</p>}
+                {/* THE SELL LIST: what you carry, minus the underwear (shopSellables). Same row as
+                    the shelf's — the picture, the name in its rank colour, the "what" line — and a
+                    blue button, the colour the Buy tab already uses for money coming TO you. */}
+                {selling.map((sl) => {
+                  const it = sl.item, price = shopSellPrice(sl, intel);
+                  return (
+                    <div key={sl.key} className="shopRow">
+                      {artOf(it)}
+                      <div className="shopMeta">
+                        <div className={"shopName rk-" + itemRank(it)}>{it.name}</div>
+                        <div className="hint2">{whatOf(it, sl.kind === "throw" ? sl.count : undefined)}</div>
+                      </div>
+                      <button className="shopBuy gain shopSell" onClick={() => sellToShop(sl.key)} title="Sell it">
+                        {"+" + price}
+                        <span className="shopBuyVerb">sell</span>
+                      </button>
+                    </div>
+                  );
+                })}
+                {tab === "buy" && !rolled.length && <p className="mini">He has nothing to sell — nothing in your library is tagged <b>{shop.tag}</b>.</p>}
+                {tab === "buy" && !!rolled.length && !stock.length && <p className="mini">You already have everything he sells.</p>}
+                {tab === "buy" && stock.map((it) => {
                   const q = shopQuote(it);
-                  const { pieces: artPieces, bb } = groundArt(it);
-                  const box = 44;
-                  let plane = null;
-                  if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) }; }
-                  const what = it.type === "item" ? itemSummary(it)
-                    : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×" + throwPickupCount(it) : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
-                    : ((SLOTS[it.slot] && SLOTS[it.slot].label) || "Worn") + (it.defense ? " · Defense " + it.defense : "");
+                  const what = whatOf(it);
                   // Only a price you PAY can be out of reach; one that pays you back never is.
                   const broke = q.net > 0 && wallet.current < q.net;
                   const gain = q.net < 0;
                   return (
                     <div key={it.id} className={"shopRow" + (broke ? " broke" : "")}>
-                      <div className="shopArt" style={{ width: box, height: box }}>
-                        {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", alpha: assetAlpha(it), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
-                            : <span className="shopArtIcon">{(it.name || "?").trim().charAt(0).toUpperCase()}</span>}
-                      </div>
+                      {artOf(it)}
                       <div className="shopMeta">
                         <div className={"shopName rk-" + itemRank(it)}>{it.name}</div>
                         <div className="hint2">{what}</div>
@@ -34404,6 +34553,19 @@ html,body{margin:0;padding:0;background:#0f1117}
 .shopDlg .dt{letter-spacing:.01em}
 .shopHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;padding-bottom:10px;border-bottom:1px solid rgba(122,136,170,.35)}
 .shopWallet{background:rgba(46,74,52,.92);border:1px solid rgba(122,196,138,.7);border-radius:0;padding:5px 12px;font-size:14px;font-weight:800;color:#c3f5cc}
+/* BUY / SELL (2026-11-26). Two square tabs joined into one bar on the left of the header, the
+   wallet pushed to the right. The lit tab is the brighter one; nothing else marks it. */
+.shopTabs{display:flex}
+.shopTab{border-radius:0;background:rgba(22,27,40,.7);border:1px solid rgba(122,136,170,.5);color:#b4bdd3;padding:5px 18px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
+.shopTab+.shopTab{margin-left:-1px}
+.shopTab:hover:not(.on){background:rgba(52,61,86,.9);color:#e6ebf7}
+.shopTab.on{background:rgba(88,102,138,.95);border-color:rgba(196,206,232,.85);color:#fff;position:relative;cursor:default}
+.shopHead .shopWallet{margin-left:auto}
+/* HUNG FROM THE TOP, NOT CENTRED. The two tabs are different lengths (two things on a shelf, seven
+   on you), and a centred panel jumped up and down the screen as you switched, carrying the tabs
+   away from the mouse that had just clicked one. Hung from a fixed top, the tabs never move. */
+.shopModal{align-items:flex-start;padding-top:8vh}
+.shopModal .shopDlg{max-height:calc(92vh - 28px)}
 .badge.money{background:#1d2b1f;border-color:#3a6b42;color:#8fe59a;font-weight:700}
 .shopRow{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid rgba(122,136,170,.25)}
 .shopRow.broke{opacity:.5}

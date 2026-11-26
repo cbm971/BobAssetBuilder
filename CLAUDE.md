@@ -1016,6 +1016,14 @@ plus traps it does not cover:
   no 🐱×N count by HP bars. The shop panel is square and has no emoji. Dialogue has no bubble,
   answers sit in a grid, and the font is DotGothic16. The pickup banner is Shrikhand, coloured by
   rank. A shop never shows what you already hold or wear (`shopUnowned`).
+- **A shop has a Buy and a Sell tab** (Blake, 2026-11-26: "The sell menu should not let you sell underwear
+  top or bottom"). It opens on Buy, which is the shelf exactly as before; the panel hangs from the top
+  (`.shopModal`) so the tabs never move. Sell lists the held weapon, each carried throwable and every worn
+  garment, the look's own included, and **never `under_top`/`under_bottom`**: the rule is in the pure
+  `shopSellables`/`shopSellsSlot`, and `sellToShop` only sells an entry that list returns. A sale pays
+  `shopSellPrice` = the Buy tab's trade-in (`shopTradeInValue`); a throwable is that box's trade-in times
+  count / `throwPickupCount`. A sold garment's slot goes `null`, a sold weapon leaves bare hands (""). The
+  Sell tab reads and writes the G slot ONLY through `sellableThrows` / `sellThrow`.
 - **Defense:** a hit times `DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Defense)`, DEFENSE_HALF_AT = 35 (10 until
   2026-10-08, 20 until 2026-10-10: "a tad too bullet spongy. IE the football players"). Applied ONCE per
   hit, on the player and on units alike. A look's Defense is the sum of its garments; negative totals

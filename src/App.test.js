@@ -638,6 +638,10 @@ import {
   shopPriceOrder,
   rollShopStock,
   shopUnowned,
+  shopSellables,
+  shopSellPrice,
+  shopSellsSlot,
+  SHOP_SELL_SLOT_ORDER,
   SHOP_SHELF_SIZE,
   SHOP_BUY_MARKUP_AT_0,
   SHOP_BUY_MARKUP_AT_10,
@@ -9922,6 +9926,74 @@ describe("you get the change, and the counter still cannot be farmed", () => {
       const out = shopNetPrice(shopBuyPrice(cheap, i), shopTradeInValue(dear, i));   // negative = you gain
       const back = shopNetPrice(shopBuyPrice(dear, i), shopTradeInValue(cheap, i));  // positive = you pay
       expect(out + back).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("the Sell tab (Blake, 2026-11-26: a buy and a sell menu, never the underwear)", () => {
+  const rifle = { id: "rifle", type: "weapon", wtype: "ranged", name: "Rifle", value: 100 };
+  const bat = { id: "bat", type: "weapon", wtype: "melee", name: "Bat", value: 20 };
+  const nade = { id: "nade", type: "weapon", wtype: "throw", name: "Grenade", value: 6 };
+  const cards = { id: "cards", type: "weapon", wtype: "throw", name: "Cards", value: 10, pickupCount: 52 };
+  const g = (id, slot, value) => ({ id, type: "equipment", slot, name: id, value });
+  const worn = {
+    under_bottom: g("whiteys", "under_bottom", 7), under_top: g("undershirt", "under_top", 4),
+    pants: g("fatigues", "pants", 6), shirt: g("armyshirt", "shirt", 7), shoes: g("boots", "shoes", 6),
+    jacket: g("armyjacket", "jacket", 6), hat: g("armyhat", "hat", 11),
+  };
+
+  test("underwear top and bottom are NEVER listed — by slot, and by the garment's own slot", () => {
+    const keys = shopSellables({ worn }).map((e) => e.slot);
+    expect(keys).not.toContain("under_top");
+    expect(keys).not.toContain("under_bottom");
+    expect(keys).toEqual(["hat", "jacket", "shirt", "pants", "shoes"]); // head to toe
+    // An underwear garment filed under another key (an old save) is still not for sale.
+    const odd = shopSellables({ worn: { shirt: g("undershirt", "under_top", 4), hat: g("hat", "hat", 3) } });
+    expect(odd.map((e) => e.item.id)).toEqual(["hat"]);
+    expect(shopSellsSlot("under_top")).toBe(false);
+    expect(shopSellsSlot("under_bottom")).toBe(false);
+    expect(shopSellsSlot("shirt", g("x", "under_bottom", 1))).toBe(false);
+    expect(shopSellsSlot("shirt", g("x", "shirt", 1))).toBe(true);
+    // Nothing but underwear on: nothing to sell.
+    expect(shopSellables({ worn: { under_top: worn.under_top, under_bottom: worn.under_bottom } })).toEqual([]);
+  });
+
+  test("the weapon, the throwables you still have, then the clothes; an emptied slot is not worn", () => {
+    const out = shopSellables({ weapon: rifle, throws: [{ item: nade, count: 2 }, { item: cards, count: 0 }], worn: { ...worn, hat: null } });
+    expect(out.map((e) => e.kind + ":" + e.item.id)).toEqual(
+      ["weapon:rifle", "throw:nade", "worn:armyjacket", "worn:armyshirt", "worn:fatigues", "worn:boots"]);
+    expect(out[1].count).toBe(2);
+    expect(new Set(out.map((e) => e.key)).size).toBe(out.length); // a key per row
+    // A throwable in the weapon slot is not a held weapon; nothing at all is an empty list.
+    expect(shopSellables({ weapon: nade })).toEqual([]);
+    expect(shopSellables(null)).toEqual([]);
+    expect(SHOP_SELL_SLOT_ORDER).not.toContain("under_top");
+  });
+
+  test("a sale pays exactly the Buy tab's trade-in for the same thing", () => {
+    for (let i = 0; i <= 10; i++) {
+      expect(shopSellPrice({ kind: "weapon", item: rifle }, i)).toBe(shopTradeInValue(rifle, i));
+      expect(shopSellPrice({ kind: "weapon", item: bat }, i)).toBe(shopTradeInValue(bat, i));
+      expect(shopSellPrice({ kind: "worn", item: worn.hat, slot: "hat" }, i)).toBe(shopTradeInValue(worn.hat, i));
+    }
+    expect(shopSellPrice({ kind: "weapon", item: rifle }, 5)).toBe(85);
+    expect(shopSellPrice(null, 5)).toBe(0);
+  });
+
+  test("a throwable sells per grenade: the box's trade-in times the share of the box you hold", () => {
+    const box = shopTradeInValue(nade, 10); // 6 * 0.95 = 5.7 -> 6 for the box of 3
+    expect(shopSellPrice({ kind: "throw", item: nade, count: 3 }, 10)).toBe(box);
+    expect(shopSellPrice({ kind: "throw", item: nade, count: 1 }, 10)).toBe(Math.round(box / 3));
+    expect(shopSellPrice({ kind: "throw", item: nade, count: 6 }, 10)).toBe(box * 2); // a "Start with" stock past the box
+    expect(shopSellPrice({ kind: "throw", item: cards, count: 52 }, 5)).toBe(shopTradeInValue(cards, 5));
+    expect(shopSellPrice({ kind: "throw", item: cards, count: 26 }, 5)).toBe(Math.round(shopTradeInValue(cards, 5) / 2));
+    expect(shopSellPrice({ kind: "throw", item: nade, count: 0 }, 5)).toBe(0);
+  });
+
+  test("selling and buying back is always a loss, at every Intelligence", () => {
+    for (let i = 0; i <= 10; i++) for (const it of [rifle, bat, worn.hat, nade, cards]) {
+      const full = it.wtype === "throw" ? { kind: "throw", item: it, count: throwPickupCount(it) } : { kind: "weapon", item: it };
+      expect(shopSellPrice(full, i)).toBeLessThanOrEqual(shopBuyPrice(it, i));
     }
   });
 });
