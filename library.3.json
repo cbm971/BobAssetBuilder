@@ -1,5 +1,5 @@
 {
- "set": "c0f2da0c6af8294f",
+ "set": "3ae14a20d4cd4513",
  "part": 3,
  "assets": [
   {
@@ -68349,6 +68349,135 @@
    "rank": "common",
    "savedAt": 1794915849825,
    "editedFrom": 1793850583366
+  },
+  {
+   "id": "zanex01",
+   "name": "Zanex",
+   "type": "item",
+   "guideId": "default",
+   "angles": {
+    "front": [
+     {
+      "id": "znx_p0",
+      "kind": "stadium",
+      "x": 34,
+      "y": 66,
+      "w": 96,
+      "h": 46,
+      "color": "#8ac0eb",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b",
+      "rot": -18
+     },
+     {
+      "id": "znx_p1",
+      "kind": "rect",
+      "x": 80.5,
+      "y": 71,
+      "w": 3,
+      "h": 36,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -18
+     },
+     {
+      "id": "znx_p2",
+      "kind": "roundrect",
+      "x": 40,
+      "y": 118,
+      "w": 132,
+      "h": 44,
+      "color": "#f5f7fa",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": true,
+      "outlineColor": "#1d1b1b"
+     },
+     {
+      "id": "znx_p3",
+      "kind": "rect",
+      "x": 71.5,
+      "y": 122,
+      "w": 3,
+      "h": 36,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "znx_p4",
+      "kind": "rect",
+      "x": 104.5,
+      "y": 122,
+      "w": 3,
+      "h": 36,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "znx_p5",
+      "kind": "rect",
+      "x": 137.5,
+      "y": 122,
+      "w": 3,
+      "h": 36,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "effect": {
+    "kind": "nonHostile",
+    "duration": 15
+   },
+   "categories": [
+    "T1",
+    "Drug",
+    "Item"
+   ],
+   "value": 8,
+   "rank": "common",
+   "dropWeight": 1,
+   "savedAt": 1795699420979
   },
   {
    "id": "zbrshrt",
