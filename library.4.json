@@ -1,5 +1,5 @@
 {
- "set": "f3281a0e042f745f",
+ "set": "0ce8edcd2f58886a",
  "part": 4,
  "levels": [
   {
@@ -610713,6 +610713,17 @@
    "editedFrom": 1791715730386
   },
   {
+   "id": "1xq83kq",
+   "type": "sound",
+   "name": "739474__sadiquecat__wd-40-quarter-full-flame-thrower-8",
+   "category": "Weapons",
+   "clip": "1d6e17db0daf69125e16b8521065.wav",
+   "bytes": 1078358,
+   "dur": 1.87,
+   "savedAt": 1795696001136,
+   "editedFrom": 1795695995487
+  },
+  {
    "id": "32tmy0z",
    "type": "sound",
    "name": "442879__qubodup__elephant-scream-fake",
@@ -610994,6 +611005,16 @@
    "editedFrom": 1792107295607
   },
   {
+   "id": "bv8x5o6",
+   "type": "sound",
+   "name": "179048__sound-science__human-cat-shrill-and-hiss",
+   "category": "",
+   "clip": "1478fca451aed90b78de1d196df8.wav",
+   "bytes": 772616,
+   "dur": 4.38,
+   "savedAt": 1795695991661
+  },
+  {
    "id": "bztut05",
    "type": "sound",
    "name": "396270__evanboyerman__exploding-car-with-fire-mixed",
@@ -611092,6 +611113,17 @@
    "editedFrom": 1792265670624
   },
   {
+   "id": "lhxmbye",
+   "type": "sound",
+   "name": "542590__so0rec__mumbling",
+   "category": "Dialogue",
+   "clip": "0f3b7430a31a5319c89a648fd0f2.wav",
+   "bytes": 1007252,
+   "dur": 11.34,
+   "savedAt": 1795696018452,
+   "editedFrom": 1795695980654
+  },
+  {
    "id": "lx4ot2r",
    "type": "sound",
    "name": "ANMLRept_Large Herbivore Roar 01_344 Audio_Dinosaurs Vol 2",
@@ -611142,6 +611174,16 @@
    "dur": 17.75,
    "savedAt": 1792265661237,
    "editedFrom": 1792265650351
+  },
+  {
+   "id": "o9gfu7z",
+   "type": "sound",
+   "name": "587815__afrosoundbr__hissing-noise",
+   "category": "",
+   "clip": "017ebeca89d8410b9972a34b16e1.wav",
+   "bytes": 262244,
+   "dur": 2.73,
+   "savedAt": 1795695988515
   },
   {
    "id": "pr9c2n5",
