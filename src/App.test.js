@@ -658,8 +658,11 @@ import {
   UNIT_HP_BAR_SHOW_MS,
   unitStatusZ,
   unitHiddenByFront,
+  itemCoverState,
   UNIT_STATUS_Z,
   SCENE_LABEL_Z,
+  FRONT_REVEAL_LABEL_Z,
+  TAKE_CALLOUT_Z,
   HP_BAR_HOT_MS,
   levelLoadGroups,
   characterPickerGroups,
@@ -7352,12 +7355,14 @@ describe("the Solid checkbox no longer decides what draws on top", () => {
     }
   });
 
-  // "There is item text and dialogue emojis going through front layer" (2026-09-27). A pedestal's
-  // item name, the take callout, a drop and the talk prompt are scene, not HUD: over the units,
-  // bodies and HP bars, under every Front prop and the Front paint — and the stylesheet has to
-  // actually use these numbers, not a bare 8500 that quietly puts one back over the wall.
-  test("floating item and talk labels sit behind the Front layer", () => {
+  // "There is item text and dialogue emojis going through front layer" (2026-09-27). Un-revealed
+  // item names, drops and the talk prompt are scene, not HUD: over the units, bodies and HP bars,
+  // under every Front prop and the Front paint. Once you share the Front cover with an item its
+  // name lifts just over Front paint (FRONT_REVEAL_LABEL_Z), and the hover comparison callout
+  // (.takeCallout) always sits in front of Front blocks and props (TAKE_CALLOUT_Z, 2026-11-26).
+  test("floating item and talk labels sit behind Front unless revealed, while takeCallout stays unobstructed in front", () => {
     const frontFloor = levelObjectZIndex({ lay: "front" }, 0);
+    const frontCeiling = levelObjectZIndex({ lay: "front" }, LAYER_BAND * 10);
     for (const z of Object.values(SCENE_LABEL_Z)) {
       expect(z).toBeGreaterThan(PLAYER_Z);
       expect(z).toBeGreaterThan(CORPSE_Z);
@@ -7367,12 +7372,22 @@ describe("the Solid checkbox no longer decides what draws on top", () => {
     }
     expect(SCENE_LABEL_Z.drop).toBeLessThan(SCENE_LABEL_Z.label);
     expect(SCENE_LABEL_Z.label).toBeLessThan(SCENE_LABEL_Z.talk);
+    expect(FRONT_REVEAL_LABEL_Z).toBeGreaterThan(FRONT_CELL_Z);
+    expect(FRONT_REVEAL_LABEL_Z).toBeGreaterThan(frontCeiling);
+    expect(FRONT_REVEAL_LABEL_Z).toBeLessThan(8000);
+    expect(TAKE_CALLOUT_Z).toBeGreaterThan(FRONT_CELL_Z);
+    expect(TAKE_CALLOUT_Z).toBeGreaterThan(frontCeiling);
+    expect(TAKE_CALLOUT_Z).toBeGreaterThan(9100);     // over player status (8000), booms (9000), and .hitCallout (9100)
+    expect(TAKE_CALLOUT_Z).toBeLessThan(9500);        // under .doorPromptFloat (9500) and .talkBubble (9600)
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    const zSrc = (sel) => { const m = src.match(new RegExp("\\n\\" + sel + "\\{[^}]*z-index:([^;]+);")); return m ? m[1] : null; };
-    expect(zSrc(".takeCallout")).toBe("${SCENE_LABEL_Z.label}");
+    const zSrc = (sel) => { const m = src.match(new RegExp("\\n\\" + sel + "\\{[^}]*z-index:(\\$\\{[^}]+\\}|[^;}]+)[;}]")); return m ? m[1] : null; };
+    expect(zSrc(".takeCallout")).toBe("${TAKE_CALLOUT_Z}");
     expect(zSrc(".pedLabels")).toBe("${SCENE_LABEL_Z.label}");
     expect(zSrc(".enemyDropPlay")).toBe("${SCENE_LABEL_Z.drop}");
     expect(zSrc(".talkCallout")).toBe("${SCENE_LABEL_Z.talk}");
+    expect(Number(zSrc(".pickupBanner"))).toBeGreaterThan(Number(zSrc(".consumeFx")));
+    expect(Number(zSrc(".modal"))).toBeGreaterThan(Number(zSrc(".pickupBanner")));
+    expect(src).toMatch(/\.lgrid\{[^}]*isolation:isolate/);
   });
 
   test("later in the draw order is always higher, and a runaway count cannot leak into the next rung", () => {
@@ -17648,5 +17663,80 @@ describe("📢 Sound wave (hold Block to push enemies and shots back)", () => {
     expect(unitWantsSoundWave({ ...base, sameFloor: false })).toBe(false);
     expect(unitWantsSoundWave({ ...base, busy: true })).toBe(false);
     expect(unitWantsSoundWave({ ...base, sw: null })).toBe(false);
+  });
+});
+
+describe("item comparison & conditional item name visibility behind Front", () => {
+  const C = 30;
+  const sheet = (r0, r1, c0, c1) => {
+    const f = {};
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) f[r + "," + c] = { c: "#445566" };
+    return f;
+  };
+  const pedBoxAt = (r, c) => ({ x: (c + 0.5 - 0.95) * C, y: (r + 1 - 2.3) * C, w: 1.9 * C, h: 2.3 * C });
+
+  test("uncovered items are visible and stay on SCENE_LABEL_Z", () => {
+    expect(itemCoverState({}, [], pedBoxAt(10, 10), C, C, null)).toEqual({ hidden: false, shared: false });
+  });
+
+  test("item behind painted Front wall is hidden until the player enters that connected Front region", () => {
+    const front = sheet(6, 11, 8, 13);
+    const box = pedBoxAt(10, 10);
+    // Player standing outside (sharedCells = null or another disconnected Front region): name hidden
+    expect(itemCoverState(front, [], box, C, C, null)).toEqual({ hidden: true, shared: false });
+    const otherRegion = connectedFrontRegion({ ...front, "10,2": { c: "#111" } }, ["10,2"]);
+    expect(itemCoverState(front, [], box, C, C, otherRegion)).toEqual({ hidden: true, shared: false });
+    // Player behind any cell of the same connected Front wall: revealed and lifted
+    const sameRegion = connectedFrontRegion(front, ["6,8"]);
+    expect(itemCoverState(front, [], box, C, C, sameRegion)).toEqual({ hidden: false, shared: true });
+  });
+
+  test("item behind a Front prop or object is hidden until the player overlaps that object", () => {
+    const box = pedBoxAt(10, 10);
+    const objBehindFalse = [{ x: 9 * C, y: 8 * C, w: 3 * C, h: 3 * C, behind: false }];
+    expect(itemCoverState({}, objBehindFalse, box, C, C, null)).toEqual({ hidden: true, shared: false });
+    const objBehindTrue = [{ x: 9 * C, y: 8 * C, w: 3 * C, h: 3 * C, behind: true }];
+    expect(itemCoverState({}, objBehindTrue, box, C, C, null)).toEqual({ hidden: false, shared: true });
+  });
+
+  test("compound cover stays hidden until the player is behind every Front obstacle over the item", () => {
+    const front = sheet(6, 11, 8, 13);
+    const sameRegion = connectedFrontRegion(front, ["6,8"]);
+    const box = pedBoxAt(10, 10);
+    const bushOutside = [{ x: 9 * C, y: 8 * C, w: 3 * C, h: 3 * C, behind: false }];
+    expect(itemCoverState(front, bushOutside, box, C, C, sameRegion)).toEqual({ hidden: true, shared: false });
+    const bushInside = [{ x: 9 * C, y: 8 * C, w: 3 * C, h: 3 * C, behind: true }];
+    expect(itemCoverState(front, bushInside, box, C, C, sameRegion)).toEqual({ hidden: false, shared: true });
+  });
+
+  test("partial overlap from a prop beside the pedestal does not hide its name", () => {
+    const box = pedBoxAt(10, 10); // x from 9.55*C to 11.45*C -> left column of 3x3 is x = 9.867*C
+    const beside = [{ x: 6 * C, y: 8 * C, w: 4.1 * C, h: 3 * C, behind: false }]; // covers 3/9 samples (<= 4)
+    expect(itemCoverState({}, beside, box, C, C, null)).toEqual({ hidden: false, shared: false });
+  });
+
+  test("shallow 1-row Front water over a drop caption reveals cleanly when standing in it", () => {
+    const front = sheet(10, 10, 8, 12);
+    const dropBox = { x: 10 * C - 24, y: 11 * C - 64, w: 48, h: 64 }; // bottom row (3/9) sits in row 10
+    expect(itemCoverState(front, [], dropBox, C, C, null)).toEqual({ hidden: false, shared: false });
+    const inWater = connectedFrontRegion(front, ["10,8"]);
+    expect(itemCoverState(front, [], dropBox, C, C, inWater)).toEqual({ hidden: false, shared: true });
+  });
+
+  test("seam-neighbour Front paint is checked via parts and never leaks live-level sharedCells", () => {
+    const A = { id: "a", cols: 60, rows: 20, front: sheet(6, 11, 8, 13), fg: {} };
+    const B = { id: "b", cols: 60, rows: 20, front: sheet(6, 11, 8, 13), fg: {} };
+    const parts = runWorldParts(A, { E: { key: "b", level: B, off: { x: 60 * C, y: 0 } } }, C);
+    const liveShared = connectedFrontRegion(A.front, ["6,8"]);
+    const pedInB = pedBoxAt(10, 70); // same coords inside B (8..13 in B)
+    expect(itemCoverState(A.front, [], pedInB, C, C, liveShared, undefined, parts)).toEqual({ hidden: true, shared: false });
+    const pedInA = pedBoxAt(10, 10);
+    expect(itemCoverState(A.front, [], pedInA, C, C, liveShared, undefined, parts)).toEqual({ hidden: false, shared: true });
+  });
+
+  test("clear or ramp Front cells do not occlude an item name", () => {
+    const front = sheet(6, 11, 8, 13);
+    const box = pedBoxAt(10, 10);
+    expect(itemCoverState(front, [], box, C, C, null, () => true)).toEqual({ hidden: false, shared: false });
   });
 });

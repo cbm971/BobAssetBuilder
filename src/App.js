@@ -15129,16 +15129,18 @@ export const topdownDepthZ = (playerFeet, unitFeet, cell) => {
   return unitFeet > playerFeet ? 5001 + steps : 4999 - steps;
 };
 // THE WORDS THAT FLOAT IN THE ROOM GO BEHIND THE FRONT LAYER TOO (Blake, 2026-09-27: "There is
-// item text and dialogue emojis going through front layer"). A pedestal's item name, the
-// E ⇄ take callout, the loot lying on the ground and "E Talk to The Chaplin" all sat at 7000–9600,
-// over Front paint (6000), so in M6 the Chaplin was hidden behind the church wall while his talk
-// prompt hung on the wall's face, and M3's pedestal named its item through the trailer. They are
-// part of the scene, like the 💬 over a waiting NPC (UNIT_STATUS_Z) that already hid correctly: each
-// now sits in the gap above the units, corpses and HP bars (5000–5062) and below Front props
-// (5101+) and Front paint, in the order they stacked before — drops, then labels, then talk. The
-// door prompt keeps its 9500 (a door is usually IN the Front wall), and the conversation bubble
-// its 9600 (once you are talking, the conversation is the screen).
+// item text and dialogue emojis going through front layer"). An un-revealed pedestal's item name,
+// the loot lying on the ground and "E Talk to The Chaplin" are part of the scene, like the 💬 over
+// a waiting NPC (UNIT_STATUS_Z): each sits in the gap above the units, corpses and HP bars
+// (5000–5062) and below Front props (5101+) and Front paint (6000), in order — drops, then labels,
+// then talk. Once you are behind the SAME Front obstacle hiding an item, its name lifts just over
+// Front paint (FRONT_REVEAL_LABEL_Z) so it is not chopped off; and the E / comparison callout
+// (TAKE_CALLOUT_Z) always sits in front of Front blocks and Front props (Blake, 2026-11-26: sewer
+// Front lights/blocks covered item hover descriptions) just below the door prompt (9500) and
+// conversation bubble (9600).
 export const SCENE_LABEL_Z = { drop: 5063, label: 5070, talk: 5080 };
+export const FRONT_REVEAL_LABEL_Z = 6010;
+export const TAKE_CALLOUT_Z = 9400;
 // 💣 A GRENADE IN FLIGHT IS AMONG THE BODIES (2026-11-15). Blake: "enemy grenades go in front of a
 // front layer wall, they should be roughly on the same layer as players and enemies if not right in
 // front of those." A thrown thing sat at 8000 from the day it was added, over Front paint (6000) and
@@ -15268,6 +15270,52 @@ export const unitHiddenByFront = (front, fg, box, CW, CH, seeThrough, parts) => 
     return false;
   }
   return covered > 0;
+};
+// ITEM NAMES BEHIND FRONT (2026-11-26). Blake: "if an item is behind something that you can't see
+// it's name unless you are also behind that thing." Sitting at SCENE_LABEL_Z (under Front props
+// 5101+ and Front paint 6000) hides only the pixels the obstacle covers: a wide name or a caption
+// perched above a 2-row pocket or a Front bush (Forest M1, M10; Trailer Park M11) poked out into
+// open air, and frontFadeMap's 5-cell halo faded a building's outer wall while you stood outside.
+// Sample 3x3 points over the item's box (in live-level pixels; `parts` maps across run seams):
+//   - unshared Front cell (not clear/ramp, and not in `sharedCells` = xrayRegionRef for the live
+//     level) OR unshared Front object (`!R.behind`) -> unsharedCover++
+//   - otherwise, shared Front cell (`sharedCells.has(k)`) OR shared Front object (`R.behind`)
+//     -> sharedCover++
+// `hidden` (>= 5/9 unshared) hides the caption completely until you are behind the same obstacle
+// (while a prop merely standing beside a pedestal, <= 3/9, leaves it alone). `shared` (!hidden &&
+// sharedCover > 0) lifts the caption to FRONT_REVEAL_LABEL_Z so a wide name is not clipped to the
+// 1.9-cell pedestalCoverKeys window once you step inside.
+export const itemCoverState = (front, frontObjs, box, CW, CH, sharedCells, isClearCell, parts) => {
+  if ((!front && !parts && !(frontObjs && frontObjs.length)) || !box || !(box.w > 0) || !(box.h > 0)) {
+    return { hidden: false, shared: false };
+  }
+  const nObjs = frontObjs ? frontObjs.length : 0;
+  let unsharedCover = 0, sharedCover = 0;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+    const x = box.x + box.w * (i + 0.5) / 3, y = box.y + box.h * (j + 0.5) / 3;
+    const r = Math.floor(y / CH), c = Math.floor(x / CW);
+    let F = front, k = r + "," + c, inLive = true;
+    if (parts) {
+      const P = worldPartOfCell(parts, r, c);
+      if (P) { F = P.lv.front; k = (r - P.dr) + "," + (c - P.dc); inLive = !P.side; }
+      else { F = null; inLive = false; }
+    }
+    const cell = F && F[k];
+    const cellCovers = !!(cell && !(isClearCell && isClearCell(cell)));
+    const cellShared = cellCovers && !!(inLive && sharedCells && sharedCells.has(k));
+    let unsharedObj = false, sharedObj = false;
+    for (let m = 0; m < nObjs; m++) {
+      const R = frontObjs[m];
+      if (x >= R.x && x <= R.x + R.w && y >= R.y && y <= R.y + R.h) {
+        if (R.behind) sharedObj = true;
+        else { unsharedObj = true; break; }
+      }
+    }
+    if ((cellCovers && !cellShared) || unsharedObj) unsharedCover++;
+    else if (cellShared || sharedObj) sharedCover++;
+  }
+  const hidden = unsharedCover >= 5;
+  return { hidden, shared: !hidden && sharedCover > 0 };
 };
 export const levelObjectZIndex = (o, ord) =>
   (LAYER_BASE_Z[objectLay(o)] ?? LAYER_BASE_Z.bg) + 1 + Math.max(0, Math.min(LAYER_BAND - 1, Math.round(ord) || 0));
@@ -29968,6 +30016,46 @@ export default function AssetStudio({ game = false } = {}) {
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
     const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null; // used by the render below; the physics loop above has its own copy in its own closure
     const playAllyHpBonus = allyMaxHPBonus(playerAsset?.effects); // ...and its own copy of the ally ceiling, for the HP bars
+    const playWorldParts = play && playUnitSets.length ? playUnitSets[0].parts : null;
+    const isClearFrontCell = (cell) => fgHasDiagonalShape(cell) || !!(TEXTURES[(resolveTexture(texLib, cellTexId(cell)) || {}).tex] || {}).clear;
+    let _playFrontRects = null;
+    const getPlayFrontRects = () => {
+      if (_playFrontRects) return _playFrontRects;
+      const rects = [];
+      if (play) {
+        const p = player.current;
+        const pShape = sideBodyShape(playerAsset);
+        const pw = LV_CELL * PLAYER_RENDER_W_CELLS * pShape.fraction;
+        const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
+        if (runObjects) {
+          for (const { nk, off, live, items } of runObjects) {
+            const haz = live ? hazLife.current : ((roomState.current[nk] || {}).haz || {});
+            for (const it of items) {
+              const o = it.o;
+              if (!(o && (o.inFront || objectLay(o) === "front"))) continue;
+              if (o._thrown && !hazardStillBurning(haz, it.k)) continue;
+              if (vehIsLive(nk, it.k, it.si)) continue;
+              const layout = it._assets === allAssets ? it._layout : (it._assets = allAssets, it._layout = levelObjectPixelLayout(o));
+              const left = off.x + it.baseLeft, top = off.y + it.baseTop;
+              if (offScreen(left, top, layout.width, layout.height)) continue;
+              const behind = p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
+              rects.push({ x: left, y: top, w: layout.width, h: layout.height, behind });
+            }
+          }
+        } else {
+          for (const { r, c, k, si, o } of lvFxInFrontMeta) {
+            if (o._thrown && !hazardStillBurning(hazLife.current, k)) continue;
+            if (vehIsLive(vehNk(level), k, si)) continue;
+            const left = objNudgedLeft(o, c, LV_CELL), top = objNudgedTop(o, r, LV_CELL);
+            const layout = levelObjectPixelLayout(o);
+            if (offScreen(left, top, layout.width, layout.height)) continue;
+            const behind = p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
+            rects.push({ x: left, y: top, w: layout.width, h: layout.height, behind });
+          }
+        }
+      }
+      return (_playFrontRects = rects);
+    };
     // What pressing E on an item will actually DO: whether something of yours goes back on the spot
     // (`swap`), and the rows pickupChangeRows prints — each stat change on its own line, then every
     // ability the item has, described. Computed exactly the way the E handler resolves the take, so
@@ -31929,10 +32017,24 @@ export default function AssetStudio({ game = false } = {}) {
                   let dPlane = null;
                   if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) }; }
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
-                  return <div key={"drop" + k} className={"enemyDropPlay rk-" + itemRank(item)} style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
-                    <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", alpha: assetAlpha(item), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
-                    <div className={"enemyDropCap rk-" + itemRank(item)}>{item.name}</div>
-                  </div>;
+                  const dropPromptOn = !!(pedPrompt && pedPrompt.key === "drop:" + k);
+                  const orbSz = bb ? dBox : 28;
+                  const dropCover = itemCoverState(lv.front, getPlayFrontRects(), { x: drop.x - orbSz / 2, y: drop.y - orbSz - 16, w: orbSz, h: orbSz + 16 }, LV_CELL, LV_CELL, xrayRegionRef.current, isClearFrontCell, playWorldParts);
+                  const hideDropCap = !dropPromptOn && dropCover.hidden;
+                  const liftDropCap = dropPromptOn || (!dropCover.hidden && dropCover.shared);
+                  return (
+                    <React.Fragment key={"drop" + k}>
+                      <div className={"enemyDropPlay rk-" + itemRank(item)} style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
+                        <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", alpha: assetAlpha(item), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
+                        <div className={"enemyDropCap rk-" + itemRank(item)} style={(hideDropCap || liftDropCap) ? { visibility: "hidden" } : undefined}>{item.name}</div>
+                      </div>
+                      {liftDropCap && (
+                        <div className={"enemyDropPlay rk-" + itemRank(item)} style={{ left: drop.x, top: drop.y, zIndex: dropPromptOn ? TAKE_CALLOUT_Z : FRONT_REVEAL_LABEL_Z }}>
+                          <div className={"enemyDropCap rk-" + itemRank(item)}>{item.name}</div>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
                 })}
                 {playPedSets.map((pset) => pset.lv.markers && Object.keys(pset.lv.markers).map((k) => {
                   const m = pset.lv.markers[k]; if (!m || m.kind !== "pedestal") return null;
@@ -31944,7 +32046,8 @@ export default function AssetStudio({ game = false } = {}) {
                   // shows "no match" below, so a mis-tagged filter is still obvious in the editor.
                   if (!rolled && pset.depleted.has(k)) return null;
                   const boxW = LV_CELL * PED_BOX_W_CELLS, boxH = LV_CELL * PED_BOX_H_CELLS;
-                  if (offScreen(pedX + LV_CELL / 2 - boxW / 2, pedY - boxH + LV_CELL, boxW, boxH)) return null; // out of view: nothing to build (the item is still there in the books)
+                  const pedLeft = pedX + LV_CELL / 2 - boxW / 2, pedTop = pedY - boxH + LV_CELL;
+                  if (offScreen(pedLeft, pedTop, boxW, boxH)) return null; // out of view: nothing to build (the item is still there in the books)
                   const { pieces: artPieces, bb } = groundArt(rolled);
                   // Seen through a wall (the loop decided which pedestals that sheet hides, and has
                   // already faded the Front cells over this one). How washed out it draws depends on
@@ -31960,6 +32063,11 @@ export default function AssetStudio({ game = false } = {}) {
                     : undefined;
                   let planeStyle = null;
                   if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})`, ...groundRingVars(sc) }; }
+                  const pedPromptOn = !!(play && pset.live && pedPrompt && pedPrompt.key === k);
+                  const pedCover = play ? itemCoverState(lv.front, getPlayFrontRects(), { x: pedLeft, y: pedTop, w: boxW, h: boxH }, LV_CELL, LV_CELL, xrayRegionRef.current, isClearFrontCell, playWorldParts) : { hidden: false, shared: false };
+                  const hidePedCap = !pedPromptOn && pedCover.hidden;
+                  const pedLabelZ = pedPromptOn ? TAKE_CALLOUT_Z : (!hidePedCap && (xrayed || pedCover.shared)) ? FRONT_REVEAL_LABEL_Z : undefined;
+                  const pedLabelOpacity = !pedPromptOn && xrayed && ghost > 0.01 ? 1 - 0.45 * ghost : undefined;
                   // The "E ⇄ + what changes" callout for the pedestal you are standing on is NOT drawn
                   // here any more — it floats over the player's head (see takeCallout, drawn with the
                   // player), because as a stack of rows it grew up the pedestal straight across the body
@@ -31971,12 +32079,12 @@ export default function AssetStudio({ game = false } = {}) {
                     // stuck down there too — the player's head covered the name of the very thing
                     // they were standing on to read it. Same box, same coordinates, own layer.
                     <React.Fragment key={"ped" + pedNs + k}>
-                      <div className={"pedestalPlay" + (xrayed ? " xray" : "") + ""} style={{ left: pedX + LV_CELL / 2 - boxW / 2, top: pedY - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
+                      <div className={"pedestalPlay" + (xrayed ? " xray" : "") + ""} style={{ left: pedLeft, top: pedTop, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
                         <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + pedNs + k, keyPrefix: "ped" + pedNs + k + "_", alpha: assetAlpha(rolled), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
                       </div>
                       {(rolled || !bb) && (
-                        <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: pedX + LV_CELL / 2 - boxW / 2, top: pedY - boxH + LV_CELL, width: boxW, height: boxH }}>
-                          {rolled && <div className={"pedestalCap rk-" + itemRank(rolled)}>{rolled.name}</div>}
+                        <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: pedLeft, top: pedTop, width: boxW, height: boxH, ...(pedLabelZ != null ? { zIndex: pedLabelZ } : {}), ...(pedLabelOpacity != null ? { opacity: pedLabelOpacity } : {}) }}>
+                          {rolled && <div className={"pedestalCap rk-" + itemRank(rolled)} style={hidePedCap ? { visibility: "hidden" } : undefined}>{rolled.name}</div>}
                           {/* The "no match" warning rides up here with the rest of the words, so a
                               mis-tagged pedestal still says so with the player standing on it. The
                               cap and callout are absolutely positioned and so sit outside the flex
@@ -34660,11 +34768,10 @@ html,body{margin:0;padding:0;background:#0f1117}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
 .pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11px;font-weight:700}
 /* The anchor is a zero-size point over the player's head (above the HP and reload bars); the
-   callout stands on it, centred, and grows UP one row at a time. It is on the labels' rung
-   (SCENE_LABEL_Z.label): over the player, but UNDER Front props and Front paint. It used to sit
-   over the paint too, and Blake called that item text going through the Front layer — behind a
-   Front wall the player is hidden, and now so is what the player is about to pick up. */
-.takeCallout{position:absolute;width:0;height:0;z-index:${SCENE_LABEL_Z.label};pointer-events:none}
+   callout stands on it, centred, and grows UP one row at a time. It sits at TAKE_CALLOUT_Z, above
+   Front props (5101+) and Front paint (6000) so standing on or hovering over an item behind a
+   Front light, bush, or wall always leaves the item description and comparison unobstructed. */
+.takeCallout{position:absolute;width:0;height:0;z-index:${TAKE_CALLOUT_Z};pointer-events:none}
 .pedcallout{position:absolute;left:0;bottom:0;width:max-content;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;white-space:nowrap;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:700;line-height:1.15;letter-spacing:.01em}
 /* 🎁 THE TAKE CALLOUT, AND THE PICKUP BANNER'S ROWS (both drawn by pickupRowsView). One change per
    line, which is what Blake asked for, in Chakra Petch — squared-off, gamey and still easy to read
@@ -34712,8 +34819,9 @@ html,body{margin:0;padding:0;background:#0f1117}
    the thing they were standing on. The labels are lifted out into their own layer instead — the
    same trick .unitStatus already plays for an enemy's HP bar, which was stuck behind scenery for
    exactly the same reason. SCENE_LABEL_Z.label is above the player and the drops, below the talk
-   prompt, and below Front props and Front paint, so a pedestal behind a Front wall no longer
-   names its item through the wall (2026-09-27). */
+   prompt, and below Front props and Front paint, so an un-revealed pedestal behind a Front wall
+   never names its item through the wall; once the player is also behind the same Front cover (or
+   hovering over the item), .pedLabels lifts inline to FRONT_REVEAL_LABEL_Z / TAKE_CALLOUT_Z. */
 .pedLabels{position:absolute;z-index:${SCENE_LABEL_Z.label};pointer-events:none;display:flex;align-items:center;justify-content:center}
 /* "no match" is a WARNING, not a caption — a pedestal whose filter found nothing in the library.
    It keeps its red (it is the only thing on screen that says a filter is mis-tagged); it just

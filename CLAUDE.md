@@ -736,9 +736,11 @@ plus traps it does not cover:
   OVERLAPPING object on the same layer and never change layer.
 - **Z ladder** (all inside `.lgrid`, which has `isolation:isolate`): bg cells 1000, fg 2000, climb
   and pedestals 4000, 🎬 animation stages 4990, player and units 5000, corpses 5050, unit status 5060–5062, drops 5063,
-  labels 5070 / talk prompt 5080 (`SCENE_LABEL_Z`), front objects 5101+, front paint 6000, door
-  prompt 9500, conversation 9600. A z-index only counts inside one stacking context, so a new
-  in-level label goes in the shared label layer, never inside the thing it labels.
+  labels 5070 / talk prompt 5080 (`SCENE_LABEL_Z`), front objects 5101+, front paint 6000, revealed item names
+  6010 (`FRONT_REVEAL_LABEL_Z`, lifted only when `itemCoverState` finds you share every Front obstacle covering
+  the item — otherwise hidden behind unshared Front), item hover comparison callout 9400 (`TAKE_CALLOUT_Z`,
+  always in front of Front blocks and props), door prompt 9500, conversation 9600. A z-index only counts inside
+  one stacking context, so a new in-level label goes in the shared label layer, never inside the thing it labels.
 - **Facing:** enemy art faces LEFT and player art faces RIGHT (`enemyNeedsFlip`,
   `playerSpriteMirrored`). A unit's facing has ONE gated writer (`wantFace` → `holdFacing`). Never
   add another direct `ep.face` write in the AI loop.
