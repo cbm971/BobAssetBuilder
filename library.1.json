@@ -1,5 +1,5 @@
 {
- "set": "81eba89a07855a3d",
+ "set": "0bc9fd21116501da",
  "part": 1,
  "assets": [
   {
@@ -720071,7 +720071,10 @@
     "Gun",
     "Army"
    ],
-   "sounds": {},
+   "sounds": {
+    "hit": "4uz6xn1",
+    "fire": "1xq83kq"
+   },
    "groups": {
     "front": [],
     "back": [],
@@ -726638,10 +726641,9 @@
      }
     ]
    },
-   "savedAt": 1792635908603,
-   "editedFrom": 1792635904811,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "savedAt": 1795696908299
   },
   {
    "id": "flymsk1",

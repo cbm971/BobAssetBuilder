@@ -1,5 +1,5 @@
 {
- "set": "81eba89a07855a3d",
+ "set": "0bc9fd21116501da",
  "part": 2,
  "assets": [
   {
@@ -458067,7 +458067,9 @@
     "Gun",
     "Vietnam"
    ],
-   "sounds": {},
+   "sounds": {
+    "fire": "1xq83kq"
+   },
    "groups": {
     "front": [],
     "back": [],
@@ -464529,12 +464531,10 @@
      }
     ]
    },
-   "savedAt": 1792848611953,
+   "savedAt": 1795696898145,
    "iceDamage": 10,
    "iceDamageDps": 1,
-   "editedFrom": 1792848609677,
-   "boomerang": false,
-   "pickupCount": 3
+   "editedFrom": 1792848611953
   },
   {
    "id": "nstlmp1",
