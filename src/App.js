@@ -2980,11 +2980,13 @@ export const throwPickupCount = (a) => Math.max(1, Math.min(THROW_PICKUP_MAX, Ma
 // These are the only functions that change a stack. The play loop, the HUD, the shop and the saves
 // all go through them, and the shop's Sell tab takes a group back out with throwStackRemove.
 //
-// WHICH ONE G THROWS is the one decision here that is a reading of his words, not a quote: "you
-// acquire them based on when they are picked up" read as first in, first out — the OLDEST group is
-// the one in your hand, and when it runs out the next one comes up. It lives in this one constant;
-// false makes it the newest first, and every helper below (take, return, the HUD order) follows it.
-export const THROW_STACK_OLDEST_FIRST = true;
+// WHICH ONE G THROWS: the NEWEST group (Blake, 2026-11-26, asked "oldest or newest first?": "Newest
+// first"). The first build read "you acquire them based on when they are picked up" as first in, first
+// out; he chose the other end the same day. So the row is a real STACK: the last thing you picked up is
+// in your hand, and when it runs out the group under it comes up. Every helper below (take, return,
+// remove, the HUD's next-to-throw-first order, the save's head pair) reads this one constant, so the
+// flip was this line alone; true would make it the oldest first again.
+export const THROW_STACK_OLDEST_FIRST = false;
 // A clean copy: bad groups dropped (no id, n not a whole positive number), neighbours of one kind
 // merged, and with `keep` only the ids it accepts (a throwable deleted since a save was made). Never
 // the caller's objects, so every helper below can change its copy freely and stays pure.

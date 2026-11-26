@@ -1097,8 +1097,9 @@ plus traps it does not cover:
   3 unless set). Items: Boomerang `boomrg1`, Box of Playing Cards `cardbx1` (52).
 - **Throwables stack in pickup order** (2026-11-26, "you acquire them based on when they are picked up"):
   `throwStack` is `[{ id, n }]`. A pickup or buy of the kind in the LAST group adds to it; anything else
-  appends a group, and nothing is traded in. G throws the OLDEST group first (`THROW_STACK_OLDEST_FIRST`,
-  one line to flip). A boomerang or capture ball that comes home goes back into its group, or in front.
+  appends a group, and nothing is traded in. **G throws the NEWEST group first** (Blake, 2026-11-26: "Newest
+  first"; `THROW_STACK_OLDEST_FIRST = false`), and the HUD draws next-to-throw first, so the last pickup is on
+  the left. A boomerang or capture ball that comes home goes back into its group, or on top.
   Read and write it only through the pure `throwStack*` helpers. Saves write `throws` plus the head as
   `throwId`/`throwCount` for older copies, and a save without `throws` loads as one group. The studio
   picker (`playtestThrowId`/`playtestThrowCount`) is only the first group; a pickup never changes it.

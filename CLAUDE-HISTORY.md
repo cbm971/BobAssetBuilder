@@ -6290,3 +6290,12 @@ grenade source in the supply tent on Vietnam S1.
 - **The tent:** `tntint2` got one marker, 13,13 = Grenade AND Army (his Grenade only), on the left
   footlocker; the record is otherwise byte-identical. In the app the pedestal showed Grenade and E
   gave `throwStack` [gr3nad3 ×3].
+
+## Throwables: NEWEST first (2026-11-26, same day)
+
+The stack shipped throwing the OLDEST group first, my reading of "you acquire them based on when they are
+picked up". Asked which he wanted, Blake said "Newest first". The whole engine reads one constant
+(`THROW_STACK_OLDEST_FIRST`), so the change was that line plus the tests that pinned the old end: G now
+throws the last group picked up, a returning boomerang or capture ball rejoins the newest group of its kind
+(or goes on top), a partial sale comes out of the oldest group, and the HUD row reads next-to-throw first,
+so the newest pickup is drawn on the left. The row in memory and in the save stays in pickup order.

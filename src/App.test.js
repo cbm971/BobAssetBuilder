@@ -17944,7 +17944,8 @@ describe("📢 Megaphone horn-mouth sound wave cone (2026-11-26)", () => {
 
 // THE THROWABLE STACK (Blake, 2026-11-26: "grenades should stack, so you should be able to have 2
 // football grenades and before those 3 regular grenades etc. You acquire them based on when they are
-// picked up"). The row is groups { id, n } in pickup order; G throws the oldest group first.
+// picked up"). The row is groups { id, n } in pickup order; G throws the NEWEST group first (his pick,
+// the same day: "Newest first").
 import {
   THROW_STACK_OLDEST_FIRST, throwStackNorm, throwStackHeadIndex, throwStackNext, throwStackTotal, throwStackCount,
   throwStackAdd, throwStackTake, throwStackReturn, throwStackRemove, throwStackInThrowOrder,
@@ -17979,14 +17980,14 @@ describe("the throwable stack", () => {
     expect(s).toEqual(copy);
   });
 
-  test("G throws the OLDEST group first, and the next group comes into the hand when it runs out", () => {
-    expect(THROW_STACK_OLDEST_FIRST).toBe(true);
+  test("G throws the NEWEST group first, and the group under it comes into the hand when it runs out", () => {
+    expect(THROW_STACK_OLDEST_FIRST).toBe(false);
     let s = [{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }];
-    expect(throwStackHeadIndex(s)).toBe(0);
-    expect(throwStackNext(s)).toEqual({ id: "gr3nad3", n: 3 });
+    expect(throwStackHeadIndex(s)).toBe(1);
+    expect(throwStackNext(s)).toEqual({ id: "ftbgren", n: 2 });
     const thrown = [];
     while (throwStackNext(s)) { thrown.push(throwStackNext(s).id); s = throwStackTake(s); }
-    expect(thrown).toEqual(["gr3nad3", "gr3nad3", "gr3nad3", "ftbgren", "ftbgren"]);
+    expect(thrown).toEqual(["ftbgren", "ftbgren", "gr3nad3", "gr3nad3", "gr3nad3"]);
     expect(s).toEqual([]);
     expect(throwStackNext([])).toBe(null);
     expect(throwStackNext(null)).toBe(null);
@@ -17998,17 +17999,18 @@ describe("the throwable stack", () => {
     const s = [{ id: "cards", n: 2 }, { id: "nade", n: 3 }];
     expect(throwStackReturn(s, "cards")).toEqual([{ id: "cards", n: 3 }, { id: "nade", n: 3 }]);
     expect(throwStackReturn(s, "nade")).toEqual([{ id: "cards", n: 2 }, { id: "nade", n: 4 }]);
-    // The last card thrown and the group spent: caught, it is back in the hand, ahead of the grenades.
-    expect(throwStackReturn([{ id: "nade", n: 3 }], "cards")).toEqual([{ id: "cards", n: 1 }, { id: "nade", n: 3 }]);
+    // The last card thrown and the group spent: caught, it is back in the hand, on top of the grenades.
+    expect(throwStackReturn([{ id: "nade", n: 3 }], "cards")).toEqual([{ id: "nade", n: 3 }, { id: "cards", n: 1 }]);
     expect(throwStackReturn([], "cards")).toEqual([{ id: "cards", n: 1 }]);
-    // Two groups of the kind: the one nearest the hand takes it back.
-    expect(throwStackReturn([{ id: "a", n: 1 }, { id: "b", n: 1 }, { id: "a", n: 1 }], "a")).toEqual([{ id: "a", n: 2 }, { id: "b", n: 1 }, { id: "a", n: 1 }]);
+    // Two groups of the kind: the one nearest the hand (the newest) takes it back.
+    expect(throwStackReturn([{ id: "a", n: 1 }, { id: "b", n: 1 }, { id: "a", n: 1 }], "a")).toEqual([{ id: "a", n: 1 }, { id: "b", n: 1 }, { id: "a", n: 2 }]);
   });
 
   test("throwStackRemove (selling) takes from the group thrown LAST first and joins what it leaves side by side", () => {
     const s = [{ id: "a", n: 3 }, { id: "b", n: 2 }, { id: "a", n: 1 }];
-    expect(throwStackRemove(s, "a", 1)).toEqual([{ id: "a", n: 3 }, { id: "b", n: 2 }]);
-    expect(throwStackRemove(s, "a", 2)).toEqual([{ id: "a", n: 2 }, { id: "b", n: 2 }]);
+    // Thrown LAST is now the oldest group, so a partial sale comes out of the bottom of the stack.
+    expect(throwStackRemove(s, "a", 1)).toEqual([{ id: "a", n: 2 }, { id: "b", n: 2 }, { id: "a", n: 1 }]);
+    expect(throwStackRemove(s, "a", 3)).toEqual([{ id: "b", n: 2 }, { id: "a", n: 1 }]);
     expect(throwStackRemove(s, "a")).toEqual([{ id: "b", n: 2 }]);
     expect(throwStackRemove(s, "b")).toEqual([{ id: "a", n: 4 }]);       // the two Grenade groups meet and become one
     expect(throwStackRemove(s, "b", 1)).toEqual([{ id: "a", n: 3 }, { id: "b", n: 1 }, { id: "a", n: 1 }]);
@@ -18051,12 +18053,14 @@ describe("the throwable stack", () => {
 
   test("the HUD draws one mini per grenade, next-to-throw first, and one mini + its count per group past 12", () => {
     const s = [{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }];
-    expect(throwStackHudGroups(s)).toEqual([{ id: "gr3nad3", n: 3, minis: 3, count: 0 }, { id: "ftbgren", n: 2, minis: 2, count: 0 }]);
+    // Next-to-throw first: the footballs picked up last sit at the front of the HUD row.
+    expect(throwStackHudGroups(s)).toEqual([{ id: "ftbgren", n: 2, minis: 2, count: 0 }, { id: "gr3nad3", n: 3, minis: 3, count: 0 }]);
     expect(THROW_HUD_MINIS_MAX).toBe(12);
     expect(throwStackHudGroups([{ id: "a", n: 12 }])[0]).toEqual({ id: "a", n: 12, minis: 12, count: 0 });
-    expect(throwStackHudGroups([{ id: "cards", n: 52 }, { id: "nade", n: 1 }])).toEqual([{ id: "cards", n: 52, minis: 1, count: 52 }, { id: "nade", n: 1, minis: 1, count: 0 }]);
+    expect(throwStackHudGroups([{ id: "cards", n: 52 }, { id: "nade", n: 1 }])).toEqual([{ id: "nade", n: 1, minis: 1, count: 0 }, { id: "cards", n: 52, minis: 1, count: 52 }]);
     expect(throwStackHudGroups([])).toEqual([]);
-    expect(throwStackInThrowOrder(s)).toEqual(s);
+    expect(throwStackInThrowOrder(s)).toEqual([{ id: "ftbgren", n: 2 }, { id: "gr3nad3", n: 3 }]);
+    expect(s).toEqual([{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }]); // the row itself stays in pickup order
   });
 
   test("a shop always offers a throwable: buying more of one you carry adds to the row", () => {
