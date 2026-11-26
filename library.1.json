@@ -1,5 +1,5 @@
 {
- "set": "666fd528bbe3b12b",
+ "set": "7d3f6589c145d800",
  "part": 1,
  "assets": [
   {
@@ -671711,7 +671711,9 @@
    "soundVol": {
     "attack": 0.35,
     "hurt": 0.45
-   }
+   },
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "ekowow7",

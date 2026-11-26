@@ -1,5 +1,5 @@
 {
- "set": "666fd528bbe3b12b",
+ "set": "7d3f6589c145d800",
  "part": 2,
  "assets": [
   {
@@ -190987,7 +190987,10 @@
    "editedFrom": 1795696333293,
    "soundVol": {
     "death": 0.35
-   }
+   },
+   "flies": false,
+   "poison": false,
+   "poisonDps": 2
   },
   {
    "id": "l17rsel",
@@ -467207,7 +467210,9 @@
    "savedAt": 1795696994195,
    "iceDamage": 10,
    "iceDamageDps": 1,
-   "editedFrom": 1795696910059
+   "editedFrom": 1795696910059,
+   "boomerang": false,
+   "pickupCount": 3
   },
   {
    "id": "nstlmp1",
