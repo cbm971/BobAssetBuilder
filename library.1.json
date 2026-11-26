@@ -1,5 +1,5 @@
 {
- "set": "32a84707a0352dba",
+ "set": "8c982e6fe7e61da2",
  "part": 1,
  "assets": [
   {
@@ -588492,12 +588492,10 @@
      }
     ]
    },
-   "savedAt": 1795696131575,
+   "savedAt": 1795696143548,
    "flies": false,
-   "sounds": {
-    "hurt": "9skpe67"
-   },
-   "editedFrom": 1795696127829,
+   "sounds": {},
+   "editedFrom": 1795696131575,
    "soundVol": {
     "hurt": 0.15
    }
