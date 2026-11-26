@@ -6209,3 +6209,43 @@ should not let you sell underwear top or bottom."
   Done and Esc closed; re-opening was on Buy. In the game at `/game` (a Load Game save on Vietnam with
   the same kit): the same list, M16 sold for 12, a grenade thrown then the 2 left sold for 3, the hat for 9
   (wallet 24), and Quit to Main Menu saved `weaponId ""`, `throwId ""`, `equipped.hat null`, wallet 24.
+
+## THE THROWABLE STACK AND THE MINI GRENADE HUD (2026-11-26)
+
+Blake: "For the grenade UI display, it should display a mini version of the grenade carried, and
+grenades should stack, so you should be able to have 2 football grenades and before those 3 regular
+grenades etc. You acquire them based on when they are picked up."
+
+- **Before:** one slot (`playtestThrowId` + a `throwCarry` count). A new kind of throwable replaced the
+  old one (the pedestal took the old one back, the shop showed it as the trade-in), and the HUD drew
+  the same generic `hud.throw` pip for every kind.
+- **Now:** `throwStack` is a ref holding `[{ id, n }]` in pickup order. Pure helpers at module scope:
+  `throwStackAdd` (onto the LAST group if it is the same kind, else a new group), `throwStackTake`
+  (one off the head), `throwStackReturn` (into the group nearest the hand, else in front),
+  `throwStackRemove` (for the shop's Sell tab: from the group thrown last), `throwStackNext`,
+  `throwStackTotal`, `throwStackCount`, `throwStackNorm` (drops bad or deleted groups, merges
+  neighbours), `throwStackToSave` / `throwStackFromSave` and `throwStackHudGroups`.
+  `THROW_STACK_OLDEST_FIRST` (true) is the one line that decides which end G throws from.
+- **The loop reads the head every frame** (`throwStackNext`), so a pickup or buy never has to re-run
+  the play effect. The swing that is in the air keeps its own art (`p.throwFiringId`) even when that
+  throw emptied the group and the head is now another kind.
+- **Seeding:** the effect seeds the stack once a session, keyed by `throwStockKey` (playRunId | picker
+  id | knob). A game load hands its row over through `throwStackSeed`. A seam keeps the row. Every
+  other re-run (fire paint, a garment pickup's `equipGen`, a door) leaves the stack alone. Measured
+  in TCloset 1: Super Boots and Jungle Fatigue Pants pickups re-ran the effect (throwCd reset) and
+  the stack stayed [Grenade 2, Football Grenade 3].
+- **Saves:** `gameSnapshot` writes `throws` and, for older copies of the game, the head as
+  `throwId`/`throwCount`; `makeGameSave` keeps `throws` (cleaned), and `carryToNextFloor` passes it
+  on. A save without `throws` loads as one group from `throwId`/`throwCount`.
+- **The shop:** a throwable is never "already had" (`shopUnowned` shows it) and has no trade-in
+  (`shopDisplaced`). The pickup callout for a throwable compares against nothing.
+- **The HUD:** `hudThrowMini` draws each throwable from its own ground art (cached in `groundArtCache`
+  as `hudt|id|px`), 18px tall, width from the art's aspect (13px for the Grenade, 23px for the
+  Football Grenade), one per grenade in stack order with a small gap between groups. Past 12 in all,
+  each group is one mini and ×N. No art falls back to the `hud.throw` symbol. Extra lives stay pips.
+- **Measured in the running app (?mute&god):** the studio Playtest of TCloset 1 with Bob picked up
+  the Grenade (9,25) then the Football Grenade (8,8): stack [Grenade 3, Football 3] (his
+  Football's pickupCount is 3), HUD minis in that order at 1920x1000. G threw Grenades first:
+  [2,3], [1,3], then [Football 3]. In `/game`: Quit to Main Menu wrote `throws`; Load Game brought
+  the row back over a poisoned in-memory stack; an old save (no `throws`, Football ×4) loaded as one
+  group and was re-written in the new shape; a page reload then loaded a three-group row from disk.

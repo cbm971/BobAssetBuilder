@@ -2942,6 +2942,117 @@ export const throwRangeBlocks = (strength, weight) => {
 export const DEFAULT_THROW_PICKUP = 3;
 export const THROW_PICKUP_MAX = 99;
 export const throwPickupCount = (a) => Math.max(1, Math.min(THROW_PICKUP_MAX, Math.round(Number((a && a.pickupCount) ?? DEFAULT_THROW_PICKUP) || DEFAULT_THROW_PICKUP)));
+// THE THROWABLE STACK (Blake, 2026-11-26: "grenades should stack, so you should be able to have 2
+// football grenades and before those 3 regular grenades etc. You acquire them based on when they are
+// picked up"). The player used to carry ONE throwable: a pickup of another kind put the old one back
+// on the plinth, and a shop sold you a new kind only as a trade-in for yours. Now every throwable you
+// take joins a row in the order you took it: an array of groups { id, n } (n >= 1), oldest first.
+//   * a pickup of the same kind as the LAST group adds to it; anything else starts a new group, so
+//     the row stays strictly in pickup order (3 Grenades, 2 Football Grenades, 1 Grenade is three
+//     groups, not two);
+//   * no two neighbours ever share an id (throwStackNorm merges them), so a group on the HUD is a run
+//     of one kind;
+//   * nothing is displaced by a pickup or a purchase any more: the plinth or the body empties like any
+//     taken item, and the shop has no throwable trade-in.
+// These are the only functions that change a stack. The play loop, the HUD, the shop and the saves
+// all go through them, and the shop's Sell tab takes a group back out with throwStackRemove.
+//
+// WHICH ONE G THROWS is the one decision here that is a reading of his words, not a quote: "you
+// acquire them based on when they are picked up" read as first in, first out — the OLDEST group is
+// the one in your hand, and when it runs out the next one comes up. It lives in this one constant;
+// false makes it the newest first, and every helper below (take, return, the HUD order) follows it.
+export const THROW_STACK_OLDEST_FIRST = true;
+// A clean copy: bad groups dropped (no id, n not a whole positive number), neighbours of one kind
+// merged, and with `keep` only the ids it accepts (a throwable deleted since a save was made). Never
+// the caller's objects, so every helper below can change its copy freely and stays pure.
+export const throwStackNorm = (stack, keep) => {
+  const out = [];
+  for (const g of Array.isArray(stack) ? stack : []) {
+    if (!g || typeof g !== "object" || g.id == null || g.id === "") continue;
+    const id = String(g.id), n = Math.round(Number(g.n));
+    if (!Number.isFinite(n) || n < 1) continue;
+    if (keep && !keep(id)) continue;
+    const last = out[out.length - 1];
+    if (last && last.id === id) last.n += n; else out.push({ id, n });
+  }
+  return out;
+};
+// Where G takes from: the oldest group (index 0), or the newest when the rule above is flipped.
+export const throwStackHeadIndex = (stack) => (!Array.isArray(stack) || !stack.length ? -1 : THROW_STACK_OLDEST_FIRST ? 0 : stack.length - 1);
+// The group in your hand ({ id, n }), or null with nothing to throw.
+export const throwStackNext = (stack) => { const i = throwStackHeadIndex(stack); return i < 0 ? null : stack[i]; };
+export const throwStackTotal = (stack) => { let t = 0; for (const g of Array.isArray(stack) ? stack : []) t += g && g.n > 0 ? g.n : 0; return t; };
+// How many of one kind you carry, across every group of it (what the Sell tab can sell).
+export const throwStackCount = (stack, id) => { let t = 0; for (const g of Array.isArray(stack) ? stack : []) if (g && g.id === id && g.n > 0) t += g.n; return t; };
+// A pickup or a purchase: `n` of `id` on the end of the row (onto the last group when it is the same kind).
+export const throwStackAdd = (stack, id, n = 1) => {
+  const s = throwStackNorm(stack), k = Math.round(Number(n));
+  if (id == null || id === "" || !Number.isFinite(k) || k < 1) return s;
+  const last = s[s.length - 1];
+  if (last && last.id === String(id)) last.n += k; else s.push({ id: String(id), n: k });
+  return s;
+};
+// A throw: one off the group in your hand, and an emptied group leaves the row (the next one is in
+// your hand from the next frame on).
+export const throwStackTake = (stack) => {
+  const s = throwStackNorm(stack), i = throwStackHeadIndex(s);
+  if (i < 0) return s;
+  s[i].n -= 1;
+  if (s[i].n <= 0) s.splice(i, 1);
+  return s;
+};
+// 🪃 A throw that comes HOME (a boomerang throwable caught, or handed back at a door): into its own
+// group, the one nearest your hand when there are several of that kind; and if its group was spent
+// while it flew, it goes back where it came from, in your hand, as a group of its own.
+export const throwStackReturn = (stack, id, n = 1) => {
+  const s = throwStackNorm(stack), k = Math.round(Number(n));
+  if (id == null || id === "" || !Number.isFinite(k) || k < 1) return s;
+  const key = String(id);
+  const order = THROW_STACK_OLDEST_FIRST ? s.map((_, i) => i) : s.map((_, i) => s.length - 1 - i);
+  const own = order.find((i) => s[i].id === key);
+  if (own != null) s[own].n += k;
+  else if (THROW_STACK_OLDEST_FIRST) s.unshift({ id: key, n: k });
+  else s.push({ id: key, n: k });
+  return s;
+};
+// Takes up to `n` of `id` out of the row (every one of them when n is left out) — for selling. It takes
+// from the group that would be thrown LAST first, so what is in your hand stays in your hand, and two
+// groups left side by side by an emptied one between them become one.
+export const throwStackRemove = (stack, id, n) => {
+  const s = throwStackNorm(stack);
+  let left = n == null ? Infinity : Math.max(0, Math.round(Number(n)) || 0);
+  const key = String(id);
+  const order = THROW_STACK_OLDEST_FIRST ? s.map((_, i) => s.length - 1 - i) : s.map((_, i) => i);
+  for (const i of order) {
+    if (left <= 0) break;
+    if (s[i].id !== key) continue;
+    const t = Math.min(left, s[i].n);
+    s[i].n -= t; left -= t;
+  }
+  return throwStackNorm(s.filter((g) => g.n > 0));
+};
+// The row in the order it will be thrown, next-to-throw first (what the HUD draws left to right).
+export const throwStackInThrowOrder = (stack) => { const s = throwStackNorm(stack); return THROW_STACK_OLDEST_FIRST ? s : s.reverse(); };
+// A checkpoint save holds the row as it is (`throws`). An older save carried one throwable as
+// throwId/throwCount and still loads, as a row of one group; `keep` drops a throwable he has deleted
+// since, so a dead id can never sit in your hand and stop G for good.
+export const throwStackToSave = (stack) => throwStackNorm(stack);
+export const throwStackFromSave = (save, keep) => {
+  if (!save || typeof save !== "object") return [];
+  if (Array.isArray(save.throws)) return throwStackNorm(save.throws, keep);
+  return save.throwId ? throwStackNorm([{ id: save.throwId, n: save.throwCount }], keep) : [];
+};
+// THE HUD draws one small picture of each grenade you carry, next-to-throw first — the grenade's own
+// art, not a symbol (Blake: "it should display a mini version of the grenade carried"). Past
+// THROW_HUD_MINIS_MAX in all (a 🪃 box of 52 cards) a row of minis would run off the screen, so then
+// every group is ONE mini and its count. `minis` is how many pictures to draw, `count` the ×N beside
+// them (0 = none: a lone picture already says one).
+export const THROW_HUD_MINIS_MAX = 12;
+export const throwStackHudGroups = (stack, max = THROW_HUD_MINIS_MAX) => {
+  const order = throwStackInThrowOrder(stack);
+  const compact = throwStackTotal(order) > max;
+  return order.map((g) => ({ id: g.id, n: g.n, minis: compact ? 1 : g.n, count: compact && g.n > 1 ? g.n : 0 }));
+};
 // Launch velocity for a thrown grenade. Given the desired range in PIXELS, gravity g, and a fixed
 // launch angle (45°-ish gives a natural arc), solve the projectile-range equation R = v²·sin(2θ)/g
 // for v, then split into vx/vy by the facing. So a stronger throw (longer range) simply leaves the
@@ -4193,10 +4304,12 @@ export const rollShopStock = (assets, tag, seedStr, size) => {
 // run, see rollShopStock); this filters what is SHOWN, so the shelf reads two items instead of
 // three while you hold the third, and it comes back if you trade that one away later.
 //   * a gun or melee weapon: the one in your hands;
-//   * a throwable: only while you carry a FULL box of it (throwPickupCount, 3 unless it says). Bought
-//     again it refills (throwPickup), so with one grenade left it is still a real purchase;
 //   * a garment: any worn slot holding that id (wornEquipMap, so the look's own clothes count);
-//   * a consumable is never "had": you drink it.
+//   * a consumable is never "had": you drink it;
+//   * and a THROWABLE is never "had" either (2026-11-26). It used to be hidden while you carried a
+//     full box of it, because buying it again only refilled the one slot: money for nothing. Since
+//     the throwable stack (throwStackAdd) a purchase puts its whole box on the end of your row, so
+//     with three Grenades in hand three more is three more grenades, a real purchase.
 export const shopUnowned = (items, owned) => {
   const o = owned || {};
   const worn = new Set((o.wornIds || []).filter(Boolean));
@@ -4204,7 +4317,7 @@ export const shopUnowned = (items, owned) => {
     if (!it) return false;
     if (it.type === "item") return true;
     if (it.type === "weapon") {
-      if (isThrowable(it.wtype)) return !(o.throwId === it.id && (o.throwLeft || 0) >= throwPickupCount(it));
+      if (isThrowable(it.wtype)) return true;
       return o.weaponId !== it.id;
     }
     return !worn.has(it.id);
@@ -16130,16 +16243,16 @@ export default function AssetStudio({ game = false } = {}) {
   const [play, setPlay] = useState(false);             // playtest mode
   const [playerId, setPlayerId] = useState("");        // asset used as the player
   const [playtestWeaponId, setPlaytestWeaponId] = useState(""); // weapon equipped for playtest — separate from a saved dressed look, so a weapon can be tested on any body
-  const [playtestThrowId, setPlaytestThrowId] = useState("");   // throwable carried for playtest (single-use grenade thrown with G)
+  const [playtestThrowId, setPlaytestThrowId] = useState("");   // the throwable a studio ▶ Playtest STARTS with (the picker): the first group of the throwable stack (throwStack), never what is in your hand now
   const [playtestThrowCount, setPlaytestThrowCount] = useState(3); // how many of it to start a test with — stands in for level pickups
   const projectiles = useRef([]);                        // live projectile entities: {x,y,vx,vy,char,tint,size,life}
   const booms = useRef([]);                              // live explosion visuals (play-only, front layer): {x,y,propId,size,life,maxLife} — an explode-tagged shot spawns one on impact; never touches saved level data
   const thrown = useRef([]);                             // live thrown-grenade entities mid-arc: {x,y,vx,vy,rot,asset,pieces}
-  const throwCarry = useRef(0);                          // how many of the carried throwable the player still has this session (single-use)
+  const throwStack = useRef([]);                         // every throwable the player carries this session, in PICKUP order: [{ id, n }] (throwStackAdd / throwStackTake). The truth for G, the hand, the HUD and the save
   const wpnClipKey = useRef(null);                        // playRunId|weaponId|clip size the clip was last filled for (see throwStockKey)
   const thrownPlaceKey = useRef(null);                   // playRunId|level the throws in thrown.current were thrown in — a re-run in the same place keeps them flying
-  const throwStockKey = useRef(null);                   // playRunId|throwId|knob the throwCarry count was last stocked for — an effect re-run with the same key keeps what is left instead of refilling
-  const throwPickup = useRef(null);                      // set to a count (e.g. 3) when a throwable is TAKEN from a pedestal, so a fresh pickup arrives stocked regardless of the test-count knob; consumed on the next loop init
+  const throwStockKey = useRef(null);                   // playRunId|picker throwId|knob the throwStack was last started from — an effect re-run with the same key keeps the row as it is instead of starting it again
+  const throwStackSeed = useRef(null);                   // a whole row to adopt at the next loop init (a loaded game's, applyGameResume), whatever the key says; consumed there
   const throwCd = useRef(0);                             // small cooldown after a throw so one G press = one grenade
   const thrownFireKeys = useRef(new Set());              // hazard keys created by grenades this session — removed on Stop so they don't persist into the saved level
   const thrownPropKeys = useRef(new Set());              // fx-prop keys stamped by grenades this session (custom fire art) — pulled back off on Stop, same as thrownFireKeys
@@ -16475,7 +16588,7 @@ export default function AssetStudio({ game = false } = {}) {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, throwFiringId: null, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -17332,10 +17445,12 @@ export default function AssetStudio({ game = false } = {}) {
     if (!item) return { off: null, offSlot: null };
     if (item.type === "item") return { off: null, offSlot: null };
     if (item.type === "weapon") {
-      // A throwable trades against your throwable and a gun against your gun, because that is
-      // which slot it is about to fill — buying a grenade must not take the rifle off you.
-      const heldId = isThrowable(item.wtype) ? playtestThrowId : playtestWeaponId;
-      return { off: heldId ? findA(heldId) : null, offSlot: null };
+      // A gun trades against your gun. A throwable displaces NOTHING since the throwable stack
+      // (throwStackAdd): it goes on the end of your row, so there is no old one to hand over and no
+      // trade-in — buying a grenade never took the rifle off you, and now it never takes your
+      // other grenades either.
+      if (isThrowable(item.wtype)) return { off: null, offSlot: null };
+      return { off: playtestWeaponId ? findA(playtestWeaponId) : null, offSlot: null };
     }
     const worn = wornEquipMap(findA(playerId), equipped.current);
     const offSlot = equipDisplacedSlot(item, worn, equipKinds());
@@ -17368,10 +17483,11 @@ export default function AssetStudio({ game = false } = {}) {
     if (item.type === "item") { consumeItemNow(item, paid); return; }
     if (item.type === "weapon") {
       if (isThrowable(item.wtype)) {
-        // A bought throwable arrives as many as a looted one does (throwPickup, throwPickupCount: 3
-        // unless it says otherwise), so the shelf and the plinth hand over the same thing.
-        throwPickup.current = throwPickupCount(item);
-        setPlaytestThrowId(item.id);
+        // A bought throwable arrives as many as a looted one does (throwPickupCount: 3 unless it says
+        // otherwise), so the shelf and the plinth hand over the same thing — onto the END of your row
+        // (throwStackAdd), behind whatever you already carry. No effect re-run is needed: the loop and
+        // the HUD read the row itself every frame.
+        throwStack.current = throwStackAdd(throwStack.current, item.id, throwPickupCount(item));
         flash("🛒 Carrying " + item.name + " ×" + throwPickupCount(item) + paid);
       } else {
         setPlaytestWeaponId(item.id);
@@ -17393,22 +17509,29 @@ export default function AssetStudio({ game = false } = {}) {
     settleAllyHPCeiling(after, level && level.enemies);
     setEquipGen((g) => g + 1);
   };
-  // ── THE SELL TAB'S THROWABLES: the ONE place it reads or writes the G slot. ──────────────────
-  // Today you carry one throwable (playtestThrowId) and a count of it (throwCarry). These two are
-  // the whole of what the Sell tab knows about that model, so when the throwables become a stack
-  // only these two change: `sellableThrows` hands back what you hold as [{ item, count }] in the
-  // order you would throw it, and `sellThrow(item)` takes every one of that kind off you.
+  // ── THE SELL TAB'S THROWABLES: the ONE place it reads or writes the throwable stack. ─────────
+  // ONE ROW PER KIND, not per group. The stack keeps pickup order, so three Grenades, two Footballs
+  // and three more Grenades are three groups — but to a shopkeeper that is "6 Grenades and 2 Footballs",
+  // and two Grenade rows at different prices would read as two different items. The rows come in the
+  // order the kinds will be thrown (throwStackInThrowOrder, first appearance), and the count is every
+  // one of that kind across the row (throwStackCount), which is what shopSellPrice prices pro rata.
   const sellableThrows = () => {
-    const it = playtestThrowId ? findA(playtestThrowId) : null;
-    const n = Math.max(0, Math.floor(throwCarry.current || 0));
-    return it && isThrowable(it.wtype) && n > 0 ? [{ item: it, count: n }] : [];
+    const seen = new Set(), out = [];
+    for (const g of throwStackInThrowOrder(throwStack.current)) {
+      if (seen.has(g.id)) continue;
+      seen.add(g.id);
+      const it = findA(g.id), n = throwStackCount(throwStack.current, g.id);
+      if (it && isThrowable(it.wtype) && n > 0) out.push({ item: it, count: n });
+    }
+    return out;
   };
+  // Selling a row sells EVERY one of that kind, as the row's price says (throwStackRemove with no n).
+  // The ref changes NOW: the HUD's minis and G both read throwStack.current on the very next frame, so
+  // a sold grenade is never drawn or thrown. playtestThrowId is left alone — since the stack it only
+  // names the studio picker's first group, and the stack is seeded from it once a session, not re-read.
   const sellThrow = (item) => {
-    if (!item || playtestThrowId !== item.id) return;
-    // The count goes to 0 NOW, not when the play effect next re-runs: the HUD's pips read it on the
-    // very render this sale causes, and a grenade still drawn there would be a grenade you sold.
-    throwCarry.current = 0; throwPickup.current = null;
-    setPlaytestThrowId(""); // and the play effect, seeing no throwable, keeps the count at 0
+    if (!item) return;
+    throwStack.current = throwStackRemove(throwStack.current, item.id);
   };
   // What you are carrying, as the Sell tab lists it (shopSellables). Read fresh each time — the
   // panel's rows and the sale itself both come through here, so a row is only ever sold if it is
@@ -17744,24 +17867,30 @@ export default function AssetStudio({ game = false } = {}) {
     const clipKey = playRunId.current + "|" + (playtestWeapon ? playtestWeapon.id : "") + "|" + clipSize;
     if (!fromSeam && clipKey !== wpnClipKey.current) wpn.current = newWeaponAmmo(clipSize);
     wpnClipKey.current = clipKey;
-    // Throwable the player is carrying this session (chosen separately from the held weapon), plus
-    // the count they start with. Single-use: each throw decrements throwCarry; at 0, G does nothing.
-    const carriedThrow = playtestThrowId ? findA(playtestThrowId) : null;
-    if (fromSeam) { /* the count you had at the gate is the count you have past it */ }
-    else if (carriedThrow && isThrowable(carriedThrow.wtype)) {
-      // THIS EFFECT RE-RUNS FOR REASONS THAT ARE NOT A NEW STOCK OF GRENADES: a landed grenade
-      // paints fire into the level (setLevel), a garment pickup bumps equipGen, a door changes
-      // the level. Each used to refill throwCarry to the starting count, so a Pokeball thrown at
-      // a body and landing in a fire (or any pickup in between) was never spent — "infinite, not
-      // just 3". The count is re-based only when it is genuinely a different stock: a new play
-      // session (playRunId), a different throwable, a fresh pickup/purchase (throwPickup), or the
-      // editor's "Start with" knob.
-      const stockKey = playRunId.current + "|" + carriedThrow.id + "|" + playtestThrowCount;
-      if (throwPickup.current == null && throwStockKey.current === stockKey) { /* same stock: keep what is left */ }
-      else { throwCarry.current = throwPickup.current != null ? throwPickup.current : Math.max(0, playtestThrowCount || 0); }
-      throwStockKey.current = stockKey;
-    } else { throwCarry.current = 0; throwStockKey.current = null; }
-    throwPickup.current = null;
+    // THE THROWABLE STACK (throwStackAdd, module scope): every throwable carried this session, in the
+    // order it was taken, chosen separately from the held weapon. G throws the group in your hand
+    // (throwStackTake); at an empty row G does nothing. A studio ▶ Playtest starts the row with the
+    // picker's throwable and its "Start with" count as the first group; a loaded game adopts its
+    // saved row (throwStackSeed); the game's New Game starts empty.
+    // THIS EFFECT RE-RUNS FOR REASONS THAT ARE NOT A NEW STOCK OF GRENADES: a landed grenade paints
+    // fire into the level (setLevel), a garment pickup bumps equipGen, a weapon pickup changes the
+    // weapon, a door changes the level. Each used to refill the one count to the starting count, so a
+    // Pokeball thrown at a body and landing in a fire (or any pickup in between) was never spent —
+    // "infinite, not just 3". So the row is started again ONLY for a genuinely new start: a new play
+    // session (playRunId) or the editor's picker / "Start with" knob changed. A throwable picked up or
+    // bought never re-runs this at all: it goes straight onto the row (the E handler, buyFromShop).
+    const thrStartKey = playRunId.current + "|" + (playtestThrowId || "") + "|" + playtestThrowCount;
+    if (fromSeam) { /* the row you had at the gate is the row you have past it */ }
+    else if (throwStackSeed.current) throwStack.current = throwStackSeed.current;
+    else if (throwStockKey.current !== thrStartKey) {
+      const start = playtestThrowId ? findA(playtestThrowId) : null;
+      throwStack.current = start && isThrowable(start.wtype) ? throwStackAdd([], start.id, Math.max(0, playtestThrowCount || 0)) : [];
+    }
+    throwStockKey.current = thrStartKey;
+    throwStackSeed.current = null;
+    // A group whose throwable is gone from the library (or is no longer a throwable) would sit in your
+    // hand forever and G would never throw again: drop it, and the next group comes up.
+    throwStack.current = throwStackNorm(throwStack.current, isThrowableId);
     // 🪃 What is in the air stays in the air while this is still the same place in the same session.
     // A throw's own landing paint re-runs this effect (setLevel), and the clear below used to drop every
     // other throw in flight with it, so a hand of boomerang cards vanished the moment one of them landed
@@ -17772,7 +17901,8 @@ export default function AssetStudio({ game = false } = {}) {
       followTrail.current = []; // the way you went through a place you have left by a door leads nowhere here
       for (const g of thrown.current) {
         if (!g.boomerang) continue;
-        if (g.owner === "player") { if (carriedThrow && g.asset && g.asset.id === carriedThrow.id) throwCarry.current += 1; }
+        // Yours goes back into its own group of your row, wherever that group now is (throwStackReturn).
+        if (g.owner === "player") { if (g.asset && g.asset.id) throwStack.current = throwStackReturn(throwStack.current, g.asset.id); }
         else { const bep = enemyPos.current[g.owner]; if (bep && bep.throwLeft != null) bep.throwLeft += 1; }
       }
       thrown.current = [];
@@ -18909,16 +19039,21 @@ export default function AssetStudio({ game = false } = {}) {
       // with throwTrajectoryPoints from the exact same launch numbers used below); letting go
       // of G is what actually throws it. Launch velocity comes from the throwable's own weight
       // vs the player's Strength (throwRangeBlocks -> throwLaunchVel), thrown the way you face
-      // and slightly upward for a natural arc. Decrements the single-use carry count. The throw
-      // plays the arm swing: it rides the same p.firing channel the melee swing render already
-      // uses (hitRegistered is pre-set so a bare-handed swing can't also land a punch).
+      // and slightly upward for a natural arc. Takes one off the group in your hand (throwStackTake).
+      // The throw plays the arm swing: it rides the same p.firing channel the melee swing render
+      // already uses (hitRegistered is pre-set so a bare-handed swing can't also land a punch).
       if (throwCd.current > 0) throwCd.current -= dtMul;
+      // What is in your hand is read off the row EVERY frame, not once when the effect starts: the
+      // row changes under a running loop (a pickup, a purchase, a group thrown empty), and none of
+      // that re-runs the effect.
+      const throwGroup = throwStackNext(throwStack.current);
+      const carriedThrow = throwGroup ? findA(throwGroup.id) : null;
       // C, F or Q pressed while G is down calls the throw off (throwCalledOff): no arc, and no throw
       // when G comes up. Read off the keys themselves (RK), so S, which also crouches, does not.
       const throwCancelKey = !!(RK.crouch || RK.fire || RK.melee);
       p.throwOff = throwCalledOff(p.throwOff, K.throw, p.wasThrow, throwCancelKey, p.wasThrowCancelKey);
       p.wasThrowCancelKey = throwCancelKey;
-      const canThrowNow = carriedThrow && throwCarry.current > 0 && throwCd.current <= 0 && !p.transitioning && !p.throwOff;
+      const canThrowNow = carriedThrow && isThrowable(carriedThrow.wtype) && throwCd.current <= 0 && !p.transitioning && !p.throwOff;
       p.throwAiming = !!(K.throw && canThrowNow);
       if (!K.throw) p.throwOff = false; // G is up: the next press aims afresh
       if (!K.throw && p.wasThrow && canThrowNow) {
@@ -18944,12 +19079,15 @@ export default function AssetStudio({ game = false } = {}) {
           ...(boomT ? { boomerang: true, owner: "player", out: true, sp: BOOMERANG_THROW_SPEED_CELLS * CW, aim0: boomT.aim0, spinDir: p.face || 1, rangePx: rangeBlocks * CW, traveled: 0 } : {}),
         });
         sndMoment(carriedThrow, "throw", null, p.x + pw / 2, p.y + ph * 0.4); // 🔊 the throwable's Throw
-        throwCarry.current -= 1;
+        throwStack.current = throwStackTake(throwStack.current);
         throwCd.current = 18; // ~0.3s between throws so mashing G doesn't dump the whole stash at once
         p.firing = { t: 0, dur: 12 };  // the throwing arm swing — same 3-phase motion as a melee swing
         p.throwFiring = 12;            // frames the throwable shows its FIRE pose in-hand after release (counts down)
+        // ...and WHICH throwable shows it: the one just thrown. The last of a group leaves the next
+        // group in your hand on this same frame, and the swing must not finish holding that one.
+        p.throwFiringId = carriedThrow.id;
         p.hitRegistered = true;        // ...but it must never double as a bare-handed punch hit
-        flash("💣 Thrown — " + throwCarry.current + " left");
+        flash("💣 Thrown — " + throwStackTotal(throwStack.current) + " left");
       }
       p.wasThrow = !!K.throw;
       // Clamped at 0, NOT just guarded by "> 0": dtMul is fractional, so a bare decrement
@@ -21951,7 +22089,9 @@ export default function AssetStudio({ game = false } = {}) {
             // 🪃 Out and home instead of an arc (boomerangStep, the boomerang gun's own flight). Caught,
             // it is back in the stock of whoever threw it, so one that hits nothing is never spent.
             if (boomerangStep(g, dtMul, CW, boomerangPick(g, boomThrowTargetsOf(g), g.rangePx), boomerangHomeOf(g.owner), false) === "caught") {
-              if (g.owner === "player") { if (carriedThrow && g.asset && g.asset.id === carriedThrow.id) throwCarry.current += 1; }
+              // Yours goes into its own group of your row, even when another kind is in your hand now
+              // (it used to come home only if you still carried that one kind).
+              if (g.owner === "player") { if (g.asset && g.asset.id) throwStack.current = throwStackReturn(throwStack.current, g.asset.id); }
               else { const bep = enemyPos.current[g.owner]; if (bep && bep.throwLeft != null) bep.throwLeft += 1; }
               continue;
             }
@@ -22795,7 +22935,8 @@ export default function AssetStudio({ game = false } = {}) {
         }
       }
       // Press E on a pedestal or dropped item to take it, or swap the one you're already carrying
-      // back onto that same spot. Weapons swap the held playtest weapon (playtestWeaponId, which re-keys the loop and
+      // back onto that same spot (a throwable swaps nothing: it joins the throwable row, throwStackAdd).
+      // Weapons swap the held playtest weapon (playtestWeaponId, which re-keys the loop and
       // keeps the player where they stand); equipment layers its stat/defense/effect boosts onto
       // the player live via mergeEquip, re-keyed by equipGen. Rising-edge so one tap = one swap.
       if (K.interact && !p.wasInteract && (curPedKey || curDropKey)) {
@@ -22829,14 +22970,14 @@ export default function AssetStudio({ game = false } = {}) {
             putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
-              // Throwables live in their OWN slot (thrown with G), separate from the held gun/melee,
-              // so taking one never displaces your weapon — you can carry both. Swap with whatever
-              // throwable you were already carrying, and a fresh pickup arrives with its box (throwPickupCount).
-              const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
-              putBack(prev);
-              throwPickup.current = throwPickupCount(item);
-              showPickup(item.name + " ×" + throwPickupCount(item), pickupChangeRows(item, { held: prev, dpsOf: playerDpsOf }), itemRank(item), item);
-              setPlaytestThrowId(item.id);
+              // Throwables live in their OWN row (thrown with G), separate from the held gun/melee,
+              // so taking one never displaces your weapon — you can carry both. And since the
+              // throwable stack (throwStackAdd) it never displaces another throwable either: its box
+              // (throwPickupCount) goes on the END of your row, and the plinth or the body empties like
+              // any taken item. The banner compares it to nothing, because nothing is handed over.
+              putBack(null);
+              throwStack.current = throwStackAdd(throwStack.current, item.id, throwPickupCount(item));
+              showPickup(item.name + " ×" + throwPickupCount(item), pickupChangeRows(item, { dpsOf: playerDpsOf }), itemRank(item), item);
             } else {
               const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
@@ -25776,6 +25917,8 @@ export default function AssetStudio({ game = false } = {}) {
   // scratch (including a nested O(n*m) filter) on every render before this fix.
   const assetById = useMemo(() => { const m = new Map(); for (const a of allAssets) m.set(a.id, a); return m; }, [allAssets]);
   const findA = (id) => assetById.get(id) || null;
+  // The `keep` test of the throwable row (throwStackNorm): an id still in the library AND still a throwable.
+  const isThrowableId = (id) => { const a = findA(id); return !!(a && isThrowable(a.wtype)); };
   // 👻 How see-through each run of a COMPOSED sprite draws (renderPieceRuns' alphaOf). A run tagged
   // with an asset's id fades by that asset — a garment, a skin, the body, a gun Dress Bob or a corpse
   // tagged. "__weapon" is held art baked live in play, which carries no _src, so it fades by what is
@@ -27815,7 +27958,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, throwFiringId: null, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false }; projectiles.current = []; thrown.current = []; booms.current = []; throwStack.current = []; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -28109,7 +28252,11 @@ export default function AssetStudio({ game = false } = {}) {
     const ao = activeObjective.current || { list: [], done: new Set() };
     return makeGameSave(prev, {
       id: gameCur.current.saveId, startedAt: gameCur.current.startedAt, seed: run ? run.seed : "", runFloor: run ? run.floor || "" : "", ...loc,
-      lookId: playerId, lookName: look ? look.name : "", weaponId: playtestWeaponId, throwId: playtestThrowId, throwCount: throwCarry.current,
+      lookId: playerId, lookName: look ? look.name : "", weaponId: playtestWeaponId,
+      // The whole throwable row (throwStackToSave). throwId/throwCount repeat the group in your hand,
+      // the one field pair an older copy of the game reads, so a save opened there still has it.
+      throws: throwStackToSave(throwStack.current),
+      throwId: (throwStackNext(throwStack.current) || {}).id || "", throwCount: (throwStackNext(throwStack.current) || {}).n || 0,
       // 💀 Mid-fall (the checkpoint a death writes at once) HP is 0 and the walk back will fill it:
       // null is "full" to a load, where a saved 0 would have come back as 1 HP.
       equipped: eq, hp: player.current && player.current.dying ? null : playerHP.current, wallet: wallet.current, livesUsed: livesUsed.current, score: scoreRef.current,
@@ -28138,9 +28285,9 @@ export default function AssetStudio({ game = false } = {}) {
     const t = setTimeout(() => gameCheckpointRef.current(), 400);
     return () => clearTimeout(t);
   }, [game, play, liveRunKey]);
-  // Put a loaded game's carried state back (called by togglePlaytest after its resets). The look,
-  // the held weapon and the grenade are already committed (gameLoadGame); a garment or weapon he has
-  // since deleted is simply not there.
+  // Put a loaded game's carried state back (called by togglePlaytest after its resets). The look
+  // and the held weapon are already committed (gameLoadGame), and the throwable row waits for the
+  // loop's start (throwStackSeed); a garment, weapon or grenade he has since deleted is simply not there.
   const applyGameResume = (s, base) => {
     const eq = {};
     for (const sl of Object.keys(s.equipped || {})) { const id = s.equipped[sl]; if (id === null) eq[sl] = null; else { const it = findA(id); if (it) eq[sl] = it; } }
@@ -28154,7 +28301,10 @@ export default function AssetStudio({ game = false } = {}) {
     // in the saved level with the saved list is no change, so a load showed no objective at all.
     if (s.objectives) { activeObjective.current = { list: (s.objectives.list || []).map((o) => ({ ...o })), done: new Set(s.objectives.done || []) }; setObjectives(activeObjective.current.list.map((o) => ({ id: o.id, text: o.text }))); }
     talkSpentSigns.current = new Set(s.talkSpent || []);
-    throwPickup.current = s.throwId ? Math.max(0, s.throwCount || 0) : null;
+    // The saved throwable row, adopted at the loop's next start whatever its key says (throwStackSeed).
+    // A save from before the row (one throwId + throwCount) loads as a row of one group, and a
+    // throwable deleted since is left out (throwStackFromSave).
+    throwStackSeed.current = throwStackFromSave(s, isThrowableId);
     itemBuffs.current = buffsFromSave(s.buffs, playNowMs());
   };
   const beginGameRun = (b) => {
@@ -28190,7 +28340,8 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const gameLoadGame = (save) => {
     gameCur.current = { ...GAME_CUR_NONE, saveId: save.id, startedAt: save.startedAt, gates: save.nodeKey ? { [save.nodeKey]: save.gateKey ?? null } : {}, difficulty: difficultyOf(save.difficulty).id, deaths: save.deaths || 0, oneUps: save.oneUps || 0 };
-    setPlayerId(save.lookId || ""); setPlaytestWeaponId(save.weaponId || ""); setPlaytestThrowId(save.throwId || "");
+    // No picker start in the game: the saved row comes back whole through applyGameResume (throwStackSeed).
+    setPlayerId(save.lookId || ""); setPlaytestWeaponId(save.weaponId || ""); setPlaytestThrowId("");
     setGameBoot({ lookId: save.lookId || "", seed: save.seed, save });
   };
   // togglePlaytest reads the look, weapon and grenade from THIS render's state, so the run starts
@@ -30300,11 +30451,12 @@ export default function AssetStudio({ game = false } = {}) {
       if (!it) return null;
       if (it.type === "item") return { swap: false, rows: pickupChangeRows(it) };
       if (it.type === "weapon") {
-        // A throwable goes into the THROW slot (G) and trades against the throwable you carry,
-        // never the gun in your hand. The one-line prompt compared it to the gun, so it promised a
-        // swap and a damage change for a take that left the gun exactly where it was.
-        const heldId = isThrowable(it.wtype) ? playtestThrowId : playtestWeaponId;
-        const held = heldId ? findA(heldId) : null;
+        // A throwable goes onto the end of your THROW row (G, throwStackAdd) and trades against
+        // nothing: not the gun in your hand (the one-line prompt once compared it to the gun and
+        // promised a swap and a damage change for a take that left the gun where it was), and since
+        // the row, not your other grenades either. So no ⇄, and no "lost" abilities of a held one.
+        if (isThrowable(it.wtype)) return { swap: false, rows: pickupChangeRows(it, { dpsOf: playerDpsOf }) };
+        const held = playtestWeaponId ? findA(playtestWeaponId) : null;
         return { swap: !!held, rows: pickupChangeRows(it, { held, dpsOf: playerDpsOf }) };
       }
       // Same worn map the take itself uses, or the callout promises an "equip" and delivers a swap.
@@ -30413,6 +30565,29 @@ export default function AssetStudio({ game = false } = {}) {
       const out = { ...g, turn };
       groundArtCache.current.set(key, out);
       return out;
+    };
+    // ONE GRENADE ON THE HUD: the throwable's own ground art (the picture on its plinth) fitted into a
+    // box `px` tall, as wide as the art is (within reason), so a football reads wider than a round
+    // grenade. The HUD re-renders every frame and draws the same mini once per grenade, so the drawn
+    // element is built ONCE per throwable (per size, texture library and see-through) and the same
+    // element is shown in every one of its places, the way gameHead's life heads are. The cache dies
+    // with groundArtCache when the library changes. Art with nothing drawn falls back to the HUD's
+    // Throwable symbol, so a grenade is never invisible.
+    const hudThrowMini = (it, px) => {
+      const g = groundArt(it);
+      if (!it || !g.bb) return { w: px, el: sym("hud.throw", null, px - 2) };
+      const key = "hudt|" + it.id + "|" + px;
+      const alpha = assetAlpha(it);
+      let hit = groundArtCache.current.get(key);
+      if (hit && hit.texLib === texLib && hit.alpha === alpha) return hit;
+      const bb = g.bb;
+      const w = Math.round(Math.max(px * 0.6, Math.min(px * 1.8, px * (bb.w / bb.h))));
+      const sc = Math.min(w / bb.w, px / bb.h) * 0.94;
+      const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${w / 2 - sc * (bb.x + bb.w / 2)}px,${px / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) };
+      const el = <div style={plane}>{renderPieceRuns({ pieces: g.pieces, cacheKey: "hudt_" + it.id + "_" + px, keyPrefix: "hudt" + it.id + "_", alpha: alpha, drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
+      hit = { w, el, texLib, alpha };
+      groundArtCache.current.set(key, hit);
+      return hit;
     };
     const layerKey = lLayer === "obj" ? "fx" : lLayer === "marker" ? "markers" : lLayer === "enemy" ? "enemies" : lLayer; // backing level property for each tool (climb/hazard use their own name directly)
     // Live Fill preview: shows exactly what a click would affect BEFORE you click — the direct
@@ -31385,7 +31560,16 @@ export default function AssetStudio({ game = false } = {}) {
                   // equipped weapon — so suppress the weapon render for those frames (the
                   // throwable-in-hand block just below draws in its place). Outside a throw it's
                   // the normal equipped-weapon render, unchanged.
-                  const throwingNow = playtestThrowId && (p.throwAiming || p.throwFiring > 0) && !p.climbing && (() => { const ct = findA(playtestThrowId); return ct && isThrowable(ct.wtype); })();
+                  // The throwable in the hand: the row's next one while G is held (throwStackNext), and
+                  // during the release swing the one just THROWN (p.throwFiringId) — throwing the last of a
+                  // group puts the next group in your hand that same frame, and the swing must not end
+                  // holding it. Read off the row every frame: a pickup changes it without any re-render key.
+                  const carriedThrowRender = (() => {
+                    const id = p.throwFiring > 0 && p.throwFiringId ? p.throwFiringId : (throwStackNext(throwStack.current) || {}).id;
+                    const ct = id ? findA(id) : null;
+                    return ct && isThrowable(ct.wtype) ? ct : null;
+                  })();
+                  const throwingNow = !!carriedThrowRender && (p.throwAiming || p.throwFiring > 0) && !p.climbing;
                   // 🪃 ...and a boomerang gun that is out of your hand (its one throw spent: in the air) is
                   // not drawn in it. It comes back into the hand the frame it is caught (boomerangAmmo).
                   const boomerangAway = isBoomerang(playtestWeapon) && isRanged(playtestWeapon.wtype) && !!wpn.current && wpn.current.clip > 0 && wpn.current.ammo <= 0;
@@ -31420,9 +31604,8 @@ export default function AssetStudio({ game = false } = {}) {
                   // windup/throw arm motion. REST pose while holding (you're gripping it, wound
                   // up); FIRE pose during the release swing (p.throwFiring) — the actual throw
                   // frame, matching how a melee weapon swaps to Fire at its swing. It leaves the
-                  // hand the instant it's thrown (throwCarry decremented + a live grenade spawned),
+                  // hand the instant it's thrown (taken off the row + a live grenade spawned),
                   // so it never lingers on the arm after release.
-                  const carriedThrowRender = playtestThrowId ? findA(playtestThrowId) : null;
                   const showThrowInHand = blocks && carriedThrowRender && isThrowable(carriedThrowRender.wtype) && (p.throwAiming || p.throwFiring > 0) && !p.climbing;
                   if (showThrowInHand) {
                     const curArm = heldArmOf(blocks, heldMir);
@@ -32445,9 +32628,10 @@ export default function AssetStudio({ game = false } = {}) {
                     the exact arc a release right now would fly — computed from the same
                     strength/weight launch numbers and the same per-frame integration the real
                     grenade uses (throwTrajectoryPoints), stopping at the first solid tile. */}
-                {play && player.current.throwAiming && playtestThrowId && (() => {
+                {play && player.current.throwAiming && throwStack.current.length > 0 && (() => {
                   const p = player.current;
-                  const ct = findA(playtestThrowId);
+                  const tg = throwStackNext(throwStack.current); // the one a release throws: the group in your hand
+                  const ct = tg ? findA(tg.id) : null;
                   if (!ct) return null;
                   const bodyShape = sideBodyShape(playerAsset);
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction;
@@ -32578,7 +32762,25 @@ export default function AssetStudio({ game = false } = {}) {
                     ? lc : playerAsset;
                 }
                 const runHead = runLook ? gameHead(runLook, 20, basePlayerAsset) : null; // one drawing, shown once per life
-                const throwsLeft = playtestThrowId ? Math.max(0, throwCarry.current) : 0;
+                // THE THROWABLE ROW (Blake, 2026-11-26: "it should display a mini version of the grenade
+                // carried, and grenades should stack"): one small drawing of each grenade you carry, from
+                // its OWN art (hudThrowMini), next-to-throw first, so 3 Grenades then 2 Football Grenades
+                // read as exactly that. Past THROW_HUD_MINIS_MAX in all every group is one drawing and its
+                // ×N (throwStackHudGroups). It replaced a row of generic Throwable symbols that said how
+                // many but never which. Keyed by position in the row: a throw takes the first drawing away
+                // and the rest move up, which is what the row should do.
+                const THROW_MINI_PX = 18;
+                const throwRow = throwStackHudGroups(throwStack.current).map((g) => ({ ...g, art: hudThrowMini(findA(g.id), THROW_MINI_PX) }));
+                const throwMinis = throwRow.length > 0 && (
+                  <div className="hudPips hudThrows">
+                    {throwRow.map((g, gi) => (
+                      <span key={gi + ":" + g.id} className="hudThrowGroup" data-throw={g.id}>
+                        {Array.from({ length: g.minis }, (_, i) => <span key={i} className="hudThrow" style={{ width: g.art.w, height: THROW_MINI_PX }}>{g.art.el}</span>)}
+                        {g.count > 0 && <b>{"×" + g.count}</b>}
+                      </span>
+                    ))}
+                  </div>
+                );
                 // Past 12 (a 🪃 box of 52 cards) it is one pip and the count, not a row off the screen.
                 const pips = (key, n) => n > 0 && (n > 12
                   ? <div className="hudPips"><span>{sym(key, null, 16)}</span><b>{"×" + n}</b></div>
@@ -32633,7 +32835,7 @@ export default function AssetStudio({ game = false } = {}) {
                         <span className="hudHpNum">{curHp}/{maxHp}</span>
                       </div>
                       {segs}
-                      {pips("hud.throw", throwsLeft)}
+                      {throwMinis}
                       {pips("hud.life", abilityLives)}
                       {runLook && <div className="hudPips hudHeads">{Array.from({ length: Math.min(runLives, 12) }, (_, i) => <span key={i} className="hudHead">{runHead}</span>)}</div>}
                     </div>
@@ -32856,7 +33058,7 @@ export default function AssetStudio({ game = false } = {}) {
           const rolled = (shopRolls.current[shop.roll] || []).map(findA).filter(Boolean);
           const wornNow = wornEquipMap(findA(playerId), equipped.current);
           const stock = shopPriceOrder(shopUnowned(rolled, {
-            weaponId: playtestWeaponId, throwId: playtestThrowId, throwLeft: throwCarry.current,
+            weaponId: playtestWeaponId, // a throwable is never "had" since the throwable row: see shopUnowned
             wornIds: Object.values(wornNow || {}).map((g) => g && g.id),
           }), intel);
           const tab = shop.tab === "sell" ? "sell" : "buy";
@@ -34796,6 +34998,12 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudHeads{gap:3px}
 .hudHead{position:relative;overflow:hidden;flex:none;width:20px;height:20px}
 .hudHead>div{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
+/* The throwable row: each grenade drawn small from its own art (hudThrowMini), a group of one kind
+   per span, the groups a little further apart than the grenades in them. */
+.hudThrows{gap:7px;align-items:center}
+.hudThrowGroup{display:flex;gap:3px;align-items:center}
+.hudThrow{position:relative;overflow:hidden;flex:none}
+.hudThrow>div{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
 .hudC{flex:0 0 auto;text-align:center;line-height:1;opacity:.55}
 .hudBot{position:absolute;left:0;right:0;bottom:0;z-index:6;opacity:.8;pointer-events:none;display:flex;align-items:flex-end;justify-content:space-between;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
 .hudMoney{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:700;letter-spacing:.04em;line-height:1;transform-origin:0 100%}

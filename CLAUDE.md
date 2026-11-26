@@ -517,7 +517,9 @@ plus traps it does not cover:
   studio toast is blue; a save (`toastIsSave`) is a green pill at the TOP, 3 s, above any dialog.
 - **The play HUD** (`.hud`, after his mock-up) shows the HP bar with cur/max top-left. Below it,
   ammo is ONE SEGMENT PER ROUND with no counter, in a bar of ONE fixed width (a one-shot RPG is one
-  long segment, a rifle many thin ones), and throwables and extra lives are pips. SCORE
+  long segment, a rifle many thin ones), and extra lives are pips. Throwables are a row of minis drawn
+  from each one's own art (`hudThrowMini`, 18px tall), one per grenade in stack order; past 12 in all
+  (`THROW_HUD_MINIS_MAX`) each group is one mini and ×N. SCORE
   sits top-centre, half see-through, and the live stats (AGI DEF HP INT SPD STR, no ATK) top-right.
   Bottom-left is the money (`hud.money`), bottom-right the held weapon's picture (`hudWeaponArt`:
   the ground art turned on its side when tall, muzzle to the right) with its ATK, the only place ATK
@@ -928,8 +930,9 @@ plus traps it does not cover:
   line far from the cause.
 - **The play effect re-runs for reasons that are not a new session** (a landed grenade paints fire with
   setLevel, a pickup bumps `equipGen`, a door changes `level`). Anything it seeds must be keyed:
-  `throwStockKey` / `wpnClipKey` (playRunId|asset|knob) keep the grenade count and the clip across
-  re-runs, or every Pokeball landing in its own fire refilled the stack ("infinite, not 3").
+  `throwStockKey` (playRunId|picker id|knob) seeds the throwable stack once a session and
+  `wpnClipKey` (playRunId|asset|knob) keeps the clip across re-runs, or every Pokeball landing in its
+  own fire refilled the stack ("infinite, not 3").
 - **One body box for throws.** `unitBodyBox` is what a rock stops on, a stun reaches and a Capture ball
   claims. A bare `topFrac * height` sits above an animal by its ground anchor (`unitHitTop`); the capture
   payout used it, so a Crocodile (scale 1.6) was never caught and a Lion only by luck.
@@ -1015,7 +1018,8 @@ plus traps it does not cover:
 - Floating labels are bare words (white, with a black outline and glow) and never boxes. There is
   no 🐱×N count by HP bars. The shop panel is square and has no emoji. Dialogue has no bubble,
   answers sit in a grid, and the font is DotGothic16. The pickup banner is Shrikhand, coloured by
-  rank. A shop never shows what you already hold or wear (`shopUnowned`).
+  rank. A shop never shows what you already hold or wear (`shopUnowned`); throwables always show,
+  because they stack.
 - **A shop has a Buy and a Sell tab** (Blake, 2026-11-26: "The sell menu should not let you sell underwear
   top or bottom"). It opens on Buy, which is the shelf exactly as before; the panel hangs from the top
   (`.shopModal`) so the tabs never move. Sell lists the held weapon, each carried throwable and every worn
@@ -1023,7 +1027,7 @@ plus traps it does not cover:
   `shopSellables`/`shopSellsSlot`, and `sellToShop` only sells an entry that list returns. A sale pays
   `shopSellPrice` = the Buy tab's trade-in (`shopTradeInValue`); a throwable is that box's trade-in times
   count / `throwPickupCount`. A sold garment's slot goes `null`, a sold weapon leaves bare hands (""). The
-  Sell tab reads and writes the G slot ONLY through `sellableThrows` / `sellThrow`.
+  Sell tab reads and writes the throwable stack ONLY through `sellableThrows` / `sellThrow`: one row per kind carried, and a sale removes every one of that kind (`throwStackRemove`).
 - **Defense:** a hit times `DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Defense)`, DEFENSE_HALF_AT = 35 (10 until
   2026-10-08, 20 until 2026-10-10: "a tad too bullet spongy. IE the football players"). Applied ONCE per
   hit, on the player and on units alike. A look's Defense is the sum of its garments; negative totals
@@ -1091,6 +1095,14 @@ plus traps it does not cover:
   pierce: a body stops it and it is spent; a miss comes home into the stock, and several fly at once. Aim assist is off for
   it (that solves for a falling round). Player and units alike. A throwable's stock is `throwPickupCount` (`pickupCount`,
   3 unless set). Items: Boomerang `boomrg1`, Box of Playing Cards `cardbx1` (52).
+- **Throwables stack in pickup order** (2026-11-26, "you acquire them based on when they are picked up"):
+  `throwStack` is `[{ id, n }]`. A pickup or buy of the kind in the LAST group adds to it; anything else
+  appends a group, and nothing is traded in. G throws the OLDEST group first (`THROW_STACK_OLDEST_FIRST`,
+  one line to flip). A boomerang or capture ball that comes home goes back into its group, or in front.
+  Read and write it only through the pure `throwStack*` helpers. Saves write `throws` plus the head as
+  `throwId`/`throwCount` for older copies, and a save without `throws` loads as one group. The studio
+  picker (`playtestThrowId`/`playtestThrowCount`) is only the first group; a pickup never changes it.
+  Enemy throwables (`ep.throwLeft`) are separate.
 - **Clothing prints are textures** (Tye Dye, Flannel, 🦓 `zebra`): the piece carries `tex: <texture record id>`, and the
   record ships in library.json `textures`. A fresh store restores textures when an editor opens (`loadTextures`).
 - **Melee DPS is damage x a fixed swing** (`PLAYER_SWING_FRAMES` 12, 5 swings/s); a melee weapon's Fire rate does nothing.

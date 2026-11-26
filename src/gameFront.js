@@ -311,6 +311,9 @@ export const makeGameSave = (prev, s) => ({
   weaponId: s.weaponId || "",
   throwId: s.throwId || "",
   throwCount: Math.max(0, Math.round(Number(s.throwCount) || 0)),
+  // The whole throwable row in pickup order (App.js throwStackToSave / throwStackFromSave), groups
+  // { id, n }. null on a save made before the row: the load then reads throwId/throwCount as one group.
+  throws: Array.isArray(s.throws) ? s.throws.filter((g) => g && g.id && Number.isFinite(Number(g.n)) && Math.round(Number(g.n)) >= 1).map((g) => ({ id: String(g.id), n: Math.round(Number(g.n)) })) : null,
   equipped: s.equipped && typeof s.equipped === "object" ? { ...s.equipped } : {},
   hp: typeof s.hp === "number" && isFinite(s.hp) ? s.hp : null,
   wallet: Math.max(0, Math.round(Number(s.wallet) || 0)),

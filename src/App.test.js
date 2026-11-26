@@ -9866,11 +9866,13 @@ describe("a shopkeeper puts three things out, not his whole warehouse", () => {
     expect(ids({})).toEqual(["rifle", "nade", "hat", "tonic"]);
     expect(ids({ weaponId: "rifle" })).toEqual(["nade", "hat", "tonic"]);
     expect(ids({ wornIds: ["hat", null] })).toEqual(["rifle", "nade", "tonic"]);
-    // A full ×3 of the grenade is "had"; one left is not, since buying it refills to 3.
-    expect(ids({ throwId: "nade", throwLeft: 3 })).toEqual(["rifle", "hat", "tonic"]);
+    // A throwable is never "had" since the throwable row (2026-11-26): a purchase puts its whole box on
+    // the end of the row, so a full hand of grenades is still a real purchase. (The old owned fields
+    // throwId/throwLeft, if a caller still passes them, change nothing.)
+    expect(ids({ throwId: "nade", throwLeft: 3 })).toEqual(["rifle", "nade", "hat", "tonic"]);
     expect(ids({ throwId: "nade", throwLeft: 1 })).toEqual(["rifle", "nade", "hat", "tonic"]);
-    // A consumable is drunk, never owned.
-    expect(ids({ weaponId: "rifle", wornIds: ["hat"], throwId: "nade", throwLeft: 3 })).toEqual(["tonic"]);
+    // A consumable is drunk, never owned; a throwable is stacked, never owned.
+    expect(ids({ weaponId: "rifle", wornIds: ["hat"], throwId: "nade", throwLeft: 3 })).toEqual(["nade", "tonic"]);
   });
 
   test("everything it rolls is really on sale", () => {
@@ -16102,7 +16104,7 @@ describe("🪃 Boomerang (weapon + throwable ability, 2026-10-25)", () => {
     expect(throwPickupCount({ pickupCount: 1000 })).toBe(THROW_PICKUP_MAX);
     const box = { id: "cards", type: "weapon", wtype: "throw", pickupCount: 52 };
     expect(shopUnowned([box], { throwId: "cards", throwLeft: 3 }).length).toBe(1);   // 3 of 52 left is a real purchase
-    expect(shopUnowned([box], { throwId: "cards", throwLeft: 52 }).length).toBe(0);
+    expect(shopUnowned([box], { throwId: "cards", throwLeft: 52 }).length).toBe(1);  // ...and so is a full box: another 52 join the row
   });
 
   test("its DPS is the trip, two hits a throw, and clip and reload mean nothing to it", () => {
@@ -16124,7 +16126,7 @@ describe("🪃 Boomerang (weapon + throwable ability, 2026-10-25)", () => {
   test("in play: a thrown one lands only on a body, is restocked when caught, and both sides throw it", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).toMatch(/const landed = g\.boomerang \? \(struck\.length > 0 \|\| onCatchableBody\)/);
-    expect(src.match(/throwCarry\.current \+= 1/g).length).toBe(2);   // caught, and handed back at a door
+    expect(src.match(/throwStack\.current = throwStackReturn\(throwStack\.current, g\.asset\.id\)/g).length).toBe(2);   // caught, and handed back at a door
     expect(src.match(/bep\.throwLeft \+= 1/g).length).toBe(2);        // ...the same for a unit's
     expect(src).toMatch(/boomerang: true, owner: "player", out: true/);
     expect(src).toMatch(/boomerang: true, owner: k, out: true/);
@@ -17915,5 +17917,149 @@ describe("📢 Megaphone horn-mouth sound wave cone (2026-11-26)", () => {
     expect(farArcs[0].halfH).toBeGreaterThan(nearArcs[0].halfH); // cone opens out with distance
     expect(farArcs[0].halfH).toBeGreaterThan(farArcs[1].halfH);  // outer arc taller than inner trailing arcs
     expect(farArcs[1].halfH).toBeGreaterThan(farArcs[2].halfH);
+  });
+});
+
+// THE THROWABLE STACK (Blake, 2026-11-26: "grenades should stack, so you should be able to have 2
+// football grenades and before those 3 regular grenades etc. You acquire them based on when they are
+// picked up"). The row is groups { id, n } in pickup order; G throws the oldest group first.
+import {
+  THROW_STACK_OLDEST_FIRST, throwStackNorm, throwStackHeadIndex, throwStackNext, throwStackTotal, throwStackCount,
+  throwStackAdd, throwStackTake, throwStackReturn, throwStackRemove, throwStackInThrowOrder,
+  throwStackToSave, throwStackFromSave, throwStackHudGroups, THROW_HUD_MINIS_MAX,
+  shopUnowned as shopUnownedTS,
+} from "./App";
+import { makeGameSave as makeGameSaveTS, carryToNextFloor as carryToNextFloorTS } from "./gameFront";
+
+describe("the throwable stack", () => {
+  test("pickups go on in the order they were taken; the same kind as the LAST group adds to it", () => {
+    let s = [];
+    s = throwStackAdd(s, "gr3nad3", 3);
+    s = throwStackAdd(s, "ftbgren", 2);
+    expect(s).toEqual([{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }]);
+    expect(throwStackAdd(s, "ftbgren", 2)).toEqual([{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 4 }]);
+    // A grenade after the footballs is a THIRD group, not more of the first: the row is pickup order.
+    expect(throwStackAdd(s, "gr3nad3", 1)).toEqual([{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }, { id: "gr3nad3", n: 1 }]);
+    expect(throwStackTotal(throwStackAdd(s, "gr3nad3", 1))).toBe(6);
+    expect(throwStackCount(throwStackAdd(s, "gr3nad3", 1), "gr3nad3")).toBe(4);
+    // Nothing for nothing: no id, a zero, a negative or a junk count add nothing.
+    expect(throwStackAdd(s, "", 3)).toEqual(s);
+    expect(throwStackAdd(s, "x", 0)).toEqual(s);
+    expect(throwStackAdd(s, "x", -2)).toEqual(s);
+    expect(throwStackAdd(s, "x", "lots")).toEqual(s);
+  });
+
+  test("every helper is pure: the caller's row is never changed", () => {
+    const s = [{ id: "a", n: 2 }, { id: "b", n: 1 }];
+    const copy = JSON.parse(JSON.stringify(s));
+    throwStackAdd(s, "b", 3); throwStackTake(s); throwStackReturn(s, "a"); throwStackRemove(s, "a"); throwStackNorm(s);
+    throwStackInThrowOrder(s); throwStackHudGroups(s); throwStackToSave(s);
+    expect(s).toEqual(copy);
+  });
+
+  test("G throws the OLDEST group first, and the next group comes into the hand when it runs out", () => {
+    expect(THROW_STACK_OLDEST_FIRST).toBe(true);
+    let s = [{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }];
+    expect(throwStackHeadIndex(s)).toBe(0);
+    expect(throwStackNext(s)).toEqual({ id: "gr3nad3", n: 3 });
+    const thrown = [];
+    while (throwStackNext(s)) { thrown.push(throwStackNext(s).id); s = throwStackTake(s); }
+    expect(thrown).toEqual(["gr3nad3", "gr3nad3", "gr3nad3", "ftbgren", "ftbgren"]);
+    expect(s).toEqual([]);
+    expect(throwStackNext([])).toBe(null);
+    expect(throwStackNext(null)).toBe(null);
+    expect(throwStackTake([])).toEqual([]);
+    expect(throwStackHeadIndex([])).toBe(-1);
+  });
+
+  test("a throw that comes home goes back into its own group, or into your hand if its group is gone", () => {
+    const s = [{ id: "cards", n: 2 }, { id: "nade", n: 3 }];
+    expect(throwStackReturn(s, "cards")).toEqual([{ id: "cards", n: 3 }, { id: "nade", n: 3 }]);
+    expect(throwStackReturn(s, "nade")).toEqual([{ id: "cards", n: 2 }, { id: "nade", n: 4 }]);
+    // The last card thrown and the group spent: caught, it is back in the hand, ahead of the grenades.
+    expect(throwStackReturn([{ id: "nade", n: 3 }], "cards")).toEqual([{ id: "cards", n: 1 }, { id: "nade", n: 3 }]);
+    expect(throwStackReturn([], "cards")).toEqual([{ id: "cards", n: 1 }]);
+    // Two groups of the kind: the one nearest the hand takes it back.
+    expect(throwStackReturn([{ id: "a", n: 1 }, { id: "b", n: 1 }, { id: "a", n: 1 }], "a")).toEqual([{ id: "a", n: 2 }, { id: "b", n: 1 }, { id: "a", n: 1 }]);
+  });
+
+  test("throwStackRemove (selling) takes from the group thrown LAST first and joins what it leaves side by side", () => {
+    const s = [{ id: "a", n: 3 }, { id: "b", n: 2 }, { id: "a", n: 1 }];
+    expect(throwStackRemove(s, "a", 1)).toEqual([{ id: "a", n: 3 }, { id: "b", n: 2 }]);
+    expect(throwStackRemove(s, "a", 2)).toEqual([{ id: "a", n: 2 }, { id: "b", n: 2 }]);
+    expect(throwStackRemove(s, "a")).toEqual([{ id: "b", n: 2 }]);
+    expect(throwStackRemove(s, "b")).toEqual([{ id: "a", n: 4 }]);       // the two Grenade groups meet and become one
+    expect(throwStackRemove(s, "b", 1)).toEqual([{ id: "a", n: 3 }, { id: "b", n: 1 }, { id: "a", n: 1 }]);
+    expect(throwStackRemove(s, "zzz", 5)).toEqual(s);
+    expect(throwStackRemove(s, "a", 0)).toEqual(s);
+    expect(throwStackRemove(s, "a", 99)).toEqual([{ id: "b", n: 2 }]);
+  });
+
+  test("a clean copy drops junk, merges neighbours of one kind, and keeps only what `keep` allows", () => {
+    expect(throwStackNorm([{ id: "a", n: 2 }, { id: "a", n: 1 }, null, { id: "", n: 3 }, { id: "b", n: 0 }, { id: "c", n: Infinity }, { id: "d", n: 1.6 }]))
+      .toEqual([{ id: "a", n: 3 }, { id: "d", n: 2 }]);
+    expect(throwStackNorm("junk")).toEqual([]);
+    expect(throwStackNorm([{ id: "a", n: 1 }, { id: "gone", n: 2 }, { id: "a", n: 1 }], (id) => id !== "gone")).toEqual([{ id: "a", n: 2 }]);
+  });
+
+  test("a save holds the row; an old save's one throwable loads as a row of one group", () => {
+    const s = [{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }];
+    expect(throwStackFromSave({ throws: throwStackToSave(s) })).toEqual(s);
+    expect(throwStackFromSave({ throwId: "gr3nad3", throwCount: 2 })).toEqual([{ id: "gr3nad3", n: 2 }]);
+    expect(throwStackFromSave({ throwId: "gr3nad3", throwCount: 0 })).toEqual([]);
+    expect(throwStackFromSave({ throwId: "", throwCount: 3 })).toEqual([]);
+    expect(throwStackFromSave(null)).toEqual([]);
+    // `throws` wins over the head pair a new save also writes for older copies of the game.
+    expect(throwStackFromSave({ throws: s, throwId: "gr3nad3", throwCount: 3 })).toEqual(s);
+    expect(throwStackFromSave({ throws: [], throwId: "gr3nad3", throwCount: 3 })).toEqual([]);
+    // A throwable deleted since the save is left out.
+    expect(throwStackFromSave({ throws: s }, (id) => id !== "ftbgren")).toEqual([{ id: "gr3nad3", n: 3 }]);
+  });
+
+  test("the checkpoint keeps the row through makeGameSave and the next floor; an old save has none", () => {
+    const rows = [{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }];
+    const save = makeGameSaveTS(null, { seed: "7", throws: rows, throwId: "gr3nad3", throwCount: 3 });
+    expect(save.throws).toEqual(rows);
+    expect(save.throws).not.toBe(rows);
+    expect(carryToNextFloorTS(save, "Vietnam", 9).throws).toEqual(rows);
+    expect(makeGameSaveTS(null, { seed: "7", throwId: "gr3nad3", throwCount: 2 }).throws).toBe(null);
+    expect(throwStackFromSave(makeGameSaveTS(null, { seed: "7", throwId: "gr3nad3", throwCount: 2 }))).toEqual([{ id: "gr3nad3", n: 2 }]);
+    expect(makeGameSaveTS(null, { seed: "7", throws: [{ id: "a", n: 0 }, { id: "b", n: 2 }, { n: 4 }] }).throws).toEqual([{ id: "b", n: 2 }]);
+  });
+
+  test("the HUD draws one mini per grenade, next-to-throw first, and one mini + its count per group past 12", () => {
+    const s = [{ id: "gr3nad3", n: 3 }, { id: "ftbgren", n: 2 }];
+    expect(throwStackHudGroups(s)).toEqual([{ id: "gr3nad3", n: 3, minis: 3, count: 0 }, { id: "ftbgren", n: 2, minis: 2, count: 0 }]);
+    expect(THROW_HUD_MINIS_MAX).toBe(12);
+    expect(throwStackHudGroups([{ id: "a", n: 12 }])[0]).toEqual({ id: "a", n: 12, minis: 12, count: 0 });
+    expect(throwStackHudGroups([{ id: "cards", n: 52 }, { id: "nade", n: 1 }])).toEqual([{ id: "cards", n: 52, minis: 1, count: 52 }, { id: "nade", n: 1, minis: 1, count: 0 }]);
+    expect(throwStackHudGroups([])).toEqual([]);
+    expect(throwStackInThrowOrder(s)).toEqual(s);
+  });
+
+  test("a shop always offers a throwable: buying more of one you carry adds to the row", () => {
+    const nade = { id: "nade", type: "weapon", wtype: "throw", name: "Grenade" };
+    expect(shopUnownedTS([nade], {}).length).toBe(1);
+    expect(shopUnownedTS([nade], { weaponId: "nade" }).length).toBe(1);
+  });
+
+  test("in play: every reader and writer of the old one-throwable slot goes through the row", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).not.toMatch(/throwCarry/);
+    expect(src).not.toMatch(/throwPickup\.current/);
+    // The pickup puts nothing back on the plinth and adds the box to the end of the row.
+    expect(src).toMatch(/putBack\(null\);\r?\n\s*throwStack\.current = throwStackAdd\(throwStack\.current, item\.id, throwPickupCount\(item\)\);/);
+    // A purchase does the same, and the shop has no throwable trade-in.
+    expect(src.match(/throwStack\.current = throwStackAdd\(throwStack\.current, item\.id, throwPickupCount\(item\)\)/g).length).toBe(2);
+    expect(src).toMatch(/if \(isThrowable\(item\.wtype\)\) return \{ off: null, offSlot: null \};/);
+    // G takes from the row, and the hand reads it every frame.
+    expect(src).toContain("throwStack.current = throwStackTake(throwStack.current);");
+    expect(src).toContain("const throwGroup = throwStackNext(throwStack.current);");
+    // An effect re-run keeps the row unless the start itself changed (THE PLAY EFFECT RE-RUNS ...).
+    expect(src).toContain("else if (throwStackSeed.current) throwStack.current = throwStackSeed.current;");
+    expect(src).toContain("else if (throwStockKey.current !== thrStartKey) {");
+    // The checkpoint writes the row and a load adopts it.
+    expect(src).toContain("throws: throwStackToSave(throwStack.current),");
+    expect(src).toContain("throwStackSeed.current = throwStackFromSave(s, isThrowableId);");
   });
 });
