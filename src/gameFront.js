@@ -328,6 +328,10 @@ export const makeGameSave = (prev, s) => ({
   // 🧪 Timed buffs still running (a drink), each with the milliseconds it has LEFT, so a load or the
   // next floor gives back what remained (App.js buffsToSave / buffsFromSave).
   buffs: Array.isArray(s.buffs) ? s.buffs.filter((b) => b && typeof b === "object" && b.left > 0).map((b) => ({ ...b })) : [],
+  // 🚪 Your followers (App.js followerToSave / followerFromSave), so they go on to the next floor with
+  // you (carryToNextFloor keeps the field) and come back on a load (Blake, 2026-11-26: "be sure
+  // followers follow across levels"). A save from before them has none.
+  allies: Array.isArray(s.allies) ? s.allies.filter((a) => a && a.spawn && typeof a.spawn === "object").map((a) => JSON.parse(JSON.stringify(a))) : [],
 });
 // Newest first, at most GAME_SAVES_MAX, one per id (the newest copy of an id wins).
 export const sortGameSaves = (saves) => {

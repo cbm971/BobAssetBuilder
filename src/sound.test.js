@@ -9,6 +9,7 @@ import {
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
   soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
   musicTrackFor, stretchChannels, PICKUP_LEGENDARY_STRETCH, testMuteOn, carEngineGain, CAR_ENGINE_IDLE_GAIN,
+  momentMaxSecs, soundCutTimes, FIRE_SOUND_MAX_S, ENEMY_DEATH_SOUND_MAX_S, SOUND_CUT_FADE_S,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -293,7 +294,7 @@ describe("the engine, against a stand-in Web Audio", () => {
     class FakeCtx {
       constructor() { this.state = state; this.destination = {}; }
       resume() { this.state = "running"; return Promise.resolve(); }
-      createGain() { return { gain: { value: 1 }, connect: () => {}, disconnect: () => {} }; }
+      createGain() { return { gain: { value: 1, setValueAtTime: () => {}, linearRampToValueAtTime: () => {} }, connect: () => {}, disconnect: () => {} }; } // a real AudioParam schedules (a gunshot's cut-off)
       createBufferSource() { const s = { buffer: null, connect: (n) => n, start: () => started.push(s), stop: () => { s.stopped = true; }, onended: null }; return s; }
       decodeAudioData(ab, ok) { const p = Promise.resolve({ duration: 0.4, from: new Uint8Array(ab)[0] }); p.then(ok); return p; }
     }
@@ -870,5 +871,73 @@ describe("🔇 the test mute: an agent's test drive makes no sound (2026-10-25)"
     window.history.replaceState(null, "", "/");
     e.setMusicOn(true); await settle();
     expect(log.el.muted).toBe(false);
+  });
+});
+// Blake, 2026-11-26: "Weapon Fire Audio should stop like a tenth of a second or nearly immediately
+// after the weapon is fired. Enemy dying audio can only last 1 second after they die."
+describe("a gunshot is cut at a tenth of a second and an enemy's death at one second", () => {
+  test("which moments are cut, and when", () => {
+    expect(momentMaxSecs({ slot: "fire" })).toBe(FIRE_SOUND_MAX_S);
+    expect(FIRE_SOUND_MAX_S).toBe(0.1);
+    expect(momentMaxSecs({ slot: "death", basic: "enemyDeath" })).toBe(ENEMY_DEATH_SOUND_MAX_S);
+    expect(momentMaxSecs({ basic: "enemyDeath" })).toBe(1);
+    expect(momentMaxSecs({ slot: "death", basic: "playerDeath" })).toBe(0); // your own death plays whole
+    expect(momentMaxSecs({ slot: "hit" })).toBe(0);
+    expect(momentMaxSecs({ basic: "jump" })).toBe(0);
+    expect(momentMaxSecs()).toBe(0);
+    // Silent and stopped exactly at the limit, faded over the last SOUND_CUT_FADE_S.
+    expect(soundCutTimes(5, 2, 0.1)).toEqual([5 + 0.1 - SOUND_CUT_FADE_S, 5.1]);
+    expect(soundCutTimes(5, 3, 1)[1]).toBe(6);
+    expect(soundCutTimes(5, 0.08, 0.1)).toBeNull(); // already shorter than the limit: left alone
+    expect(soundCutTimes(5, 2, 0)).toBeNull();      // no limit
+  });
+
+  const install = (durS) => {
+    const log = { started: [] };
+    class FakeCtx {
+      constructor() { this.state = "running"; this.destination = {}; this.currentTime = 5; }
+      resume() { this.state = "running"; return Promise.resolve(); }
+      createGain() { const ev = []; return { ev, gain: { value: 1, setValueAtTime: (v, t) => ev.push(["set", v, t]), linearRampToValueAtTime: (v, t) => ev.push(["ramp", v, t]), cancelScheduledValues: () => {} }, connect: () => {}, disconnect: () => {} }; }
+      createBufferSource() { const s = { buffer: null, connect: (n) => { s.out = n; return n; }, start: () => { s.started = true; log.started.push(s); }, stop: (t) => { if (!s.started) throw new Error("stopped before it started"); s.stopAt = t; }, onended: null }; return s; }
+      createConstantSource() { return { offset: { value: 1 }, connect: () => {}, start: () => {}, stop: () => {}, disconnect: () => {} }; }
+      decodeAudioData(ab, ok) { const d = new Float32Array(1000).fill(0.5); const p = Promise.resolve({ duration: durS, sampleRate: 1000, numberOfChannels: 1, getChannelData: () => d }); p.then(ok); return p; }
+    }
+    window.AudioContext = FakeCtx;
+    return log;
+  };
+  afterEach(() => { delete window.AudioContext; });
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const clip = "c".repeat(28) + ".mp3";
+  const make = () => {
+    const e = createAudioEngine({ loadClip: async () => new Uint8Array([0]) });
+    e.setLibrary([snd("bang", "Bang", "Guns", clip), snd("boom", "Boom", "Guns", clip), snd("hop", "Hop", "Bob", clip), board({ enemyDeath: "bang", playerDeath: "boom", jump: "hop" })]); // three ids: one id twice inside RETRIGGER_MS is merged
+    return e;
+  };
+  const gun = { id: "gun", type: "weapon", wtype: "ranged", sounds: { fire: "bang" } };
+  const enemy = { id: "rat", type: "enemy", sounds: {} };
+
+  test("a gun's Fire fades out and stops 0.1 s after it starts, and frees its copy slot then", async () => {
+    const log = install(2.5);
+    const e = make();
+    e.preload(["bang"]); await settle(); await settle();
+    expect(e.moment({ asset: gun, slot: "fire" })).toBe(true);
+    const src = log.started[0];
+    expect(src.stopAt).toBeCloseTo(5.105, 9);
+    const ev = src.out.ev;
+    expect(ev).toContainEqual(["set", 1, 5 + 0.1 - SOUND_CUT_FADE_S]);
+    expect(ev).toContainEqual(["ramp", 0, 5.1]);
+    expect(e.trace().slice(-1)[0].endsAfter).toBeCloseTo(0.1, 9);
+  });
+
+  test("a unit's death stops after 1 s; the player's death and a jump play whole", async () => {
+    const log = install(4);
+    const e = make();
+    e.preload(["bang"]); await settle(); await settle();
+    expect(e.moment({ asset: enemy, slot: "death", basic: "enemyDeath" })).toBe(true);
+    expect(log.started[0].stopAt).toBeCloseTo(6.005, 9);
+    expect(e.moment({ asset: { id: "me", sounds: {} }, slot: "death", basic: "playerDeath" })).toBe(true);
+    expect(log.started[1].stopAt).toBeUndefined();
+    expect(e.event("jump")).toBe(true);
+    expect(log.started[2].stopAt).toBeUndefined();
   });
 });

@@ -234,7 +234,7 @@ import {
   relocatedObjectKey,
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
-  catchUpFollowers, firedOffArmTwins, ladderFootHits, ladderUnderFeet, trailDrop, trailShift, trailPickUp, trailNext, followDetourStep, followJumpsWall,
+  catchUpFollowers, isFollower, setFollowerDown, followerToSave, followerFromSave, newUnitState, firedOffArmTwins, ladderFootHits, ladderUnderFeet, trailDrop, trailShift, trailPickUp, trailNext, followDetourStep, followJumpsWall,
   FOLLOW_BLOCKED_FRAMES, FOLLOW_TRAIL_GIVE_UP_FRAMES, ladderJogDx,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
   runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runFloors, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, roomViewZoom, centreRoomInView, ROOM_VIEW_ROWS, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
@@ -509,6 +509,9 @@ import {
   allyBadge,
   allyMaxHPBonus,
   applyAllyHPBonus,
+  allyHPSources,
+  payAllyHPSources,
+  extraLifeHP,
   unitMaxHP,
   EXTRA_LIFE_HP,
   EXTRA_LIFE_GRACE_FRAMES,
@@ -642,6 +645,7 @@ import {
   shopUnowned,
   shopSellables,
   shopSellPrice,
+  shopSellChangeRows,
   shopSellsSlot,
   SHOP_SELL_SLOT_ORDER,
   SHOP_SHELF_SIZE,
@@ -8297,6 +8301,36 @@ describe("clothing that raises your allies' maximum HP", () => {
     expect(r.max).toBe(20);
     expect(canResurrect(r.hp, {})).toBe(true); // still a body, still raisable exactly once
   });
+  // Blake, 2026-11-26: "once per item with the effect per life ... if the player is wearing poke
+  // boxers and a ally has 9 lives they should get 9 lives with bonus HP every life + the 1 HP".
+  test("ONCE PER ITEM: a second jacket of the same size still pays; the same one worn again never does", () => {
+    const a = { id: "pokeA", effects: [{ type: "allyHP", hp: 25 }] }, b = { id: "pokeB", effects: [{ type: "allyHP", hp: 25 }] };
+    const boxers = { id: "boxers", effects: [{ type: "allyHP", hp: 15 }] }, plain = { id: "tee", effects: [] };
+    expect(allyHPSources({ jacket: a, under_bottom: boxers, shirt: plain }, 40)).toEqual([{ key: "pokeA", hp: 25 }, { key: "boxers", hp: 15 }]);
+    // A share of the total no garment accounts for is still paid, under "look".
+    expect(allyHPSources({}, 10)).toEqual([{ key: "look", hp: 10 }]);
+    expect(allyHPSources(null, 0)).toEqual([]);
+    // Ally at 50 of its own 100. Jacket A on: +25.
+    let r = payAllyHPSources(50, 100, 25, allyHPSources({ jacket: a }, 25), []);
+    expect(r).toEqual({ hp: 75, paid: ["pokeA"], max: 125 });
+    // Swapped for jacket B, the same +25: B has not been paid, so it is (the old max-rule paid 0).
+    r = payAllyHPSources(r.hp, 100, 25, allyHPSources({ jacket: b }, 25), r.paid);
+    expect(r).toEqual({ hp: 100, paid: ["pokeA", "pokeB"], max: 125 });
+    // Back to A, off, on again: nothing more, ever, in this life.
+    const off = payAllyHPSources(r.hp, 100, 0, [], r.paid);
+    const on = payAllyHPSources(off.hp, 100, 25, allyHPSources({ jacket: a }, 25), off.paid);
+    expect(on.hp).toBe(off.hp);
+    // A body is never paid into, and is not marked paid either.
+    expect(payAllyHPSources(0, 100, 25, allyHPSources({ jacket: a }, 25), [])).toEqual({ hp: 0, paid: [], max: 125 });
+  });
+
+  test("PER LIFE: nine lives under Poke Boxers is nine times 1 HP + 15", () => {
+    expect(extraLifeHP(15, 115)).toBe(EXTRA_LIFE_HP + 15);
+    expect(extraLifeHP(0, 100)).toBe(EXTRA_LIFE_HP);
+    expect(extraLifeHP(500, 40)).toBe(40);    // never past its ceiling
+    expect(extraLifeHP(-3, 40)).toBe(EXTRA_LIFE_HP);
+    expect(extraLifeHP(5, 0)).toBe(1);
+  });
 
   test("an ally caught while wearing it arrives at the bigger maximum", () => {
     // The capture and resurrect paths set HP to enemyMaxHP + bonus and stamp the grant as paid,
@@ -10001,6 +10035,21 @@ describe("the Sell tab (Blake, 2026-11-26: a buy and a sell menu, never the unde
     }
     expect(shopSellPrice({ kind: "weapon", item: rifle }, 5)).toBe(85);
     expect(shopSellPrice(null, 5)).toBe(0);
+  });
+
+  // Blake, 2026-11-26: "It should show stat changes when selling in the shop."
+  test("a sale shows what it takes off you: a garment's stats, the gun's DPS against your fists, nothing for a grenade", () => {
+    const base = { id: "look", type: "skin", stats: { hp: 25, speed: 5, agility: 5, intelligence: 5, strength: 5 }, defense: 0, effects: [] };
+    const hat = { id: "hat", type: "equipment", slot: "hat", name: "Hat", statBoosts: { strength: 2, hp: 5 }, defense: 1 };
+    const on = { hat };
+    const before = mergeEquipForRows(base, on, "default"), after = mergeEquipForRows(base, { hat: null }, "default");
+    const rows = shopSellChangeRows({ kind: "worn", item: hat, slot: "hat" }, { before, after });
+    expect(rows.map((r) => r.label + " " + r.from + ">" + r.to)).toEqual(["HP 30>25", "Str 7>5", "Def 1>0"]);
+    expect(rows.every((r) => r.kind === "stat")).toBe(true); // stats only, like the Buy tab's grid
+    const dpsOf = (w) => (w ? 12.34 : 4);
+    expect(shopSellChangeRows({ kind: "weapon", item: rifle }, { dpsOf })).toEqual([{ kind: "stat", label: "DPS", from: 12.3, to: 4 }]);
+    expect(shopSellChangeRows({ kind: "throw", item: nade, count: 3 }, { dpsOf })).toEqual([]);
+    expect(shopSellChangeRows(null)).toEqual([]);
   });
 
   test("a throwable sells per grenade: the box's trade-in times the share of the box you hold", () => {
@@ -12071,6 +12120,40 @@ describe("runs", () => {
     // Nothing left to bring: a second call moves nobody.
     expect(catchUpFollowers(run, run.nodes.run3, buckets, { x: 100, feet: 960 }, box, CELL)).toEqual([]);
   });
+  // Blake, 2026-11-26: "Also be sure followers follow across levels" — through a door, and on to the next floor.
+  test("who follows you through a door or to the next floor: a living ally not in a car", () => {
+    expect(isFollower({ friendly: true }, undefined)).toBe(true);       // nothing has hurt it yet
+    expect(isFollower({ friendly: true }, 12)).toBe(true);
+    expect(isFollower({ friendly: true }, 0)).toBe(false);              // a body stays where it fell
+    expect(isFollower({ friendly: true, ride: { car: 1, seat: 0 } }, 9)).toBe(false);
+    expect(isFollower({ friendly: false }, 9)).toBe(false);             // a hostile chasing you does not come through a door
+    expect(isFollower(null, 9)).toBe(false);
+    const ep = { x: 1, y: 2, climbing: "ladder", stairs: true, trailN: 3, regroup: true };
+    setFollowerDown(ep, { x: 100, feet: 960 }, { w: 60, h: 210 });
+    expect([ep.x, ep.y, ep.climbing, ep.stairs, ep.trailN, ep.regroup]).toEqual([70, 750, null, false, null, false]);
+  });
+
+  test("a follower rides the save to the next floor and comes back as itself", () => {
+    const hat = { id: "hat1", name: "Hat" }, assets = { hat1: hat };
+    const spawn = { enemyTag: "Vietkong", gearTags: ["Hat"], behavior: "seek" };
+    const ep = { uid: 9, friendly: true, allyKind: "captured", livesUsed: 2, resurrectedOnce: true, allyHpPaid: ["boxers"], x: 5, y: 6 };
+    const saved = followerToSave(spawn, ep, 17, { enemyId: "vc2", items: [hat] });
+    expect(saved).toEqual({ spawn, hp: 17, gear: { enemyId: "vc2", items: ["hat1"] }, kind: "captured", livesUsed: 2, raised: true, paid: ["boxers"] });
+    expect(JSON.parse(JSON.stringify(saved))).toEqual(saved);          // plain data: it goes in a save
+    const back = followerFromSave(saved, (id) => assets[id] || null);
+    expect(back.spawn).toEqual(spawn); expect(back.spawn).not.toBe(spawn);
+    expect(back.hp).toBe(17);
+    expect(back.gear).toEqual({ enemyId: "vc2", items: [hat] });
+    expect(back.ep).toEqual({ friendly: true, peaceful: false, turned: null, allyKind: "captured", livesUsed: 2, resurrectedOnce: true, allyHpPaid: ["boxers"] });
+    // Untouched (no HP entry) comes back at full; an item deleted since is left out; junk is nothing.
+    expect(followerFromSave(followerToSave(spawn, { friendly: true }, undefined, null), () => null).hp).toBeUndefined();
+    expect(followerFromSave({ ...saved, gear: { enemyId: null, items: ["gone"] } }, () => null).gear.items).toEqual([]);
+    expect(followerFromSave(null, () => null)).toBeNull();
+    expect(followerFromSave({ hp: 3 }, () => null)).toBeNull();
+    // A fresh unit state for it, the loop's own: at rest, uid'd.
+    const st = newUnitState(spawn, 10, 20);
+    expect(st.x).toBe(10); expect(st.y).toBe(20); expect(st.uid).toBeGreaterThan(0); expect(st.peaceful).toBe(false);
+  });
 
   test("releaseRunUnits gives every unit back to the level it is standing in", () => {
     const dog = { enemyId: "dog" }, cat = { enemyId: "cat" }, rat = { enemyId: "rat" };
@@ -13116,8 +13199,8 @@ describe("tail swing", () => {
   });
 
   test("the in-level description carries the item's numbers", () => {
-    expect(effectBrief({ type: "tailSwing" }).desc).toBe("turn around to tail-whip for 10 · knocks back 2 cells");
-    expect(effectBrief({ type: "tailSwing", damage: 15, push: 1 }).desc).toBe("turn around to tail-whip for 15 · knocks back 1 cell");
+    expect(effectBrief({ type: "tailSwing" }).desc).toBe("turn around to tail-whip for 10");
+    expect(effectBrief({ type: "tailSwing", damage: 15, push: 1 }).desc).toBe("turn around to tail-whip for 15");
   });
 });
 
@@ -13148,11 +13231,11 @@ describe("pickup change rows", () => {
     expect(effectBrief({ type: "tagBoost", tag: " bow " }).label).toBe("Increase bow damage");
     expect(effectBrief({ type: "tagBoost" }).label).toBe("Increase weapon damage");
     expect(itemAbilityNames({ type: "equipment", slot: "hat", effects: [{ type: "tagBoost", tag: "rifle" }] })).toEqual(["Increase rifle damage"]);
-    expect(effectBrief({ type: "extraLives", lives: 9 }).desc).toBe("9 extra lives · get back up where you fall");
-    expect(effectBrief({ type: "extraLives" }).desc).toBe("1 extra life · get back up where you fall");
+    expect(effectBrief({ type: "extraLives", lives: 9 }).desc).toBe("9 extra lives");
+    expect(effectBrief({ type: "extraLives" }).desc).toBe("1 extra life");
     expect(effectBrief({ type: "extraLives" }).label).toBe("Extra Lives");
-    expect(weaponAbilityBrief({ stun: 1.5 }, "stun").desc).toBe("freezes what it hits for 1.5s");
-    expect(weaponAbilityBrief({ wtype: "throw", captureMax: 3 }, "capture").desc).toBe("up to 3 defeated creatures fight for you");
+    expect(weaponAbilityBrief({ stun: 1.5 }, "stun").desc).toBe("stuns for 1.5s");
+    expect(weaponAbilityBrief({ wtype: "throw", captureMax: 3 }, "capture").desc).toBe("turns up to 3 foes into allies");
   });
 
   // The shop row's ability line: names only (the shop panel carries no emoji), the same "does it
@@ -13183,7 +13266,7 @@ describe("pickup change rows", () => {
     const first = pickupChangeRows(boomer, {});
     expect(first[0]).toEqual({ kind: "stat", label: "Dmg", from: null, to: 7 });
     expect(first.slice(1).map((r) => r.label)).toEqual(["Explode", "Stun"]);
-    expect(first[1].desc).toBe("shots explode · 2-cell blast");
+    expect(first[1].desc).toBe("explosive shots");
     // Swapping a full-auto rifle of the same damage: no damage row, and full auto is LOST.
     const rifle = { type: "weapon", wtype: "ranged", damage: 7, fullAuto: true };
     const swap = pickupChangeRows(boomer, { held: rifle });
@@ -13212,7 +13295,7 @@ describe("pickup change rows", () => {
     const ab = rows.filter((r) => r.kind === "ability");
     // Extra Lives is on BOTH — it is the new item's, described with ITS count, and not "lost".
     expect(ab.map((r) => r.label + (r.lost ? " (lost)" : ""))).toEqual(["Extra Lives", "Back Guard (lost)"]);
-    expect(ab[0].desc).toBe("9 extra lives · get back up where you fall");
+    expect(ab[0].desc).toBe("9 extra lives");
   });
 
   // THE BUG (2026-10-06, "it doesn't always show the stats that are going down"): a dressed look's
@@ -13677,7 +13760,7 @@ describe("a unit plays by the player's rules", () => {
     expect(flyHoverVy(1000, 4)).toBe(4);
     expect(flyHoverVy(10, 4)).toBeCloseTo(10 * FLY_HOVER_GAIN, 9);
     expect(effectBrief({ type: "fly" }).desc).toBe("press W in mid-air to fly");
-    expect(effectBrief({ type: "fly", time: 3 }).desc).toBe("press W in mid-air to fly · 3s");
+    expect(effectBrief({ type: "fly", time: 3 }).desc).toBe("press W in mid-air to fly"); // the flight time is not narrated (Blake, 2026-11-26: briefer)
     expect(EFFECT_TYPES.fly.noAnim).toBe(true); // no 🎬 Design animation: the flying pose is built in
     expect(FLY_HINT_TEXT).toBe("Press W in mid-air to fly");
   });
@@ -15487,10 +15570,10 @@ describe("🐞 Lucky, 🪞 Reflect and 🚒 Fire Resistance", () => {
       expect(EFFECT_TYPES[k].noAnim).toBe(true);
       expect(typeof EFFECT_TYPES[k].brief({ chance: 0.2, resist: 0.4 })).toBe("string");
     }
-    expect(EFFECT_TYPES.luckyDodge.brief({ chance: 0.2 })).toBe("20% chance a hit does no damage");
+    expect(EFFECT_TYPES.luckyDodge.brief({ chance: 0.2 })).toBe("20% chance to take no damage");
     expect(EFFECT_TYPES.coldResist.label).toBe("Cold Resistance");
     expect(EFFECT_TYPES.coldResist.noAnim).toBe(true);
-    expect(EFFECT_TYPES.coldResist.brief({ resist: DEFAULT_COLD_RESIST })).toBe("40% less ice damage and slow");
+    expect(EFFECT_TYPES.coldResist.brief({ resist: DEFAULT_COLD_RESIST })).toBe("40% less ice damage");
     expect(coldDamageMult([])).toBe(1);
     expect(coldDamageMult([{ type: "coldResist", resist: 0.4 }])).toBeCloseTo(0.6);
     expect(coldDamageMult([{ type: "coldResist", resist: 0.4 }, { type: "coldResist", resist: 0.25 }])).toBeCloseTo(0.45);
@@ -15683,7 +15766,8 @@ describe("🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21)", 
     expect(WEAPON_ABILITIES.ignite.on).toEqual({ ignite: FIRE_DAMAGE_SECS, igniteDps: FIRE_DAMAGE_DPS });
     expect([FIRE_DAMAGE_SECS, FIRE_DAMAGE_DPS]).toEqual([10, 2]);
     // A weapon saved before keeps its own numbers (the Flamethrower's 2 s at 6/s).
-    expect(WEAPON_ABILITIES.ignite.brief({ wtype: "ranged", ignite: 2, igniteDps: 6 })).toContain("6 HP/s for 2s");
+    // (Its brief no longer narrates the numbers: Blake, 2026-11-26, "Item descriptions should be briefer".)
+    expect(WEAPON_ABILITIES.ignite.brief({ wtype: "ranged", ignite: 2, igniteDps: 6 })).toBe("sets enemies on fire");
   });
   test("Ice damage: guns and blades, never a throwable; 1 HP/s for 10 s by default", () => {
     expect(weaponAbilityOn({ wtype: "ranged", iceDamage: 10 }, "iceDamage")).toBe(true);
@@ -16649,12 +16733,12 @@ describe("💵 Money = Power (clothing ability, 2026-11-11)", () => {
     expect(EFFECT_TYPES.moneyPower.icon).toBe("💵");
     expect(EFFECT_TYPES.moneyPower.noAnim).toBe(true);
     expect(EFFECT_TYPES.moneyPower.params).toEqual([]);
-    expect(EFFECT_TYPES.moneyPower.brief({})).toBe("more money deals more damage · up to ×2 at $40");
+    expect(EFFECT_TYPES.moneyPower.brief({})).toBe("more money, more damage"); // no cap in it (Blake, 2026-11-26)
     expect(effectBrief({ type: "moneyPower" })).toEqual({
       kind: "ability",
       icon: "💵",
       label: "Money = Power",
-      desc: "more money deals more damage · up to ×2 at $40",
+      desc: "more money, more damage",
     });
     expect(itemAbilityNames({ type: "equipment", slot: "hat", effects: [{ type: "moneyPower" }] })).toEqual(["Money = Power"]);
   });
@@ -17493,8 +17577,8 @@ describe("tail hold", () => {
     expect(keys[keys.indexOf("doubleJump") + 1]).toBe("tailHold");
     expect(EFFECT_TYPES.tailHold.label).toBe("Tail Hold");
     expect(EFFECT_TYPES.tailHold.noAnim).toBe(true);
-    expect(effectBrief({ type: "tailHold" }).desc).toBe("press Jump in mid-air to hang by your tail");
-    expect(effectBrief({ type: "tailHold", time: 3 }).desc).toBe("press Jump in mid-air to hang by your tail · 3s");
+    expect(effectBrief({ type: "tailHold" }).desc).toBe("hang by your tail in mid-air");
+    expect(effectBrief({ type: "tailHold", time: 3 }).desc).toBe("hang by your tail in mid-air");
   });
   test("a press in the air catches, and the next press lets go", () => {
     const c = tailHoldStep(fx, { on: false, used: false, t: 0 }, { ...air, press: true });
@@ -18139,3 +18223,14 @@ describe("Mini Gun, Tommy Gun, Fireman's Axe, and Stick Grenade (minign1, tmmygn
   });
 });
 
+// Blake, 2026-11-26: "Item descriptions should be briefer. One example is when money equals power
+// mentions the cap, it doesn't have to mention the cap." Every in-level description, the whole class:
+// one short clause, no " · " second half (the cap, a duration, a range, a how-it-works).
+describe("every ability description is one short line", () => {
+  test("clothing and weapon abilities alike, at their defaults", () => {
+    const all = [...Object.values(EFFECT_TYPES).filter((d) => d.brief).map((d) => d.brief({})), ...Object.values(WEAPON_ABILITIES).filter((d) => d.brief).map((d) => d.brief({}))];
+    expect(all.length).toBeGreaterThan(40);
+    for (const t of all) { expect(t).not.toMatch(/ · /); expect(t.length).toBeLessThanOrEqual(36); }
+    expect(EFFECT_TYPES.moneyPower.brief({})).not.toMatch(/40|×2|up to/);
+  });
+});

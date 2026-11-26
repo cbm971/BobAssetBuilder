@@ -245,6 +245,29 @@ export const soundGainAt = (x, y, view) => {
 // frame are one bang, not fifteen phased on top of each other. A ceiling on everything at once behind
 // that, which cuts the oldest sound of all. `voices` is [{ id, at }] of what is still playing.
 // Returns { play, steal } — steal is the voice to stop first (or null).
+// ── HOW LONG A MOMENT MAY RING (Blake, 2026-11-26: "Weapon Fire Audio should stop like a tenth of a
+// second or nearly immediately after the weapon is fired. Enemy dying audio can only last 1 second
+// after they die."). His gunshot and death files carry long tails — an echo, a scream that trails —
+// and a burst of fire stacked them into a wash that outlived the shooting, while a death kept going
+// long after the body was down. The file is never edited (the same rule as leadingSilence): each
+// play is cut on the audio clock, counted from where the sound STARTS (after the trimmed silence),
+// with a short fade so the cut never clicks. A gun's Fire is cut wherever it is fired from — yours, a
+// unit's, a cutscene's — because they all ask for the same slot. Every unit's death goes through
+// the basic Enemy death (it is that slot's fallback, and the play loop names it on every unit
+// death), so allies count as well; the player's own death is Player death and is left whole.
+// 0 = play the whole clip. The studio's ▶ is not a moment and always plays the whole file.
+export const FIRE_SOUND_MAX_S = 0.1;
+export const ENEMY_DEATH_SOUND_MAX_S = 1;
+export const SOUND_CUT_FADE_S = 0.025;
+export const momentMaxSecs = ({ slot, basic } = {}) =>
+  slot === "fire" ? FIRE_SOUND_MAX_S : basic === "enemyDeath" ? ENEMY_DEATH_SOUND_MAX_S : 0;
+// When the cut lands on the audio clock: [fade starts, silent and stopped], from `t0` (the moment the
+// voice starts), or null when the clip ends on its own first. Pure, so the timing is tested here.
+export const soundCutTimes = (t0, remainingS, maxS, fadeS = SOUND_CUT_FADE_S) => {
+  if (!(maxS > 0) || !(remainingS > maxS)) return null;
+  const fade = Math.min(fadeS, maxS / 2);
+  return [t0 + maxS - fade, t0 + maxS];
+};
 export const MAX_COPIES = 3;
 export const MAX_VOICES = 24;
 export const RETRIGGER_MS = 50;
@@ -637,11 +660,20 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       if (skip > 0) { g.gain.setValueAtTime(0, c.currentTime); g.gain.linearRampToValueAtTime(gain, c.currentTime + 0.003); }
       else g.gain.value = gain;
       src.connect(g); g.connect(master);
-      const v = { id, at: t, until: t + (buf.duration - skip) * 1000 + 30, done: false, src };
+      // A moment with a length limit (momentMaxSecs) fades out and stops on the audio clock, so nothing
+      // has to come back for it; the voice's slot is freed at the cut, not when the file would have ended.
+      const cutAt = soundCutTimes(c.currentTime, buf.duration - skip, info && info.maxSecs);
+      if (cutAt) {
+        if (!(skip > 0)) g.gain.setValueAtTime(gain, c.currentTime); // anchor the level the fade starts from
+        g.gain.setValueAtTime(gain, cutAt[0]); g.gain.linearRampToValueAtTime(0, cutAt[1]);
+      }
+      const playS = cutAt ? cutAt[1] - c.currentTime : buf.duration - skip;
+      const v = { id, at: t, until: t + playS * 1000 + 30, done: false, src };
       src.onended = () => { v.done = true; try { g.disconnect(); } catch { /* gone */ } };
       src.start(0, skip);
+      if (cutAt) src.stop(cutAt[1] + 0.005); // after start(): a source stopped before it starts throws
       voices.push(v);
-      note({ at: t, id, clip: s.clip, gain, heard: true, cut: !!plan.steal, skip, ...info });
+      note({ at: t, id, clip: s.clip, gain, heard: true, cut: !!plan.steal, skip, ...(cutAt ? { endsAfter: playS } : null), ...info });
       return true;
     } catch { return false; }
   };
@@ -771,7 +803,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       if (gain <= 0.02) return false;
       // Times the slider beside the pick that chose this sound (resolveSoundVol).
       const sv = resolveSoundVol({ asset, slot, basic, board, has: engine.has });
-      return startVoice(id, gain * sv * scale, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null, stretch });
+      return startVoice(id, gain * sv * scale, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null, stretch, maxSecs: momentMaxSecs({ slot, basic }) });
     },
     // An everyday moment with no asset behind it (a door, a pickup, a menu click).
     // `opts.stretch`: hold the sound that many times as long (stretchChannels).

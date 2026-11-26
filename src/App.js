@@ -2726,20 +2726,20 @@ export const WEAPON_ABILITIES = {
   explode: {
     icon: "💥", label: "Explode", types: ["ranged"],
     blurb: "The shot bursts on impact: everything within the blast radius of where it lands takes the weapon's damage, plus an explosion drawn in front from an Object you pick.",
-    brief: (a) => "shots explode · " + briefNum(a.explodeRadius ?? 2) + "-cell blast",
+    brief: () => "explosive shots",
     on: { explode: true, resurrect: false, pierce: false }, off: { explode: false },
   },
   pierce: {
     icon: "🪡", label: "Pierce", types: ["ranged"],
     blurb: "Shots don't stop at the first enemy — they fly on through everyone in their path, hitting each once, until the ground or a wall stops them. Mutually exclusive with Explode.",
-    brief: () => "shots go through every enemy",
+    brief: () => "shots go through enemies",
     on: { pierce: true, explode: false, boomerang: false }, off: { pierce: false },
   },
   // 🧲 see shotHomes. The worn twin is EFFECT_TYPES.homing.
   homing: {
     icon: "🧲", label: "Homing", types: ["ranged"],
     blurb: "Shots chase the nearest enemy: each round bends toward whoever is closest and keeps after them until it lands, or the ground or a wall stops it. In a 👹 Enemy's hands its shots chase YOU.",
-    brief: () => "shots chase the nearest enemy",
+    brief: () => "shots chase enemies",
     on: { homing: true, boomerang: false }, off: { homing: false },
   },
   // 🪃 see boomerangStep. On a gun it IS the firing mode — one throw, no magazine, no reload, its own
@@ -2750,7 +2750,7 @@ export const WEAPON_ABILITIES = {
   boomerang: {
     icon: "🪃", label: "Boomerang", types: ["ranged", "throw"],
     blurb: "Fire throws the weapon itself, spinning, instead of a projectile. It flies out to its Range with a light pull toward an enemy ahead, turns round like a boomerang and comes back to the hand that threw it. A gun goes through every enemy on the way out and again on the way back, and has no clip or reload: it is loaded again when it is back in your hand. A throwable stops on the first thing it hits and pays out there; one that hits nothing comes back to you to throw again, and you can have as many in the air as you like. Works in both directions: in a 👹 Enemy's hands it comes back to the enemy.",
-    brief: (a) => (isThrowable(a.wtype) ? "flies back to you if it misses" : "thrown like a boomerang · goes through enemies both ways"),
+    brief: (a) => (isThrowable(a.wtype) ? "comes back if it misses" : "hits going out and coming back"),
     on: { boomerang: true, burstFire: false, fullAuto: false, pierce: false, homing: false, resurrect: false }, off: { boomerang: false },
   },
   // A gun you WEAR on your fists (the DK Arms): the 👊 Q/V swing you can throw without holstering
@@ -2766,14 +2766,14 @@ export const WEAPON_ABILITIES = {
   ignoreArmor: {
     icon: "🗡️", label: "Ignore armor", types: ["ranged", "melee"],
     blurb: "Its shots bypass the target's Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.",
-    brief: () => "goes straight through armor",
+    brief: () => "ignores armor",
     melee: true,
     on: { ignoreArmor: true }, off: { ignoreArmor: false },
   },
   stun: {
     icon: "💫", label: "Stun", types: ["ranged", "melee", "throw"],
     blurb: "A connecting hit freezes the target for a moment — it can't move or attack. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it freezes YOU, controls and all, for the same number of seconds.",
-    brief: (a) => "freezes what it hits for " + briefNum(a.stun || DEFAULT_STUN_SECS) + "s",
+    brief: (a) => "stuns for " + briefNum(a.stun || DEFAULT_STUN_SECS) + "s",
     melee: true,
     on: { stun: DEFAULT_STUN_SECS }, off: { stun: 0 },
   },
@@ -2783,7 +2783,7 @@ export const WEAPON_ABILITIES = {
   ignite: {
     icon: "🔥", label: "Fire damage", types: ["ranged", "melee"],
     blurb: "A connecting hit sets the target on fire: it glows and throws sparks, and keeps losing HP every second until the fire goes out. Re-hitting refreshes the timer. Fire Immunity and Fire Resistance work against it. Works in both directions: in a 👹 Enemy's hands it sets YOU alight.",
-    brief: (a) => "sets what it hits on fire · " + briefNum(a.igniteDps ?? DEFAULT_IGNITE_DPS) + " HP/s for " + briefNum(a.ignite || DEFAULT_IGNITE_SECS) + "s",
+    brief: () => "sets enemies on fire",
     melee: true,
     isOn: (a) => !!a && !isThrowable(a.wtype) && (a.ignite ?? 0) > 0, // older saves have no wtype: a melee weapon
     on: { ignite: FIRE_DAMAGE_SECS, igniteDps: FIRE_DAMAGE_DPS }, off: { ignite: 0 },
@@ -2792,7 +2792,7 @@ export const WEAPON_ABILITIES = {
   iceDamage: {
     icon: "❄️", label: "Ice damage", types: ["ranged", "melee"],
     blurb: "A connecting hit freezes the target over: a white frosted outline, HP lost every second, and it walks at half speed and jumps half as high until it thaws. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it freezes YOU.",
-    brief: (a) => "freezes what it hits · " + briefNum(a.iceDamageDps ?? ICE_DAMAGE_DPS) + " HP/s and half speed for " + briefNum(a.iceDamage || ICE_DAMAGE_SECS) + "s",
+    brief: () => "chills and slows enemies",
     melee: true,
     isOn: (a) => !!a && !isThrowable(a.wtype) && (a.iceDamage ?? 0) > 0,
     on: { iceDamage: ICE_DAMAGE_SECS, iceDamageDps: ICE_DAMAGE_DPS }, off: { iceDamage: 0 },
@@ -2800,7 +2800,7 @@ export const WEAPON_ABILITIES = {
   poison: {
     icon: "🧪", label: "Poison", types: ["ranged", "melee"],
     blurb: "A connecting hit poisons the target for 5 seconds: it loses Poison / tick damage every second and flashes a green tint on each damage tick. Works in both directions: in a 👹 Enemy's hands it poisons YOU.",
-    brief: (a) => "poisons what it hits · " + briefNum(a.poisonDps ?? POISON_DAMAGE_DPS) + "/tick for " + POISON_DAMAGE_SECS + "s",
+    brief: () => "poisons enemies",
     melee: true,
     isOn: (a) => !!a && !isThrowable(a.wtype) && !!a.poison,
     on: { poison: POISON_DAMAGE_SECS, poisonDps: POISON_DAMAGE_DPS }, off: { poison: 0 },
@@ -2809,7 +2809,7 @@ export const WEAPON_ABILITIES = {
   soundWave: {
     icon: "📢", label: "Sound wave", types: ["melee"],
     blurb: "Hold Block (Q / V) to hold it out: it sends out a sound wave that pushes enemies back and blows their shots and throws back the way the wave goes. Reach is how far the wave travels; Push is how far each wave shoves. A wall stops it. The block still blocks. Works in both directions: in a 👹 Enemy's hands it pushes YOU back.",
-    brief: (a) => { const sw = soundWaveOf(a) || { reach: SOUND_WAVE_DEFAULT_REACH, push: SOUND_WAVE_DEFAULT_PUSH }; return "hold Block to push enemies and shots back " + briefNum(sw.push) + " cells"; },
+    brief: (a) => { const sw = soundWaveOf(a) || { reach: SOUND_WAVE_DEFAULT_REACH, push: SOUND_WAVE_DEFAULT_PUSH }; return "hold Block to push enemies back"; },
     melee: true,
     isOn: (a) => !!soundWaveOf(a),
     on: { soundWave: true, soundWaveReach: SOUND_WAVE_DEFAULT_REACH, soundWavePush: SOUND_WAVE_DEFAULT_PUSH }, off: { soundWave: false },
@@ -2825,7 +2825,7 @@ export const WEAPON_ABILITIES = {
   resurrect: {
     icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
     blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you, glowing 🟣 purple. The staff gets ONE raise per body ever: you carry it all level, so without a ceiling one dog is an endless army. A 🔴 Capture throwable is limited by how many you brought instead, and can raise the same body again and again.",
-    brief: () => "raises the dead to fight for you",
+    brief: () => "raises the dead as allies",
     melee: true,
     on: { resurrect: true, explode: false, boomerang: false }, off: { resurrect: false },
   },
@@ -2845,7 +2845,7 @@ export const WEAPON_ABILITIES = {
   burn: {
     icon: "🔥", label: "Burn", types: ["throw"],
     blurb: "Leaves fire on the ground where it lands, across the splash. Anything alive standing in it loses HP every second until it burns out — you included. Pick an Object to draw the flames, or leave it on the 🔥 emoji.",
-    brief: () => "sets the ground on fire where it lands",
+    brief: () => "sets the ground on fire",
     isOn: (a) => !!a && isThrowable(a.wtype) && (a.landEffectDps ?? 0) > 0,
     on: { landEffectDps: 6, landEffectLife: 6 }, off: { landEffectDps: 0 },
   },
@@ -2859,7 +2859,7 @@ export const WEAPON_ABILITIES = {
   capture: {
     icon: "🔴", label: "Capture", types: ["throw"],
     blurb: "Lands on a DEFEATED creature and it gets up fighting for you, glowing 🔴 red — it charges the nearest enemy, follows you when there are none left, and your own shots, fire and blasts pass through it. Creatures only: anything drawn in the 👹 Enemy creator, never a person. Nearest body first. UNLIKE the 🔮 staff there is no per-body limit: every catch costs one of these, so three of them will bring the same creature back three times.",
-    brief: (a) => { const n = captureCount(a) || 1; return n > 1 ? "up to " + n + " defeated creatures fight for you" : "a defeated creature fights for you"; },
+    brief: (a) => { const n = captureCount(a) || 1; return n > 1 ? "turns up to " + n + " foes into allies" : "turns a foe into an ally"; },
     isOn: (a) => !!a && isThrowable(a.wtype) && (a.captureMax ?? 0) > 0,
     on: { captureMax: 1 }, off: { captureMax: 0 },
   },
@@ -2876,7 +2876,7 @@ export const WEAPON_ABILITIES = {
   throwBlast: {
     icon: "💥", label: "Blast", types: ["throw"],
     blurb: "It goes off where it lands: everything within the blast radius takes the weapon's Damage, you included if you are standing in it, and the explosion you pick rises from the ground there.",
-    brief: (a) => "goes off in a " + briefNum(a.explodeRadius ?? 2) + "-cell blast",
+    brief: (a) => briefNum(a.explodeRadius ?? 2) + "-cell blast",
     on: { throwBlast: true }, off: { throwBlast: false },
   },
 };
@@ -4402,6 +4402,28 @@ export const shopSellPrice = (entry, intelligence) => {
   if (entry.kind !== "throw") return box;
   return Math.max(0, Math.round(box * Math.max(0, entry.count || 0) / throwPickupCount(entry.item)));
 };
+// WHAT SELLING IT DOES TO YOU (Blake, 2026-11-26: "It should show stat changes when selling in the
+// shop"). The Buy tab already printed a shelf item's stat rows (takePrompt), and the Sell tab printed
+// none, so a hat's +2 Str walked out of the door unannounced. Same row shape and the same grid
+// (pickupRowsView), so a sale reads exactly like a purchase run backwards:
+//   * a WORN garment compares you with it on (`before`) and with that slot emptied (`after`), the very
+//     null-slot sellToShop writes, through pickupChangeRows' own stat half: HP, the four stats, Def;
+//   * the WEAPON compares its DPS in your hands with your bare fists' (dpsOf(null)), the HUD's figure,
+//     the one the swap callout quotes;
+//   * a THROWABLE has no stat in your hands to lose, so it has no rows.
+// Stats only, as on the Buy tab: abilities are named on their own line there and nowhere in the grid.
+export const shopSellChangeRows = (entry, ctx) => {
+  if (!entry || !entry.item) return [];
+  const { before = null, after = null, dpsOf = null } = ctx || {};
+  if (entry.kind === "weapon") {
+    if (typeof dpsOf !== "function") return [];
+    const r1 = (w) => Math.round(Math.max(0, dpsOf(w) || 0) * 10) / 10;
+    const from = r1(entry.item), to = r1(null);
+    return from !== to ? [{ kind: "stat", label: "DPS", from, to }] : [];
+  }
+  if (entry.kind !== "worn") return [];
+  return pickupChangeRows(entry.item, { before, after }).filter((r) => r.kind === "stat");
+};
 // Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
 export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
 // How much extra maximum HP the worn kit gives everything fighting for you. Several items stack,
@@ -4436,6 +4458,46 @@ export const applyAllyHPBonus = (curHP, baseMax, bonus, granted) => {
   const topUp = curHP > 0 ? Math.max(0, b - g) : 0;
   return { hp: Math.max(0, Math.min(max, curHP + topUp)), granted: Math.max(g, b), max };
 };
+/* 🟣 YOUR ALLY HEALTH IS PAID ONCE PER ITEM, PER LIFE (Blake, 2026-11-26: "if you get an ally while
+   wearing increased health or if you pick up a increased health item allies gain that amount of HP
+   essentially. But it is once per item with the effect per life ... if the player is wearing poke
+   boxers and a ally has 9 lives they should get 9 lives with bonus HP every life + the 1 HP").
+   Two changes to the rule above, for YOUR allies (a unit side's own channel keeps applyAllyHPBonus):
+     * ONCE PER ITEM, not once per amount. The old `granted` remembered the biggest bonus ever paid,
+       so swapping your +25 Poke Jacket for another +25 jacket paid the allies nothing. Now each
+       garment that carries Ally Health is paid in full the first time it is worn while the ally is
+       up, and never again in that life — taking it off and putting it back on still pays nothing,
+       so the no-farming property stands.
+     * PER LIFE. An ally that gets back up on an extra life starts the new life owed everything you
+       wear again: it stands up on EXTRA_LIFE_HP plus the whole worn bonus (extraLifeHP), and every
+       item counts as paid for that life. Nine lives under Poke Boxers (+15) is nine times 1 + 15.
+   `sources` = allyHPSources: one { key, hp } per worn garment with the ability (its id), plus a
+   "look" entry for any of the total no single garment accounts for, so the bonus the ceiling is
+   built from (allyMaxHPBonus of the merged look) is always the bonus that gets paid. `paid` = the
+   keys already paid this life (ep.allyHpPaid). A body is not paid into (applyAllyHPBonus's reason). */
+export const allyHPSources = (worn, total) => {
+  const out = [];
+  let sum = 0;
+  for (const sl of Object.keys(worn || {}).sort()) {
+    const it = worn[sl]; if (!it) continue;
+    const hp = allyMaxHPBonus(it.effects);
+    if (hp > 0 && !out.some((s) => s.key === String(it.id || sl))) { out.push({ key: String(it.id || sl), hp }); sum += hp; }
+  }
+  const rest = Math.max(0, Math.round(total || 0)) - sum;
+  if (rest > 0) out.push({ key: "look", hp: rest });
+  return out;
+};
+export const payAllyHPSources = (curHP, baseMax, total, sources, paid) => {
+  const max = Math.max(1, Math.round(baseMax || 1) + Math.max(0, Math.round(total || 0)));
+  const now = Array.isArray(paid) ? [...paid] : [];
+  let topUp = 0;
+  if (curHP > 0) for (const s of sources || []) if (s && !now.includes(s.key)) { topUp += Math.max(0, s.hp || 0); now.push(s.key); }
+  return { hp: Math.max(0, Math.min(max, curHP + topUp)), paid: now, max };
+};
+// What a unit stands up with on an extra life: the 1 HP every extra life gives, plus every Ally
+// Health bonus it is owed this new life (yours if it fights for you, its side's wearers' either way),
+// never past its ceiling. Pure.
+export const extraLifeHP = (owed, max) => Math.max(1, Math.min(Math.max(1, Math.round(max || 1)), EXTRA_LIFE_HP + Math.max(0, Math.round(owed || 0))));
 // A unit's REAL maximum right now: its own, plus the ally bonus if it is fighting for you. Every
 // place that asks "how much HP can this thing hold" has to come through here rather than calling
 // enemyMaxHP directly, or the HP bar and the damage maths end up disagreeing about the ceiling.
@@ -6925,7 +6987,7 @@ export const EFFECT_TYPES = {
   tailHold: {
     label: "Tail Hold", icon: "🐒",
     blurb: "Press Jump in mid-air to hang by your tail right where you are: no falling and no drifting, and your hands stay free to shoot, swing or throw (A/D turn you round). Press Jump again, or S, to let go. With a Double Jump worn too, the first press in the air is the double jump and the next one is the hold. One hold per time in the air; Hang time is how long it can last (the top of the slider is no limit). Worn by a 👹 Enemy with a gun, it hops up, hangs and shoots down.",
-    brief: (p) => "press Jump in mid-air to hang by your tail" + ((p.time ?? TAIL_HOLD_TIME_UNLIMITED) >= TAIL_HOLD_TIME_UNLIMITED ? "" : " · " + briefNum(p.time) + "s"),
+    brief: () => "hang by your tail in mid-air",
     noAnim: true,
     params: [
       { key: "time", label: "Hang time", min: 0.5, max: TAIL_HOLD_TIME_UNLIMITED, step: 0.5, def: TAIL_HOLD_TIME_UNLIMITED, fmt: (v) => v >= TAIL_HOLD_TIME_UNLIMITED ? "∞" : v + "s" },
@@ -6949,7 +7011,7 @@ export const EFFECT_TYPES = {
   crouchGuard: {
     label: "Crouch Guard", icon: "🧎",
     blurb: "Blocks part of any hit that lands while you are CROUCHING — duck behind it and you take less. Direction doesn't matter (that's Back Guard's job); staying crouched is the whole trick. Stacks after your normal Defense. No animation of its own.",
-    brief: (p) => "blocks " + briefPct(p.reduce) + " of hits while crouching",
+    brief: (p) => "blocks " + briefPct(p.reduce) + " while crouching",
     noAnim: true,
     params: [
       { key: "reduce", label: "Block %", min: 0.1, max: 1, step: 0.05, def: 0.5 },
@@ -6974,7 +7036,7 @@ export const EFFECT_TYPES = {
   fly: {
     label: "Fly", icon: "🦸",
     blurb: "Press W in mid-air to take off. Hold W to climb, S to come down, neither to hover, and steer with A/D; press Jump to let go (a Glide worn with it then carries you down). Lift is how fast you climb, Air speed how fast you move sideways while flying, and Flight time how long you can stay up before touching the ground again (the top of the slider is no limit). Worn by a 👹 Enemy, it flies up after a target above it.",
-    brief: (p) => "press W in mid-air to fly" + ((p.time ?? FLY_TIME_UNLIMITED) >= FLY_TIME_UNLIMITED ? "" : " · " + briefNum(p.time) + "s"),
+    brief: () => "press W in mid-air to fly",
     noAnim: true,
     params: [
       { key: "lift", label: "Lift", min: 2, max: 20, step: 1, def: 8 },
@@ -7003,7 +7065,7 @@ export const EFFECT_TYPES = {
   slide: {
     label: "Slide", icon: "🛼",
     blurb: "Low grip, like skates or ice: starting and stopping take a moment — you coast when you let go instead of stopping dead — and you slide faster down ramps. No animation of its own.",
-    brief: () => "coast on your momentum, faster downhill",
+    brief: () => "coast on your momentum",
     noAnim: true,
     params: [
       { key: "grip", label: "Grip", min: 0.05, max: 1, step: 0.05, def: 0.15 },
@@ -7047,7 +7109,7 @@ export const EFFECT_TYPES = {
   rangeBoost: {
     label: "Long Shot", icon: "🎯",
     blurb: "Your shots fly farther: multiplies the range of ANY ranged weapon you're holding while this is worn (a 14-block gun at ×1.5 reaches 21). Longer range also means the shot drops later, so it flies flatter. Melee and thrown weapons are unaffected. No animation of its own.",
-    brief: (p) => "shots reach ×" + briefNum(p.mult) + " farther",
+    brief: (p) => "×" + briefNum(p.mult) + " range",
     noAnim: true,
     params: [
       { key: "mult", label: "Range ×", min: 1, max: 4, step: 0.25, def: 1.5 },
@@ -7060,7 +7122,7 @@ export const EFFECT_TYPES = {
   tackle: {
     label: "Tackle", icon: "🏈",
     blurb: "Barge into an enemy and they fall over. It does no damage — they just spend the seconds you set lying on the ground, unable to move, aim or attack, and get up where they fell. Touching them again once they're up knocks them down again. Worn by a 👹 Enemy it works on YOU, and that enemy will occasionally break off whatever it was doing to charge you down. No animation of its own.",
-    brief: (p) => "run into enemies to knock them down for " + briefNum(p.secs) + "s",
+    brief: () => "run into enemies to knock them down",
     noAnim: true,
     params: [
       { key: "secs", label: "Down for", min: 0.5, max: 8, step: 0.5, def: 2 },
@@ -7073,7 +7135,7 @@ export const EFFECT_TYPES = {
   tailSwing: {
     label: "Tail Swing", icon: "🦎",
     blurb: "Turn around next to someone and your tail swings into them: it hits whoever is on the side you were facing (the tail ends up pointing there), and knocks them back. Damage rides your Strength and can crit, like a melee weapon. Reach is how far the tail sticks out past your back; Push is how far it shoves them. Half a second between swings that land. Worn by a 👹 Enemy it works on YOU — it turns its back on you to swing when you get close. No animation of its own: the turn is the swing.",
-    brief: (p) => "turn around to tail-whip for " + briefNum(p.damage) + " · knocks back " + briefNum(p.push) + " " + (p.push === 1 ? "cell" : "cells"),
+    brief: (p) => "turn around to tail-whip for " + briefNum(p.damage),
     noAnim: true,
     params: [
       { key: "damage", label: "Damage", min: 1, max: 50, step: 1, def: 10 },
@@ -7089,7 +7151,7 @@ export const EFFECT_TYPES = {
   allyHP: {
     label: "Ally Health", icon: "🟣",
     blurb: "Raises the maximum HP of every ally fighting for you — anything you have captured or raised. Each ally is paid the bonus ONCE, the first time it is worn around them; an ally caught while you are wearing it simply arrives at the bigger maximum. Taking it off drops the ceiling again and trims anyone over it, and putting it back on pays nothing, so a wear/remove cycle can never top an ally up. Bonuses from several worn items stack. No animation of its own.",
-    brief: (p) => "+" + briefNum(p.hp) + " max HP for your allies",
+    brief: (p) => "+" + briefNum(p.hp) + " HP for your allies",
     noAnim: true,
     params: [
       { key: "hp", label: "Extra HP", min: 1, max: 50, step: 1, def: 10 },
@@ -7100,7 +7162,7 @@ export const EFFECT_TYPES = {
   pierce: {
     label: "Piercing Shot", icon: "🪡",
     blurb: "Your shots don't stop at the first enemy — they fly on through everyone in their path, with any ranged weapon. An exploding shot still bursts on its first hit.",
-    brief: () => "shots go through every enemy",
+    brief: () => "shots go through enemies",
     noAnim: true,
     params: [],
   },
@@ -7141,7 +7203,7 @@ export const EFFECT_TYPES = {
   luckyDodge: {
     label: "Lucky", icon: "🐞",
     blurb: "Some hits just miss you: each hit that lands has the chance you set to do nothing at all — no damage, no stun, no burn. A lucky shot stops dead on you, drops back a cell and falls to the ground. Fire you stand in is not a hit (Fire Resistance covers that). Two lucky items stack (20% and 20% make 36%). Worn by a 👹 Enemy it works on THEM. No animation of its own.",
-    brief: (p) => briefPct(p.chance) + " chance a hit does no damage",
+    brief: (p) => briefPct(p.chance) + " chance to take no damage",
     noAnim: true,
     params: [
       { key: "chance", label: "Chance", min: 0.05, max: 0.75, step: 0.05, def: DEFAULT_LUCKY_CHANCE, fmt: (v) => briefPct(v) },
@@ -7150,7 +7212,7 @@ export const EFFECT_TYPES = {
   reflect: {
     label: "Reflect", icon: "🪞",
     blurb: "Sends hits back: each hit that lands has the chance you set to bounce back at whoever threw it — they take the damage and you take none. A shot turns round and flies back at whoever fired it. Works on swings, bites, stomps, shots, throws and blasts; your own blast has nobody to go back to. Two reflect items stack. Worn by a 👹 Enemy it works on THEM, so your own shots can come back at you. No animation of its own.",
-    brief: (p) => briefPct(p.chance) + " chance to send a hit back at the attacker",
+    brief: (p) => briefPct(p.chance) + " chance to reflect a hit",
     noAnim: true,
     params: [
       { key: "chance", label: "Chance", min: 0.05, max: 0.75, step: 0.05, def: DEFAULT_REFLECT_CHANCE, fmt: (v) => briefPct(v) },
@@ -7168,7 +7230,7 @@ export const EFFECT_TYPES = {
   coldResist: {
     label: "Cold Resistance", icon: "❄️",
     blurb: "Ice weapons hurt and slow you less: the freeze drain, the speed and jump slow, and the hit of an ice weapon are all cut by the percent you set. Several items stack (a 40% jacket and a 25% hat take 55% off). Worn by a 👹 Enemy it works on THEM. No animation of its own.",
-    brief: (p) => briefPct(p.resist) + " less ice damage and slow",
+    brief: (p) => briefPct(p.resist) + " less ice damage",
     noAnim: true,
     params: [
       { key: "resist", label: "Resist", min: 0.05, max: COLD_RESIST_MAX, step: 0.05, def: DEFAULT_COLD_RESIST, fmt: (v) => briefPct(v) },
@@ -7177,7 +7239,7 @@ export const EFFECT_TYPES = {
   extraLives: {
     label: "Extra Lives", icon: "🐱",
     blurb: "Instead of dying you flash and get straight back up on 1 HP, exactly where you fell — no trip back to the start. Spends one life each time; set how many the item carries (a cat head might carry 9). While you flash, nothing can hurt you — fire included — so you have a moment to get clear. Lives refill only when you press ▶ Playtest: taking the item off and putting it back on does not restock them, and the lives on several worn items add together. Worn by a 👹 Enemy it works on THEM — they get back up too, with a 🐱×N count by their HP bar. No animation of its own.",
-    brief: (p) => { const n = Math.max(1, Math.round(p.lives)); return n + " extra " + (n === 1 ? "life" : "lives") + " · get back up where you fall"; },
+    brief: (p) => { const n = Math.max(1, Math.round(p.lives)); return n + " extra " + (n === 1 ? "life" : "lives"); },
     noAnim: true,
     params: [
       { key: "lives", label: "Lives", min: 1, max: 9, step: 1, def: 1 },
@@ -7187,7 +7249,7 @@ export const EFFECT_TYPES = {
   doubleShot: {
     label: "Double Shot", icon: "⏩",
     blurb: "Every shot you fire is two: a second round flies alongside the first, side by side, for the same single round of ammo. Bursts and full auto double too, and everything the gun does (explode, pierce, stun, fire, ice) rides both rounds. Two items carrying it still fire two. Worn by a 👹 Enemy it works on THEM. No animation of its own.",
-    brief: () => "every shot fires two rounds",
+    brief: () => "two rounds per shot",
     noAnim: true,
     params: [],
   },
@@ -7195,7 +7257,7 @@ export const EFFECT_TYPES = {
   homing: {
     label: "Homing Shot", icon: "🧲",
     blurb: "Your shots chase the nearest enemy, with any ranged weapon: each round bends toward whoever is closest and keeps after them until it lands, or the ground or a wall stops it. Worn by a 👹 Enemy it works on THEM, so its shots chase you. No animation of its own.",
-    brief: () => "shots chase the nearest enemy",
+    brief: () => "shots chase enemies",
     noAnim: true,
     params: [],
   },
@@ -7203,14 +7265,14 @@ export const EFFECT_TYPES = {
   moneyPower: {
     label: "Money = Power", icon: "💵",
     blurb: "The more money you hold, the harder you hit: +25% damage per $10 in your wallet ($10 is ×1.25, $20 is ×1.5), capping at ×2 damage at $40. Boosts every weapon and attack you throw. No animation of its own.",
-    brief: () => "more money deals more damage · up to ×2 at $40",
+    brief: () => "more money, more damage",
     noAnim: true,
     params: [],
   },
   poison: {
     label: "Poisonous", icon: "🧪",
     blurb: "Adds poison damage to every weapon hit and bare-handed strike you throw while wearing it: targets lose extra HP every second for 5 seconds and flash a green tint on each damage tick. Factored into weapon DPS. Works on enemies too.",
-    brief: (p) => "adds " + briefNum(p.dps ?? POISON_DAMAGE_DPS) + " poison/tick (" + POISON_DAMAGE_SECS + "s)",
+    brief: () => "poisons enemies",
     noAnim: true,
     params: [
       { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: POISON_DAMAGE_DPS },
@@ -7219,7 +7281,7 @@ export const EFFECT_TYPES = {
   poisonAura: {
     label: "Poison Aura", icon: "🧪",
     blurb: "Deals poison tick damage every second to nearby foes within Range cells, tinting them green on each tick. Stops immediately when they leave range. Works on both you and enemies.",
-    brief: (p) => briefNum(p.dps ?? POISON_AURA_DPS) + " poison/tick within " + briefNum(p.range ?? DEFAULT_AURA_RANGE) + " cells",
+    brief: () => "poisons enemies nearby",
     noAnim: true,
     params: [
       { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: POISON_AURA_DPS },
@@ -7229,7 +7291,7 @@ export const EFFECT_TYPES = {
   flameAura: {
     label: "Flame Aura", icon: "🔥",
     blurb: "Scorches nearby foes within Range cells for fire damage every second while they stay close, lighting them up with flames. Stops immediately when they leave range. Respects Fire Immunity and Resistance.",
-    brief: (p) => briefNum(p.dps ?? FLAME_AURA_DPS) + " fire/tick within " + briefNum(p.range ?? DEFAULT_AURA_RANGE) + " cells",
+    brief: () => "burns enemies nearby",
     noAnim: true,
     params: [
       { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: FLAME_AURA_DPS },
@@ -7239,7 +7301,7 @@ export const EFFECT_TYPES = {
   iceAura: {
     label: "Ice Aura", icon: "❄️",
     blurb: "Chills nearby foes within Range cells for ice damage every second and halves their move and jump speed while they stay close. Stops immediately when they leave range. Respects Cold Resistance.",
-    brief: (p) => briefNum(p.dps ?? ICE_AURA_DPS) + " ice/tick & slow in " + briefNum(p.range ?? DEFAULT_AURA_RANGE) + " cells",
+    brief: () => "chills and slows enemies nearby",
     noAnim: true,
     params: [
       { key: "dps", label: "Damage / tick", min: 1, max: 20, step: 1, def: ICE_AURA_DPS },
@@ -7249,7 +7311,7 @@ export const EFFECT_TYPES = {
   swingSpeed: {
     label: "Swing Speed", icon: "💨",
     blurb: "Multiplies how fast you swing melee weapons and punch/pistol-whip (Q / V) with ranged weapons, increasing melee DPS. Stacks with melee weapon Swing speed. Works on enemies too.",
-    brief: (p) => "×" + briefNum(p.mult ?? DEFAULT_SWING_SPEED_MULT) + " melee & ranged swing speed",
+    brief: (p) => "×" + briefNum(p.mult ?? DEFAULT_SWING_SPEED_MULT) + " swing speed",
     noAnim: true,
     params: [
       { key: "mult", label: "Speed ×", min: 1.1, max: 3, step: 0.1, def: DEFAULT_SWING_SPEED_MULT, fmt: (v) => "×" + (+v).toFixed(1) },
@@ -7258,7 +7320,7 @@ export const EFFECT_TYPES = {
   fireRate: {
     label: "Fire Rate", icon: "⏩",
     blurb: "Increases the fire rate of ranged weapons you hold while wearing it, boosting DPS. Works for enemies too.",
-    brief: (p) => "×" + briefNum(p.mult ?? DEFAULT_FIRE_RATE_MULT) + " ranged fire rate",
+    brief: (p) => "×" + briefNum(p.mult ?? DEFAULT_FIRE_RATE_MULT) + " fire rate",
     noAnim: true,
     params: [
       { key: "mult", label: "Rate ×", min: 1.1, max: 3, step: 0.1, def: DEFAULT_FIRE_RATE_MULT, fmt: (v) => "×" + (+v).toFixed(1) },
@@ -14704,6 +14766,9 @@ export const VIEW_CULL_MARGIN_CELLS = 8;    // how far past the camera's window 
 // first goes live, so it adopts one made here untouched.
 export const newLevelBucket = () => ({ rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} });
 let unitUidSeq = 0;   // every unit's render name (ep.uid) — see where the loop seeds a unit
+// A unit's live state the first time the loop meets it (and a follower arriving from another floor's
+// save): everything starts at rest, facing its placement's way, peaceful if its placement talks.
+export const newUnitState = (spawn, x, y) => ({ uid: ++unitUidSeq, x, y, vy: 0, onGround: false, face: spawn && spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false, peaceful: spawnStartsPeaceful(spawn), turned: null, lastHp: null, stepEase: 0 });
 // The live level and every level across its open seams, as rectangles in the live level's pixels.
 // `dr`/`dc` are the same offset in whole cells: neighbourOffset rounds to the grid, so a cell of a
 // neighbour is also exactly one cell of the live grid and every "r,c" converts by adding them.
@@ -14847,17 +14912,61 @@ export const releaseRunUnits = (run, node, buckets, sideOf, cell = LV_CELL) => {
 //   boxOf(k, spawn, ep, bucket)       → { w, h } for a living follower, null for anybody else
 // Returns the keys (in the entered level's books) of the ones it moved.
 export const FOLLOW_CATCHUP_CELLS = 160;
+// A follower set down on its feet at `spot` ({ x: centre, feet }), with every climb, stair, plane and
+// trail it was in the middle of forgotten — it is somewhere else now. The gate catch-up, a door and the
+// next floor all put a follower down this one way.
+export const setFollowerDown = (ep, spot, box) => {
+  ep.x = spot.x - box.w / 2; ep.y = spot.feet - box.h; ep.vy = 0; ep.onGround = false;
+  ep.climbing = null; ep.climbJump = false; ep.navHangJump = false; ep.navDropCd = 0; ep.crouch = false; ep.duckUnder = false;
+  ep.topdown = false; ep.tdJumpY = null; ep.stairs = false; ep.stairHop = false; ep.stairsTo = null; ep.regroup = false; ep.strandT = 0; ep.blockT = 0; ep.trailN = null; ep.trailT = 0; ep.trailCd = 0;
+};
+/* 🚪 FOLLOWERS GO WHERE YOU GO (Blake, 2026-11-26: "Also be sure followers follow across levels").
+   A gate was already covered — ONE WORLD walks them through it and catchUpFollowers fetches any left a
+   level behind. Two ways out of a level were not: a DOOR (into a room and back out — the room is its
+   own level, loaded fresh, and your allies stood outside the door until you came back), and the END OF
+   A FLOOR (the next floor is a new run started from the save, and only your own kit was in the save).
+   Both now take every follower with you:
+     * isFollower — who goes: a living unit fighting for you, not sitting in a car. Hostiles that are
+       chasing you do not come through a door (a door is a cut, not a walk), nor do the dead.
+     * a DOOR moves each one out of the level's books into a holding set as you go through, and the
+       arrival sets it down beside you in the level you come out in (the loop's spawn placement): the
+       SAME state object, so its HP, lives, gear roll, Ally Health payments and kind all come along.
+       A room is re-made from the library on every visit, so the room's bucket remembers which of its
+       own units left with you (`gone`), and they are not stood back up at their placements.
+     * the FLOOR's save carries them as data (followerToSave), and the next floor's first spawn puts
+       them down beside you (followerFromSave). Load Game reads the same field, so a saved game keeps
+       its allies too. */
+export const isFollower = (ep, hp) => !!ep && !!ep.friendly && !ep.ride && !(hp !== undefined && hp !== null && hp <= 0);
+// One follower as a save holds it: what it is (the placement, its 🎲 roll by ids), and what it has been
+// through this run — HP, lives spent, the staff's one raise, which 🟣 items it has been paid this life.
+export const followerToSave = (spawn, ep, hp, roll) => ({
+  spawn: JSON.parse(JSON.stringify(spawn || {})),
+  hp: typeof hp === "number" && isFinite(hp) ? hp : null,
+  gear: roll ? { enemyId: roll.enemyId || null, items: (roll.items || []).map((a) => (a && a.id) || null).filter(Boolean) } : null,
+  kind: (ep && ep.allyKind) || null,
+  livesUsed: Math.max(0, Math.round((ep && ep.livesUsed) || 0)),
+  raised: !!(ep && ep.resurrectedOnce),
+  paid: Array.isArray(ep && ep.allyHpPaid) ? [...ep.allyHpPaid] : [],
+});
+// ...and back: the ep fields to lay over a fresh unit state, the HP, and the roll with its items
+// found again by id (one deleted since is left out). `findA(id)` → asset or null.
+export const followerFromSave = (a, findA) => {
+  if (!a || !a.spawn || typeof a.spawn !== "object") return null;
+  const g = a.gear;
+  return {
+    spawn: JSON.parse(JSON.stringify(a.spawn)),
+    hp: typeof a.hp === "number" && a.hp > 0 ? a.hp : undefined,
+    gear: g ? { enemyId: g.enemyId || null, items: (g.items || []).map((id) => findA(id)).filter(Boolean) } : undefined,
+    ep: { friendly: true, peaceful: false, turned: null, allyKind: a.kind || null, livesUsed: Math.max(0, Math.round(a.livesUsed || 0)), resurrectedOnce: !!a.raised, allyHpPaid: Array.isArray(a.paid) ? [...a.paid] : [] },
+  };
+};
 export const catchUpFollowers = (run, node, buckets, spot, boxOf, cell = LV_CELL) => {
   if (!run || !node || !node.level) return [];
   const seams = runSeams(run, node, cell);
   const near = new Set([node.key, ...Object.values(seams).map((s) => s.key)]);
   const lb = buckets[node.key] || (buckets[node.key] = newLevelBucket());
   const live = runUnitBooks(node.level.enemies, lb), moved = [];
-  const place = (ep, box) => {
-    ep.x = spot.x - box.w / 2; ep.y = spot.feet - box.h; ep.vy = 0; ep.onGround = false;
-    ep.climbing = null; ep.climbJump = false; ep.navHangJump = false; ep.navDropCd = 0; ep.crouch = false; ep.duckUnder = false;
-    ep.topdown = false; ep.tdJumpY = null; ep.stairs = false; ep.stairHop = false; ep.stairsTo = null; ep.regroup = false; ep.strandT = 0; ep.blockT = 0; ep.trailN = null; ep.trailT = 0; ep.trailCd = 0;
-  };
+  const place = (ep, box) => setFollowerDown(ep, spot, box);
   for (const k of Object.keys(live.enemies)) {
     const ep = live.ePos[k], box = ep ? boxOf(k, live.enemies[k], ep, lb) : null;
     if (!box || Math.abs(ep.x + box.w / 2 - spot.x) <= FOLLOW_CATCHUP_CELLS * cell) continue;
@@ -16355,6 +16464,8 @@ export default function AssetStudio({ game = false } = {}) {
   const [objectives, setObjectives] = useState([]);        // 🎯 the objectives up now ({ id, text }), one line each at the top of the screen
   const [runSeedText, setRunSeedText] = useState("");       // the seed box next to 🏁 Play run; blank rolls a new one and the box then shows what was rolled
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
+  const arrivingFollowers = useRef(null);                  // 🚪 followers on their way through a door or to the next floor: unit books ({ enemies, ePos, eHP, gear, drops, stripped }) set down beside you at the next spawn placement (isFollower)
+  const playEditorLevel = useRef(null);                    // a plain Playtest's own level as the editor had it, kept at the first door: ■ Stop hands it back, because the level you walk back out to is a copy your followers have been taken out of and put back into
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   // 🚗 THE CARS THAT HAVE COME ALIVE this play session, per level (its run node key, or its id). A car
   // placed in a level is drawn by the ordinary prop passes, exactly as he placed it, until you get in
@@ -17325,8 +17436,8 @@ export default function AssetStudio({ game = false } = {}) {
         const ea = unitAssetAt(t.key, level && level.enemies && level.enemies[t.key]);
         const ownBase = enemyMaxHP(ea) + Math.max(0, Math.round(ep.sideHpBonus || 0)); // keep what its side's 🟣 wearers already gave it
         const cur = enemyHP.current[t.key] === undefined ? ownBase : enemyHP.current[t.key];
-        const res = applyAllyHPBonus(cur, ownBase, bonus, ep.allyHpGranted);
-        enemyHP.current[t.key] = res.hp; ep.allyHpGranted = res.granted;
+        const res = payAllyHPSources(cur, ownBase, bonus, playerAllyHPSources(merged), ep.allyHpPaid);
+        enemyHP.current[t.key] = res.hp; ep.allyHpPaid = res.paid;
         ep.friendly = true; ep.allyKind = "talked"; ep.turned = null; ep.peaceful = false; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
       }
     } else if (dialogueActNeedsPerson(act)) {
@@ -17369,15 +17480,22 @@ export default function AssetStudio({ game = false } = {}) {
   // is the only way the worn ally bonus moves mid-run, so every route that swaps gear has to come
   // through here — the pedestal, and now the shop. Both halves are applyAllyHPBonus's, so the
   // no-farming rule is stated once and cannot drift between the two doors into it.
+  // ...ONCE PER ITEM, PER LIFE (payAllyHPSources): every ally is paid each worn Ally Health garment
+  // it has not been paid in this life, and only those. Every caller has already written the new kit
+  // into equipped.current, so the worn map read here is the kit the ceiling (`afterAsset`) is built from.
+  // `playerAllyHPSources` is the one reading of "which of your things carry it", shared with the
+  // recruit, the 🔮 raise, the 🔴 capture and the extra-life revive, which all count as paying in full.
+  const playerAllyHPSources = (merged) => allyHPSources(wornEquipMap(findA(playerId), equipped.current), allyMaxHPBonus(merged && merged.effects));
   const settleAllyHPCeiling = (afterAsset, enemies) => {
     const bonus = allyMaxHPBonus(afterAsset && afterAsset.effects);
+    const sources = playerAllyHPSources(afterAsset);
     for (const ak of Object.keys(enemies || {})) {
       const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
       const aea = unitAssetAt(ak, enemies[ak]); if (!aea) continue;
       const baseA = enemyMaxHP(aea) + Math.max(0, Math.round(aep.sideHpBonus || 0)); // its side's 🟣 share stands
       const curA = enemyHP.current[ak] === undefined ? baseA : enemyHP.current[ak];
-      const res = applyAllyHPBonus(curA, baseA, bonus, aep.allyHpGranted);
-      enemyHP.current[ak] = res.hp; aep.allyHpGranted = res.granted;
+      const res = payAllyHPSources(curA, baseA, bonus, sources, aep.allyHpPaid);
+      enemyHP.current[ak] = res.hp; aep.allyHpPaid = res.paid;
     }
   };
   // USING A CONSUMABLE, wherever it came from. One reader for all three effect kinds so a potion
@@ -17884,6 +18002,9 @@ export default function AssetStudio({ game = false } = {}) {
     // The ally ceiling, read the same way every other worn effect is. 0 when nothing grants it,
     // which makes unitMaxHP collapse back to plain enemyMaxHP for every unit in the level.
     const allyHpBonus = allyMaxHPBonus(playerAsset?.effects);
+    // ...and which worn garments it comes from, for the places that stand an ally up at that full ceiling:
+    // they count as paying each of them for this life (payAllyHPSources), so a re-equip pays nothing more.
+    const allyHpPaidAll = () => allyHPSources(wornEquipMap(basePlayerAsset, equipped.current), allyHpBonus).map((s) => s.key);
     const playerShotsPierce = shotPierces(playtestWeapon, playerAsset?.effects); // the gun's own 🪡 Pierce OR a worn Piercing Shot
     // 🪃 What a boomerang gun's round carries on top of an ordinary round, for you and every unit: the
     // weapon's Rest drawing as it is held on this body (prepFlyingArt, the thrown grenade's sizing, so it
@@ -18765,18 +18886,33 @@ export default function AssetStudio({ game = false } = {}) {
           if (tr.mode === "enter") {
             const room = (levelLib || []).find((l) => l.id === tr.roomId);
             if (room) {
-              roomReturn.current = { level: JSON.parse(JSON.stringify(lv)), x: tr.retX, y: tr.retY };
+              // 🚪 YOUR FOLLOWERS COME IN WITH YOU (isFollower). Taken out of the copy you will walk
+              // back out to, never out of `lv` itself: in a plain Playtest that is the editor's own
+              // level, kept whole for ■ Stop (playEditorLevel).
+              if (!runNow && !playEditorLevel.current) playEditorLevel.current = lv;
+              const outer = JSON.parse(JSON.stringify(lv));
+              outer.enemies = takeFollowersOut(outer.enemies || {}, roomState.current[lv.runKey || lv.id]);
+              roomReturn.current = { level: outer, x: tr.retX, y: tr.retY };
               p.arriving = DOOR_ARRIVE_FRAMES;              // step out of the room's own door, out of the black
 
               camRef.current.init = false;                  // a door is a cut, not a pan: the camera snaps to the far side
               spawnReq.current = { roomDoor: true };        // appear at the room's own door
-              setLevel(JSON.parse(JSON.stringify(room)));   // swaps the active level — the loop effect re-runs with the room
+              // A room is re-made from the library every visit: its own units that left with you last
+              // time are not stood back up at their placements (the room bucket's `gone`).
+              const roomLv = JSON.parse(JSON.stringify(room));
+              const gone = (roomState.current[roomLv.runKey || roomLv.id] || {}).gone;
+              if (gone && roomLv.enemies) for (const gk of gone) delete roomLv.enemies[gk];
+              setLevel(roomLv);                             // swaps the active level — the loop effect re-runs with the room
               return;                                       // a fresh loop takes over; don't schedule another frame here
             }
           } else if (tr.mode === "exit") {
             const back = roomReturn.current; roomReturn.current = null;
             p.arriving = DOOR_ARRIVE_FRAMES;                // step back out of the door on the other side
             camRef.current.init = false;                    // same cut on the way back out
+            // ...and back out with you. The room is a copy: its books are written in place, and its
+            // bucket marks the ones of its own that went (`gone`).
+            const bk = roomState.current[lv.runKey || lv.id];
+            lv.enemies = takeFollowersOut(lv.enemies || {}, bk, true);
             if (back && back.level) { spawnReq.current = { x: back.x, y: back.y }; setLevel(back.level); return; }
             spawnReq.current = { gate: true };
           }
@@ -18885,6 +19021,24 @@ export default function AssetStudio({ game = false } = {}) {
         placeSpawn(p, sr, pw, ph);
         respawnSpec.current = { at: lv.runKey || lv.id, spec: sr }; // where a death in this level now puts you back
         p.wasInteract = true; // swallow the E that opened the door so you don't instantly step back through
+        // 🚪 ...and the followers who came through the door with you (or on from the last floor) are put
+        // down where you are, into this level's books (isFollower). `lv` here is always a play copy —
+        // a room, the level you walked back out to, a run's level — so its books are written in place.
+        const hold = arrivingFollowers.current;
+        if (hold) {
+          arrivingFollowers.current = null;
+          const bk = roomState.current[lv.runKey || lv.id];
+          if (bk) {
+            const to = runUnitBooks(lv.enemies, bk), spot = { x: p.x + pw / 2, feet: p.y + ph };
+            for (const k of Object.keys(hold.enemies)) {
+              const ep = hold.ePos[k] || (hold.ePos[k] = newUnitState(hold.enemies[k], 0, 0));
+              const ea = unitAssetAt(k, hold.enemies[k], hold.gear);
+              setFollowerDown(ep, spot, ea ? { w: unitBoxW(ea), h: enemyStandH(ea, CW) } : { w: pw, h: ph });
+              moveRunUnit(k, hold, to, { x: 0, y: 0 }, CW, { rows: lv.rows, cols: lv.cols });
+            }
+            lv.enemies = to.enemies;
+          }
+        }
       }
       // Speed: linear, anchored so Speed 5 (baseline) is a plain 1× — same convention every
       // other stat in the game uses. Speed 1 sits at 0.6× (40% below baseline, not 40% below
@@ -19849,7 +20003,7 @@ export default function AssetStudio({ game = false } = {}) {
             // books at a run's handoff (moveRunUnit), and a sprite keyed on that would be torn down and
             // rebuilt on the very frame the level swaps — ~140 DOM nodes per unit on screen, in the
             // one frame that must be cheap. Keyed on uid it is the same element before and after.
-            enemyPos.current[k] = { uid: ++unitUidSeq, x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false, peaceful: spawnStartsPeaceful(spawn), turned: null, lastHp: null, stepEase: 0 };
+            enemyPos.current[k] = newUnitState(spawn, spawnLeft, (er + 1) * CH - standEph);
           }
           const ep = enemyPos.current[k];
           // 🧍 IN YOUR CAR: held on its seat, standing on the car's bottom at its place like you are at
@@ -21975,7 +22129,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
                     if (b.x < eHitLeft + epw && b.x + b.w > eHitLeft && b.y < hitTop + hitH && b.y + b.h > hitTop) {
                       enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // raised at the ALLY ceiling
-                      ep.allyHpGranted = allyHpBonus;                      // ...and that counts as paid
+                      ep.allyHpPaid = allyHpPaidAll();                     // ...and every worn item counts as paid this life
                       ep.friendly = true; ep.allyKind = "raised"; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                       ep.restedDead = false;
                       ep.down = 0; // a body tackled flat before it died has no live loop to tick `down` back to 0, so it would get up still lying on its back
@@ -22428,7 +22582,7 @@ export default function AssetStudio({ game = false } = {}) {
               // Full HP at the ALLY ceiling, and the bonus is stamped as already paid — it came
               // baked into the number it just got up with, so a later re-equip must not pay again.
               enemyHP.current[c.k] = enemyMaxHP(c.ea) + allyHpBonus;
-              c.ep.allyHpGranted = allyHpBonus;
+              c.ep.allyHpPaid = allyHpPaidAll();
               // DELIBERATELY NOT `resurrectedOnce` — see canCapture. That flag is the staff's own
               // budget; writing it here is what used to make one grenade the last one that could
               // ever work on this animal, and it also stole the staff's free raise on the way past.
@@ -22629,7 +22783,7 @@ export default function AssetStudio({ game = false } = {}) {
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // back on its feet, full HP at the ALLY ceiling
-                ep.allyHpGranted = allyHpBonus;                    // ...which counts as the one-time payment
+                ep.allyHpPaid = allyHpPaidAll();                   // ...which counts as paying every worn item this life
                 ep.friendly = true; ep.allyKind = "raised"; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                 ep.restedDead = false; // back on its feet — let it fall again if it is ever defeated a second time
                 ep.down = 0; // ...and back on its feet UPRIGHT: a corpse's `down` never ticks down, so a tackled one would rise still lying flat
@@ -22796,9 +22950,17 @@ export default function AssetStudio({ game = false } = {}) {
         const left = extraLivesLeft(ea.effects, ep.livesUsed);
         if (left <= 0) continue;
         ep.livesUsed = (ep.livesUsed || 0) + 1;
-        enemyHP.current[k] = EXTRA_LIFE_HP;
+        // 🟣 A NEW LIFE IS OWED THE ALLY HEALTH AGAIN (Blake, 2026-11-26: "9 lives with bonus HP every
+        // life + the 1 HP"). Up on EXTRA_LIFE_HP plus your worn bonus if it fights for you, plus what
+        // its own side's 🟣 wearers give it, and all of it counts as paid for this life — your items
+        // (allyHpPaid) and its side's share (sideHpGranted, the side channel's own record) — so the
+        // next equip pays only an item it has not had in this life.
+        const allyOwed = ep.friendly ? allyHpBonus : 0, sideOwed = Math.max(0, Math.round(ep.sideHpBonus || 0));
+        enemyHP.current[k] = extraLifeHP(allyOwed + sideOwed, unitMaxHP(ea, ep, allyHpBonus));
+        if (ep.friendly) ep.allyHpPaid = allyHpPaidAll();
+        ep.sideHpGranted = sideOwed;
         reviveInPlace(ep);
-        flash("🐱 " + (ea.name || "It") + " is down but not out — back on " + EXTRA_LIFE_HP + " HP, " + livesLeftNote(left - 1));
+        flash("🐱 " + (ea.name || "It") + " is down but not out — back on " + enemyHP.current[k] + " HP, " + livesLeftNote(left - 1));
       }
 
       // Resolve loot in one central pass so fire, melee, bullets, explosions and friendly enemies
@@ -28020,7 +28182,10 @@ export default function AssetStudio({ game = false } = {}) {
     // shot, the other DK launched a barrell at me, two shots … I have more HP". Read the base.
     const basePlayerAsset = findA(playerId);
     if (play) {
-      if (roomReturn.current) { setLevel(roomReturn.current.level); }
+      // A plain Playtest that went through a door hands the editor back its OWN level: the one you
+      // walked back out to is a copy your followers were taken out of and put back into (playEditorLevel).
+      if (playEditorLevel.current && !runRef.current) setLevel(playEditorLevel.current);
+      else if (roomReturn.current) { setLevel(roomReturn.current.level); }
       if (runRef.current) { setLevel(runRef.current.editorLevel); runRef.current = null; setRunHud(null); }
       if (view && editorScroll.current) { view.scrollLeft = editorScroll.current.x; view.scrollTop = editorScroll.current.y; editorScroll.current = null; }
     } else {
@@ -28036,7 +28201,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, throwFiringId: null, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false }; projectiles.current = []; thrown.current = []; booms.current = []; throwStack.current = []; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; arrivingFollowers.current = null; playEditorLevel.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, throwFiringId: null, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false }; projectiles.current = []; thrown.current = []; booms.current = []; throwStack.current = []; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -28320,6 +28485,33 @@ export default function AssetStudio({ game = false } = {}) {
     const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id, ranged, floor) : kind === "met" ? recordMet(r, id) : r;
     if (n !== r) putGameRecord(n);
   };
+  // 🚪 Every follower in one level's books (isFollower), moved into the holding set the next spawn
+  // placement sets down beside you (arrivingFollowers). Returns the level's enemies map without them.
+  // `markGone`: the level is a room, which the library re-makes on every visit, so its bucket notes them.
+  const takeFollowersOut = (enemies, bucket, markGone) => {
+    if (!bucket || !bucket.ePos) return enemies;
+    const from = runUnitBooks(enemies, bucket);
+    const hold = arrivingFollowers.current || (arrivingFollowers.current = { enemies: {}, ePos: {}, eHP: {}, gear: {}, drops: {}, stripped: {} });
+    for (const k of Object.keys(from.enemies)) {
+      if (!isFollower(from.ePos[k], from.eHP[k])) continue;
+      if (markGone) (bucket.gone || (bucket.gone = new Set())).add(k);
+      moveRunUnit(k, from, hold, { x: 0, y: 0 }, LV_CELL);
+    }
+    return from.enemies;
+  };
+  // Your followers as the save holds them (followerToSave): the live level's — in a run it has taken in
+  // its neighbours' units — and any still standing in another of the run's levels.
+  const followersToSave = () => {
+    const out = [], seen = new Set();
+    const add = (enemies, b) => {
+      if (!enemies || !b || !b.ePos) return;
+      for (const k of Object.keys(enemies)) { const ep = b.ePos[k]; if (!isFollower(ep, b.eHP && b.eHP[k]) || seen.has(ep)) continue; seen.add(ep); out.push(followerToSave(enemies[k], ep, b.eHP && b.eHP[k], b.gear && b.gear[k])); }
+    };
+    if (level) add(level.enemies, roomState.current[level.runKey || level.id]);
+    const run = runRef.current;
+    if (run) for (const key of Object.keys(run.nodes || {})) { const nd = run.nodes[key]; if (nd && nd.level && (!level || key !== level.runKey)) add(nd.level.enemies, roomState.current[key]); }
+    return out;
+  };
   // What the player is carrying now, as a save at `loc` (gameFront.js makeGameSave).
   const gameSnapshot = (loc) => {
     const run = runRef.current;
@@ -28342,6 +28534,7 @@ export default function AssetStudio({ game = false } = {}) {
       objectives: { list: ao.list || [], done: [...(ao.done || [])] }, talkSpent: [...(talkSpentSigns.current || [])],
       playSecs: scorePlaySecs(scoreRef.current),
       buffs: buffsToSave(itemBuffs.current, playNowMs()), // 🧪 a drink still running goes with you (buffsToSave)
+      allies: followersToSave(), // 🚪 your followers go on to the next floor, and come back on a load
     });
   };
   const gameCheckpoint = () => {
@@ -28384,6 +28577,16 @@ export default function AssetStudio({ game = false } = {}) {
     // throwable deleted since is left out (throwStackFromSave).
     throwStackSeed.current = throwStackFromSave(s, isThrowableId);
     itemBuffs.current = buffsFromSave(s.buffs, playNowMs());
+    // 🚪 The followers this save carries (followerFromSave), put down beside you at the first spawn.
+    const hold = { enemies: {}, ePos: {}, eHP: {}, gear: {}, drops: {}, stripped: {} };
+    (s.allies || []).forEach((a, i) => {
+      const f = followerFromSave(a, findA); if (!f) return;
+      const k = "0," + i;
+      hold.enemies[k] = f.spawn; hold.ePos[k] = { ...newUnitState(f.spawn, 0, 0), ...f.ep };
+      if (f.hp !== undefined) hold.eHP[k] = f.hp;
+      if (f.gear !== undefined) hold.gear[k] = f.gear;
+    });
+    arrivingFollowers.current = Object.keys(hold.enemies).length ? hold : null;
   };
   const beginGameRun = (b) => {
     lastRunSeedRef.current = String(b.seed || "");
@@ -33170,6 +33373,13 @@ export default function AssetStudio({ game = false } = {}) {
             : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×" + (count ?? throwPickupCount(it)) : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
             : ((SLOTS[it.slot] && SLOTS[it.slot].label) || "Worn") + (it.defense ? " · Defense " + it.defense : "");
           const selling = tab === "sell" ? shopSellList() : [];
+          // You as you stand, once, for every Sell row's comparison (shopSellChangeRows); each row then
+          // merges you again with only its own slot emptied, the null sellToShop will write.
+          const sellBase = tab === "sell" ? findA(playerId) : null;
+          const sellBefore = sellBase ? mergeEquip(sellBase, equipped.current, equippedBodyIdFor(sellBase)) : null;
+          const sellRows = (sl) => shopSellChangeRows(sl, sl.kind === "worn"
+            ? { before: sellBefore, after: mergeEquip(sellBase, { ...equipped.current, [sl.slot]: null }, equippedBodyIdFor(sellBase)) }
+            : { dpsOf: playerDpsOf });
           return (
             <div className="modal shopModal" onClick={closeShop}>
               <div className="dlg shopDlg" onClick={(e) => e.stopPropagation()}>
@@ -33193,12 +33403,14 @@ export default function AssetStudio({ game = false } = {}) {
                     blue button, the colour the Buy tab already uses for money coming TO you. */}
                 {selling.map((sl) => {
                   const it = sl.item, price = shopSellPrice(sl, intel);
+                  const st = sellRows(sl);
                   return (
                     <div key={sl.key} className="shopRow">
                       {artOf(it)}
                       <div className="shopMeta">
                         <div className={"shopName rk-" + itemRank(it)}>{it.name}</div>
                         <div className="hint2">{whatOf(it, sl.kind === "throw" ? sl.count : undefined)}</div>
+                        {st.length > 0 && <div className="shopStats">{pickupRowsView(st)}</div>}
                       </div>
                       <button className="shopBuy gain shopSell" onClick={() => sellToShop(sl.key)} title="Sell it">
                         {"+" + price}
@@ -34834,22 +35046,33 @@ html,body{margin:0;padding:0;background:#0f1117}
    does, the sum and a button; at 520px the sum wrapped under the name and the arithmetic stopped
    reading as arithmetic. The rows scroll inside .dlg's own max-height, so a 44-item T1 shelf is
    one scroll rather than a panel taller than the window. */
-/* SQUARE, BRIGHTER AND SLIGHTLY SEE-THROUGH — Blake's call, and the transparency is the reason
-   every colour in here is stated as rgba rather than inherited: the panel lets a little of the
-   level show through, so anything painted on top of it has to be opaque enough to stay readable
-   over whatever happens to be behind it. Radius 0 throughout; do not let the app-wide rounded
-   .dlg/.ltbtn look creep back in. */
-.shopDlg{width:min(680px,96vw);border-radius:0;background:rgba(42,49,68,.93);border:1px solid rgba(122,136,170,.55)}
-.shopDlg .dt{letter-spacing:.01em}
-.shopHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;padding-bottom:10px;border-bottom:1px solid rgba(122,136,170,.35)}
-.shopWallet{background:rgba(46,74,52,.92);border:1px solid rgba(122,196,138,.7);border-radius:0;padding:5px 12px;font-size:14px;font-weight:800;color:#c3f5cc}
+/* SQUARE AND SLIGHTLY SEE-THROUGH — Blake's call, and the transparency is the reason every colour
+   in here is stated outright rather than inherited: the panel lets a little of the level show
+   through, so anything painted on top of it has to be opaque enough to stay readable over whatever
+   happens to be behind it. Radius 0 throughout; do not let the app-wide rounded .dlg/.ltbtn look
+   creep back in.
+   RETRO (Blake, 2026-11-26: "a different slightly more retro shop UI"). A 16-bit console menu
+   window: a royal-blue panel with a white frame and a thin blue rule inside it (inset box-shadows,
+   not images), a hard offset shadow with no blur, the conversation's own DotGothic16 face for every
+   word and number (the same "somewhat retro but still readable" pick the dialogue made), gold for
+   the title, the wallet and the lit tab, and buttons that are chunky tiles with a dark lip under
+   them that press down when clicked. "Slightly": the art, the stat grid's layout and every row's
+   contents are exactly as they were — only the paint changed. Still no emoji anywhere (the menu
+   cursor is a plain text triangle).
+   Buttons are styled through .shopDlg on purpose: the app-wide ".bb button { font: inherit; color:
+   inherit }" is (0,1,1) and beat a bare .shopBuy (0,1,0), so the old button colours and sizes never
+   actually showed. */
+.shopDlg{width:min(680px,96vw);border-radius:0;background:linear-gradient(180deg,rgba(40,54,140,.94),rgba(18,24,72,.94));border:3px solid #e9ecff;box-shadow:inset 0 0 0 2px #0a0d2a,inset 0 0 0 4px rgba(126,142,230,.6),0 0 0 2px #05060f,6px 6px 0 rgba(0,0,0,.45);padding:18px 20px;font-family:${SYMBOL_FONT_FAMILY},DotGothic16,'Chakra Petch','Segoe UI',system-ui,sans-serif;font-weight:400;color:#f2f4ff;text-shadow:1px 1px 0 #000}
+.shopDlg .dt{font-size:19px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:#ffd23f;text-shadow:2px 2px 0 #000}
+.shopHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 10px;padding-bottom:10px;border-bottom:2px dotted rgba(170,184,255,.45)}
+.shopWallet{background:rgba(8,10,32,.85);border:2px solid #ffd23f;border-radius:0;padding:4px 12px;font-size:15px;font-weight:400;letter-spacing:.06em;color:#ffd23f;box-shadow:0 0 0 1px #000,0 3px 0 rgba(0,0,0,.5)}
 /* BUY / SELL (2026-11-26). Two square tabs joined into one bar on the left of the header, the
-   wallet pushed to the right. The lit tab is the brighter one; nothing else marks it. */
+   wallet pushed to the right. The lit tab is the brighter one with a gold rule under its word. */
 .shopTabs{display:flex}
-.shopTab{border-radius:0;background:rgba(22,27,40,.7);border:1px solid rgba(122,136,170,.5);color:#b4bdd3;padding:5px 18px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
-.shopTab+.shopTab{margin-left:-1px}
-.shopTab:hover:not(.on){background:rgba(52,61,86,.9);color:#e6ebf7}
-.shopTab.on{background:rgba(88,102,138,.95);border-color:rgba(196,206,232,.85);color:#fff;position:relative;cursor:default}
+.shopDlg .shopTab{border-radius:0;background:rgba(8,10,32,.7);border:2px solid #6b78c4;color:#aeb8ec;padding:4px 18px;font-size:15px;font-weight:400;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;text-shadow:1px 1px 0 #000}
+.shopDlg .shopTab+.shopTab{margin-left:-2px}
+.shopDlg .shopTab:hover:not(.on){background:rgba(40,52,130,.9);color:#fff}
+.shopDlg .shopTab.on{background:#3346b8;border-color:#e9ecff;color:#fff;position:relative;cursor:default;box-shadow:inset 0 -3px 0 #ffd23f}
 .shopHead .shopWallet{margin-left:auto}
 /* HUNG FROM THE TOP, NOT CENTRED. The two tabs are different lengths (two things on a shelf, seven
    on you), and a centred panel jumped up and down the screen as you switched, carrying the tabs
@@ -34857,24 +35080,33 @@ html,body{margin:0;padding:0;background:#0f1117}
 .shopModal{align-items:flex-start;padding-top:8vh}
 .shopModal .shopDlg{max-height:calc(92vh - 28px)}
 .badge.money{background:#1d2b1f;border-color:#3a6b42;color:#8fe59a;font-weight:700}
-.shopRow{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid rgba(122,136,170,.25)}
+/* A row is a menu line: dotted rules between them, and the row under the mouse lit faintly gold with
+   the menu cursor in the left margin it keeps clear for it. */
+.shopRow{position:relative;display:flex;align-items:center;gap:11px;padding:9px 4px 9px 20px;border-bottom:2px dotted rgba(150,165,240,.3)}
+.shopRow:hover{background:rgba(255,210,63,.07)}
+.shopRow:hover::before{content:"▸";position:absolute;left:4px;top:50%;transform:translateY(-55%);font-size:16px;color:#ffd23f;text-shadow:1px 1px 0 #000}
 .shopRow.broke{opacity:.5}
-.shopArt{position:relative;overflow:hidden;flex:0 0 auto;background:rgba(22,27,40,.85);border:1px solid rgba(122,136,170,.45);border-radius:0;display:flex;align-items:center;justify-content:center}
-.shopArtIcon{font-size:18px;font-weight:800;color:#9aa6c0}
+.shopArt{position:relative;overflow:hidden;flex:0 0 auto;background:rgba(6,8,26,.9);border:2px solid #6b78c4;border-radius:0;box-shadow:inset 0 0 0 1px #000;display:flex;align-items:center;justify-content:center}
+.shopArtIcon{font-size:18px;font-weight:400;color:#aeb8ec}
 .shopMeta{flex:1 1 auto;min-width:0}
-.shopName{font-size:14px;font-weight:600;color:#f2f5fb}
-.shopSwap{margin-top:3px;font-size:12px;color:#f0cd8d}
-.shopStats{margin-top:3px;font-size:12px;font-weight:700;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif}
-.shopAbilities{margin-top:3px;font-size:12px;font-weight:600;color:#a9d4ff}
-.shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:rgba(46,74,52,.92);border:1px solid rgba(122,196,138,.7);border-radius:0;padding:7px 12px;color:#d8f7de;font-size:15px;font-weight:800;cursor:pointer}
-.shopBuy:hover:not(:disabled){background:rgba(62,102,71,.95);border-color:#8fdda0}
-.shopBuy:disabled{background:rgba(64,42,42,.9);border-color:rgba(180,120,120,.6);color:#dcaaaa;cursor:not-allowed}
+.shopName{font-size:15px;font-weight:400;letter-spacing:.03em;color:#fff}
+.shopDlg .hint2{font-size:12px;color:#a9b3e6}
+.shopDlg .mini{font-size:13px;color:#a9b3e6}
+.shopSwap{margin-top:3px;font-size:12px;color:#ffb347}
+.shopStats{margin-top:3px;font-size:13px;font-weight:400}
+.shopAbilities{margin-top:3px;font-size:12px;font-weight:400;color:#8fd3ff}
+.shopDlg .shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:#23753f;border:2px solid #9df5b4;border-radius:0;padding:6px 12px;color:#f0fff4;font-size:16px;font-weight:400;cursor:pointer;text-shadow:1px 1px 0 #000;box-shadow:0 0 0 1px #000,0 4px 0 #0b3018}
+.shopDlg .shopBuy:hover:not(:disabled){background:#2d8f4e;border-color:#d4ffe0}
+.shopDlg .shopBuy:active:not(:disabled){transform:translateY(3px);box-shadow:0 0 0 1px #000,0 1px 0 #0b3018}
+.shopDlg .shopBuy:disabled{background:#6a2730;border-color:#d99aa2;color:#f3c9ce;cursor:not-allowed;box-shadow:0 0 0 1px #000,0 4px 0 #2a0c10}
 /* A trade that pays you back reads as the opposite of a cost, so it is not the same green. */
-.shopBuy.gain{background:rgba(44,66,96,.92);border-color:rgba(130,180,240,.75);color:#d5e8ff}
-.shopBuy.gain:hover:not(:disabled){background:rgba(58,88,128,.95);border-color:#9cc8f5}
-.shopBuyVerb{font-size:10px;font-weight:600;opacity:.8;text-transform:uppercase;letter-spacing:.04em}
-.shopFoot{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(122,136,170,.35)}
-.shopFoot .ltbtn{border-radius:0}
+.shopDlg .shopBuy.gain{background:#2a4fa8;border-color:#a9cbff;color:#eef5ff;box-shadow:0 0 0 1px #000,0 4px 0 #0f1f4a}
+.shopDlg .shopBuy.gain:hover:not(:disabled){background:#3562c8;border-color:#d6e6ff}
+.shopDlg .shopBuy.gain:active:not(:disabled){box-shadow:0 0 0 1px #000,0 1px 0 #0f1f4a}
+.shopBuyVerb{font-size:11px;font-weight:400;opacity:.85;text-transform:uppercase;letter-spacing:.1em}
+.shopFoot{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:2px dotted rgba(170,184,255,.45)}
+.shopDlg .shopFoot .ltbtn{border-radius:0;background:rgba(8,10,32,.8);border:2px solid #e9ecff;color:#fff;padding:6px 20px;font-size:15px;letter-spacing:.12em;text-transform:uppercase;text-shadow:1px 1px 0 #000;box-shadow:0 0 0 1px #000,0 4px 0 rgba(0,0,0,.55)}
+.shopDlg .shopFoot .ltbtn:hover{border-color:#ffd23f;color:#ffd23f}
 .emcount{font-weight:400;font-size:12px;color:#7b8398;margin-left:6px}
 .emgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;max-height:55vh;overflow:auto}
 .emgrid-recent{max-height:none;overflow:visible;margin-bottom:10px}

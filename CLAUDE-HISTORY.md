@@ -6299,3 +6299,39 @@ picked up". Asked which he wanted, Blake said "Newest first". The whole engine r
 throws the last group picked up, a returning boomerang or capture ball rejoins the newest group of its kind
 (or goes on top), a partial sale comes out of the oldest group, and the HUD row reads next-to-throw first,
 so the newest pickup is drawn on the left. The row in memory and in the save stays in pickup order.
+
+## His bug list of 2026-11-26: Sell rows, retro shop, short briefs, sound cuts, Ally Health per life, followers through doors
+
+Six asks in one message plus an interruption ("Also be sure followers follow across levels"). One
+session did them in order with no parallel agents, after the PC froze on 2026-11-26 with three agents
+and a leftover dev server running.
+
+- **Sell rows.** `shopSellChangeRows` reuses `pickupChangeRows`, so a sale reads like a pickup in reverse.
+  The "after" for a worn piece is `mergeEquip` with only that slot set to null, which is the null
+  `sellToShop` writes. In the real game (Liquor Store 1 as Bobbett, Experimental Rifle) the rifle's
+  row read DPS 29.6 → 10. With the Super Shirt put into `equipped.current`, the shirt read HP 6 → 5,
+  Speed 6 → 5, Agility 6 → 5, Str 8 → 5 and Def 10 → 0. The rifle's unarmed DPS rose to 15, because
+  the shirt's Strength counts toward it.
+- **Retro shop.** The old Buy/Sell button colours had never shown. `.bb button{font:inherit;color:inherit}`
+  is (0,1,1) and beat the bare `.shopBuy`. The new rules are all under `.shopDlg`.
+- **Briefs.** 34 rewritten, e.g. Money = Power is now "more money, more damage". The old tests that pinned
+  the long wording were updated, and a new test checks every brief at its defaults.
+- **Sound cuts.** `startVoice` schedules a gain ramp to 0 and `src.stop()` at the cut. `stop()` is called
+  after `start()`, because calling it before throws. The trace row carries `endsAfter`. In the game:
+  rifle shots traced `slot: "fire", maxSecs: 0.1, endsAfter: 0.1`, and a hostile shot to 0 HP traced
+  `enemyDeath, maxSecs: 1, endsAfter: 1`.
+- **Ally Health.** Before this it was the max amount, so swapping between two equal pieces paid nothing.
+  Now each worn piece is a source, keyed by item id, and paid once per life. In the game: Trailer
+  Park M6's The Chaplin (8 extra lives) was made an ally, with Ratman (look Ally Health 15) as the
+  player. Three deaths in a row each came back on 16 HP (1 + 15).
+- **Followers.** Seams already handed followers across (`catchUpFollowers`). Doors and floors did not:
+  a room was a fresh `setLevel`, and units were never saved. In the game on Trailer Park M12, with
+  two units made allies: both came into Trailer Int8 beside the player, and both came back out beside
+  him. They were re-keyed 11,19 and 11,20 because a dead ally held 11,18, and there were no duplicate
+  uids. That dead ally (it had run off and lost a fight) stayed behind, as it should. The room's own
+  resident (#11) was recruited, walked out, and on re-entry was there once, as the follower.
+- **Driving notes.** The first `<select>` offering "Ratman" is the ENEMY brush picker, not the Playtest
+  player. Pick the select whose current value is the player (my first Ally Health run used the wrong
+  one and read 1 HP, correctly, for a player with no Ally Health). `enemyHP.current[k]` has no entry
+  until something hurts the unit, so one shot made the entry before I could set it. After TaskStop
+  the dev server's node process still held the port and had to be killed by port.

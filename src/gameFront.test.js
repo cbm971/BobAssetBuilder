@@ -95,6 +95,16 @@ describe("saved games", () => {
     base.score.total = 900;
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
   });
+  // Blake, 2026-11-26: "be sure followers follow across levels" — the next floor is a save, so they ride in it.
+  test("a save carries your followers, and the next floor keeps them", () => {
+    const allies = [{ spawn: { enemyId: "pet" }, hp: 9, gear: null, kind: "captured", livesUsed: 1, raised: false, paid: [] }];
+    const s = makeGameSave(null, { ...base, id: "g1", allies });
+    expect(s.allies).toEqual(allies);
+    expect(s.allies[0]).not.toBe(allies[0]);                       // nothing shared with the live state
+    expect(carryToNextFloor(s, "Forest").allies).toEqual(allies);
+    expect(makeGameSave(null, { ...base, id: "g2" }).allies).toEqual([]); // an older save has none
+    expect(makeGameSave(null, { ...base, id: "g3", allies: [null, { hp: 3 }] }).allies).toEqual([]);
+  });
   test("a checkpoint keeps its game's id and start", () => {
     const first = makeGameSave(null, { ...base, id: "g1", startedAt: 5 });
     const next = makeGameSave(first, { ...base, id: "other", startedAt: 99, nodeKey: "n4" });
