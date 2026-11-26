@@ -1,5 +1,5 @@
 {
- "set": "bcc16af7c066037e",
+ "set": "47b47857d2805082",
  "part": 2,
  "assets": [
   {
@@ -291570,7 +291570,7 @@
    "projectileRange": 26,
    "damage": 5,
    "fireRate": 14,
-   "clipSize": 100,
+   "clipSize": 20,
    "reloadTime": 4,
    "weight": 3,
    "landEffect": "fire",
@@ -299305,8 +299305,8 @@
      }
     ]
    },
-   "savedAt": 1795734367813,
-   "editedFrom": 1795732041868
+   "savedAt": 1795734418414,
+   "editedFrom": 1795734367813
   },
   {
    "id": "mmabacs",
@@ -892190,7 +892190,7 @@
    "projectileRange": 20,
    "damage": 5,
    "fireRate": 9,
-   "clipSize": 50,
+   "clipSize": 15,
    "reloadTime": 3.2,
    "weight": 3,
    "landEffect": "fire",
@@ -900635,8 +900635,8 @@
      }
     ]
    },
-   "savedAt": 1795734346101,
-   "editedFrom": 1795732715333
+   "savedAt": 1795734411458,
+   "editedFrom": 1795734346101
   },
   {
    "id": "tntcot1",
