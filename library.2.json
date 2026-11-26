@@ -1,5 +1,5 @@
 {
- "set": "1869eae1f9d01dfc",
+ "set": "b36270a28bd1d42d",
  "part": 2,
  "assets": [
   {
@@ -383152,7 +383152,7 @@
    "stun": 0,
    "categories": [
     "Grenade",
-    "",
+    "T1",
     ""
    ],
    "projectileRange": 14,
@@ -383170,13 +383170,14 @@
     "throw": "qd117xl",
     "land": "aghad42"
    },
-   "savedAt": 1795712246472,
+   "savedAt": 1795715094410,
    "boomerang": false,
    "pickupCount": 1,
    "soundVol": {
     "land": 0.4
    },
-   "throwBlast": true
+   "throwBlast": true,
+   "editedFrom": 1795712246472
   },
   {
    "id": "mnpian1",
