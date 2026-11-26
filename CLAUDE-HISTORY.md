@@ -2905,7 +2905,7 @@ except one. The close ones were also BEHIND the muzzle, which the cone skips (`d
   swinging over the Squirrel forever. A gunman keeps its range. Planted (`dxMove` 0, facing held),
   cancelled by a stun. You are never stomped: the player's box is the full 7-cell physics box.
 
-**🐈 CHAP CAT (`c4tch4p`) AND 🦁 LION (`l10n5ht`), 2026-09-27 — "a Cat Enemy, inspired by Chap cat,
+**🐈 CHAP CAT (`c4tch4p`, RETIRED 2026-11-26: Blake asked for it gone for good; every placement now uses the 🐈 Orange Cat `0r4ngct`, the same build recoloured orange tabby) AND 🦁 LION (`l10n5ht`), 2026-09-27 — "a Cat Enemy, inspired by Chap cat,
 not too small but at stomp height", and "the cats attack should sort of paw at who it attacks".**
 * **STOMP HEIGHT IS A HARD BUDGET, and Scale spends it.** A unit's box is `heightFrac` of its Side
   art × 7 cells × `scale`, and a stomp takes bodies ≤ 40% of the stomper's 210px = 84px, i.e. at

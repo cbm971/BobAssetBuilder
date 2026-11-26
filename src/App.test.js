@@ -2393,13 +2393,13 @@ describe("stomp", () => {
   // 2026-10-10, Blake: "stomp is supposed to feel powerful but it can feel weak on a low str
   // character". His roster sits at Str 0-4; at Str 2 the old stomp did 12.
   test("a low-Strength stomp still kills the little ones in one, and the big ones still take two", () => {
-    const rat = 15, squirrel = 25, pika = 30, chapCat = 30, turtle = 60, croc = 100;
+    const rat = 15, squirrel = 25, pika = 30, orangeCat = 30, turtle = 60, croc = 100;
     expect(stompDamage(0)).toBe(23);                          // Ash: was 1
     expect(stompDamage(0)).toBeGreaterThanOrEqual(rat);
     expect(stompDamage(1)).toBe(27);                          // Readitor, Ratman, Little Green Man: was 6
     expect(stompDamage(1)).toBeGreaterThanOrEqual(squirrel);
     expect(stompDamage(2)).toBe(32);                          // Chaplin, Bobette, Nixon: was 12
-    expect(stompDamage(2)).toBeGreaterThanOrEqual(Math.max(pika, chapCat));
+    expect(stompDamage(2)).toBeGreaterThanOrEqual(Math.max(pika, orangeCat));
     expect(stompDamage(5)).toBeLessThan(turtle);
     expect(stompDamage(10)).toBeLessThan(croc);               // even Army Bob needs two on the Crocodile
     expect(stompDamage(-3)).toBe(stompDamage(0));             // a -Str garment bottoms out at Str 0

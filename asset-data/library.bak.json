@@ -1,6 +1,6 @@
 {
  "format": "bob-library-parts-1",
- "set": "49369044d6b0bc13",
+ "set": "4fc514f2d651c855",
  "parts": [
   "library.bak.1.json",
   "library.bak.2.json",
@@ -54,7 +54,8 @@
    "tmarch1",
    "tmbrkt1",
    "tmpodm1",
-   "tmsign1"
+   "tmsign1",
+   "c4tch4p"
   ],
   "levels": [
    "qqnz4wz",

@@ -3469,7 +3469,7 @@ export const meleeHasFired = (t, dur) => (t / dur) >= (MELEE_WINDUP_FRAC + MELEE
 // (Readitor, Ratman and Little Green Man 1; Chaplin, Bobette, Nixon and the Viatnamese 2; Ash 0).
 // At Str 2 the old stomp did 12 and the Squirrel took three of them; at Str 0 it did 1. Now, with
 // effectiveStrength's base: Str 0 = 23 (a Rat in one), Str 1 = 27 (a 25 HP Squirrel in one),
-// Str 2 = 32 (the 30 HP Pika and Chap Cat in one), Str 5 = 45, Str 10 = 90. The big stompables
+// Str 2 = 32 (the 30 HP Pika and Orange Cat in one), Str 5 = 45, Str 10 = 90. The big stompables
 // still take more than one: the 60 HP Turtle twice at Str 5, the 100 HP Crocodile twice even for
 // Army Bob (50 would have one-shot it at Str 10, which is why this is not 50).
 export const STOMP_DAMAGE = 45;
