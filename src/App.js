@@ -2257,6 +2257,12 @@ export const LASER_HOMING_TURN_DEG = 13;
 export const LASER_WORM_AMP_DEG = 15;
 export const LASER_WORM_WAVELEN_CELLS = 3.2;
 export const LASER_WORM_SPEED = 0.36;
+// V FORMATION (Blake, 2026-11-26: "the beams should do a V formation a little bit with broken glasses with
+// both coming from the same spawn point"): every Brimstone shot is TWO beams out of the one muzzle, each
+// turned LASER_V_HALF_DEG off the aim, and each one kinks like a crack in glass (sharp bends, not a wave).
+export const LASER_V_HALF_DEG = 4.5;
+export const LASER_CRACK_SEG_CELLS = 3;
+export const LASER_CRACK_DEG = [0, 4.6, -3.8, 5.2, -4.8, 3.4, -5.2, 3.0, -2.6];
 export const ENEMY_LASER_HOLD_FRAMES = 10;
 export const isChargeLaser = (w) => !!(w && w.chargeLaser && isRanged(w.wtype));
 export const chargeLaserFrames = (w, effects = null) =>
@@ -3486,6 +3492,14 @@ const shotPathClear = (sx, sy, groundY, rangePx, deg, dir, dx, clear, step) => {
   }
   return true;
 };
+// The straight-line twin of shotPathClear, for a beam that does not drop.
+const flatPathClear = (sx, sy, deg, dir, dx, clear, step) => {
+  const rad = deg * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+  if (c <= 1e-6) return false;
+  const dEnd = dx / c;
+  for (let d = step; d < dEnd; d += step) if (!clear(sx + dir * c * d, sy + s * d)) return false;
+  return true;
+};
 // Pick the nearest target the held aim can be bent onto, and the launch angle that hits it.
 //   sx, sy    the muzzle, level px          face  ±1        aimDeg  the held direction's launch angle
 //   groundY   the shooter's feet line at firing time — what calibrates the arc (see rangePx above)
@@ -3598,7 +3612,7 @@ export const floorLockShot = ({ t, sx, sy, groundY, rangePx, dir, aimDeg, coneDe
   const tipOver = down.dx >= -t.w / 2 && down.m.y <= t.y + t.h;
   return { deg: hi, spawn: tipOver ? { x: down.m.x, y: down.m.y } : { x: cx, y: cy } };
 };
-export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets, coneDeg = AIM_ASSIST_CONE_DEG, clear = null, step = 15, floorLock = false, bodyX = null, cellPx = 30, muzzleAt = null }) => {
+export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets, coneDeg = AIM_ASSIST_CONE_DEG, clear = null, step = 15, floorLock = false, bodyX = null, cellPx = 30, muzzleAt = null, flat = false }) => {
   const dir = face < 0 ? -1 : 1;
   const originX = bodyX ?? sx;   // "nearest" is measured from the body; for a unit, the chest it fires from IS its body
   // Every floor-lock sweep samples the same angle grid, and the player's muzzleAt bakes the weapon
@@ -3613,21 +3627,22 @@ export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets
     const dist = (cx - originX) * dir;
     let deg = null, spawn = null;
     if (dx > 1 && dx <= rangePx) {                            // not behind you, on top of you, or past the gun's reach
-      const want = solveShotAngleToPoint(sy, groundY, rangePx, dx, cy);
+      // flat: a Brimstone beam does not fall, so the lock-on is the straight line to the body's middle
+      const want = flat ? Math.atan2(cy - sy, dx) * 180 / Math.PI : solveShotAngleToPoint(sy, groundY, rangePx, dx, cy);
       if (want !== null) {                                    // null: no arc climbs that high
         if (Math.abs(want - aimDeg) <= coneDeg) deg = want;
         else {
           const edge = aimDeg + (want > aimDeg ? coneDeg : -coneDeg);
-          const y = shotYAtColumn(sy, groundY, rangePx, edge, dx);
+          const y = flat ? sy + Math.tan(edge * Math.PI / 180) * dx : shotYAtColumn(sy, groundY, rangePx, edge, dx);
           const m = t.h * AIM_ASSIST_TARGET_MARGIN;
           if (!(y === null || y < t.y + m || y > t.y + t.h - m)) deg = edge;
         }
-        if (deg !== null && clear && !shotPathClear(sx, sy, groundY, rangePx, deg, dir, dx, clear, step)) deg = null;
+        if (deg !== null && clear && !(flat ? flatPathClear(sx, sy, deg, dir, dx, clear, step) : shotPathClear(sx, sy, groundY, rangePx, deg, dir, dx, clear, step))) deg = null;
       }
     }
     // In front of the BODY (dist), within the gun's reach from its BARREL (dx) — the range is how
     // far the shot flies, and measuring it from the body cut the lock off short of the cone's.
-    if (deg === null && floorLock && aimDeg >= 0 && dist > 0 && dx <= rangePx && cy > sy
+    if (deg === null && floorLock && !flat && aimDeg >= 0 && dist > 0 && dx <= rangePx && cy > sy
         && Math.abs((t.y + t.h) - groundY) <= AIM_ASSIST_FLOOR_TOL_CELLS * cellPx) {
       const fl = floorLockShot({ t, sx, sy, groundY, rangePx, dir, aimDeg, coneDeg, clear, step, muzzleAt: muzzleMemo });
       if (fl) { deg = fl.deg; spawn = fl.spawn; }
@@ -5645,7 +5660,11 @@ export const doubleShotPair = (shot, cellPx) => {
 };
 // Where a gun's round goes into the air, for the player and every unit: one, or the ⏩ pair.
 export const pushShot = (list, effects, shot, cellPx) => {
-  if (doubleShotOn(effects)) list.push(...doubleShotPair(shot, cellPx)); else list.push(shot);
+  // 🔴 a Brimstone beam is a V of two, from the one spawn point (each arm still gets its Double Shot twin)
+  const arms = shot.beam && !shot.beam.vSide
+    ? [-1, 1].map((v) => ({ ...shot, beam: { ...shot.beam, pts: (shot.beam.pts || [[0, 0]]).map((p) => [p[0], p[1]]), vSide: v } }))
+    : [shot];
+  for (const a of arms) { if (doubleShotOn(effects)) list.push(...doubleShotPair(a, cellPx)); else list.push(a); }
   return list;
 };
 // 🧲 HOMING SHOT (Blake, 2026-10-25: "an ability you can assign to clothes or ranged weapons that adds
@@ -5728,7 +5747,7 @@ export const pierceFreshHit = (pr, key) => {
 // offsets from (sx, sy). Straight out along aimRad normally; with `homing`, steers smoothly into the
 // nearest unvisited target and snakes on to the next while a travelling sine wave makes the beam
 // wriggle like a Binding-of-Isaac worm laser.
-export const brimstoneBeamPath = ({ sx = 0, sy = 0, aimRad = 0, rangePx = 300, cellPx = 30, homing = false, targets = null, shooterKey = null, phase = 0, solidAt = null } = {}) => {
+export const brimstoneBeamPath = ({ sx = 0, sy = 0, aimRad = 0, rangePx = 300, cellPx = 30, homing = false, targets = null, shooterKey = null, phase = 0, solidAt = null, crack = 0 } = {}) => {
   const cell = Math.max(4, cellPx || 30), step = Math.max(4, cell * LASER_STEP_CELLS);
   const maxD = Math.max(cell, rangePx || cell * 10);
   const pts = [[0, 0]];
@@ -5742,6 +5761,8 @@ export const brimstoneBeamPath = ({ sx = 0, sy = 0, aimRad = 0, rangePx = 300, c
   while (dist < maxD - 1e-4) {
     const seg = Math.min(step, maxD - dist);
     let moveTheta = baseTheta;
+    // 🪟 broken glass: the heading kinks at fixed lengths (the other arm of the V starts on a different crack)
+    const crackRad = crack ? (LASER_CRACK_DEG[(Math.floor((dist + seg * 0.5) / (cell * LASER_CRACK_SEG_CELLS)) + (crack > 0 ? 0 : 4)) % LASER_CRACK_DEG.length] * Math.PI) / 180 * (crack > 0 ? 1 : -1) : 0;
     if (homing) {
       for (const t of live) {
         if (visited.has(t.key)) continue;
@@ -5772,6 +5793,7 @@ export const brimstoneBeamPath = ({ sx = 0, sy = 0, aimRad = 0, rangePx = 300, c
       const wiggle = wormAmpRad * Math.sin(((dist + seg * 0.5) / wormWavePx) * Math.PI * 2 - phase) * ramp * (0.28 + 0.72 * damp);
       moveTheta = baseTheta + wiggle;
     }
+    moveTheta += crackRad;
     const nx = x + Math.cos(moveTheta) * seg, ny = y + Math.sin(moveTheta) * seg;
     if (solidAt && solidAt(nx, ny)) {
       let lo = 0, hi = 1;
@@ -5825,7 +5847,7 @@ export const makeBrimstoneBeam = ({ owner, aimRad, dur, cellPx }) => ({
   phase: 0, tickAcc: LASER_TICK_FRAMES, tickDue: false,
   radiusPx: (cellPx || 30) * LASER_BEAM_RADIUS_CELLS,
   pts: [[0, 0], [Math.cos(aimRad || 0) * (cellPx || 30), Math.sin(aimRad || 0) * (cellPx || 30)]],
-  hitWall: false, pairSide: 0,
+  hitWall: false, pairSide: 0, vSide: 0,
 });
 export const brimstoneBeamStep = (pr, dt, cellPx, targets, solidAt, anchor = null) => {
   const b = pr && pr.beam;
@@ -5840,8 +5862,8 @@ export const brimstoneBeamStep = (pr, dt, cellPx, targets, solidAt, anchor = nul
     pr.vx = Math.cos(aRad); pr.vy = Math.sin(aRad);
   }
   const traced = brimstoneBeamPath({
-    sx: pr.x, sy: pr.y, aimRad: b.aimRad, rangePx: pr.rangePx, cellPx: cell,
-    homing: !!pr.homing, targets, shooterKey: pr.shooterKey || null, phase: b.phase, solidAt,
+    sx: pr.x, sy: pr.y, aimRad: b.aimRad + (b.vSide || 0) * (LASER_V_HALF_DEG * Math.PI / 180), rangePx: pr.rangePx, cellPx: cell,
+    homing: !!pr.homing, targets, shooterKey: pr.shooterKey || null, phase: b.phase, solidAt, crack: b.vSide || 0,
   });
   b.pts = traced.pts; b.hitWall = traced.hitWall;
   b.tickAcc = (b.tickAcc || 0) + d;
@@ -21738,7 +21760,7 @@ export default function AssetStudio({ game = false } = {}) {
             const dir = eMuzzle0 ? (ep.face || 1) : (Math.sign(tgtAimCX - sx) || ep.face || 1);
             const lineDeg = Math.atan2(tgtAimCY - sy, Math.abs(tgtAimCX - sx)) * 180 / Math.PI;
             const eLaser = isChargeLaser(ew);
-            const eAssist = (eLaser || isBoomerang(ew)) ? null : aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe });
+            const eAssist = isBoomerang(ew) ? null : aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe, flat: eLaser });
             const shotDeg = eAssist ? eAssist.deg : lineDeg;
             const shotRad = shotDeg * Math.PI / 180;
             const vx = dir * Math.cos(shotRad) * spd, vy = Math.sin(shotRad) * spd;
@@ -22108,7 +22130,7 @@ export default function AssetStudio({ game = false } = {}) {
           // 🪃 Not for a boomerang: the lock-on is solved for a round that falls, and a boomerang flies
           // dead straight, so it went down at the first body's middle and on into the floor. Its own
           // light homing (boomerangPick) does its steering.
-          const assist = assistTargets.length && !wpnBoomerang && !wpnChargeLaser ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: playerFloorLocks(p), bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
+          const assist = assistTargets.length && !wpnBoomerang ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: playerFloorLocks(p), bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn, flat: wpnChargeLaser }) : null;
           if (assist) {
             aimTilt = assist.deg - aimDegHeld;
             shotDeg = assist.deg;

@@ -18291,7 +18291,7 @@ describe("every ability description is one short line", () => {
 import {
   isChargeLaser, chargeLaserFrames, laserBeamFrames, laserTicksInBeam, stepChargeLaser,
   brimstoneBeamPath, beamHitsBox, makeBrimstoneBeam, brimstoneBeamStep,
-  DEFAULT_CHARGE_LASER_SECS, DEFAULT_LASER_BEAM_SECS, LASER_TICK_FRAMES,
+  DEFAULT_CHARGE_LASER_SECS, DEFAULT_LASER_BEAM_SECS, LASER_TICK_FRAMES, LASER_V_HALF_DEG,
 } from "./App";
 
 describe("🔴 Brimstone laser (chargeLaser) + Brimstone Demon & Brimstone Launcher", () => {
@@ -18339,6 +18339,39 @@ describe("🔴 Brimstone laser (chargeLaser) + Brimstone Demon & Brimstone Launc
     expect(rel).toEqual({ charge: 0, started: false, charged: false, released: true, cancelled: false });
     // And stays in Fire pose while the beam is actively firing
     expect(weaponPoseFired(true, { t: 5, dur: laserBeamFrames(w) }, { clip: 0, ammo: 0, reloadT: 0 }, w, false)).toBe(true);
+  });
+
+  test("Brimstone is a V of two beams from one spawn point, each kinked like cracked glass", () => {
+    const shot = { x: 100, y: 200, vx: 18, vy: 0, startX: 100, startY: 200, beam: makeBrimstoneBeam({ owner: "player", aimRad: 0, dur: 33, cellPx: 30 }) };
+    const list = pushShot([], [], shot, 30);
+    expect(list).toHaveLength(2);
+    expect(list.map((r) => r.beam.vSide).sort()).toEqual([-1, 1]);
+    expect(list[0].x).toBe(list[1].x); expect(list[0].y).toBe(list[1].y);          // the same spawn point
+    expect(pushShot([], [{ type: "doubleShot" }], shot, 30)).toHaveLength(4);        // each arm keeps its Double Shot twin
+    list.forEach((r) => brimstoneBeamStep(r, 1, 30, [], null, null));
+    const [up, down] = list.slice().sort((p, q) => p.beam.vSide - q.beam.vSide).map((r) => r.beam.pts[r.beam.pts.length - 1]);
+    expect(up[1]).toBeLessThan(0); expect(down[1]).toBeGreaterThan(0);                // the two arms part
+    const gapDeg = Math.atan2(down[1] - up[1], up[0]) * 180 / Math.PI;
+    expect(gapDeg).toBeGreaterThan(LASER_V_HALF_DEG);                                  // a V, not parallel
+    expect(gapDeg).toBeLessThan(LASER_V_HALF_DEG * 4);                                 // only a little
+    const kinks = (pts) => { let n = 0; for (let i = 2; i < pts.length; i++) { const a1 = Math.atan2(pts[i - 1][1] - pts[i - 2][1], pts[i - 1][0] - pts[i - 2][0]), a2 = Math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0]); if (Math.abs(a2 - a1) > 0.03) n++; } return n; };
+    expect(kinks(list[0].beam.pts)).toBeGreaterThan(2);                                // cracked, not a ruler line
+    // a plain call (no crack) still flies dead straight
+    expect(kinks(brimstoneBeamPath({ sx: 0, sy: 0, aimRad: 0, rangePx: 300, cellPx: 30 }).pts)).toBe(0);
+  });
+
+  test("Brimstone uses the aim assist: a flat lock-on onto the body, through no wall", () => {
+    const sy = 400, rangePx = 600;
+    const body = { x: 400, y: 330, w: 60, h: 130 };                                      // middle at y 395... lift it so a bend is needed
+    const high = { x: 400, y: 200, w: 60, h: 130 };                                      // middle at 265, well above the level line
+    const hit = aimAssistAngle({ sx: 0, sy, groundY: 460, rangePx, face: 1, aimDeg: 0, targets: [high], flat: true });
+    expect(hit).not.toBeNull();
+    expect(hit.deg).toBeCloseTo(Math.atan2(265 - sy, 430) * 180 / Math.PI, 6);          // the straight line, no arc drop solved in
+    const arc = aimAssistAngle({ sx: 0, sy, groundY: 460, rangePx, face: 1, aimDeg: 0, targets: [high] });
+    expect(hit.deg).not.toBeCloseTo(arc.deg, 1);                                         // the falling-arc solve would differ
+    expect(aimAssistAngle({ sx: 0, sy, groundY: 460, rangePx, face: 1, aimDeg: 0, targets: [high], flat: true, clear: (x) => x < 200 })).toBeNull(); // cover wins
+    expect(aimAssistAngle({ sx: 0, sy, groundY: 460, rangePx, face: 1, aimDeg: 0, targets: [{ x: 400, y: 330, w: 60, h: 130 }].map((t) => ({ ...t, y: 500 })), flat: true, coneDeg: 5 })).toBeNull(); // out of the cone
+    expect(body.w).toBe(60);
   });
 
   test("brimstoneBeamPath flies straight normally, stops at walls, and worms through targets under Homing", () => {
