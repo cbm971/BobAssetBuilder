@@ -781,7 +781,7 @@ plus traps it does not cover:
   - **A floor can have several Intros** (2026-11-21): `pick(intros)` draws one `rnd()` however many
     there are, so a second Intro with the first one's exact gates changes only the room a seed starts
     in, and every later level of the run lays the same. Trailer Park S2 (`trps2a1`) and S3 (`trps3a1`)
-    are S1 with small changes; a third of the seeds start in each. A variant keeps the original's
+    are S1 with small changes; a third of the seeds start in each. Vietnam S2 (`vtnms2a`: his Army Truck in place of the Jeep, the fuel drums on the LZ, the PX and the mess trade places, the flare over the LZ) and Vietnam S3 (`vtnms3a`: the Jeep parked by the flagpole, the command tent with its lantern and door 11 columns east, the PX tent in Army Tent (Tan) `ufotnt2`) are Vietnam S1 the same way (Blake, 2026-11-26) and keep its Helicopter Arrival marker on column 0. The two item-room tents stay olive because their interiors are olive canvas. **Talking reaches 6 cells (`TALK_RANGE_CELLS`) and takes E before a car does**, so a talker standing on a parked car hides its Press E to drive: keep at least a few of its columns clear of every talker. A variant keeps the original's
     gates and its edge columns (0, 1, 158, 159) cell for cell; change only what is inside. A REAL
     library test checks all three. **A textured cell draws its texture's own colours** (the tile's
     ground covers the cell's `c`), so a wallpaper in a new colour is a new texture record.

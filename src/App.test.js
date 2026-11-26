@@ -11371,14 +11371,12 @@ describe("runs", () => {
     expect([...starts].sort()).toEqual(["INTRO", "INTRO2"]);   // both rooms come up over 40 seeds
   });
 
-  // Blake, 2026-11-21, after S2: "can you add a 3rd Trailor Park S varient? An S3?" Every start room
-  // a floor has must keep S1's gates and its edge columns cell for cell; otherwise a seed that wakes
-  // up in it lays a different run, and a saved game in a later level no longer finds its own level.
-  // This reads his REAL library, so a fourth variant (or an edit of one) that breaks the rule fails
-  // here and not in somebody's run.
-  test("on the REAL library, Trailer Park S1, S2 and S3 share gates and edge columns, and every run after the start is S1's", () => {
+  // Every start room a floor has must keep S1's gates and its edge columns cell for cell; otherwise a
+  // seed that wakes up in it lays a different run, and a saved game in a later level no longer finds
+  // its own level. Reads his REAL library, so a new variant (or an edit of one) that breaks the rule
+  // fails here and not in somebody's run.
+  const startVariantsKeepTheRun = (floor, IDS, seedPrefix) => {
     const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
-    const IDS = ["6ktwvoo", "trps2a1", "trps3a1"];   // Trailer Park S1 (his), S2, S3
     const [s1, ...variants] = IDS.map((id) => lib.levels.find((l) => l.id === id));
     // Terrain, ladders, hazards, markers and spawns. Not placed props: S2 swapped the berry bush that
     // stands on column 0 for his purple one, and a bush is scenery, not a seam.
@@ -11397,8 +11395,8 @@ describe("runs", () => {
     }
     const s1Only = lib.levels.filter((l) => !variants.includes(l)), starts = new Set();
     for (let i = 0; i < 60; i++) {
-      const sd = "tp-start-" + i;
-      const one = buildRun(s1Only, sd, { floor: "Trailer Park" }), all = buildRun(lib.levels, sd, { floor: "Trailer Park" });
+      const sd = seedPrefix + i;
+      const one = buildRun(s1Only, sd, { floor }), all = buildRun(lib.levels, sd, { floor });
       const ids1 = one.order.map((k) => one.nodes[k].level.id), idsAll = all.order.map((k) => all.nodes[k].level.id);
       expect(ids1[0]).toBe(IDS[0]);
       expect(IDS).toContain(idsAll[0]); starts.add(idsAll[0]);
@@ -11406,6 +11404,16 @@ describe("runs", () => {
       expect(idsAll.slice(1)).toEqual(ids1.slice(1));
     }
     expect([...starts].sort()).toEqual([...IDS].sort());   // all three rooms come up over 60 seeds
+  };
+
+  // Blake, 2026-11-21, after S2: "can you add a 3rd Trailor Park S varient? An S3?"
+  test("on the REAL library, Trailer Park S1, S2 and S3 share gates and edge columns, and every run after the start is S1's", () => {
+    startVariantsKeepTheRun("Trailer Park", ["6ktwvoo", "trps2a1", "trps3a1"], "tp-start-");   // Trailer Park S1 (his), S2, S3
+  });
+
+  // Blake, 2026-11-26: "make two varients of the Vietnam intro level? ... Same logic as Trailor Park S1".
+  test("on the REAL library, Vietnam S1, S2 and S3 share gates and edge columns, and every run after the start is S1's", () => {
+    startVariantsKeepTheRun("Vietnam", ["vtnms1a", "vtnms2a", "vtnms3a"], "vn-start-");   // Vietnam S1 (FIREBASE FREEDOM), S2, S3
   });
 
   test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {
