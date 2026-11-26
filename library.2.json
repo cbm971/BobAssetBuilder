@@ -1,5 +1,5 @@
 {
- "set": "0ce8edcd2f58886a",
+ "set": "e51b2c8266d5be89",
  "part": 2,
  "assets": [
   {
@@ -188300,7 +188300,7 @@
     ]
    },
    "scale": 1.25,
-   "savedAt": 1792267404800,
+   "savedAt": 1795696073257,
    "holdPoint": {
     "side": {
      "x": 62,
@@ -188309,16 +188309,13 @@
    },
    "sounds": {
     "attack": "jgcarlo",
-    "hurt": "8wj9mvj",
+    "hurt": "bv8x5o6",
     "death": "lx4ot2r"
    },
-   "editedFrom": 1792267399339,
+   "editedFrom": 1792267404800,
    "soundVol": {
     "death": 0.05
-   },
-   "flies": false,
-   "poison": false,
-   "poisonDps": 2
+   }
   },
   {
    "id": "l17rsel",
