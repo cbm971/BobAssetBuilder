@@ -2732,6 +2732,20 @@ fight and comes back until within `ALLY_REGROUP_CELLS` (8) (`ep.regroup`). Measu
 6 body lengths (~42 cells — a third of his screen) and Speed 0 units (Billy, Bobby, Army Bob) never
 walk, by his own rule.
 
+**An ally defends itself (2026-11-26).** Blake: "make sure AI followers defend themselves. I had one
+fall into a pit and for some reason not attack the attacking enemy." Both rules above are measured
+from YOU, so an ally down a pit (its foe more than `ALLY_GUARD_ROWS` below your feet) or past the leash
+had no foe it was allowed to fight; it stood or walked back toward you in the hostile's blows. Now a
+hostile records its pick (`ep.foeKey`), and `allyDefendsItself` adds to the ally's foes any hostile
+coming for it (within `ALLY_GUARD_CELLS` across of the ally, so a stale pick far off is dropped) or
+within `ALLY_SELF_DEFENSE_CELLS` (10) / `ALLY_SELF_DEFENSE_ROWS` (7) of it, guard ring and leash
+notwithstanding. With none on its level it still takes one coming for it from off its level (faces it,
+climb route, shoots back when its gun's level test allows). Measured in Trailer Park M3 with two
+football players, one set friendly, A/B on a temporary `window.__noSelfDefense`: player 15 rows above
+(the pit), old code = the ally took 25 → 5 HP and never touched the foe; fixed = it killed the foe
+(25 → 0) and went back to following. Player 57 cells away (past the leash), old code = it ran home
+taking 25 → 5, fixed = it stood and fought (foe 25 → 10 in the same span).
+
 **Units duck under what blocks them (2026-09-27, `ep.duckUnder`).** Blake: "NPCs, player and not,
 should duck to get under obstacles if that is what is stopping them … my elephant may have gotten
 stuck". A walking unit blocked at head height whose CROUCH box clears the wall at the same feet ducks

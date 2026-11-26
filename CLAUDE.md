@@ -1142,7 +1142,9 @@ plus traps it does not cover:
 - There is no 👹 enemy flag and no weapon picker in Dress Bob. What a character carries is set per
   placement.
 - Units walk only to targets on their own storey (`unitSharesLevel`), and allies guard the area
-  around YOU, on a leash.
+  around YOU, on a leash. **But an ally always defends ITSELF** (`allyDefendsItself`, 2026-11-26): a
+  hostile whose target is that ally (`ep.foeKey`) or that stands right against it is fought whatever
+  the guard ring or leash says. Rules measured only from you left a follower down a pit taking hits.
 - **🚗 Vehicles (2026-10-31)** are their own asset type ("Prop / Item / Vehicle"), placed like a prop.
   Five looks, in this order: Stock, Front damage, Rear damage, Imminent explosion (both ends plus the
   🔥 hood-fire marker), Destroyed (the smouldering wreck). A car has its own HP and Defense; fire and

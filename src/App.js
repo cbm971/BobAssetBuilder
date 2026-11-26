@@ -14895,6 +14895,21 @@ export const ALLY_LEASH_CELLS = 40, ALLY_REGROUP_CELLS = 8;
 export const allyGuards = (foeDx, foeDy, cell) => Math.abs(foeDx) <= ALLY_GUARD_CELLS * cell && Math.abs(foeDy) <= ALLY_GUARD_ROWS * cell;
 export const allyRegrouping = (gapToPlayer, wasRegrouping, cell) =>
   Math.abs(gapToPlayer) > (wasRegrouping ? ALLY_REGROUP_CELLS : ALLY_LEASH_CELLS) * cell;
+// AN ALLY DEFENDS ITSELF (2026-11-26, Blake: "make sure AI followers defend themselves. I had one
+// fall into a pit and for some reason not attack the attacking enemy"). Both rules above are
+// measured from YOU, so a follower that fell down a pit — more than ALLY_GUARD_ROWS below your feet,
+// or left past the leash while you walked on — had NO foe it was allowed to take on. The hostile
+// down there with it was "not near you", and the ally stood taking hits and trying to walk back to
+// you. Now a hostile that is coming for THIS ally (the hostile's own target pick, ep.foeKey), or is
+// right up against it (ALLY_SELF_DEFENSE_CELLS across and ROWS up or down, measured from the ally),
+// is always a foe it fights — the guard ring, the leash and the rows below you do not enter into it.
+// "Coming for it" still has to be within ALLY_GUARD_CELLS of the ally across: a hostile only targets
+// what it senses (well inside that), so this only drops a stale pick — one left on a unit that has
+// stopped thinking somewhere far off, which would otherwise drag the ally across the map to it.
+export const ALLY_SELF_DEFENSE_CELLS = 10, ALLY_SELF_DEFENSE_ROWS = 7;
+export const allyDefendsItself = (foeTargetsMe, foeDx, foeDy, cell) =>
+  (!!foeTargetsMe && Math.abs(foeDx) <= ALLY_GUARD_CELLS * cell)
+  || (Math.abs(foeDx) <= ALLY_SELF_DEFENSE_CELLS * cell && Math.abs(foeDy) <= ALLY_SELF_DEFENSE_ROWS * cell);
 // FOLLOWERS WALK IN A LINE (2026-11-14, Blake: "If you have two followers one should follow the
 // other like a centipede, they shouldn't stack as one"). Every ally tagging along used to aim at the
 // same thing — YOU — with the same follow range, so two of them walked to the same spot and stood
@@ -19781,8 +19796,16 @@ export default function AssetStudio({ game = false } = {}) {
             // such foes about it tags along with you instead.
             const pCX = p.x + pw / 2, pFeet = p.y + ph;
             ep.regroup = allyRegrouping(pCX - eCenterXNow, ep.regroup, CW);
-            const guarded = ep.regroup || rideWant[k] != null ? [] : aliveOpposite(false).filter((f) => allyGuards(f.cx - pCX, f.ep.y + (f.ep.crouch ? enemyCrouchH(f.ea, CW) : enemyStandH(f.ea, CW)) - pFeet, CW));
-            const near = nearestUnitCX(eCenterXNow, guarded.filter(onMyLevel)); // nearest hostile it can walk to
+            const foes = rideWant[k] != null ? [] : aliveOpposite(false); // one making for a seat in your car goes to the car
+            // ...and whatever is coming for IT, wherever you are (allyDefendsItself): a follower that
+            // fell down a pit fights the hostile down there with it instead of standing in its blows.
+            const selfDefense = foes.filter((f) => allyDefendsItself(f.ep.foeKey === k, f.cx - eCenterXNow, feetOf(f) - myFeetY, CW));
+            const guarded = ep.regroup ? selfDefense : foes.filter((f) => selfDefense.includes(f) || allyGuards(f.cx - pCX, feetOf(f) - pFeet, CW));
+            // Nearest hostile it can walk to. With none, one that is coming for it from another
+            // level (a gunman on the pit's rim) is still its fight — it faces it, takes the climb
+            // route toward it and shoots back when it can, exactly as a hostile does with a target
+            // off its level — rather than turning its back on it to follow you.
+            const near = nearestUnitCX(eCenterXNow, guarded.filter(onMyLevel)) || nearestUnitCX(eCenterXNow, selfDefense);
             if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else {
               targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; // nothing near you, or too far behind → tag along
@@ -19806,6 +19829,9 @@ export default function AssetStudio({ game = false } = {}) {
             if (near && near.key) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = vehDriven ? vehDriven.w : pw; } // 🚗 at the wheel you are as wide as your car
           }
+          // Who this hostile is going for, kept on it for the allies' self-defence (allyDefendsItself):
+          // an ally reads it next frame and knows the hostile is coming for IT.
+          ep.foeKey = hostile && targetKind === "unit" ? targetKey : null;
           // 🧭 ROUND THE WAY YOU WENT (followDetourStep): a follower that has stood against something,
           // or under a floor with no way up, for a moment makes for your trail's crumbs one by one
           // instead of for you — each an ordinary target, so it walks, jumps, takes the Climb-layer

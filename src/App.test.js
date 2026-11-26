@@ -575,6 +575,9 @@ import {
   heldLieFlatTurn,
   layHeldFlat,
   allyGuards,
+  allyDefendsItself,
+  ALLY_SELF_DEFENSE_CELLS,
+  ALLY_SELF_DEFENSE_ROWS,
   allyRegrouping,
   ALLY_GUARD_CELLS,
   ALLY_GUARD_ROWS,
@@ -10227,6 +10230,21 @@ describe("an ally guards you, on a leash", () => {
   test("the leash is looser than the guard ring, so chasing a foe at its edge never trips it", () => {
     expect(ALLY_LEASH_CELLS).toBeGreaterThan(ALLY_GUARD_CELLS);
     expect(ALLY_REGROUP_CELLS).toBeLessThan(ALLY_GUARD_CELLS);
+  });
+  /* 2026-11-26: "I had one fall into a pit and for some reason not attack the attacking enemy". */
+  test("it defends ITSELF wherever you are: a hostile coming for it, or right up against it", () => {
+    // THE BUG: down a pit 15 rows below you, the hostile beside it is out of your guard ring...
+    expect(allyGuards(2 * cell, 15 * cell, cell)).toBe(false);
+    // ...but it is coming for the ally, or standing on it, so the ally fights it.
+    expect(allyDefendsItself(true, 3 * cell, 0, cell)).toBe(true);
+    expect(allyDefendsItself(false, 3 * cell, 0, cell)).toBe(true);
+    expect(allyDefendsItself(false, -ALLY_SELF_DEFENSE_CELLS * cell, ALLY_SELF_DEFENSE_ROWS * cell, cell)).toBe(true);
+    expect(allyDefendsItself(true, 20 * cell, -9 * cell, cell)).toBe(true);           // a gunman on the rim shooting down at it
+  });
+  test("self-defence does not make it pick fights: a hostile going for somebody else, a way off, is not its fight", () => {
+    expect(allyDefendsItself(false, (ALLY_SELF_DEFENSE_CELLS + 1) * cell, 0, cell)).toBe(false);
+    expect(allyDefendsItself(false, 2 * cell, (ALLY_SELF_DEFENSE_ROWS + 1) * cell, cell)).toBe(false); // the floor above
+    expect(allyDefendsItself(true, (ALLY_GUARD_CELLS + 1) * cell, 0, cell)).toBe(false); // a stale pick far off
   });
 });
 
