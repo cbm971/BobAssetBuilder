@@ -1,5 +1,5 @@
 {
- "set": "38ab2c25ae7feec8",
+ "set": "a9d721d638edf871",
  "part": 2,
  "assets": [
   {
@@ -595417,7 +595417,7 @@
    "ignoreArmor": true,
    "burstFire": true,
    "fullAuto": false,
-   "burst": 3,
+   "burst": 10,
    "burstDelay": 0.08,
    "explodeRadius": 2,
    "explodePropId": null,
@@ -595439,8 +595439,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793564769442,
-   "editedFrom": 1793454712895,
+   "savedAt": 1795722498389,
+   "editedFrom": 1793564769442,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5",
