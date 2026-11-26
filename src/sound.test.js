@@ -940,4 +940,16 @@ describe("a gunshot is cut at a tenth of a second and an enemy's death at one se
     expect(e.event("jump")).toBe(true);
     expect(log.started[2].stopAt).toBeUndefined();
   });
+
+  test("a charge laser's Fire sound plays whole while charging (maxSecs: 0) and stopAssetSlot fades it out on release/cancel", async () => {
+    const log = install(2.5);
+    const e = make();
+    e.preload(["bang"]); await settle(); await settle();
+    expect(e.moment({ asset: gun, slot: "fire", maxSecs: 0 })).toBe(true);
+    const src = log.started[0];
+    expect(src.stopAt).toBeUndefined();
+    expect(e.stopAssetSlot(gun, "fire")).toBe(true);
+    expect(src.stopAt).toBeCloseTo(5.035, 9);
+    expect(e.stopAssetSlot(gun, "fire")).toBe(false);
+  });
 });

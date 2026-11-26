@@ -1651,7 +1651,8 @@ export const armBaseFrom = (drawnArm, curArm, fallback) => {
 // the whole reload or the arrow pops back into a bow that hasn't been re-drawn yet. Multi-round
 // weapons are untouched: a rifle's rest art looks the same on its last round as on its first, so
 // there's nothing to say and no reason to change how they read.
-export const weaponPoseFired = (isRangedWeapon, firing, ammo) => {
+export const weaponPoseFired = (isRangedWeapon, firing, ammo, weapon = null, charged = false) => {
+  if (weapon && weapon.chargeLaser && isRangedWeapon) return !!charged || (!!firing && !firing.unarmed);
   if (isRangedWeapon && ammo && ammo.clip === 1 && (ammo.reloadT > 0 || ammo.ammo <= 0)) return true;
   return !!firing && !firing.unarmed && (!!isRangedWeapon || (firing.t / firing.dur) >= MELEE_WINDUP_FRAC);
 };
@@ -2245,6 +2246,42 @@ const poisonDpsInWindow = (frames, pDps, hitAtFrame) => {
   }
   return dmg;
 };
+// 🔴 BRIMSTONE LASER (WEAPON_ABILITIES.chargeLaser) constants + pure charge helpers (above
+// weaponDpsOver and WEAPON_ABILITIES, which both read them at module init).
+export const DEFAULT_CHARGE_LASER_SECS = 0.65;
+export const DEFAULT_LASER_BEAM_SECS = 0.55;
+export const LASER_TICK_FRAMES = 6;
+export const LASER_STEP_CELLS = 0.45;
+export const LASER_BEAM_RADIUS_CELLS = 0.48;
+export const LASER_HOMING_TURN_DEG = 13;
+export const LASER_WORM_AMP_DEG = 15;
+export const LASER_WORM_WAVELEN_CELLS = 3.2;
+export const LASER_WORM_SPEED = 0.36;
+export const ENEMY_LASER_HOLD_FRAMES = 10;
+export const isChargeLaser = (w) => !!(w && w.chargeLaser && isRanged(w.wtype));
+export const chargeLaserFrames = (w, effects = null) =>
+  Math.max(6, Math.round(((w && w.chargeTime) || DEFAULT_CHARGE_LASER_SECS) * 60 / fireRateMultiplier(effects)));
+export const laserBeamFrames = (w) =>
+  Math.max(6, Math.round(((w && w.beamTime) || DEFAULT_LASER_BEAM_SECS) * 60));
+export const laserTicksInBeam = (beamFrames) =>
+  Math.max(1, Math.floor((Math.max(1, beamFrames) - 1) / LASER_TICK_FRAMES) + 1);
+export const stepChargeLaser = (cur, fireHeld, canStart, chargeFrames, dt = 1) => {
+  const was = cur || 0, need = Math.max(1, chargeFrames || 1), d = Math.max(0, dt || 0);
+  if (fireHeld) {
+    if (was > 0) {
+      const next = Math.min(need, was + d);
+      return { charge: next, started: false, charged: next >= need - 1e-6, released: false, cancelled: false };
+    }
+    if (canStart) {
+      const next = Math.min(need, Math.max(0.001, d));
+      return { charge: next, started: true, charged: next >= need - 1e-6, released: false, cancelled: false };
+    }
+    return { charge: 0, started: false, charged: false, released: false, cancelled: false };
+  }
+  if (was >= need - 1e-6) return { charge: 0, started: false, charged: false, released: true, cancelled: false };
+  if (was > 0) return { charge: 0, started: false, charged: false, released: false, cancelled: true };
+  return { charge: 0, started: false, charged: false, released: false, cancelled: false };
+};
 export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAPON_DPS_WINDOW_SECS) => {
   const frames = Math.max(1, Math.round(secs * 60));
   const hit = Math.max(0, perHit || 0);
@@ -2255,6 +2292,41 @@ export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAP
     return (hit * Math.ceil(frames / sw) + poisonDmg) / secs;
   }
   const cdFrames = weaponFireCooldownFrames(weapon.fireRate, effects);
+  // 🔴 A charge laser (Brimstone): hold Fire for chargeFrames, then release to blast a sustained beam
+  // that lands laserTicksInBeam hits across its duration.
+  if (isChargeLaser(weapon)) {
+    const cFrames = chargeLaserFrames(weapon, effects), bFrames = laserBeamFrames(weapon), ticks = laserTicksInBeam(bFrames);
+    const reloadFramesL = weaponReloadFrames(weapon.reloadTime, intelligence);
+    let wL = newWeaponAmmo(effectiveMagazineSize(weapon.clipSize, effects));
+    let ch = 0, bm = 0, totalHits = 0;
+    let poisonLeftL = 0, poisonPoolL = 0, poisonDmgL = 0;
+    const maxPoisonL = Math.round(POISON_DAMAGE_SECS * 60);
+    for (let f = 0; f < frames; f++) {
+      if (bm > 0) {
+        if ((bFrames - bm) % LASER_TICK_FRAMES === 0) { totalHits++; if (pDps > 0) poisonLeftL = maxPoisonL; }
+        bm -= 1;
+      } else if (ch >= cFrames) {
+        ch = 0; bm = bFrames;
+        wL = consumeShot(wL, Math.max(bFrames, cdFrames));
+        totalHits++; if (pDps > 0) poisonLeftL = maxPoisonL;
+        bm -= 1;
+      } else if (ch > 0) {
+        ch += 1;
+      } else if (canFireNow(wL)) {
+        ch = 1;
+      } else if (needsReload(wL)) {
+        wL = startReload(wL, reloadFramesL);
+      }
+      if (poisonLeftL > 0) {
+        poisonPoolL += 1 / 60;
+        if (poisonPoolL >= 1 - 1e-6) { poisonPoolL -= 1; poisonDmgL += pDps; }
+        poisonLeftL = Math.max(0, poisonLeftL - 1);
+      }
+      wL = advanceWeapon(wL, 1);
+    }
+    void ticks;
+    return (hit * totalHits + poisonDmgL) / secs;
+  }
   // 🪃 A boomerang gun throws again only once it is home (boomerangTripFrames: no clip, no reload), and
   // it goes through a body twice on one throw, out and back down the same line.
   if (isBoomerang(weapon)) {
@@ -2715,13 +2787,19 @@ export const WEAPON_ABILITIES = {
     icon: "🔫", label: "Burst fire", types: ["ranged"],
     blurb: "One press commits a quick salvo. The normal Fire rate controls when another burst may begin; Burst spacing controls the rounds inside it. Mutually exclusive with Full Auto.",
     brief: (a) => Math.max(2, Math.round(a.burst ?? 3)) + "-shot bursts",
-    on: { burstFire: true, fullAuto: false, boomerang: false, burst: 3, burstDelay: DEFAULT_BURST_DELAY }, off: { burstFire: false },
+    on: { burstFire: true, fullAuto: false, boomerang: false, chargeLaser: false, burst: 3, burstDelay: DEFAULT_BURST_DELAY }, off: { burstFire: false },
   },
   fullAuto: {
     icon: "🔥", label: "Full auto", types: ["ranged"],
     blurb: "Hold Fire to keep shooting at the weapon's Fire rate until the trigger is released, the magazine empties, or a reload begins. Mutually exclusive with Burst Fire.",
     brief: () => "hold Fire to keep shooting",
-    on: { fullAuto: true, burstFire: false, boomerang: false }, off: { fullAuto: false },
+    on: { fullAuto: true, burstFire: false, boomerang: false, chargeLaser: false }, off: { fullAuto: false },
+  },
+  chargeLaser: {
+    icon: "🔴", label: "Brimstone laser", types: ["ranged"],
+    blurb: "Hold Fire to charge (playing the Fire sound). Once charged the weapon shows its Fire pose, and releasing unleashes a piercing Brimstone blood laser (playing the Hit sound). Pairs with Homing to bend and wriggle through enemies like a worm. Works in both directions: in a 👹 Enemy's hands it charges and blasts YOU.",
+    brief: () => "charge and release a blood laser",
+    on: { chargeLaser: true, chargeTime: DEFAULT_CHARGE_LASER_SECS, beamTime: DEFAULT_LASER_BEAM_SECS, burstFire: false, fullAuto: false, boomerang: false }, off: { chargeLaser: false },
   },
   explode: {
     icon: "💥", label: "Explode", types: ["ranged"],
@@ -2751,7 +2829,7 @@ export const WEAPON_ABILITIES = {
     icon: "🪃", label: "Boomerang", types: ["ranged", "throw"],
     blurb: "Fire throws the weapon itself, spinning, instead of a projectile. It flies out to its Range with a light pull toward an enemy ahead, turns round like a boomerang and comes back to the hand that threw it. A gun goes through every enemy on the way out and again on the way back, and has no clip or reload: it is loaded again when it is back in your hand. A throwable stops on the first thing it hits and pays out there; one that hits nothing comes back to you to throw again, and you can have as many in the air as you like. Works in both directions: in a 👹 Enemy's hands it comes back to the enemy.",
     brief: (a) => (isThrowable(a.wtype) ? "comes back if it misses" : "hits going out and coming back"),
-    on: { boomerang: true, burstFire: false, fullAuto: false, pierce: false, homing: false, resurrect: false }, off: { boomerang: false },
+    on: { boomerang: true, burstFire: false, fullAuto: false, chargeLaser: false, pierce: false, homing: false, resurrect: false }, off: { boomerang: false },
   },
   // A gun you WEAR on your fists (the DK Arms): the 👊 Q/V swing you can throw without holstering
   // it is normally a bare-handed 2-damage punch, whatever is in your hand. This multiplies it.
@@ -5561,7 +5639,7 @@ export const doubleShotPair = (shot, cellPx) => {
   const sp = Math.hypot(shot.vx || 0, shot.vy || 0) || 1, half = DOUBLE_SHOT_GAP_CELLS * (cellPx || 30) / 2;
   const nx = -(shot.vy || 0) / sp * half, ny = (shot.vx || 0) / sp * half;
   const pair = ++doubleShotPairSeq;
-  const at = (k) => ({ ...shot, x: shot.x + nx * k, y: shot.y + ny * k, startX: shot.startX + nx * k, startY: shot.startY + ny * k, hits: undefined, pair });
+  const at = (k) => ({ ...shot, x: shot.x + nx * k, y: shot.y + ny * k, startX: shot.startX + nx * k, startY: shot.startY + ny * k, ...(shot.beam ? { beam: { ...shot.beam, pts: (shot.beam.pts || [[0, 0]]).map((p) => [p[0], p[1]]), pairSide: k } } : {}), hits: undefined, pair });
   return [at(-1), at(1)];
 };
 // Where a gun's round goes into the air, for the player and every unit: one, or the ⏩ pair.
@@ -5644,6 +5722,137 @@ export const pierceFreshHit = (pr, key) => {
   if (pr.hits.includes(key)) return false;
   pr.hits.push(key);
   return true;
+};
+// 🔴 BRIMSTONE LASER (WEAPON_ABILITIES.chargeLaser): trace the Brimstone laser polyline as [dx, dy]
+// offsets from (sx, sy). Straight out along aimRad normally; with `homing`, steers smoothly into the
+// nearest unvisited target and snakes on to the next while a travelling sine wave makes the beam
+// wriggle like a Binding-of-Isaac worm laser.
+export const brimstoneBeamPath = ({ sx = 0, sy = 0, aimRad = 0, rangePx = 300, cellPx = 30, homing = false, targets = null, shooterKey = null, phase = 0, solidAt = null } = {}) => {
+  const cell = Math.max(4, cellPx || 30), step = Math.max(4, cell * LASER_STEP_CELLS);
+  const maxD = Math.max(cell, rangePx || cell * 10);
+  const pts = [[0, 0]];
+  let x = sx, y = sy, baseTheta = aimRad || 0, dist = 0, hitWall = false;
+  const visited = new Set();
+  const live = homing && Array.isArray(targets) ? targets.filter((t) => t && t.key !== shooterKey) : [];
+  const maxTurnRad = (LASER_HOMING_TURN_DEG * Math.PI) / 180;
+  const wormAmpRad = (LASER_WORM_AMP_DEG * Math.PI) / 180;
+  const wormWavePx = cell * LASER_WORM_WAVELEN_CELLS;
+  const maxCone = (155 * Math.PI) / 180;
+  while (dist < maxD - 1e-4) {
+    const seg = Math.min(step, maxD - dist);
+    let moveTheta = baseTheta;
+    if (homing) {
+      for (const t of live) {
+        if (visited.has(t.key)) continue;
+        const tcx = t.x + t.w / 2, tcy = t.y + t.h / 2;
+        if (Math.hypot(tcx - x, tcy - y) <= Math.max(cell * 0.55, Math.min(t.w || cell, t.h || cell) * 0.45)) visited.add(t.key);
+      }
+      let best = null, bestScore = Infinity, bestDist = Infinity;
+      for (const t of live) {
+        if (visited.has(t.key)) continue;
+        const dx = t.x + t.w / 2 - x, dy = t.y + t.h / 2 - y, d = Math.hypot(dx, dy);
+        if (d > maxD * 1.05 || d < 0.001) continue;
+        let diff = Math.atan2(dy, dx) - baseTheta;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        if (Math.abs(diff) > maxCone) continue;
+        const score = d * (1 + 0.45 * (Math.abs(diff) / Math.PI));
+        if (score < bestScore) { bestScore = score; best = t; bestDist = d; }
+      }
+      if (best) {
+        let diff = Math.atan2(best.y + best.h / 2 - y, best.x + best.w / 2 - x) - baseTheta;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        const lim = maxTurnRad * (seg / step);
+        baseTheta += Math.max(-lim, Math.min(lim, diff));
+      }
+      const ramp = Math.min(1, (dist + seg) / (cell * 1.35));
+      const damp = best ? Math.min(1, bestDist / (cell * 2.2)) : 1;
+      const wiggle = wormAmpRad * Math.sin(((dist + seg * 0.5) / wormWavePx) * Math.PI * 2 - phase) * ramp * (0.28 + 0.72 * damp);
+      moveTheta = baseTheta + wiggle;
+    }
+    const nx = x + Math.cos(moveTheta) * seg, ny = y + Math.sin(moveTheta) * seg;
+    if (solidAt && solidAt(nx, ny)) {
+      let lo = 0, hi = 1;
+      for (let it = 0; it < 4; it++) {
+        const mid = (lo + hi) * 0.5;
+        if (solidAt(x + (nx - x) * mid, y + (ny - y) * mid)) hi = mid; else lo = mid;
+      }
+      const wx = x + (nx - x) * lo, wy = y + (ny - y) * lo;
+      if (Math.hypot(wx - sx - pts[pts.length - 1][0], wy - sy - pts[pts.length - 1][1]) > 0.5 || pts.length === 1) pts.push([wx - sx, wy - sy]);
+      hitWall = true;
+      break;
+    }
+    x = nx; y = ny; dist += seg;
+    pts.push([x - sx, y - sy]);
+    if (homing) {
+      for (const t of live) {
+        if (visited.has(t.key)) continue;
+        if (Math.hypot(t.x + t.w / 2 - x, t.y + t.h / 2 - y) <= Math.max(cell * 0.55, Math.min(t.w || cell, t.h || cell) * 0.45)) visited.add(t.key);
+      }
+    }
+  }
+  if (pts.length < 2) pts.push([Math.cos(aimRad) * 2, Math.sin(aimRad) * 2]);
+  return { pts, hitWall };
+};
+const segHitsExpandedBox = (x0, y0, x1, y1, l, t, r, b) => {
+  let u0 = 0, u1 = 1;
+  const dx = x1 - x0, dy = y1 - y0;
+  const clip = (p, q) => {
+    if (Math.abs(p) < 1e-9) return q >= 0;
+    const u = q / p;
+    if (p < 0) { if (u > u1) return false; if (u > u0) u0 = u; }
+    else { if (u < u0) return false; if (u < u1) u1 = u; }
+    return true;
+  };
+  return clip(-dx, x0 - l) && clip(dx, r - x0) && clip(-dy, y0 - t) && clip(dy, b - y0) && u0 <= u1;
+};
+export const beamHitsBox = (pr, bx, by, bw, bh) => {
+  const bm = pr && pr.beam, pts = bm && bm.pts;
+  if (!bm || !Array.isArray(pts) || pts.length < 2) return false;
+  const rad = Math.max(2, bm.radiusPx || 12);
+  const l = bx - rad, t = by - rad, r = bx + bw + rad, b = by + bh + rad;
+  const ox = pr.x || 0, oy = pr.y || 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], c = pts[i];
+    if (segHitsExpandedBox(ox + a[0], oy + a[1], ox + c[0], oy + c[1], l, t, r, b)) return true;
+  }
+  return false;
+};
+export const makeBrimstoneBeam = ({ owner, aimRad, dur, cellPx }) => ({
+  owner, aimRad: aimRad || 0, t: 0, dur: Math.max(6, dur || 33),
+  phase: 0, tickAcc: LASER_TICK_FRAMES, tickDue: false,
+  radiusPx: (cellPx || 30) * LASER_BEAM_RADIUS_CELLS,
+  pts: [[0, 0], [Math.cos(aimRad || 0) * (cellPx || 30), Math.sin(aimRad || 0) * (cellPx || 30)]],
+  hitWall: false, pairSide: 0,
+});
+export const brimstoneBeamStep = (pr, dt, cellPx, targets, solidAt, anchor = null) => {
+  const b = pr && pr.beam;
+  if (!b) return "done";
+  const d = Math.max(0, dt || 0), cell = cellPx || 30;
+  if (anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y)) {
+    const aRad = Number.isFinite(anchor.aimRad) ? anchor.aimRad : b.aimRad;
+    b.aimRad = aRad;
+    const half = b.pairSide ? (DOUBLE_SHOT_GAP_CELLS * cell / 2) * b.pairSide : 0;
+    pr.x = anchor.x - Math.sin(aRad) * half;
+    pr.y = anchor.y + Math.cos(aRad) * half;
+    pr.vx = Math.cos(aRad); pr.vy = Math.sin(aRad);
+  }
+  const traced = brimstoneBeamPath({
+    sx: pr.x, sy: pr.y, aimRad: b.aimRad, rangePx: pr.rangePx, cellPx: cell,
+    homing: !!pr.homing, targets, shooterKey: pr.shooterKey || null, phase: b.phase, solidAt,
+  });
+  b.pts = traced.pts; b.hitWall = traced.hitWall;
+  b.tickAcc = (b.tickAcc || 0) + d;
+  if (b.tickAcc >= LASER_TICK_FRAMES - 1e-6) {
+    b.tickAcc -= LASER_TICK_FRAMES;
+    b.tickDue = true;
+    pr.hits = [];
+    pr.pierce = true;
+  } else b.tickDue = false;
+  b.t += d;
+  b.phase += LASER_WORM_SPEED * d;
+  return b.t >= b.dur ? "done" : "live";
 };
 // 🪃 BOOMERANG (weapon + throwable ability, 2026-10-25). Blake: "if an item has that ability instead of
 // a projectile when you fire it throws and spins the item like a boomerang. It has a light homing BUT it
@@ -7536,7 +7745,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.throwBlast = false; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.chargeLaser = false; a.chargeTime = DEFAULT_CHARGE_LASER_SECS; a.beamTime = DEFAULT_LASER_BEAM_SECS; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.throwBlast = false; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
@@ -21455,7 +21664,8 @@ export default function AssetStudio({ game = false } = {}) {
             // always fired, unchanged.
             const dir = eMuzzle0 ? (ep.face || 1) : (Math.sign(tgtAimCX - sx) || ep.face || 1);
             const lineDeg = Math.atan2(tgtAimCY - sy, Math.abs(tgtAimCX - sx)) * 180 / Math.PI;
-            const eAssist = aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe });
+            const eLaser = isChargeLaser(ew);
+            const eAssist = (eLaser || isBoomerang(ew)) ? null : aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe });
             const shotDeg = eAssist ? eAssist.deg : lineDeg;
             const shotRad = shotDeg * Math.PI / 180;
             const vx = dir * Math.cos(shotRad) * spd, vy = Math.sin(shotRad) * spd;
@@ -21466,11 +21676,12 @@ export default function AssetStudio({ game = false } = {}) {
             // The arm tilts by that much, which swings the barrel round the grip — so the round
             // leaves the barrel where it is drawn at the tilt, the way the player's re-read does.
             const eShotAt = (eMuzzle0 && enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, shotDeg)) || { x: sx, y: sy };
+            const eBeamDur = eLaser ? laserBeamFrames(ew) : 0;
             pushShot(projectiles.current, ea.effects, { // ⏩ yours, on it
               x: eShotAt.x, y: eShotAt.y, vx, vy,
               startX: eShotAt.x, startY: eShotAt.y, groundY: ep.y + newEph, rangePx, traveled: 0,
               char: ew.projectile?.char || DEFAULT_SHOT_CHAR, tint: ew.projectile?.tint || null,
-              pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
+              pieces: !eLaser && drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: eLaser ? null : hitboxPiece,
               alpha: assetAlpha(projAsset), // 👻 the Projectile asset's own Translucent
               rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
               damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
@@ -21479,14 +21690,21 @@ export default function AssetStudio({ game = false } = {}) {
               // under, so a 🍀 Lucky Find the shooter wears counts the kill (the loot pass). Never null
               // on a unit's shot (nor its throw or brawl blow): a null lastHitByFx means YOUR blow,
               // and that is what the score pays a kill on.
-              critInt: eIntel, shooterFx: ea.effects || [], snd: ew, // snd: whose 🔊 Hit plays where it lands
-              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), homing: shotHomes(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew, ea?.effects, ea),
-              explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
+              critInt: eIntel, shooterFx: ea.effects || [], snd: eLaser ? null : ew, // snd: whose 🔊 Hit plays where it lands (a charge laser plays Hit once on release)
+              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: eLaser || shotPierces(ew, ea.effects), homing: shotHomes(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew, ea?.effects, ea),
+              explode: !eLaser && !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
               shooterKey: k, // who fired it, so an exploding round can catch its OWN shooter in the blast (detonate)
               ...(isBoomerang(ew) ? boomerangRound(ew, ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea), k, dir, spd, vx, vy) : {}), // 🪃 yours, on it: home to this unit
+              ...(eLaser ? { beam: makeBrimstoneBeam({ owner: k, aimRad: Math.atan2(vy, vx), dur: eBeamDur, cellPx: CW }) } : {}),
             }, CW);
-            sndMoment(ew, "fire", null, eShotAt.x, eShotAt.y); // 🔊 its gun's Fire, as yours
-            ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate, ea?.effects));
+            if (eLaser) {
+              bobAudio.stopAssetSlot(ew, "fire");
+              bobAudio.moment({ asset: ew, slot: "hit", x: eShotAt.x, y: eShotAt.y, minGain: EXPLOSION_MIN_GAIN });
+              ep.weaponAmmo = consumeShot(ep.weaponAmmo, Math.max(eBeamDur, weaponFireCooldownFrames(ew.fireRate, ea?.effects)));
+            } else {
+              sndMoment(ew, "fire", null, eShotAt.x, eShotAt.y); // 🔊 its gun's Fire, as yours
+              ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate, ea?.effects));
+            }
           };
           // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
           // the whole time the target is in their sights, not just the shot frame.
@@ -21511,7 +21729,27 @@ export default function AssetStudio({ game = false } = {}) {
             }
           }
           const rangedReady = !rangedEnemy || canFireNow(ep.weaponAmmo);
-          if (!inSight || !rangedReady) ep.reactT = 0; // lost the target or is reloading: abandon the wind-up, don't bank the delay
+          const eChargeWpn = rangedEnemy && isChargeLaser(ew);
+          if (!eChargeWpn && (ep.laserCharge || ep.laserCharged)) { ep.laserCharge = 0; ep.laserCharged = false; }
+          if (eChargeWpn && (ep.laserCharge || 0) > 0) {
+            if (stunned || !inSight || !acts || !rangedReady || unitTalkImmune(ep)) {
+              bobAudio.stopAssetSlot(ew, "fire");
+              ep.laserCharge = 0; ep.laserCharged = false;
+            } else {
+              ep.face = Math.sign(tgtAimCX - eCenterXFinal) || ep.face;
+              ep.aimHold = 14;
+              const eCFrames = chargeLaserFrames(ew, ea?.effects);
+              ep.laserCharge = (ep.laserCharge || 0) + dtMul;
+              ep.laserCharged = ep.laserCharge >= eCFrames - 1e-6;
+              if (ep.laserCharge >= eCFrames + ENEMY_LASER_HOLD_FRAMES - 1e-6) {
+                ep.laserCharge = 0; ep.laserCharged = false;
+                const eBeamDur = laserBeamFrames(ew);
+                ep.swingT = eBeamDur; ep.swingDur = eBeamDur;
+                ep.attackT = Math.max(eBeamDur + 12, weaponFireCooldownFrames(ew.fireRate, ea?.effects));
+                fireUnitShot();
+              }
+            }
+          } else if (!inSight || !rangedReady) ep.reactT = 0; // lost the target or is reloading: abandon the wind-up, don't bank the delay
           else if (ep.attackT <= 0) {
             if (ep.reactT <= 0) ep.reactT = enemyReactionFrames(eIntel); // spotted the target — start winding up
             else {
@@ -21571,6 +21809,13 @@ export default function AssetStudio({ game = false } = {}) {
                   ep.face = -ep.face;
                   ep.tailT = TAIL_SWING_HOLD_FRAMES; // planted, back to them, for a beat you can see
                   ep.tailNext = false; // the tail has had its turn: the next attack is the weapon (unitTailStepsIn)
+                } else if (rangedNow && eChargeWpn) {
+                  // 🔴 Charge laser: begin charging (playing the weapon's Fire sound); once charged it
+                  // displays its Fire pose briefly before releasing the Brimstone beam above.
+                  ep.swingT = 0; ep.attackT = 0; ep.burstLeft = 0; ep.autoFire = false;
+                  ep.laserCharge = Math.max(0.001, dtMul);
+                  ep.laserCharged = ep.laserCharge >= chargeLaserFrames(ew, ea?.effects) - 1e-6;
+                  bobAudio.moment({ asset: ew, slot: "fire", x: eCenterXFinal, y: ep.y + newEph * 0.42, maxSecs: 0 });
                 } else if (rangedNow) {
                   // Shoots at the target, aimed from its own chest. The shot is flagged for the side
                   // it should hurt: a hostile's shot is `foe` (tested against you AND your friendlies),
@@ -21683,14 +21928,39 @@ export default function AssetStudio({ game = false } = {}) {
       // Melee stays edge-triggered — one swing per press. A plain ranged weapon is semi-auto;
       // Full Auto is the explicit ability that turns a held key into repeated trigger pulls.
       // Burst is edge-triggered too, then its committed-salvo timer supplies the later rounds.
-      const wantFire = wpnIsRanged ? rangedTriggerWantsFire(K.fire, p.wasFire, playtestWeapon) : (K.fire && !p.wasFire);
+      // 🔴 BRIMSTONE / CHARGE LASER: hold Fire to charge (playing the Fire sound), show the weapon's
+      // Fire pose as soon as the charge is full, and fire on release (playing the Hit sound).
+      const wpnChargeLaser = wpnIsRanged && isChargeLaser(playtestWeapon);
+      let laserReleaseFire = false;
+      if (wpnChargeLaser) {
+        const cFrames = chargeLaserFrames(playtestWeapon, playerAsset?.effects);
+        const chargeBlocked = !!p.dying || (p.stun || 0) > 0 || (p.down || 0) > 0 || !!p.transitioning || !!vehDriven || !!p.throwAiming || (p.throwFiring || 0) > 0;
+        if (chargeBlocked) {
+          if ((p.laserCharge || 0) > 0) bobAudio.stopAssetSlot(playtestWeapon, "fire");
+          p.laserCharge = 0; p.laserCharged = false;
+        } else {
+          if (K.fire && !p.wasFire && !canFireNow(wpn.current) && needsReload(wpn.current)) {
+            wpn.current = startReload(wpn.current, reloadFrames); p.burstLeft = 0;
+          }
+          const canStartCharge = canFireNow(wpn.current) && !(p.firing && !p.firing.unarmed);
+          const cStep = stepChargeLaser(p.laserCharge || 0, !!K.fire, canStartCharge, cFrames, dtMul);
+          p.laserCharge = cStep.charge;
+          p.laserCharged = cStep.charged;
+          if (cStep.started) bobAudio.moment({ asset: playtestWeapon, slot: "fire", x: p.x + pw / 2, y: p.y + ph * 0.4, maxSecs: 0 });
+          if (cStep.cancelled) bobAudio.stopAssetSlot(playtestWeapon, "fire");
+          if (cStep.released) laserReleaseFire = true;
+        }
+      } else if (p.laserCharge || p.laserCharged) {
+        p.laserCharge = 0; p.laserCharged = false;
+      }
+      const wantFire = wpnChargeLaser ? laserReleaseFire : wpnIsRanged ? rangedTriggerWantsFire(K.fire, p.wasFire, playtestWeapon) : (K.fire && !p.wasFire);
       // Burst continuation: tick the inter-shot timer and decide whether the next round of the
       // salvo already in flight is due. Holding or releasing Fire makes no difference once a burst
       // has started — a burst is a committed salvo, which is what separates it from full-auto.
       if ((p.burstLeft || 0) > 0) p.burstT = (p.burstT || 0) - dtMul;
-      const burstDue = wpnIsRanged && burstShotDue(p.burstLeft, p.burstT, wpn.current);
+      const burstDue = wpnIsRanged && !wpnChargeLaser && burstShotDue(p.burstLeft, p.burstT, wpn.current);
       if ((p.burstLeft || 0) > 0 && !burstDue && wpn.current && (wpn.current.reloadT > 0 || (wpn.current.clip > 0 && wpn.current.ammo <= 0))) p.burstLeft = 0; // ran dry or started reloading — abandon the rest
-      if (wantFire && wpnIsRanged && !canFireNow(wpn.current) && !burstDue) {
+      if (wantFire && wpnIsRanged && !wpnChargeLaser && !canFireNow(wpn.current) && !burstDue) {
         if (needsReload(wpn.current) && !wpnBoomerang) { wpn.current = startReload(wpn.current, reloadFrames); p.burstLeft = 0; } // 🪃 an empty boomerang gun is one still in the air: nothing to reload
       } else if (wantFire || burstDue) {
         if (playtestWeapon && isRanged(playtestWeapon.wtype)) {
@@ -21765,7 +22035,7 @@ export default function AssetStudio({ game = false } = {}) {
           // 🪃 Not for a boomerang: the lock-on is solved for a round that falls, and a boomerang flies
           // dead straight, so it went down at the first body's middle and on into the floor. Its own
           // light homing (boomerangPick) does its steering.
-          const assist = assistTargets.length && !wpnBoomerang ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: playerFloorLocks(p), bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
+          const assist = assistTargets.length && !wpnBoomerang && !wpnChargeLaser ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: playerFloorLocks(p), bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
           if (assist) {
             aimTilt = assist.deg - aimDegHeld;
             shotDeg = assist.deg;
@@ -21796,32 +22066,42 @@ export default function AssetStudio({ game = false } = {}) {
             if (legacyState && !anglesEmpty(legacyState)) drawnPieces = bake({ ...playtestWeapon, angles: legacyState }, "front").filter((pc) => !pc.isHitbox);
             sizeUnits = playtestWeapon.projectile?.size || 1;
           }
+          const pBeamDur = wpnChargeLaser ? laserBeamFrames(playtestWeapon) : 0;
           pushShot(projectiles.current, playerAsset?.effects, { // ⏩ two side by side under a Double Shot
             x: spawnX, y: spawnY,
             vx, vy,
             startX: spawnX, startY: spawnY, groundY: p.y + ph,
             rangePx: rangePxNow, traveled: 0,
             char: playtestWeapon.projectile?.char || DEFAULT_SHOT_CHAR, tint: playtestWeapon.projectile?.tint || null,
-            pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
+            pieces: !wpnChargeLaser && drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: wpnChargeLaser ? null : hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)) * moneyPowerMultiplier(playerAsset?.effects, wallet.current)), // 🏹 worn Tag Damage × a 🧪 timed one still running × 💵 Money = Power
             stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon, playerAsset?.effects, basePlayerAsset), // ❄️ / 🧪 ice & poison ride the round too
-            ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, homing: shotHomes(playtestWeapon, playerAsset?.effects), snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
-            explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
+            ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: wpnChargeLaser || playerShotsPierce, homing: shotHomes(playtestWeapon, playerAsset?.effects), snd: wpnChargeLaser ? null : playtestWeapon, // snd: whose 🔊 Hit plays where it lands (a charge laser plays Hit once on release)
+            explode: !playtestWeapon.resurrect && !wpnChargeLaser && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
             // 🪃 A boomerang gun throws ITSELF: the weapon's own art spinning on boomerangStep's flight
             // (no Projectile asset, no arc), through everyone both ways, home to you.
             ...(wpnBoomerang ? boomerangRound(playtestWeapon, equippedBodyIdFor(playerAsset), "player", p.face, spd, vx, vy) : {}),
+            ...(wpnChargeLaser ? { beam: makeBrimstoneBeam({ owner: "player", aimRad: Math.atan2(vy, vx), dur: pBeamDur, cellPx: CW }) } : {}),
           }, CW);
-          sndMoment(playtestWeapon, "fire", null, spawnX, spawnY); // 🔊 the gun's Fire
-          wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
-          // A fresh pull ARMS the rest of the burst; a burst shot spends one of them. Either way the
-          // next one is scheduled off burstDelay, not the fire rate.
-          p.burstLeft = burstDue ? (p.burstLeft || 0) - 1 : weaponBurstShotCount(playtestWeapon) - 1;
-          p.burstT = burstDelayFrames(playtestWeapon.burstDelay);
-          // aimTilt: how far the aim assist bent this shot off the held direction, in degrees.
-          // The renderer's aim branch adds it to the arm for as long as the fire pose lasts.
-          p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES, aimTilt };
+          if (wpnChargeLaser) {
+            bobAudio.stopAssetSlot(playtestWeapon, "fire");
+            bobAudio.moment({ asset: playtestWeapon, slot: "hit", x: spawnX, y: spawnY, minGain: EXPLOSION_MIN_GAIN }); // 🔊 Hit sound on release
+            wpn.current = consumeShot(wpn.current, Math.max(pBeamDur, fireCdFrames));
+            p.burstLeft = 0; p.burstT = 0;
+            p.firing = { t: 0, dur: pBeamDur, aimTilt };
+          } else {
+            sndMoment(playtestWeapon, "fire", null, spawnX, spawnY); // 🔊 the gun's Fire
+            wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
+            // A fresh pull ARMS the rest of the burst; a burst shot spends one of them. Either way the
+            // next one is scheduled off burstDelay, not the fire rate.
+            p.burstLeft = burstDue ? (p.burstLeft || 0) - 1 : weaponBurstShotCount(playtestWeapon) - 1;
+            p.burstT = burstDelayFrames(playtestWeapon.burstDelay);
+            // aimTilt: how far the aim assist bent this shot off the held direction, in degrees.
+            // The renderer's aim branch adds it to the arm for as long as the fire pose lasts.
+            p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES, aimTilt };
+          }
         } else if (wantFire && !p.stomp) {
           // Something short at your feet: stamp on it instead (startStomp). Otherwise the swing.
           if (!startStomp()) {
@@ -22625,7 +22905,7 @@ export default function AssetStudio({ game = false } = {}) {
         // ("player", a unit key, or null), `feetY` the wearer's floor line (the reflected arc's ground).
         // A 🪃 boomerang is its own flight home and keeps the old instant reflect (shrugsHit).
         const turnShot = (pr, wearer, effects, by, x, y, feetY) => {
-          if (pr.boomerang || pr.drop) return false;
+          if (pr.boomerang || pr.beam || pr.drop) return false;
           const fate = shotFate(effects, by != null && by !== wearer && !pr.reflected);
           if (fate === "hit") return false;
           if (fate === "lucky") {
@@ -22651,6 +22931,44 @@ export default function AssetStudio({ game = false } = {}) {
           return true;
         };
         const pointSolid = (x, y) => cellsHitW(x, y, 1, 1).length > 0;
+        // Live barrel anchor for an active 🔴 Brimstone beam so the beam tracks its shooter's muzzle
+        // and aim direction across its ~0.55s duration as the shooter walks, jumps or re-aims.
+        const liveBeamAnchorOf = (owner) => {
+          if (owner === "player") {
+            if (playerHP.current <= 0 || p.dying || vehDriven || !playtestWeapon || !isChargeLaser(playtestWeapon)) return null;
+            const aimDegL = aimAngleDeg(p.aimDir, aimSteepDown(p)) + ((p.firing && p.firing.aimTilt) || 0);
+            const aimRadL = Math.atan2(Math.sin(aimDegL * Math.PI / 180), (p.face || 1) * Math.cos(aimDegL * Math.PI / 180));
+            const angleL = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: true, aimDir: p.aimDir, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
+            const heldMirL = playerSpriteMirrored(basePlayerAsset, p.face);
+            const heldPoseL = (ang) => (heldMirL ? bake(playerAsset, ang) : (playerAsset.angles[ang] || []));
+            const armPieceL = playerAsset ? heldArmOf(heldPoseL(angleL), heldMirL) : null;
+            if (!armPieceL) return { x: p.x + pw / 2 + p.face * pw * 0.3, y: p.y + ph * 0.35, aimRad: aimRadL };
+            const baseArmRotL = armPieceL.rot || 0, wPoseL = weaponArtPose(angleL);
+            const aimingNowL = angleL !== "up";
+            const curArmL = { ...armPieceL, rot: aimingNowL ? (armAimAbs(armPieceL.armPivot) + aimArmOffsetDeg(p.aimDir, aimSteepDown(p)) + ((p.firing && p.firing.aimTilt) || 0)) * armMirrorTwist(armPieceL) : baseArmRotL };
+            const wfitL = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
+            const guideHandL = handForGuideId(wfitL.guideId)[wPoseL] || DEFAULT_HAND[wPoseL];
+            const wBaseL = wPoseL === angleL ? baseArmRotL : armBaseFrom(heldArmOf(heldPoseL(wPoseL), heldMirL), armPieceL, baseArmRotL);
+            const heldL = (angles) => attachHeldToArms(bake({ ...playtestWeapon, angles: angles || blankAngles() }, wPoseL), curArmL, null, guideHandL, wBaseL);
+            const mpL = heldShotPoint(heldL(weaponFireArt(wfitL.states, wPoseL)), heldL(wfitL.states.rest), heldArmView(curArmL));
+            if (!mpL) return { x: p.x + pw / 2 + p.face * pw * 0.3, y: p.y + ph * 0.35, aimRad: aimRadL };
+            const renderWL = CW * PLAYER_RENDER_W_CELLS;
+            const wrapLeftL = p.x - (bodyShape.centerFrac * renderWL - pw / 2);
+            const lxL = (mpL.x / W) * renderWL;
+            return { x: wrapLeftL + (heldMirL ? renderWL - lxL : lxL), y: p.y + (mpL.y / H) * ph, aimRad: aimRadL };
+          }
+          if (!owner || !lv.enemies || !lv.enemies[owner]) return null;
+          const aep = enemyPos.current[owner];
+          if (!aep || enemyHP.current[owner] === 0) return null;
+          const spn = liveSpawnAt(owner, lv.enemies[owner]);
+          const aea = unitAssetAt(owner, spn), aew = spawnWeaponFor(spn);
+          if (!aea || !aew || !isChargeLaser(aew)) return null;
+          const aeph = aep.crouch ? enemyCrouchH(aea, CW) : enemyStandH(aea, CW), aerw = enemyRenderW(aea, CW);
+          const tilt = aep.shotTilt || 0, rad = tilt * Math.PI / 180, dir = aep.face || 1;
+          const muz = enemyHeldMuzzleAt(aea, aew, aep, aeph, aerw, tilt);
+          if (!muz) return null;
+          return { x: muz.x, y: muz.y, aimRad: Math.atan2(Math.sin(rad), dir * Math.cos(rad)) };
+        };
         projectiles.current = projectiles.current.filter((pr) => {
           pr.life += dtMul;
           // 🐞 A lucky round: hop back a cell, drop, lie there, gone. It touches nobody on the way.
@@ -22660,7 +22978,13 @@ export default function AssetStudio({ game = false } = {}) {
           pr.rangePx = Math.max(CW, pr.rangePx || DEFAULT_PROJECTILE_RANGE * CW);
           if (pr.startX === undefined) { pr.startX = pr.x; pr.startY = pr.y; pr.groundY = pr.y; }
           const traveledBefore = pr.traveled || 0;
-          if (pr.boomerang) {
+          if (pr.beam) {
+            // 🔴 Brimstone beam: anchored to the shooter's muzzle, traces straight or worms through
+            // targets under 🧲 Homing, stops at walls, and deals piercing damage every LASER_TICK_FRAMES.
+            const beamWall = (x, y) => !inWorld(x, y) || cellsHitW(x - 1, y - 1, 2, 2).length > 0;
+            if (brimstoneBeamStep(pr, dtMul, CW, homingTargetsOf(pr), beamWall, liveBeamAnchorOf(pr.beam.owner)) === "done") return false;
+            if (!pr.beam.tickDue) return true;
+          } else if (pr.boomerang) {
             // 🪃 Its own flight (boomerangStep): out with a light pull toward someone ahead, home to its
             // thrower. A wall or the edge of the world turns it early; it never ends a boomerang.
             if (boomerangStep(pr, dtMul, CW, boomerangPick(pr, homingTargetsOf(pr), pr.rangePx), boomerangHomeOf(pr.owner), false) === "caught") return false;
@@ -22688,7 +23012,7 @@ export default function AssetStudio({ game = false } = {}) {
           // edge ("you should be able to shoot from one level to the next if an enemy is close"). The
           // dog is simulated here now (see THE WORLD), so a shot that reaches it hits it; one that
           // leaves every level is gone as before. With no seams this is the old one-level test.
-          if (!pr.boomerang && !inWorld(pr.x, pr.y)) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; } // 🪃 one out there is on its way home
+          if (!pr.boomerang && !pr.beam && !inWorld(pr.x, pr.y)) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; } // 🪃 one out there is on its way home
           const sz = LV_CELL * (pr.size || 1);
           let boxW = sz, boxH = sz, boxCx = pr.x, boxCy = pr.y;
           if (pr.boomerang) { boxW = boxH = pr.boxPx || sz; } // 🪃 the circle it sweeps spinning, centred on it
@@ -22701,12 +23025,13 @@ export default function AssetStudio({ game = false } = {}) {
             boxCy = pr.y + (offX * Math.sin(rad) + offY * Math.cos(rad));
           }
           const prLeft = boxCx - boxW / 2, prTop = boxCy - boxH / 2;
+          const shotHitsBox = (lx, ly, lw, lh) => (pr.beam ? beamHitsBox(pr, lx, ly, lw, lh) : (prLeft < lx + lw && prLeft + boxW > lx && prTop < ly + lh && prTop + boxH > ly));
           if (pr.foe) {
             // Fired BY an enemy: tested against the player, never against other enemies (no
             // friendly fire), and it can't be dodged by the shooter's own crouch/jump logic.
             // 🚗 At the wheel it is the CAR it meets, and your box (taller than most cars) is not there
             // to be hit at all. A flame round is fire to a car: four times over.
-            if (vehDriven && boxesOverlap(prLeft, prTop, boxW, boxH, vehDriven.x, vehDriven.y, vehDriven.w, vehDriven.h) && pierceFreshHit(pr, "car")) {
+            if (vehDriven && shotHitsBox(vehDriven.x, vehDriven.y, vehDriven.w, vehDriven.h) && pierceFreshHit(pr, "car")) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
               if (!(vehDriven.invuln > 0) || (pr.pair && vehDriven.invulnPair === pr.pair)) { // your i-frames rule, a ⏩ Double Shot's twin included
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y);
@@ -22715,7 +23040,7 @@ export default function AssetStudio({ game = false } = {}) {
               }
               if (!pr.pierce) return false;
             }
-            if (!vehDriven && prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y && pierceFreshHit(pr, "player")) {
+            if (!vehDriven && shotHitsBox(p.x, p.y, pw, ph) && pierceFreshHit(pr, "player")) {
               if (turnShot(pr, "player", playerAsset?.effects, pr.shooterKey || null, p.x + pw / 2, p.y, p.y + ph)) return true; // 🐞 / 🪞
               if (pr.explode) { pr.turnRolled = "player"; detonate(pr, boxCx, boxCy); return false; }
               if (pFireImmune && shotIsFlame(pr)) { if (!pr.pierce) return false; } // 🧯 the flames wash over you
@@ -22728,7 +23053,7 @@ export default function AssetStudio({ game = false } = {}) {
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), sNote = sCrit ? "💥 Critical! " : "";
                 const dmg = coldResistedHit(fireResistedHit(incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor), pr, playerAsset?.effects), pr, playerAsset?.effects); // 🚒 / ❄️
-                if (!shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, p.x + pw / 2, p.y, !pr.boomerang)) { // 🐞 / 🪞 rolled in turnShot (a 🪃 still rolls here) — either way the round is spent below
+                if (!shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, p.x + pw / 2, p.y, !(pr.boomerang || pr.beam))) { // 🐞 / 🪞 rolled in turnShot (a 🪃 / 🔴 beam still rolls here) — either way the round is spent below
                 playerHP.current = playerHpAfterHit(playerHP.current, dmg);
                 p.invuln = PLAYER_INVULN_FRAMES; p.invulnPair = pr.pair || null;
                 if (playerHP.current > 0) afflictBody(p, pr);
@@ -22749,7 +23074,7 @@ export default function AssetStudio({ game = false } = {}) {
               const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
               const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
-              if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
+              if (shotHitsBox(eHitLeft, hitTop, epw, hitH) && pierceFreshHit(pr, k)) {
                 if (!unitUntouchable(ep) && turnShot(pr, k, ea.effects, pr.shooterKey || null, eHitLeft + epw / 2, hitTop, hitTop + hitH)) return true; // 🐞 / 🪞
                 if (pr.explode) { pr.turnRolled = k; detonate(pr, boxCx, boxCy); return false; }
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing. A bullet ignores i-frames (see the shot at a hostile below)
@@ -22758,7 +23083,7 @@ export default function AssetStudio({ game = false } = {}) {
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const aDmg = coldResistedHit(fireResistedHit(incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects), pr, ea.effects); // 🚒 / ❄️
-                if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, eHitLeft + epw / 2, hitTop, !pr.boomerang)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 rolled in turnShot (a 🪃 still rolls here) the round is spent on it either way
+                if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, eHitLeft + epw / 2, hitTop, !(pr.boomerang || pr.beam))) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 rolled in turnShot (a 🪃 / 🔴 beam still rolls here) the round is spent on it either way
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg); // 🔫 bullet: starts no i-frames
                 ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -22781,7 +23106,7 @@ export default function AssetStudio({ game = false } = {}) {
               const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
               const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
-              if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
+              if (shotHitsBox(eHitLeft, hitTop, epw, hitH)) {
                 enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // back on its feet, full HP at the ALLY ceiling
                 ep.allyHpPaid = allyHpPaidAll();                   // ...which counts as paying every worn item this life
                 ep.friendly = true; ep.allyKind = "raised"; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
@@ -22809,7 +23134,7 @@ export default function AssetStudio({ game = false } = {}) {
             const eTop = ep ? ep.y : (er + 1) * CW - eph;
             const hitTop = eTop + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
             const eHitLeft = eLeft + (eShape.centerFrac * eRenderW - epw / 2);
-            const overlap = prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
+            const overlap = shotHitsBox(eHitLeft, hitTop, epw, hitH);
             if (overlap) {
               // Straight through, and the shot is NOT consumed — `continue` leaves it flying, so a
               // round fired past a bystander still reaches the thing behind them. Checked before
@@ -22838,7 +23163,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (ep) { ep.lastHitByFx = pr.shooterFx || null; ep.lastHitRanged = true; }
               if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
               const dmg = coldResistedHit(fireResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects), pr, ea.effects); // 🚒 / ❄️
-              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop, !pr.boomerang)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 rolled in turnShot (a 🪃 still rolls here) the round is spent on it either way
+              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop, !(pr.boomerang || pr.beam))) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 rolled in turnShot (a 🪃 / 🔴 beam still rolls here) the round is spent on it either way
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🔫 bullet: starts no i-frames
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               if (ep && enemyHP.current[k] > 0) afflictBody(ep, pr);
@@ -22850,7 +23175,7 @@ export default function AssetStudio({ game = false } = {}) {
           // Ground (or any solid) is what ends a shot now — not the range mark. A shot fired from
           // high up keeps travelling until it actually lands, which is the whole point.
           // 🪃 ...except a boomerang's: a wall turned it for home in its flight above, and home is over everything.
-          if (!pr.boomerang && cellsHitW(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; } // any level's ground or walls, whichever it is flying through
+          if (!pr.boomerang && !pr.beam && cellsHitW(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; } // any level's ground or walls, whichever it is flying through
           return true;
         });
       }
@@ -22883,7 +23208,7 @@ export default function AssetStudio({ game = false } = {}) {
           }
           if (w.side === "hostile" && playerHP.current > 0) shove("player", p, { x: p.x, y: p.y, w: pw, h: ph });
           for (const pr of projectiles.current) {
-            if (pr.drop || pr.wavedBy === w || !soundWaveMoves(w.side, pr.foe)) continue;
+            if (pr.drop || pr.beam || pr.wavedBy === w || !soundWaveMoves(w.side, pr.foe)) continue;
             if (!soundWaveCatchesPoint(band, pr.x, pr.y)) continue;
             pr.wavedBy = w;
             blowShotBack(pr, w.dir, w.push, CW);
@@ -24580,6 +24905,10 @@ export default function AssetStudio({ game = false } = {}) {
                 <p className="tip warn">⚠ 🔥 Burn is on — the catch stands up in the fire. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, landEffectDps: 0 }))}>Turn Burn off</button></p>
               )}
             </>)}
+            {k === "chargeLaser" && (<>
+              <label className="slider">Charge time<input type="range" min="0.2" max="2.5" step="0.05" value={asset.chargeTime ?? DEFAULT_CHARGE_LASER_SECS} onChange={(e) => setAsset((a) => ({ ...a, chargeTime: +e.target.value }))} /><span className="hint2">{(asset.chargeTime ?? DEFAULT_CHARGE_LASER_SECS).toFixed(2)}s</span></label>
+              <label className="slider">Beam time<input type="range" min="0.2" max="2" step="0.05" value={asset.beamTime ?? DEFAULT_LASER_BEAM_SECS} onChange={(e) => setAsset((a) => ({ ...a, beamTime: +e.target.value }))} /><span className="hint2">{(asset.beamTime ?? DEFAULT_LASER_BEAM_SECS).toFixed(2)}s</span></label>
+            </>)}
             {k === "burstFire" && (<>
               <label className="slider">Rounds per burst<input type="range" min="2" max="10" step="1" value={Math.max(2, burstShotCount(asset.burst))} onChange={(e) => setAsset((a) => ({ ...a, burst: +e.target.value }))} /><span className="hint2">{Math.max(2, burstShotCount(asset.burst))}</span></label>
               <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((a) => ({ ...a, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s</span></label>
@@ -25815,7 +26144,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.throwBlast === undefined) a.throwBlast = false; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.chargeLaser === undefined) a.chargeLaser = false; if (a.chargeTime === undefined) a.chargeTime = DEFAULT_CHARGE_LASER_SECS; if (a.beamTime === undefined) a.beamTime = DEFAULT_LASER_BEAM_SECS; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.throwBlast === undefined) a.throwBlast = false; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
@@ -31875,7 +32204,7 @@ export default function AssetStudio({ game = false } = {}) {
                       // switches at the swing's impact. If no Fire pose was drawn for this pose,
                       // weaponFireArt falls back to Rest rather than baking an empty array (which
                       // is what used to make the weapon vanish mid-swing).
-                      const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current);
+                      const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current, playtestWeapon, !!p.laserCharged);
                       const wpnAngles = firedNow ? weaponFireArt(wfit.states, wPose) : (wfit.states.rest || blankAngles());
                       const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, wPose).concat(firedNow ? firedOffArmTwins(wfit.states, wPose) : []); // the far arm stays on (firedOffArmTwins)
                       blocks = mergeWeaponBlocks(blocks, attachHeldToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot));
@@ -32472,7 +32801,7 @@ export default function AssetStudio({ game = false } = {}) {
                       // goes in too, so an enemy's bow sits un-nocked while it reloads exactly the
                       // way yours does.
                       const eSwDur = (ep && ep.swingDur) || ATTACK_SWING_FRAMES;
-                      const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: eSwDur - ep.swingT, dur: eSwDur } : null, ep && ep.weaponAmmo);
+                      const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: eSwDur - ep.swingT, dur: eSwDur } : null, ep && ep.weaponAmmo, ew, !!(ep && ep.laserCharged));
                       const wpnAngles = eFired ? weaponFireArt(wfit.states, hv.pose) : (wfit.states.rest || blankAngles());
                       // Drawn for a right-facing body, so mirrored about its grip for left-facing art.
                       const wArt = bake({ ...ew, angles: wpnAngles }, hv.pose).concat(eFired ? firedOffArmTwins(wfit.states, hv.pose) : []); // the far arm stays on, as yours does
@@ -32794,6 +33123,69 @@ export default function AssetStudio({ game = false } = {}) {
                   );
                 }))}
                 {play && projectiles.current.map((pr, i) => {
+                  // 🔴 Binding-of-Isaac Brimstone laser: thick dark-outlined blood beam with churning
+                  // twin crimson plasma waves, hot inner filament, muzzle vortex and impact splash.
+                  if (pr.beam && Array.isArray(pr.beam.pts) && pr.beam.pts.length >= 2) {
+                    const bm = pr.beam, pts = bm.pts;
+                    const openEnv = Math.min(1, 0.35 + (bm.t / 3) * 0.65);
+                    const closeEnv = bm.t > bm.dur - 7 ? Math.max(0.08, (bm.dur - bm.t) / 7) : 1;
+                    const throb = 1 + 0.13 * Math.sin(bm.t * 1.45 + i);
+                    const env = openEnv * closeEnv * throb;
+                    const w = Math.max(6, LV_CELL * 0.92 * env);
+                    let minX = 0, minY = 0, maxX = 0, maxY = 0;
+                    for (let pi = 0; pi < pts.length; pi++) {
+                      const px = pts[pi][0], py = pts[pi][1];
+                      if (px < minX) minX = px; if (px > maxX) maxX = px;
+                      if (py < minY) minY = py; if (py > maxY) maxY = py;
+                    }
+                    const pad = Math.ceil(w * 1.65 + 14);
+                    const bx0 = minX - pad, by0 = minY - pad, bw = Math.ceil(maxX - minX + pad * 2), bh = Math.ceil(maxY - minY + pad * 2);
+                    const ox = -bx0, oy = -by0;
+                    let dMain = "", dWaveA = "", dWaveB = "", acc = 0;
+                    for (let pi = 0; pi < pts.length; pi++) {
+                      const px = pts[pi][0], py = pts[pi][1];
+                      let nx = 0, ny = 1;
+                      if (pi > 0) {
+                        const dx = px - pts[pi - 1][0], dy = py - pts[pi - 1][1], segL = Math.hypot(dx, dy) || 1;
+                        acc += segL; nx = -dy / segL; ny = dx / segL;
+                      } else if (pts.length > 1) {
+                        const dx = pts[1][0] - px, dy = pts[1][1] - py, segL = Math.hypot(dx, dy) || 1;
+                        nx = -dy / segL; ny = dx / segL;
+                      }
+                      const cmd = pi === 0 ? "M " : " L ";
+                      dMain += cmd + (ox + px).toFixed(1) + " " + (oy + py).toFixed(1);
+                      const sw = w * 0.23 * Math.sin(acc * 0.13 - bm.phase * 2.5);
+                      const sw2 = w * 0.19 * Math.cos(acc * 0.17 - bm.phase * 3.1);
+                      dWaveA += cmd + (ox + px + nx * sw).toFixed(1) + " " + (oy + py + ny * sw).toFixed(1);
+                      dWaveB += cmd + (ox + px - nx * sw2).toFixed(1) + " " + (oy + py - ny * sw2).toFixed(1);
+                    }
+                    const tip = pts[pts.length - 1], tx = ox + tip[0], ty = oy + tip[1];
+                    const splashR = w * (bm.hitWall ? 0.92 : 0.68) * (0.92 + 0.14 * Math.sin(bm.t * 2.1));
+                    const muzR = w * 0.62;
+                    const op = bm.t > bm.dur - 4 ? Math.max(0.25, (bm.dur - bm.t) / 4) : 1;
+                    return (
+                      <svg key={"proj" + i} className="brimstoneBeam" width={bw} height={bh} style={{ position: "absolute", left: pr.x + bx0, top: pr.y + by0, zIndex: 8950, opacity: op, pointerEvents: "none", overflow: "visible" }}>
+                        <path d={dMain} fill="none" stroke="#240206" strokeWidth={w * 1.44} strokeLinecap="round" strokeLinejoin="round" />
+                        <path d={dMain} fill="none" stroke="#8f0916" strokeWidth={w * 1.12} strokeLinecap="round" strokeLinejoin="round" />
+                        <path d={dMain} fill="none" stroke="#d91626" strokeWidth={w * 0.84} strokeLinecap="round" strokeLinejoin="round" />
+                        <path d={dWaveA} fill="none" stroke="#ff3842" strokeWidth={w * 0.34} strokeLinecap="round" strokeLinejoin="round" />
+                        <path d={dWaveB} fill="none" stroke="#ff6b6b" strokeWidth={w * 0.24} strokeLinecap="round" strokeLinejoin="round" />
+                        <path d={dMain} fill="none" stroke="#ffd8dc" strokeWidth={w * 0.19} strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx={ox} cy={oy} r={muzR * 1.2} fill="#240206" />
+                        <circle cx={ox} cy={oy} r={muzR * 0.92} fill="#d91626" />
+                        <circle cx={ox} cy={oy} r={muzR * 0.48} fill="#ffd8dc" />
+                        <circle cx={tx} cy={ty} r={splashR * 1.24} fill="#240206" />
+                        <circle cx={tx} cy={ty} r={splashR * 0.98} fill="#b80e1d" />
+                        <circle cx={tx} cy={ty} r={splashR * 0.72} fill="#ff3842" />
+                        {[0, 1, 2, 3, 4, 5].map((si) => {
+                          const a = bm.phase * 1.8 + (si * Math.PI) / 3;
+                          const lr = splashR * (0.85 + 0.28 * ((si + Math.floor(bm.t)) % 2));
+                          return <circle key={si} cx={tx + Math.cos(a) * lr} cy={ty + Math.sin(a) * lr} r={splashR * 0.32} fill="#e31b2c" stroke="#240206" strokeWidth={Math.max(1.5, w * 0.1)} />;
+                        })}
+                        <circle cx={tx} cy={ty} r={splashR * 0.38} fill="#ffd8dc" />
+                      </svg>
+                    );
+                  }
                   // Projectiles render in a square container `size` cells across (size = the
                   // Projectile asset's Scale slider). Pieces fill it as percentage-of-canvas, so
                   // a bullet drawn small in its canvas AND scaled down reads small — which is the
@@ -33778,16 +34170,17 @@ export default function AssetStudio({ game = false } = {}) {
         // 🪃 A boomerang gun throws ITSELF: no Projectile, no magazine and no reload, so those are off
         // the card while it is on (they are kept on the asset, and come back if it is switched off).
         const boom = !!asset.boomerang;
+        const laser = !!asset.chargeLaser;
         return (
           <div className="wstates projectilecard">
-            {!boom && (<>
+            {!boom && !laser && (<>
             <span className="wslab">Projectile:</span>
             <select className="projSel" value={asset.projectileId || ""} onChange={(e) => setAsset((a) => ({ ...a, projectileId: e.target.value || null }))}>
               <option value="">— none picked —</option>
               {allAssets.filter((a) => a.type === "projectile").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             </>)}
-            <label className="slider">Speed<input type="range" min="4" max="30" value={asset.projectileSpeed ?? 12} onChange={(e) => setAsset((a) => ({ ...a, projectileSpeed: +e.target.value }))} /></label>
+            {!laser && <label className="slider">Speed<input type="range" min="4" max="30" value={asset.projectileSpeed ?? 12} onChange={(e) => setAsset((a) => ({ ...a, projectileSpeed: +e.target.value }))} /></label>}
             <label className="slider">Range<input type="number" min="1" value={asset.projectileRange ?? DEFAULT_PROJECTILE_RANGE} onChange={(e) => setAsset((a) => ({ ...a, projectileRange: Math.max(1, +e.target.value || 1) }))} style={{ width: 60 }} /><span className="hint2">blocks</span></label>
             <label className="slider">Fire rate<input type="range" min="0.5" max="15" step="0.5" value={asset.fireRate ?? DEFAULT_FIRE_RATE} onChange={(e) => setAsset((a) => ({ ...a, fireRate: +e.target.value }))} /><span className="hint2">{asset.fireRate ?? DEFAULT_FIRE_RATE}/sec</span></label>
             {!boom && <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited</span></label>}
@@ -33797,10 +34190,10 @@ export default function AssetStudio({ game = false } = {}) {
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
               <p className="tip warn">⚠ No 🔴 muzzle on the Rest pose.</p>
             )}
-            {!boom && !asset.projectileId && (
+            {!boom && !laser && !asset.projectileId && (
               <p className="tip warn">⚠ No Projectile picked{hasLegacy ? " — using the old built-in one" : ""}.</p>
             )}
-            {!boom && !asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Convert old projectile</button>}
+            {!boom && !laser && !asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Convert old projectile</button>}
           </div>
         );
       })()}

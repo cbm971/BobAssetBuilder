@@ -668,7 +668,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
         g.gain.setValueAtTime(gain, cutAt[0]); g.gain.linearRampToValueAtTime(0, cutAt[1]);
       }
       const playS = cutAt ? cutAt[1] - c.currentTime : buf.duration - skip;
-      const v = { id, at: t, until: t + playS * 1000 + 30, done: false, src };
+      const v = { id, at: t, until: t + playS * 1000 + 30, done: false, src, g, asset: info ? info.asset || null : null, slot: info ? info.slot || null : null };
       src.onended = () => { v.done = true; try { g.disconnect(); } catch { /* gone */ } };
       src.start(0, skip);
       if (cutAt) src.stop(cutAt[1] + 0.005); // after start(): a source stopped before it starts throws
@@ -796,14 +796,37 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // happens (an explosion, see EXPLOSION_MIN_GAIN).
     // `scale` turns one call down (the game's menu click, which on its own over a quiet menu was
     // "too loud"); 1 everywhere else.
-    moment: ({ asset, slot, basic, x, y, minGain = 0, scale = 1, stretch = 1 } = {}) => {
+    moment: ({ asset, slot, basic, x, y, minGain = 0, scale = 1, stretch = 1, maxSecs } = {}) => {
       const id = resolveSound({ asset, slot, basic, board, has: engine.has });
       if (!id) return false;
       const gain = Math.max(soundGainAt(x, y, view), Math.min(1, minGain));
       if (gain <= 0.02) return false;
       // Times the slider beside the pick that chose this sound (resolveSoundVol).
       const sv = resolveSoundVol({ asset, slot, basic, board, has: engine.has });
-      return startVoice(id, gain * sv * scale, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null, stretch, maxSecs: momentMaxSecs({ slot, basic }) });
+      return startVoice(id, gain * sv * scale, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null, stretch, maxSecs: maxSecs !== undefined ? maxSecs : momentMaxSecs({ slot, basic }) });
+    },
+    // Fade out and stop any still-playing moment started for this asset + slot (e.g. a charge laser's
+    // Fire sound when the trigger is released early or hands over to the Hit blast).
+    stopAssetSlot: (asset, slot) => {
+      const aid = asset && asset.id;
+      if (!aid || !slot) return false;
+      let stopped = false;
+      for (const v of voices.slice()) {
+        if (v.done || v.asset !== aid || v.slot !== slot) continue;
+        v.done = true;
+        stopped = true;
+        try {
+          if (ctx && v.g && v.g.gain && typeof v.g.gain.linearRampToValueAtTime === "function") {
+            const t0 = ctx.currentTime;
+            if (typeof v.g.gain.cancelScheduledValues === "function") v.g.gain.cancelScheduledValues(t0);
+            if (typeof v.g.gain.setValueAtTime === "function") v.g.gain.setValueAtTime(v.g.gain.value ?? 0, t0);
+            v.g.gain.linearRampToValueAtTime(0, t0 + 0.03);
+            v.src.stop(t0 + 0.035);
+          } else v.src.stop();
+        } catch { /* already ended */ }
+      }
+      if (stopped) voices = voices.filter((v) => !v.done);
+      return stopped;
     },
     // An everyday moment with no asset behind it (a door, a pickup, a menu click).
     // `opts.stretch`: hold the sound that many times as long (stretchChannels).

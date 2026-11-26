@@ -18234,3 +18234,135 @@ describe("every ability description is one short line", () => {
     expect(EFFECT_TYPES.moneyPower.brief({})).not.toMatch(/40|×2|up to/);
   });
 });
+
+import {
+  isChargeLaser, chargeLaserFrames, laserBeamFrames, laserTicksInBeam, stepChargeLaser,
+  brimstoneBeamPath, beamHitsBox, makeBrimstoneBeam, brimstoneBeamStep,
+  DEFAULT_CHARGE_LASER_SECS, DEFAULT_LASER_BEAM_SECS, LASER_TICK_FRAMES,
+} from "./App";
+
+describe("🔴 Brimstone laser (chargeLaser) + Brimstone Demon & Brimstone Launcher", () => {
+  const libFiles = require("./libraryFiles");
+  const path = require("path");
+  const lib = () => libFiles.readLibraryFile(path.join(__dirname, "..", "asset-data", "library.json"));
+
+  test("chargeLaser is a ranged firing mode mutually exclusive with burstFire, fullAuto, and boomerang", () => {
+    expect(WEAPON_ABILITIES.chargeLaser.types).toEqual(["ranged"]);
+    expect(weaponAbilitiesFor("ranged")).toContain("chargeLaser");
+    expect(weaponAbilitiesFor("melee")).not.toContain("chargeLaser");
+    expect(weaponAbilitiesFor("throw")).not.toContain("chargeLaser");
+    const w = { wtype: "ranged", burstFire: true, fullAuto: true, boomerang: true, ...WEAPON_ABILITIES.chargeLaser.on };
+    expect(isChargeLaser(w)).toBe(true);
+    expect(weaponAbilityKeys(w)).toEqual(["chargeLaser"]);
+    for (const k of ["burstFire", "fullAuto", "boomerang"]) {
+      expect(weaponAbilityOn({ ...w, ...WEAPON_ABILITIES[k].on }, "chargeLaser")).toBe(false);
+    }
+    expect(weaponAbilityOn({ ...w, ...WEAPON_ABILITIES.chargeLaser.off }, "chargeLaser")).toBe(false);
+  });
+
+  test("stepChargeLaser charges while held, cancels on early release, displays Fire pose when charged, and fires on release", () => {
+    const w = { wtype: "ranged", chargeLaser: true, chargeTime: 0.5, beamTime: 0.5 };
+    const need = chargeLaserFrames(w);
+    expect(need).toBe(30);
+
+    // Start charging on hold
+    let s = stepChargeLaser(0, true, true, need, 10);
+    expect(s).toEqual({ charge: 10, started: true, charged: false, released: false, cancelled: false });
+    expect(weaponPoseFired(true, null, { clip: 1, ammo: 0, reloadT: 20 }, w, s.charged)).toBe(false);
+
+    // Early release before full charge cancels without firing
+    const early = stepChargeLaser(s.charge, false, true, need, 1);
+    expect(early).toEqual({ charge: 0, started: false, charged: false, released: false, cancelled: true });
+
+    // Reach full charge while holding -> charged is true and Fire pose displays immediately!
+    s = stepChargeLaser(20, true, true, need, 12);
+    expect(s.charge).toBe(30);
+    expect(s.charged).toBe(true);
+    expect(s.released).toBe(false);
+    expect(weaponPoseFired(true, null, { clip: 0, ammo: 0, reloadT: 0 }, w, s.charged)).toBe(true);
+
+    // Release after full charge -> fires!
+    const rel = stepChargeLaser(s.charge, false, true, need, 1);
+    expect(rel).toEqual({ charge: 0, started: false, charged: false, released: true, cancelled: false });
+    // And stays in Fire pose while the beam is actively firing
+    expect(weaponPoseFired(true, { t: 5, dur: laserBeamFrames(w) }, { clip: 0, ammo: 0, reloadT: 0 }, w, false)).toBe(true);
+  });
+
+  test("brimstoneBeamPath flies straight normally, stops at walls, and worms through targets under Homing", () => {
+    const straight = brimstoneBeamPath({ sx: 100, sy: 200, aimRad: 0, rangePx: 300, cellPx: 30, homing: false });
+    expect(straight.hitWall).toBe(false);
+    const tip = straight.pts[straight.pts.length - 1];
+    expect(tip[0]).toBeCloseTo(300, 0);
+    expect(Math.abs(tip[1])).toBeLessThan(0.01);
+
+    // Wall at x = 220 stops the beam cleanly
+    const walled = brimstoneBeamPath({ sx: 100, sy: 200, aimRad: 0, rangePx: 400, cellPx: 30, homing: false, solidAt: (x) => x >= 220 });
+    expect(walled.hitWall).toBe(true);
+    expect(walled.pts[walled.pts.length - 1][0]).toBeLessThanOrEqual(121);
+    expect(walled.pts[walled.pts.length - 1][0]).toBeGreaterThan(110);
+
+    // Homing worm: aimed straight right (y=200), bends up to hit foe A (x=220, y=130) AND snakes down to hit foe B (x=370, y=260)!
+    const foeA = { key: "a", x: 205, y: 115, w: 30, h: 40 };
+    const foeB = { key: "b", x: 355, y: 245, w: 30, h: 40 };
+    const pr = {
+      x: 100, y: 200, rangePx: 480, homing: true, pierce: true,
+      beam: makeBrimstoneBeam({ owner: "player", aimRad: 0, dur: 30, cellPx: 30 }),
+    };
+    expect(brimstoneBeamStep(pr, 1, 30, [foeA, foeB], null)).toBe("live");
+    expect(pr.beam.tickDue).toBe(true);
+    expect(beamHitsBox(pr, foeA.x, foeA.y, foeA.w, foeA.h)).toBe(true);
+    expect(beamHitsBox(pr, foeB.x, foeB.y, foeB.w, foeB.h)).toBe(true);
+
+    // Advancing phase wriggles open-air homing beam like a worm
+    const w0 = brimstoneBeamPath({ sx: 0, sy: 0, aimRad: 0, rangePx: 300, cellPx: 30, homing: true, targets: [], phase: 0 });
+    const w1 = brimstoneBeamPath({ sx: 0, sy: 0, aimRad: 0, rangePx: 300, cellPx: 30, homing: true, targets: [], phase: 1.4 });
+    expect(w0.pts.some((p, idx) => Math.abs(p[1] - (w1.pts[idx] || p)[1]) > 1)).toBe(true);
+
+    // Double Shot clones two independent parallel Brimstone beams
+    const pair = doubleShotPair({ x: 100, y: 200, vx: 10, vy: 0, startX: 100, startY: 200, beam: makeBrimstoneBeam({ owner: "player", aimRad: 0, dur: 30, cellPx: 30 }) }, 30);
+    expect(pair).toHaveLength(2);
+    expect(pair[0].beam).not.toBe(pair[1].beam);
+    expect(pair[0].beam.pairSide).toBe(-1);
+    expect(pair[1].beam.pairSide).toBe(1);
+
+    // weaponDpsOver simulates multi-tick charge-and-release cycles
+    const dps = weaponDpsOver({ wtype: "ranged", chargeLaser: true, chargeTime: DEFAULT_CHARGE_LASER_SECS, beamTime: DEFAULT_LASER_BEAM_SECS, fireRate: 1.5, clipSize: 0 }, 12, 5, []);
+    expect(dps).toBeGreaterThan(40);
+    expect(laserTicksInBeam(laserBeamFrames({ beamTime: DEFAULT_LASER_BEAM_SECS }))).toBe(6);
+    expect(LASER_TICK_FRAMES).toBe(6);
+  });
+
+  test("Brimstone Demon prop (brmdemn) and Brimstone Launcher (brmlnch) ship valid in the library", () => {
+    const assets = lib().assets;
+    const demon = assets.find((a) => a.id === "brmdemn");
+    expect(demon).toBeDefined();
+    expect(demon.name).toBe("Brimstone Demon");
+    expect(demon.type).toBe("prop");
+    expect(demon.category).toBe("Design Elements");
+    expect(editorReachIssues(demon)).toEqual([]);
+    expect(demon.frames[0].front.length).toBeGreaterThan(0);
+
+    const w = assets.find((a) => a.id === "brmlnch");
+    expect(w).toBeDefined();
+    expect(w.name).toBe("Brimstone Launcher");
+    expect(w.type).toBe("weapon");
+    expect(w.wtype).toBe("ranged");
+    expect(w.rank).toBe("mystic"); // Gold Legendary
+    expect(w.chargeLaser).toBe(true);
+    expect(w.sounds).toEqual({ fire: "4xdiye5", hit: "aghad42" });
+    expect(w.confirmedFits).toEqual(expect.arrayContaining(["telfv37", "oipvf3l"]));
+    expect(editorReachIssues(w)).toEqual([]);
+    for (const fit of ["default", "telfv37", "oipvf3l"]) {
+      for (const pose of editablePoses("weapon", "ranged")) {
+        const rest = w.variants[fit].states.rest[pose];
+        const fire = w.variants[fit].states.fire[pose];
+        expect(rest.length).toBeGreaterThan(0);
+        expect(fire.length).toBeGreaterThan(rest.length); // Fire pose adds the charged laser beam!
+        expect(rest.some((p) => p.isMuzzle)).toBe(true);
+        expect(fire.some((p) => p.isMuzzle)).toBe(true);
+      }
+    }
+    // Does not intrude on Forest M8's Odd + Legendary Ray Gun pedestal
+    expect(pedestalItemPool(assets, ["Odd", "Legendary"], "and").map((a) => a.id)).toEqual(["qesn4h8"]);
+  });
+});

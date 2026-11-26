@@ -1112,6 +1112,7 @@ plus traps it does not cover:
   `BLAST_RADIUS_MAX` 12, `BOOM_SIZE_MAX` 24. A rising boom over 18 cells loses its top on his 29-row view from the
   ground. The nuke: radius 9, boom 18, Damage 100, Weight 1 (a plain lob lands ~17 cells out, clear of its blast;
   ↑ or a body in your face nukes you, like an RPG point blank).
+- **🔴 Brimstone laser (`WEAPON_ABILITIES.chargeLaser`, ranged ability, 2026-11-26, Brimstone Launcher `brmlnch` + Brimstone Demon prop `brmdemn` in `Design Elements`):** hold Fire to charge (`chargeLaserSecs`, default 0.65s) and release to fire a multi-tick piercing blood laser (`laserBeamSecs`, default 0.55s, ticking every `LASER_TICK_FRAMES`); releasing early cancels (`stepChargeLaser`). Once charged while still held, `weaponPoseFired` switches immediately to the `Fire` pose (showing the charged muzzle beam) and holds `Fire` while the beam is live. Audio swaps slots: charge start plays `fire` whole (`maxSecs: 0`), and release or cancel fades `fire` via `stopAssetSlot` and plays `hit` on release. The SVG beam (`brimstoneBeamPath`, `.brimstoneBeam`) stops on solid cells and wriggles worm-like through targets when `shotHomes` is on; player and units both charge and fire it.
 - **Clothing prints are textures** (Tye Dye, Flannel, 🦓 `zebra`): the piece carries `tex: <texture record id>`, and the
   record ships in library.json `textures`. A fresh store restores textures when an editor opens (`loadTextures`).
 - **Melee DPS is damage x a fixed swing** (`PLAYER_SWING_FRAMES` 12, 5 swings/s); a melee weapon's Fire rate does nothing.
