@@ -20057,6 +20057,20 @@ export default function AssetStudio({ game = false } = {}) {
             if (eCreatureFlies || ep.topdown || solidAtW(sr, sc) || solidAtW(sr + 1, sc) || solidAtW(sr - 1, sc)) { spreading = true; dxMove = away * aiSpeed; }
           }
           ep.spread = spreading;
+          // 📶 A CROWDED SEEK NEVER BACKS OFF A LEDGE. The near half of the stand-off band
+          // (enemyMoveIntent) walks a Seek away from a target that crowds it. At the head of a flight
+          // of stairs the well behind it is open, so that step took it straight back down the hole it
+          // had just climbed out of — measured on Forest M22's F2: three climbs, three falls. It holds
+          // its ground instead: the step is taken only if the box its feet stand on (ep.x … ep.x + epw,
+          // the landing test's box below — not the art-centred hit box) still has a floor cell under it
+          // after the step. A drop it MEANS to take is a route (navRoute), not this.
+          if (ai === "seek" && dxMove && !spreading && !following && !charging && !navRoute && !navAirborne && !eCreatureFlies && !ep.topdown && !ep.climbing && !ep.stairs && ep.onGround
+              && Math.sign(dxMove) === -(Math.sign(distToTarget) || 1)) {
+            const sr = Math.floor((myFeetY + 1) / CH), bx = ep.x + dxMove, c0 = Math.floor(bx / CW), c1 = Math.floor((bx + epw - 0.01) / CW);
+            let footing = false;
+            for (let c = c0; c <= c1 && !footing; c++) footing = solidAtW(sr, c) || solidAtW(sr + 1, c) || solidAtW(sr - 1, c);
+            if (!footing) dxMove = 0;
+          }
           // 🛼 SLIDE ON A UNIT: its feet EASE toward where it means to go at the item's Grip, and it
           // coasts when it stops, instead of snapping to speed and halting dead — the player's own
           // ground rule (horizVel), called with the unit's intent. dxMove stays the INTENT (what
