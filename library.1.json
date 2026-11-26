@@ -1,5 +1,5 @@
 {
- "set": "00e1a7d12196364c",
+ "set": "026035348e6fbd33",
  "part": 1,
  "assets": [
   {
@@ -455948,7 +455948,7 @@
    "wtype": "ranged",
    "projectileId": null,
    "projectileSpeed": 18,
-   "projectileRange": 24,
+   "projectileRange": 25,
    "damage": 12,
    "fireRate": 1.5,
    "clipSize": 0,
@@ -487962,7 +487962,8 @@
      }
     }
    },
-   "savedAt": 1795734965531
+   "savedAt": 1795736325595,
+   "editedFrom": 1795734965531
   },
   {
    "id": "brnatrk",
