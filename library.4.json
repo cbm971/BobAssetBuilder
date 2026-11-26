@@ -1,5 +1,5 @@
 {
- "set": "12b3e3d1d583b14a",
+ "set": "0b726991bdaa641a",
  "part": 4,
  "levels": [
   {
@@ -610664,7 +610664,7 @@
     "ntv0": {
      "id": "ntv0",
      "speaker": "TV",
-     "text": "This just in: \nWASD to move. \nSpace Bar to jump.\nClothes in the Closet, Guns in the Kitchen.\nIn other news: Bob has been drafted to Vietnam!",
+     "text": "This just in: \nWASD to move. \nSpace Bar to jump.\nHold R to reroll run\nClothes in the Closet, Guns in the Kitchen.\nIn other news: Bob has been drafted to Vietnam!",
      "choices": [
       {
        "id": "ctv0",
@@ -610686,8 +610686,8 @@
     }
    },
    "sound": "9skpe67",
-   "savedAt": 1792266010693,
-   "editedFrom": 1792237207822
+   "savedAt": 1795695416044,
+   "editedFrom": 1792266010693
   }
  ],
  "sounds": [
