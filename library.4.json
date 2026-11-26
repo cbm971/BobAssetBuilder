@@ -1,5 +1,5 @@
 {
- "set": "7b90012a7070c915",
+ "set": "e1b216a8bd0ce8e3",
  "part": 4,
  "levels": [
   {
@@ -381590,24 +381590,6 @@
       "z": 16
      }
     ],
-    "33,21": [
-     {
-      "kind": "prop",
-      "propId": "lt1i1vk",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "size": 3,
-      "lay": "bg",
-      "ox": 0.27,
-      "oy": 0.1413,
-      "z": 17
-     }
-    ],
     "30,23": [
      {
       "kind": "prop",
@@ -382985,6 +382967,24 @@
       "lay": "front",
       "z": 98
      }
+    ],
+    "34,21": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "size": 3,
+      "lay": "bg",
+      "ox": 0.27,
+      "oy": 0.1413,
+      "z": 17
+     }
     ]
    },
    "climb": {
@@ -383298,7 +383298,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795689681001
+   "savedAt": 1795697885700,
+   "editedFrom": 1795689681001
   },
   {
    "id": "vshaq01",
