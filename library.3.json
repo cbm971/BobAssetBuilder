@@ -1,5 +1,5 @@
 {
- "set": "a5e9bf6955cad820",
+ "set": "08a88ac111d329f4",
  "part": 3,
  "assets": [
   {
@@ -835090,6 +835090,14 @@
       "Common"
      ],
      "logic": "and"
+    },
+    "13,13": {
+     "kind": "pedestal",
+     "cats": [
+      "Grenade",
+      "Army"
+     ],
+     "logic": "and"
     }
    },
    "enemies": {},
@@ -835127,7 +835135,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794312191456
+   "savedAt": 1795712246472,
+   "editedFrom": 1794312191456
   },
   {
    "id": "treeint2",
