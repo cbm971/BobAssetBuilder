@@ -1,5 +1,5 @@
 {
- "set": "3eb28c166db3a135",
+ "set": "64611106dec0faa9",
  "part": 1,
  "assets": [
   {
@@ -446998,12 +446998,12 @@
     "intelligence": -1,
     "strength": 0
    },
-   "defense": 6,
+   "defense": 5,
    "effects": [
     {
      "id": "bbref01",
      "type": "reflect",
-     "chance": 0.25,
+     "chance": 0.2,
      "animByBody": {},
      "lastFit": "default"
     }
@@ -447013,9 +447013,10 @@
     "Hat",
     "Odd"
    ],
-   "rank": "legendary",
+   "rank": "rare",
    "value": 19,
-   "savedAt": 1795706567785
+   "savedAt": 1795708495158,
+   "editedFrom": 1795708482430
   },
   {
    "id": "bnyhat1",
