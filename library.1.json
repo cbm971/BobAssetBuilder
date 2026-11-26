@@ -1,5 +1,5 @@
 {
- "set": "8b794f6d49694a28",
+ "set": "a5e9bf6955cad820",
  "part": 1,
  "assets": [
   {
@@ -447003,7 +447003,7 @@
     {
      "id": "bbref01",
      "type": "reflect",
-     "chance": 0.2,
+     "chance": 0.25,
      "animByBody": {},
      "lastFit": "default"
     }
@@ -447014,9 +447014,9 @@
     "Odd"
    ],
    "rank": "legendary",
-   "value": 19,
-   "savedAt": 1795708505597,
-   "editedFrom": 1795708495158
+   "value": 20,
+   "savedAt": 1795708600713,
+   "editedFrom": 1795708593866
   },
   {
    "id": "bnyhat1",
