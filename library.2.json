@@ -1,5 +1,5 @@
 {
- "set": "08a88ac111d329f4",
+ "set": "98565e396e8f5ab0",
  "part": 2,
  "assets": [
   {
@@ -134554,7 +134554,8 @@
    },
    "editedFrom": 1794915849800,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "kcj40n4",
@@ -146318,7 +146319,8 @@
    "savedAt": 1793613215358,
    "boomerang": false,
    "pickupCount": 3,
-   "editedFrom": 1793613180314
+   "editedFrom": 1793613180314,
+   "throwBlast": false
   },
   {
    "id": "kfqipao",
@@ -155791,7 +155793,8 @@
    },
    "editedFrom": 1793454712895,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "kj6zdxa",
@@ -227755,7 +227758,8 @@
    "pickupCount": 3,
    "soundVol": {
     "hit": 0.2
-   }
+   },
+   "throwBlast": false
   },
   {
    "id": "lamaid1",
@@ -257479,7 +257483,8 @@
    "editedFrom": 1792333417023,
    "pierce": true,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "ma7adq1",
@@ -268309,7 +268314,8 @@
    "soundVol": {
     "hit": 0.15
    },
-   "savedAt": 1795688845600
+   "savedAt": 1795688845600,
+   "throwBlast": false
   },
   {
    "id": "mcqync5",
@@ -276564,7 +276570,8 @@
    "editedFrom": 1794915849808,
    "soundWave": true,
    "soundWaveReach": 6,
-   "soundWavePush": 2
+   "soundWavePush": 2,
+   "throwBlast": false
   },
   {
    "id": "mmabacs",
@@ -417037,7 +417044,8 @@
    "savedAt": 1792333279719,
    "editedFrom": 1792333155785,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "mstng65",
@@ -470958,7 +470966,8 @@
    "savedAt": 1793838170178,
    "editedFrom": 1792266563506,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "nhls82t",
@@ -482762,7 +482771,8 @@
    "iceDamageDps": 1,
    "editedFrom": 1795696910059,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "nstlmp1",
@@ -520545,7 +520555,8 @@
    },
    "boomerang": false,
    "pickupCount": 3,
-   "savedAt": 1795312627475
+   "savedAt": 1795312627475,
+   "throwBlast": false
   },
   {
    "id": "phchili",
@@ -575680,7 +575691,8 @@
     "hit": "xag9rse"
    },
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "qfexzka",
@@ -619674,7 +619686,8 @@
    },
    "boomerang": false,
    "pickupCount": 3,
-   "editedFrom": 1793442347590
+   "editedFrom": 1793442347590,
+   "throwBlast": false
   },
   {
    "id": "rkice01",
@@ -635931,7 +635944,8 @@
    },
    "editedFrom": 1792266702289,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "rptcam1",
@@ -684827,7 +684841,8 @@
    "pickupCount": 3,
    "swingSpeed": 1.3,
    "swingSpeedMult": 1.3,
-   "editedFrom": 1795269036526
+   "editedFrom": 1795269036526,
+   "throwBlast": false
   },
   {
    "id": "shjvbax",
@@ -724026,7 +724041,8 @@
    },
    "editedFrom": 1793454712895,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "slvpnt1",
@@ -836089,7 +836105,8 @@
    },
    "editedFrom": 1793454712895,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "t73jzui",
@@ -878607,7 +878624,8 @@
    },
    "editedFrom": 1792267718483,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "trplmp1",
@@ -900516,7 +900534,8 @@
    "meleeBoost": 3,
    "editedFrom": 1792279564134,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "u23o5an",
@@ -941671,7 +941690,8 @@
     "hit": "ynj37i2"
    },
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "uvaagun",
@@ -1047267,7 +1047287,8 @@
    "savedAt": 1793458364468,
    "editedFrom": 1793454712895,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "wdywgn6",

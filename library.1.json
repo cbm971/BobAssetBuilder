@@ -1,5 +1,5 @@
 {
- "set": "08a88ac111d329f4",
+ "set": "98565e396e8f5ab0",
  "part": 1,
  "assets": [
   {
@@ -83130,7 +83130,8 @@
    "savedAt": 1794915849759,
    "editedFrom": 1792634284241,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "3t3iost",
@@ -318421,7 +318422,8 @@
    "savedAt": 1793454712895,
    "editedFrom": 1792274423887,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "9boz0o8",
@@ -398457,7 +398459,8 @@
    },
    "editedFrom": 1792266601605,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "b8kwtcz",
@@ -453272,7 +453275,8 @@
    },
    "soundVol": {
     "hit": 0.3
-   }
+   },
+   "throwBlast": false
   },
   {
    "id": "brdrug1",
@@ -520384,7 +520388,8 @@
     ]
    },
    "savedAt": 1794915849773,
-   "editedFrom": 1794880768635
+   "editedFrom": 1794880768635,
+   "throwBlast": false
   },
   {
    "id": "cbnsky1",
@@ -558469,7 +558474,8 @@
    "savedAt": 1794108672952,
    "editedFrom": 1793454712895,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "cptrarv",
@@ -579887,7 +579893,8 @@
    },
    "editedFrom": 1793458364468,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "crtns01",
@@ -643658,7 +643665,8 @@
    "savedAt": 1794915849779,
    "editedFrom": 1792333867493,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "dkbarl1",
@@ -687659,7 +687667,8 @@
    },
    "boomerang": false,
    "pickupCount": 3,
-   "editedFrom": 1792366829274
+   "editedFrom": 1792366829274,
+   "throwBlast": false
   },
   {
    "id": "eo0mino",
@@ -732057,7 +732066,8 @@
    },
    "boomerang": false,
    "pickupCount": 3,
-   "savedAt": 1795696908299
+   "savedAt": 1795696908299,
+   "throwBlast": false
   },
   {
    "id": "flymsk1",
@@ -739641,7 +739651,8 @@
    },
    "editedFrom": 1793454712895,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "fnzre7x",
@@ -821515,7 +821526,8 @@
    "savedAt": 1794915849786,
    "editedFrom": 1793458364468,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "ftbstd1",
@@ -952363,7 +952375,8 @@
    "editedFrom": 1794915849789,
    "soundVol": {
     "land": 0.4
-   }
+   },
+   "throwBlast": false
   },
   {
    "id": "gr3nsh1",

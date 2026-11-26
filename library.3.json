@@ -1,5 +1,5 @@
 {
- "set": "08a88ac111d329f4",
+ "set": "98565e396e8f5ab0",
  "part": 3,
  "assets": [
   {
@@ -62566,7 +62566,8 @@
    "savedAt": 1792333522782,
    "editedFrom": 1792274443299,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "z38lzvj",
@@ -114975,7 +114976,8 @@
    "savedAt": 1794915849826,
    "editedFrom": 1793790497240,
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "throwBlast": false
   },
   {
    "id": "zzzfx01",
