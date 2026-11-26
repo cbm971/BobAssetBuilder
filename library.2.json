@@ -1,5 +1,5 @@
 {
- "set": "0b726991bdaa641a",
+ "set": "f3281a0e042f745f",
  "part": 2,
  "assets": [
   {
@@ -213711,7 +213711,7 @@
    ],
    "projectileId": "gr3nsh1",
    "projectileSpeed": 9,
-   "damage": 30,
+   "damage": 33,
    "fireRate": 1,
    "clipSize": 4,
    "reloadTime": 2.2,
@@ -213747,8 +213747,8 @@
     "hit": "aghad42",
     "fire": "dti525c"
    },
-   "savedAt": 1795688791540,
-   "editedFrom": 1794915849806,
+   "savedAt": 1795695688436,
+   "editedFrom": 1795688791540,
    "boomerang": false,
    "pickupCount": 3,
    "soundVol": {
