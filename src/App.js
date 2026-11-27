@@ -14213,6 +14213,43 @@ const addRunNode = (run, level, col, row) => { const key = "run" + run.nextKey++
 // A bottom gate that cannot get such a route is a wall in that run. Nothing is ever placed west of
 // the start, and a run with sewers planned never grows a passage on its own while you play.
 export const RUN_PASSAGE_MAX = 4;      // the longest sewer (or tree top) a run lays, in levels
+// A TREE TOP IS AS WIDE AS THE LEVEL UNDER IT (Blake, 2026-11-26: "And match any broken widths"). His
+// tree tops are all 160 wide and his Vietnam levels 160, 180 or 200, so a tree top over a wider level
+// fell short of its edges (Forest M21: 14 cells in from its west edge, 6 short of its east), and every
+// tree top grown along it drifted further off the street. Now the run's OWN COPY of a tree top is
+// widened to the street level in its slot; his saved level is never touched. The extra columns carry
+// on the edge's own 7-cell pattern (his canopy underside repeats every 7: see Tree Tops 1), and every
+// cell-keyed layer shifts with the art. Where the columns go: over a trunk, split so the bottom gate's
+// ladder still lands on the trunk's (both gates sit at the same % of the same width); a west end
+// grows on its west side and an east end on its east, so the edge it joins the tree by stays his.
+export const TREE_PAD_PERIOD = 7;
+const TREE_PAD_LAYERS = ["fg", "bg", "front"];                                                  // the art that is carried on
+const TREE_SHIFT_LAYERS = ["fg", "bg", "front", "fx", "climb", "hazard", "markers", "enemies"];   // everything keyed by cell
+export const widenLevel = (lv, left, right) => {
+  left = Math.max(0, Math.round(left || 0)); right = Math.max(0, Math.round(right || 0));
+  if (!lv || (!left && !right)) return lv;
+  const cols = lv.cols, P = Math.min(TREE_PAD_PERIOD, cols), out = { ...lv, cols: cols + left + right, widened: { from: cols, left, right } };
+  for (const layer of TREE_SHIFT_LAYERS) {
+    const src = lv[layer] || {}, o = {};
+    for (const k of Object.keys(src)) { const [r, c] = k.split(",").map(Number); o[r + "," + (c + left)] = src[k]; }
+    if (TREE_PAD_LAYERS.includes(layer)) for (let r = 0; r < lv.rows; r++) {
+      for (let j = 0; j < left; j++) { const v = src[r + "," + ((((j - left) % P) + P) % P)]; if (v !== undefined) o[r + "," + j] = v; }
+      for (let j = 0; j < right; j++) { const v = src[r + "," + (cols - P + (j % P))]; if (v !== undefined) o[r + "," + (cols + left + j)] = v; }
+    }
+    out[layer] = o;
+  }
+  return out;
+};
+// `s` fitted to the width `W` of the street level under it. `how`: the bottom gate standing on the
+// trunk ("S1"/"S2"), or "W"/"E" for an end grown off that side of the tree.
+export const fitTreeTop = (s, W, how) => {
+  const extra = W - s.cols;
+  if (!s || !(extra > 0)) return s;
+  if (how === "W") return widenLevel(s, extra, 0);
+  if (how === "E") return widenLevel(s, 0, extra);
+  const left = Math.round((CONN_POS[how].x / 100) * extra);
+  return widenLevel(s, left, extra - left);
+};
 // How many cells east of `a` the level `b` joined on `side` of it starts — the x of runSeams' offset.
 const seamOffX = (a, b, side) => { const pr = seamGatePair(a, b, side); return pr ? neighbourOffset(a, pr[0], b, 1, pr[1]).x : 0; };
 // Which of `a`'s open gates on `side` lead through into `b` when b's origin sits at `off` in a's
@@ -14340,7 +14377,9 @@ export const buildRun = (levels, seed, opts = {}) => {
       const spans = passages.filter((ps) => ps.tree).map((ps) => [ps.x, ps.x + ps.levels[0].cols]);
       const trunks = [];
       chain.forEach((m, j) => { if (j !== c) for (const k of CONN_KEYS) if (CONN_SIDE[k] === "N" && m.conns[k] && m.conns[k].open) trunks.push(streetX(j) + gatePoint(m, k, 1).x); });
-      for (const s of order(offStreet.filter((q) => runRole(q) === "side" && canAttach(lv, q, "N") && vertSeamLinesUp(lv, q, "N")))) {
+      for (const s0 of order(offStreet.filter((q) => runRole(q) === "side" && canAttach(lv, q, "N") && vertSeamLinesUp(lv, q, "N")))) {
+        const s = fitTreeTop(s0, lv.cols, seamGatePair(lv, s0, "N")[1]);   // as wide as the level under it
+        if (!canAttach(lv, s, "N") || !vertSeamLinesUp(lv, s, "N")) continue;
         const sx = x + seamOffX(lv, s, "N"), ex = sx + s.cols;
         if (spans.some(([a, b]) => sx < b && ex > a) || trunks.some((t) => t >= sx && t < ex)) continue;
         used.add(s.id); taken.N.add(c);
@@ -14503,7 +14542,7 @@ export const buildRun = (levels, seed, opts = {}) => {
         const col = side === "W" ? ps.col - ps.entry - 1 : ps.col - ps.entry + ps.levels.length;
         if (col < 0 || col >= chain.length || slots.has(col)) break;
         const spans = []; for (const q of trees) q.levels.forEach((s, i) => spans.push([q.xs[i], q.xs[i] + s.cols]));
-        const fit = shuffle(ends.filter((s) => !best.used.has(s.id) && canAttach(edge, s, side))).find((s) => {
+        const fit = shuffle(ends.filter((s) => !best.used.has(s.id) && canAttach(edge, s, side))).map((s) => fitTreeTop(s, chain[col].cols, side)).find((s) => {
           const x0 = ps.xs[at] + seamOffX(edge, s, side), x1 = x0 + s.cols;
           return x0 >= 0 && x1 <= end && !spans.some(([a, b]) => x0 < b && x1 > a) && !trunks.some((t) => t >= x0 && t < x1);
         });

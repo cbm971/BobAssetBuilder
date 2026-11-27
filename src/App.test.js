@@ -17037,7 +17037,7 @@ describe("the weapon stays in one hand whichever way you face", () => {
 import {
   carRamsUnit as carRamsUnit15, throwCalledOff, holdBuffs, buffsToSave, buffsFromSave, activeBuffSum as activeBuffSum15,
   bareBlowReaches, THROWN_Z, SCENE_LABEL_Z as SCENE_LABEL_Z15, gateHasClimb, seamGatePair as seamGatePair15,
-  buildRun as buildRun15, runSeams as runSeams15, seamGateLeaving as seamGateLeaving15,
+  buildRun as buildRun15, runSeams as runSeams15, seamGateLeaving as seamGateLeaving15, widenLevel, fitTreeTop,
 } from "./App";
 
 describe("bug list 2026-11-15", () => {
@@ -17198,6 +17198,36 @@ describe("bug list 2026-11-15", () => {
       expect(run.hasExit).toBe(true);
     }
     expect(trees).toBeGreaterThan(100); expect(ends).toBeGreaterThan(50); expect(both).toBeGreaterThan(10);
+  });
+
+  test("a tree top is as wide as the street level under it, edge to edge, its ladder still on the trunk", () => {
+    // Blake, 2026-11-26: "And match any broken widths" — his tree tops are 160 wide, his Vietnam levels 160/180/200.
+    const lv = { ...mk("W", { floor: "Tree Tops", open: { S2: "Jungle" }, ladder: [111] }), cols: 14, rows: 2, fg: {}, bg: {} };
+    for (let c = 0; c < 14; c++) { lv.fg["1," + c] = c % 7 === 0 ? "bump" : "flat"; lv.bg["0," + c] = "sky" + (c % 7); }
+    lv.enemies = { "0,3": { enemyId: "e" } }; lv.markers = { "1,13": { kind: "pedestal" } }; lv.climb = { "1,10": { kind: "ladder" } };
+    const w = widenLevel(lv, 3, 5);
+    expect(w.cols).toBe(22); expect(lv.cols).toBe(14);                                            // his level is never touched
+    expect(w.enemies).toEqual({ "0,6": { enemyId: "e" } }); expect(w.markers).toEqual({ "1,16": { kind: "pedestal" } }); expect(w.climb).toEqual({ "1,13": { kind: "ladder" } });
+    for (let c = 0; c < 22; c++) expect([w.fg["1," + c], w.bg["0," + c]]).toEqual([(c - 3 + 7) % 7 === 0 ? "bump" : "flat", "sky" + ((c - 3 + 7) % 7)]);   // the 7-cell rhythm carries on both ways
+    expect(fitTreeTop(lv, 14, "S2")).toBe(lv);                                                     // already the width: the same object
+    const f = fitTreeTop(T1, 180, "S2"); expect(f.cols).toBe(180); expect(f.widened).toEqual({ from: 160, left: 14, right: 6 });
+    expect(gateHasClimb(f, "S2")).toBe(true);                                                      // 0.7 of 180 = 126: the ladder moved 110-112 -> 124-126
+    expect(fitTreeTop(T2, 200, "W").widened).toEqual({ from: 160, left: 40, right: 0 });          // a west end grows west, an east end east
+    expect(fitTreeTop(T3, 200, "E").widened).toEqual({ from: 160, left: 0, right: 40 });
+    // and in runs: every tree-top level has exactly the width and x of the street level in its slot
+    const F21 = street("F21", { N2: "Tree Tops" }, 180, [124, 125, 126, 127]);
+    let wide = 0;
+    for (let seed = 0; seed < 150; seed++) {
+      const run = buildRun15([...POOL, F21], "w" + seed, { floor: "Jungle" });
+      const at = runPlacements(run, run.nodes[run.order[0]], 1);
+      for (const n of Object.values(run.nodes).filter((q) => q.row < 0)) {
+        const under = run.order.map((k) => run.nodes[k]).find((q) => q.col === n.col);
+        expect(n.level.cols).toBe(under.level.cols);
+        expect(at.get(n.key).x).toBe(at.get(under.key).x);
+        if (n.level.widened) wide++;
+      }
+    }
+    expect(wide).toBeGreaterThan(20);
   });
 
   test("under the end of a tree every level it stands over is one you fall into", () => {
