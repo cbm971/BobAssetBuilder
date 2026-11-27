@@ -1,5 +1,5 @@
 {
- "set": "eeb50f6dbd99b57c",
+ "set": "9bf1430c2dd105bf",
  "part": 3,
  "assets": [
   {
@@ -1036457,6 +1036457,36 @@
       "flip": false,
       "z": 171
      }
+    ],
+    "26,82": [
+     {
+      "kind": "prop",
+      "propId": "drgtyre",
+      "solid": false,
+      "size": 3,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 172
+     }
+    ],
+    "28,82": [
+     {
+      "kind": "prop",
+      "propId": "drgtyre",
+      "solid": false,
+      "size": 3,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 173
+     }
     ]
    },
    "climb": {
@@ -1036905,8 +1036935,8 @@
      "accepts": "Trailer Park"
     }
    },
-   "savedAt": 1795697848784,
-   "editedFrom": 1794064324160
+   "savedAt": 1795776145656,
+   "editedFrom": 1795697848784
   },
   {
    "id": "trpm18a",
