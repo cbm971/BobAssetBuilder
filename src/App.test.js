@@ -11554,6 +11554,39 @@ describe("runs", () => {
     startVariantsKeepTheRun("Vietnam", ["vtnms1a", "vtnms2a", "vtnms3a"], "vn-start-");   // Vietnam S1 (FIREBASE FREEDOM), S2, S3
   });
 
+  // Blake, 2026-11-27: "two more varients of the Trailor park E1 ending? ... don't actually think you should
+  // change the building much, just the NPCs you run into ... keep the same ending cut scene". E2 and E3 are
+  // his E1 cell for cell (terrain, props, the Helicopter Rope marker, the Order to Report sign, gates); only
+  // the units differ. A seed that ends in E1 may end in any of the three, and every level before it is the same.
+  test("on the REAL library, Trailer Park E2 and E3 are E1 with another cast, and only the Exit of a run changes", () => {
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
+    const IDS = ["5ao9ocf", "trpe2a1", "trpe3a1"];
+    const [e1, ...variants] = IDS.map((id) => lib.levels.find((l) => l.id === id));
+    const shell = (lv) => { const { id, name, savedAt, editedFrom, enemies, ...rest } = lv; return rest; };
+    const trees = new Set(lib.dialogues.map((d) => d.id));
+    for (const v of variants) {
+      expect(runRole(v)).toBe("exit");
+      expect(shell(v)).toEqual(shell(e1));
+      expect(v.markers["34,106"]).toEqual(expect.objectContaining({ kind: "anim", animId: "cptrend" }));   // the same ending
+      expect(Object.keys(v.enemies)).not.toEqual(Object.keys(e1.enemies));
+      for (const [k, u] of Object.entries(v.enemies)) {
+        expect(+k.split(",")[1]).toBeLessThan(100);   // nobody stands on the helipad stage
+        if (u.dialogueId) expect(trees.has(u.dialogueId)).toBe(true);   // looks are checked against his online save when built: the repo snapshot lacks some of his Starters
+      }
+    }
+    const e1Only = lib.levels.filter((l) => !variants.includes(l)), ends = new Set();
+    for (let i = 0; i < 80; i++) {
+      const sd = "tp-exit-" + i;
+      const one = buildRun(e1Only, sd, { floor: "Trailer Park" }), all = buildRun(lib.levels, sd, { floor: "Trailer Park" });
+      const ids1 = one.order.map((k) => one.nodes[k].level.id), idsAll = all.order.map((k) => all.nodes[k].level.id);
+      expect(all.order).toEqual(one.order);
+      ids1.forEach((id, j) => {
+        if (id === IDS[0]) { expect(IDS).toContain(idsAll[j]); ends.add(idsAll[j]); } else expect(idsAll[j]).toBe(id);
+      });
+    }
+    expect([...ends].sort()).toEqual([...IDS].sort());   // all three endings come up
+  });
+
   test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {
     const pool = [A, B, C, D, SEWER, SEWER2];
     // The start of a run without an Intro is a seeded pick among east-open levels, so take the first
