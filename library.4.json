@@ -1,5 +1,5 @@
 {
- "set": "81f4f6c4a1cebbe7",
+ "set": "49c2a70a218b294d",
  "part": 4,
  "levels": [
   {
@@ -82309,8 +82309,18 @@
      "tex": "tha30x2"
     },
     "36,6": {
-     "c": "#2d3710",
-     "tex": "qnfjme1"
+     "c": "#544d45",
+     "tex": "tha30x2",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true,
+     "more": [
+      {
+       "c": "#2d3710",
+       "tex": "qnfjme1"
+      }
+     ]
     },
     "37,6": {
      "c": "#2d3710",
@@ -82349,8 +82359,18 @@
      "tex": "qnfjme1"
     },
     "35,7": {
-     "c": "#2d3710",
-     "tex": "qnfjme1"
+     "c": "#544d45",
+     "tex": "tha30x2",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true,
+     "more": [
+      {
+       "c": "#2d3710",
+       "tex": "qnfjme1"
+      }
+     ]
     },
     "36,7": {
      "c": "#2d3710",
@@ -98420,7 +98440,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1795658212146
+   "savedAt": 1795775739702,
+   "editedFrom": 1795658212146
   },
   {
    "id": "trps2a1",
