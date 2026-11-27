@@ -1,5 +1,5 @@
 {
- "set": "6f3775418f084870",
+ "set": "a417c358a269d5f3",
  "part": 1,
  "assets": [
   {
@@ -614713,36 +614713,12 @@
    "angles": {
     "front": [
      {
-      "id": "6p3ptcj",
-      "kind": "rect",
-      "x": 75.5,
-      "y": 27.5,
-      "w": 50,
-      "h": 14.5,
-      "color": "#2b2b2b",
-      "mirror": false,
-      "hideIfHat": true,
-      "_src": "8cbpywv"
-     },
-     {
-      "id": "r16gbwi",
-      "kind": "rect",
-      "x": 70.5,
-      "y": 30,
-      "w": 59,
-      "h": 8,
-      "color": "#2b2b2b",
-      "mirror": false,
-      "hideIfHat": true,
-      "_src": "8cbpywv"
-     },
-     {
       "id": "jpv3cr5",
       "kind": "rect",
-      "x": 72,
-      "y": 36,
-      "w": 6,
-      "h": 12,
+      "x": 73,
+      "y": 33,
+      "w": 3,
+      "h": 11.5,
       "color": "#2b2b2b",
       "mirror": true,
       "_src": "8cbpywv"
@@ -614851,6 +614827,105 @@
        "bright": 1
       },
       "outline": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "de5yj0z",
+      "kind": "rect",
+      "x": 75,
+      "y": 33.5,
+      "w": 3,
+      "h": 7.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "93ojo68",
+      "kind": "rect",
+      "x": 77,
+      "y": 33.5,
+      "w": 3,
+      "h": 7.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "pyjgscb",
+      "kind": "rect",
+      "x": 71,
+      "y": 33.5,
+      "w": 3,
+      "h": 7.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "105k5bu",
+      "kind": "rect",
+      "x": 79.5,
+      "y": 33.5,
+      "w": 3,
+      "h": 7.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "ikd74ru",
+      "kind": "rect",
+      "x": 80.5,
+      "y": 32.5,
+      "w": 3,
+      "h": 7.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "zjz45eu",
+      "kind": "rect",
+      "x": 82,
+      "y": 33.5,
+      "w": 20,
+      "h": 8.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "ntcagi1",
+      "kind": "rect",
+      "x": 92.5,
+      "y": 35.5,
+      "w": 3,
+      "h": 7.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "jho0eae",
+      "kind": "rect",
+      "x": 96,
+      "y": 32.5,
+      "w": 3,
+      "h": 11.5,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_src": "8cbpywv"
+     },
+     {
+      "id": "o9ozh1y",
+      "kind": "rect",
+      "x": 87,
+      "y": 32.5,
+      "w": 3,
+      "h": 7.5,
+      "color": "#2b2b2b",
+      "mirror": true,
       "_src": "8cbpywv"
      }
     ],
@@ -615271,10 +615346,10 @@
    },
    "guideId": "telfv37",
    "stats": {
-    "speed": 2,
-    "agility": 1,
-    "intelligence": 3,
-    "strength": 2,
+    "speed": 3,
+    "agility": 4,
+    "intelligence": 1,
+    "strength": 5,
     "hp": 5
    },
    "variants": {
@@ -615288,36 +615363,12 @@
     "telfv37": {
      "front": [
       {
-       "id": "6p3ptcj",
-       "kind": "rect",
-       "x": 75.5,
-       "y": 27.5,
-       "w": 50,
-       "h": 14.5,
-       "color": "#2b2b2b",
-       "mirror": false,
-       "hideIfHat": true,
-       "_src": "8cbpywv"
-      },
-      {
-       "id": "r16gbwi",
-       "kind": "rect",
-       "x": 70.5,
-       "y": 30,
-       "w": 59,
-       "h": 8,
-       "color": "#2b2b2b",
-       "mirror": false,
-       "hideIfHat": true,
-       "_src": "8cbpywv"
-      },
-      {
        "id": "jpv3cr5",
        "kind": "rect",
-       "x": 72,
-       "y": 36,
-       "w": 6,
-       "h": 12,
+       "x": 73,
+       "y": 33,
+       "w": 3,
+       "h": 11.5,
        "color": "#2b2b2b",
        "mirror": true,
        "_src": "8cbpywv"
@@ -615426,6 +615477,105 @@
         "bright": 1
        },
        "outline": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "de5yj0z",
+       "kind": "rect",
+       "x": 75,
+       "y": 33.5,
+       "w": 3,
+       "h": 7.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "93ojo68",
+       "kind": "rect",
+       "x": 77,
+       "y": 33.5,
+       "w": 3,
+       "h": 7.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "pyjgscb",
+       "kind": "rect",
+       "x": 71,
+       "y": 33.5,
+       "w": 3,
+       "h": 7.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "105k5bu",
+       "kind": "rect",
+       "x": 79.5,
+       "y": 33.5,
+       "w": 3,
+       "h": 7.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "ikd74ru",
+       "kind": "rect",
+       "x": 80.5,
+       "y": 32.5,
+       "w": 3,
+       "h": 7.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "zjz45eu",
+       "kind": "rect",
+       "x": 82,
+       "y": 33.5,
+       "w": 20,
+       "h": 8.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "ntcagi1",
+       "kind": "rect",
+       "x": 92.5,
+       "y": 35.5,
+       "w": 3,
+       "h": 7.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "jho0eae",
+       "kind": "rect",
+       "x": 96,
+       "y": 32.5,
+       "w": 3,
+       "h": 11.5,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_src": "8cbpywv"
+      },
+      {
+       "id": "o9ozh1y",
+       "kind": "rect",
+       "x": 87,
+       "y": 32.5,
+       "w": 3,
+       "h": 7.5,
+       "color": "#2b2b2b",
+       "mirror": true,
        "_src": "8cbpywv"
       }
      ],
@@ -615849,8 +615999,9 @@
    "confirmedFits": [
     "telfv37"
    ],
-   "savedAt": 1795741824378,
-   "tone": "#cea888"
+   "savedAt": 1795741989516,
+   "tone": "#543c27",
+   "editedFrom": 1795741956194
   },
   {
    "id": "cvrbkr3",
