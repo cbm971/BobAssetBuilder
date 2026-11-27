@@ -18441,6 +18441,43 @@ describe("🔴 Brimstone laser (chargeLaser) + Brimstone Demon & Brimstone Launc
     expect(body.w).toBe(60);
   });
 
+  test("a Brimstone beam floor-locks onto something short on your floor, too far under the barrel for the cone", () => {
+    const shoulder = { x: 100, y: 300 }, reach = 90;
+    const muzzleAt = (rel) => { const a = rel * Math.PI / 180; return { x: shoulder.x + reach * Math.cos(a), y: shoulder.y + reach * Math.sin(a) }; };
+    const cat = { x: 230, y: 380, w: 100, h: 80 };                     // feet on your floor (groundY 460), middle 38+ degrees down
+    const m0 = muzzleAt(0);
+    expect(aimAssistAngle({ sx: m0.x, sy: m0.y, groundY: 460, rangePx: 900, face: 1, aimDeg: 0, targets: [cat], flat: true, muzzleAt })).toBeNull(); // no floor lock asked for: the cone alone misses it
+    const r = aimAssistAngle({ sx: m0.x, sy: m0.y, groundY: 460, rangePx: 900, face: 1, aimDeg: 0, targets: [cat], flat: true, muzzleAt, floorLock: true, bodyX: 100 });
+    expect(r).not.toBeNull();
+    expect(r.deg).toBeGreaterThan(22);
+    const cx = cat.x + cat.w / 2, cy = cat.y + cat.h / 2;
+    expect(Math.abs(r.spawn.y + Math.tan(r.deg * Math.PI / 180) * (cx - r.spawn.x) - cy)).toBeLessThan(1); // through its middle, from the turned barrel
+    expect(aimAssistAngle({ sx: m0.x, sy: m0.y, groundY: 460, rangePx: 900, face: 1, aimDeg: 0, targets: [cat], flat: true, muzzleAt, floorLock: true, bodyX: 100, clear: (x, y) => x > 200 && y > 330 })).toBeNull(); // cover still wins
+  });
+
+  test("a Brimstone beam is solved from the barrel at its tilt, so it goes through the middle of the body, both ways", () => {
+    // The arm turns about a shoulder at (100, 300); the barrel is 70 px out along it (face 1) or back (face -1).
+    const shoulder = { x: 100, y: 300 }, reach = 70;
+    const muzzleFor = (face, aimDeg) => (rel) => { const a = (aimDeg + rel) * Math.PI / 180; return { x: shoulder.x + face * reach * Math.cos(a), y: shoulder.y + reach * Math.sin(a) }; };
+    const throughMiddle = (r, t, face) => { const cx = t.x + t.w / 2, cy = t.y + t.h / 2; return r.spawn.y + Math.tan(r.deg * Math.PI / 180) * (cx - r.spawn.x) * face - cy; };
+    for (const face of [1, -1]) {
+      for (const t of [
+        { x: 100 + face * 400 - 30, y: 150, w: 60, h: 130 },   // standing on a ledge above
+        { x: 100 + face * 250 - 30, y: 330, w: 60, h: 80 },    // crouched, lower than the barrel
+        { x: 100 + face * 600 - 30, y: 260, w: 60, h: 130 },   // far, about level
+      ]) {
+        const m0 = muzzleFor(face, 0)(0);
+        const r = aimAssistAngle({ sx: m0.x, sy: m0.y, groundY: 460, rangePx: 900, face, aimDeg: 0, targets: [t], flat: true, muzzleAt: muzzleFor(face, 0) });
+        expect(r).not.toBeNull();
+        expect(Math.abs(throughMiddle(r, t, face))).toBeLessThan(1);   // the beam from where the barrel ends up crosses the body's middle
+        // the old answer (solved from the level barrel, fired from the tilted one) missed the middle by reach x sin(tilt)
+        const old = aimAssistAngle({ sx: m0.x, sy: m0.y, groundY: 460, rangePx: 900, face, aimDeg: 0, targets: [t], flat: true });
+        const oldTip = muzzleFor(face, 0)(old.deg);
+        if (Math.abs(old.deg) > 3) expect(Math.abs(throughMiddle({ deg: old.deg, spawn: oldTip }, t, face))).toBeGreaterThan(2);
+      }
+    }
+  });
+
   test("brimstoneBeamPath flies straight normally, stops at walls, and worms through targets under Homing", () => {
     const straight = brimstoneBeamPath({ sx: 100, sy: 200, aimRad: 0, rangePx: 300, cellPx: 30, homing: false });
     expect(straight.hitWall).toBe(false);

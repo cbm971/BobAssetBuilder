@@ -925,6 +925,11 @@ plus traps it does not cover:
 - **The aim assist's floor lock is for a STANDING player** (`playerFloorLocks`). Climbing, your feet are
   in the air, so a unit on the ground just under them counted as "on your floor" and the shot swung 85°
   down at it, arm and all: "arms go the other way" on a power line, only on the side the unit stood.
+- **A 🔴 Brimstone beam is aimed from the barrel it leaves** (2026-11-26, "goes for headshots and aims too high"). It
+  fires on RELEASE, when Fire is up and `p.aiming` reads false, so the fire site aims as if aiming (`aimingShot`); read off
+  the lowered arm, the lock-on was solved from the hip and the beam from the raised barrel crossed a body at the top of
+  its box and flew over a crouched one. A flat lock-on is re-solved from the barrel at its tilt (`settleFlat`, player and
+  units alike), and a beam gets the floor lock too (a cat a few cells out sits 38° under the barrel).
 - **The arm points where the shot goes.** ↑ alone is -90 off level everywhere the drawn Aim-up pose
   is not shown (walking, ladder, plane, push-off); `aimArmOffsetDeg(-1)` must equal `aimAngleDeg(-1)`.
 - **A 🚶 plane is a floor to the render** (`airborne` excludes `p.topdown`). The loop keeps

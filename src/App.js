@@ -3620,6 +3620,26 @@ export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets
   // each call — remember each tilt's barrel tip for the length of this one shot.
   const tips = new Map();
   const muzzleMemo = muzzleAt ? (tilt) => { if (!tips.has(tilt)) tips.set(tilt, muzzleAt(tilt)); return tips.get(tilt); } : null;
+  // A beam's line, re-solved from the barrel where the tilt puts it (the arm turns about the shoulder) until
+  // it settles: { deg, m (that barrel tip), mdx (how far ahead of it the middle is) }, or null with no barrel.
+  const settleFlat = (deg0, cx, cy, dir, aimDeg, maxDev) => {
+    // g(deg): how far the line from the barrel AT deg is turned off deg itself; its root is the answer. Secant
+    // steps from the level-barrel guess (a plain re-solve crawls in when the barrel swings toward a close body).
+    const g = (d) => { const mi = muzzleMemo(d - aimDeg), di = mi ? (cx - mi.x) * dir : 0; return mi && di > 1 ? Math.atan2(cy - mi.y, di) * 180 / Math.PI - d : null; };
+    let a = deg0, ga = g(a);
+    if (ga === null) return null;
+    let b = deg0 + ga, gb = g(b), deg = b;
+    for (let i = 0; i < 12 && gb !== null && Math.abs(gb) > 0.02; i++) {
+      const nx = Math.abs(gb - ga) > 1e-9 ? b - gb * (b - a) / (gb - ga) : b + gb;
+      a = b; ga = gb; b = Math.max(-89, Math.min(89, nx)); gb = g(b);
+    }
+    deg = gb === null ? a : b;
+    const m = muzzleMemo(deg - aimDeg), mdx = m ? (cx - m.x) * dir : 0;
+    if (Math.abs(deg - aimDeg) > maxDev) deg = aimDeg + Math.sign(deg - aimDeg) * maxDev;
+    const fm = muzzleMemo(deg - aimDeg);
+    if (!fm || !((cx - fm.x) * dir > 1)) return m ? { deg, m, mdx } : null;
+    return { deg, m: fm, mdx: (cx - fm.x) * dir };
+  };
   let best = null;
   for (const t of targets || []) {
     if (!t || !(t.w > 0) || !(t.h > 0)) continue;
@@ -3638,7 +3658,16 @@ export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets
           const m = t.h * AIM_ASSIST_TARGET_MARGIN;
           if (!(y === null || y < t.y + m || y > t.y + t.h - m)) deg = edge;
         }
-        if (deg !== null && clear && !(flat ? flatPathClear(sx, sy, deg, dir, dx, clear, step) : shotPathClear(sx, sy, groundY, rangePx, deg, dir, dx, clear, step))) deg = null;
+        // A beam leaves the barrel where the arm is turned TO, and the arm turns about the shoulder, so the
+        // barrel moves with the tilt. Solved from the level barrel, the beam ran parallel to the line it was
+        // solved on, off it by the barrel's reach × sin(tilt): high on a body above you, low on one below.
+        // Re-solve from the barrel at the tilt until it settles (two or three passes), and fire from there.
+        let fx = sx, fy = sy, fdx = dx;
+        if (flat && deg !== null && muzzleAt && deg === want) {
+          const st = settleFlat(deg, cx, cy, dir, aimDeg, coneDeg);
+          if (st) { deg = st.deg; fx = st.m.x; fy = st.m.y; fdx = st.mdx; spawn = { x: st.m.x, y: st.m.y }; }
+        }
+        if (deg !== null && clear && !(flat ? flatPathClear(fx, fy, deg, dir, fdx, clear, step) : shotPathClear(sx, sy, groundY, rangePx, deg, dir, dx, clear, step))) { deg = null; spawn = null; }
       }
     }
     // In front of the BODY (dist), within the gun's reach from its BARREL (dx) — the range is how
@@ -3647,6 +3676,14 @@ export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets
         && Math.abs((t.y + t.h) - groundY) <= AIM_ASSIST_FLOOR_TOL_CELLS * cellPx) {
       const fl = floorLockShot({ t, sx, sy, groundY, rangePx, dir, aimDeg, coneDeg, clear, step, muzzleAt: muzzleMemo });
       if (fl) { deg = fl.deg; spawn = fl.spawn; }
+    }
+    // 🔴 The floor lock for a BEAM: something short on your own floor, too far under the barrel for the cone (a
+    // cat or a dog a few cells out, 38° under a Brimstone). A round gets floorLockShot; a beam does not fall, so
+    // it is the straight line from the barrel, turned down, to the body's middle, as steep as the gun goes.
+    if (deg === null && floorLock && flat && muzzleAt && aimDeg >= 0 && dist > 0 && dx <= rangePx && cy > sy
+        && Math.abs((t.y + t.h) - groundY) <= AIM_ASSIST_FLOOR_TOL_CELLS * cellPx) {
+      const st = settleFlat(Math.atan2(cy - sy, Math.max(1, dx)) * 180 / Math.PI, cx, cy, dir, aimDeg, AIM_ASSIST_FLOOR_MAX_DEG - aimDeg);
+      if (st && (!clear || flatPathClear(st.m.x, st.m.y, st.deg, dir, st.mdx, clear, step))) { deg = st.deg; spawn = { x: st.m.x, y: st.m.y }; }
     }
     if (deg === null) continue;
     const dev = Math.abs(deg - aimDeg);
@@ -21812,7 +21849,10 @@ export default function AssetStudio({ game = false } = {}) {
             const dir = eMuzzle0 ? (ep.face || 1) : (Math.sign(tgtAimCX - sx) || ep.face || 1);
             const lineDeg = Math.atan2(tgtAimCY - sy, Math.abs(tgtAimCX - sx)) * 180 / Math.PI;
             const eLaser = isChargeLaser(ew);
-            const eAssist = isBoomerang(ew) ? null : aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe, flat: eLaser });
+            // A beam is solved from the barrel at the tilt it ends up at (muzzleAt), as yours is: from the level
+            // barrel it ran high over a body above it and low under one below (abilities work both ways).
+            const eMuzzleAt = eLaser && eMuzzle0 ? (rel) => enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, lineDeg + rel) : null;
+            const eAssist = isBoomerang(ew) ? null : aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe, flat: eLaser, muzzleAt: eMuzzleAt });
             const shotDeg = eAssist ? eAssist.deg : lineDeg;
             const shotRad = shotDeg * Math.PI / 180;
             const vx = dir * Math.cos(shotRad) * spd, vy = Math.sin(shotRad) * spd;
@@ -22124,7 +22164,13 @@ export default function AssetStudio({ game = false } = {}) {
           // A closure rather than straight-line code because the aim assist below can bend the
           // arm (tiltDeg) after the first answer, and the barrel has to be re-read at the bent
           // angle so the bullet still leaves the gun and not a spot a few px beside it.
-          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
+          // 🔴 A Brimstone fires on RELEASE, so on this frame Fire is up and p.aiming already reads false: the
+          // barrel was read off the lowered rest arm (hip height) while the beam itself leaves the raised one
+          // (liveBeamAnchorOf). The lock-on was solved from the hip, so a level shot tilted UP onto the body and
+          // the beam from the raised barrel went over it, or clipped the head (Blake, 2026-11-26: "Brimstone
+          // launcher misses. It goes for headshots and aims too high"). Released, it is still aimed.
+          const aimingShot = p.aiming || laserReleaseFire;
+          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: aimingShot, aimDir, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
           // The arm the render holds the gun in (heldArmOf): the twin while the sprite is mirrored, read
           // off the baked pose, where the twin is its own piece.
           const heldMirM = playerSpriteMirrored(basePlayerAsset, p.face);
@@ -22138,7 +22184,7 @@ export default function AssetStudio({ game = false } = {}) {
             // Matches the renderer's own aim branch: the arm is SET to a horizontal, extended
             // angle plus the aim tilt — except in the dedicated Aim-up pose, which is drawn pointing
             // up. Crouch DOES extend now, so a ducked shot leaves the barrel instead of thin air.
-            const aimingNow = p.aiming && angleNow !== "up";
+            const aimingNow = aimingShot && angleNow !== "up";
             // HANGING (bars / a cliff ledge) or pushing off a climb with no aim up: the renderer SETS
             // the gun arm straight up to the grip (armClimbAbs) or half way down (armPushOffAbs). The
             // barrel has to be read off THAT arm. Read off the arm as drawn at rest, the rifle hangs
