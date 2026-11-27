@@ -6380,3 +6380,37 @@ floating trees etc".
 - **Ladder-top trap:** stepping off the L2 ladder top onto A3 carried BoB about 4 cols while still a
   row high, and his head caught the vine line starting 6 cols away. The vine line now starts 8 cols
   past the ladder at row 8 (A3's deck is row 16, so standing under it does not grab).
+
+## LIQUOR STORE 2, A ROBBERY IN PROGRESS (2026-11-27)
+
+His ask: "make a Liquor store 2 that is like a robbery in progress, if you talk to the robber it leads
+to combat, have the robber force dialogue when you come near then when you talk to the store owner he
+thanks you for fighting off the robber and gives you money then let's you shop but the part where he
+gives you money is flagged one time".
+
+- **The room** is `lqroom2` "Liquor Store 2", roomTag "Liquor Store", Liquor Store 1 (`lqroom1`) cell for
+  cell, so M16's door now picks either. The Shop Keeper `vmcrl51` stands where he does in Store 1 on tree
+  `dlgliq2o`; the robber is his TE6 `l0l7smo` (the all-black jacket; a Trailer tag roll can give the
+  Agent, the Blue Football or Nixon) at 15,21 facing the keeper, Seek, Bobs Gun `wcwrkni`, tree
+  `dlgliq2r`. Mess: new props Broken Bottles `lqbrkn1` (Interior) and Scattered Cash `lqcash1`
+  (Decoration), and his Beer Case Stack twisted 90 degrees on its side.
+- **Four new dialogue pieces, none of which existed:** Talks first, After the fight, One time only on
+  a LINE, and the 💵 Give you money act. The owner's first line is One time only with "Thanks." paying
+  10 and leading to "Need a drink?" (shop "Drink", as in Store 1), so the next talk opens on the shop.
+- **Why After the fight exists:** with only Talks first, you could walk round the robber (talk reach
+  is 1.6 rows deep on a plane), have the owner thank you for a fight that had not happened, and pocket
+  the money. And `ep.talked` was the wrong "he has spoken": it is set when a talk OPENS, so Esc out of
+  the robber's threat and the owner opened up. `ep.talkDone` is set only by an ending option.
+- **Two prompt bugs found driving it.** (1) The forced opener first ran before the prompt update in
+  the same frame: openTalk cleared the prompt, the update set it again, and "Talk to Robber" hung over
+  his corpse after the fight. It now runs after. (2) Pre-existing: a new play loop starts its
+  `lastTalkSig` at "" but never cleared the prompt state, so Stop beside the keeper then Playtest
+  showed "Talk to The Shop Keeper" at the door with nobody near. The loop now clears it on start.
+- **Driven live** (dev server, god mode): the robber talked at frame 9 of walking up with no E; beside
+  the keeper with the robber unheard, no prompt and E did nothing; "It is now." turned him hostile; he
+  died in ~4 s; the keeper prompt appeared, wallet 0 then 10, "Need a drink?", the shop opened; a
+  second talk opened on "Need a drink?" with the wallet still 10 and `saidOnce` ["nown1"].
+- **Harness traps:** editing a file under `public/` reloads the dev page (my driver lived there). A
+  drive longer than the tool's 45 s must run in the page and be polled. A hidden pane clamps
+  setTimeout/setInterval to 1 s, so the driver's waits and the rAF shim both run on MessageChannel.
+  Emoji in App.js comments count as UI symbols (symbols.test.js): "☑" failed it.

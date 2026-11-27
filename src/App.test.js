@@ -815,6 +815,11 @@ import {
   unitCenterX,
   enemyLookHP,
   dialogueIsOnce,
+  dialogueTalksFirst,
+  dialogueAfterFight,
+  dialogueEntryNode,
+  talkWaitsOnFight,
+  AFTER_FIGHT_CELLS,
 } from "./App";
 import {
   HEAD_STOMP_MIN_VY,
@@ -18946,5 +18951,91 @@ describe("🔪 Backstab (WEAPON_ABILITIES.backstab) + Hockey Stick & Iron Dagger
     expect(daggerDps).toBeLessThan(dpsAt5(crowbar));
     expect(daggerDps).toBeLessThan(dpsAt5(stick));
     expect(daggerDps).toBeLessThan(dpsAt5(machete));
+  });
+});
+
+/* 🏪 THE LIQUOR STORE 2 ROBBERY (Blake, 2026-11-27): "have the robber force dialogue when you come
+   near", talking to him "leads to combat", then the owner "thanks you for fighting off the robber and
+   gives you money then lets you shop but the part where he gives you money is flagged one time".
+   Four authoring pieces: Talks first and After the fight on a tree, One time only on a LINE,
+   and the 💵 Give you money act. */
+describe("the robbery dialogue pieces", () => {
+  const owner = () => ({
+    id: "own", name: "Owner", start: "nThanks", afterFight: true,
+    nodes: {
+      nThanks: { id: "nThanks", speaker: "Owner", text: "You ran him off. Take this.", once: true,
+        choices: [{ id: "c1", text: "Thanks.", to: "nShop", act: "money", tone: "", shopTag: "", money: 10 }] },
+      nShop: { id: "nShop", speaker: "Owner", text: "Need anything?",
+        choices: [{ id: "c2", text: "Show me.", to: "", act: "shop", tone: "", shopTag: "Drink" }, { id: "c3", text: "No.", to: "", act: "", tone: "", shopTag: "" }] },
+    },
+  });
+
+  test("every new box survives a save and a reload, and an old tree gains no field", () => {
+    const d = migrateDialogue(JSON.parse(JSON.stringify({ ...owner(), talksFirst: true })));
+    expect([dialogueTalksFirst(d), dialogueAfterFight(d), d.nodes.nThanks.once, d.nodes.nThanks.choices[0].money]).toEqual([true, true, true, 10]);
+    const plain = migrateDialogue({ id: "p", name: "P", start: "a", nodes: { a: { id: "a", speaker: "", text: "Hi", choices: [{ id: "c", text: "Bye", to: "", act: "", tone: "", shopTag: "" }] } } });
+    expect("talksFirst" in plain || "afterFight" in plain || "once" in plain.nodes.a || "money" in plain.nodes.a.choices[0]).toBe(false);
+    // Unticked writes nothing either: false/0 come back as no field at all.
+    const off = migrateDialogue({ id: "o", name: "O", talksFirst: false, afterFight: false, start: "a", nodes: { a: { id: "a", text: "x", once: false, choices: [{ id: "c", text: "y", act: "money", money: 0 }] } } });
+    expect("talksFirst" in off || "afterFight" in off || "once" in off.nodes.a || "money" in off.nodes.a.choices[0]).toBe(false);
+  });
+
+  test("the money line is said once; after that the talk opens on the shop line", () => {
+    const d = migrateDialogue(owner());
+    expect(dialogueEntryNode(d, [])).toBe("nThanks");
+    expect(dialogueEntryNode(d, undefined)).toBe("nThanks");
+    expect(dialogueEntryNode(d, ["nThanks"])).toBe("nShop");
+    // A line WITHOUT the box is never skipped, whatever the list says.
+    expect(dialogueEntryNode(d, ["nThanks", "nShop"])).toBe("nShop");
+  });
+
+  test("a spent one-time line with nowhere to go leaves nothing to say", () => {
+    const d = { id: "x", start: "a", nodes: { a: { id: "a", text: "Here.", once: true, choices: [{ id: "c", text: "Ta", to: "", act: "money", money: 5 }] } } };
+    expect(dialogueEntryNode(d, [])).toBe("a");
+    expect(dialogueEntryNode(d, ["a"])).toBe(null);
+    // Two one-time lines pointing at each other, both spent: no endless loop, nothing to say.
+    const ring = { id: "r", start: "a", nodes: { a: { id: "a", once: true, choices: [{ to: "b" }] }, b: { id: "b", once: true, choices: [{ to: "a" }] } } };
+    expect(dialogueEntryNode(ring, ["a", "b"])).toBe(null);
+    // It follows the first option that LEADS somewhere, not just the first option.
+    const skip = { id: "s", start: "a", nodes: { a: { id: "a", once: true, choices: [{ to: "" }, { to: "b" }] }, b: { id: "b", choices: [] } } };
+    expect(dialogueEntryNode(skip, ["a"])).toBe("b");
+    expect(dialogueEntryNode(null, [])).toBe(null);
+  });
+
+  test("picking the money option says how much, and only a money option carries it", () => {
+    const d = migrateDialogue(owner());
+    expect(dialogueAdvance(d, "nThanks", 0)).toEqual({ ok: true, act: "money", nextId: "nShop", shopTag: "", money: 10 });
+    expect("money" in dialogueAdvance(d, "nShop", 0)).toBe(false);
+    expect(DIALOGUE_ACTS.money.moneyParam).toBe(true);
+    expect(dialogueActNeedsPerson("money")).toBe(false); // a sign can hand out money too
+  });
+
+  test("the owner waits while the robber is standing — before he talks and while he fights", () => {
+    const R = AFTER_FIGHT_CELLS * 30;
+    const robber = (o) => ({ side: "neutral", talksFirst: true, talked: false, dead: false, dx: 120, ...o });
+    expect(talkWaitsOnFight([robber()], R)).toBe(true);                                  // not yet heard out: about to start something
+    expect(talkWaitsOnFight([robber({ side: "hostile", talked: true })], R)).toBe(true); // the fight is on
+    expect(talkWaitsOnFight([robber({ side: "hostile", dead: true })], R)).toBe(false);  // dealt with
+    expect(talkWaitsOnFight([robber({ talked: true })], R)).toBe(false);                 // heard out and still calm: no fight
+    expect(talkWaitsOnFight([robber({ side: "hostile", dx: R + 1 })], R)).toBe(false);   // a fight two screens away
+    // A calm NPC can never be hurt (peaceful talkers are untouchable), so it must never hold anyone back.
+    expect(talkWaitsOnFight([{ side: "neutral", talksFirst: false, talked: false, dead: false, dx: 0 }], R)).toBe(false);
+    expect(talkWaitsOnFight([{ side: "friendly", talksFirst: false, talked: false, dead: false, dx: 0 }], R)).toBe(false);
+    expect(talkWaitsOnFight([], R)).toBe(false);
+    expect(talkWaitsOnFight(null, R)).toBe(false);
+  });
+
+  test("a spent money line stays spent through a Load and on a follower", () => {
+    const run = { nodes: { s1: { level: { id: "L1" } } } };
+    const buckets = { s1: { ePos: { "13,26": { home: "s1|13,26", talked: true, talkDone: true, saidOnce: ["nThanks"] } }, eHP: {} } };
+    const world = runWorldToSave(run, buckets, null, {});
+    const mem = applyRunWorld(run, JSON.parse(JSON.stringify(world))).units["s1|13,26"];
+    expect(mem.saidOnce).toEqual(["nThanks"]);
+    expect(mem.talkDone).toBe(true);
+    // A unit that never met a one-time line saves exactly what it always did.
+    const plain = runWorldToSave(run, { s1: { ePos: { "1,1": { home: "s1|1,1", talked: true } }, eHP: {} } }, null, {});
+    expect(Object.keys(plain.nodes[0].units["1,1"]).sort()).toEqual(["peaceful", "talkSpent", "talked", "turned"]);
+    const back = followerFromSave(followerToSave({ enemyTag: "Trailer" }, { friendly: true, saidOnce: ["nThanks"] }, 5, null), () => null);
+    expect(back.ep.saidOnce).toEqual(["nThanks"]);
   });
 });

@@ -5010,6 +5010,13 @@ export const DIALOGUE_ACTS = {
   // be hung on six market stalls. `tagParam` is the same idiom EFFECT_TYPES.tagBoost uses — the
   // act needs one extra piece of authoring (which tag he stocks), so the editor grows one input.
   shop: { label: "🛒 Open their shop", blurb: "They open up shop: three items carrying the tag you type below, picked at random once per Playtest and priced from each one's own 💵 Value. Type the tag (e.g. T1) in the box that appears.", flash: "🛒 {name} opens up shop.", tagParam: true, anyone: true },
+  // 💵 MONEY FOR YOU (Blake, 2026-11-27: the Liquor Store 2 owner "thanks you for fighting off the
+  // robber and gives you money"). Pays straight into the run's wallet, the way a $5 Bill off a
+  // plinth does (consumeEffectNow's money branch). `moneyParam` is the same idea as `tagParam`: the
+  // act needs one number authored on the option, so the editor grows one number box beside it.
+  // It pays EVERY time the option is picked — to pay only once, tick One time only on its LINE
+  // (dialogueEntryNode), which is what his owner does. `anyone`: a sign can hand money out too.
+  money: { label: "💵 Give you money", blurb: "They hand you the amount you type in the box that appears. Tick One time only on the line if it should only ever happen once.", flash: MONEY_CHAR + " {name} · +{n}", moneyParam: true, anyone: true },
 };
 // Which acts a SIGN can carry. Turning somebody hostile needs a person to turn; healing you and
 // opening a shop do not, so a market stall with a price list painted on it is a legal thing to
@@ -5100,7 +5107,11 @@ export const migrateDialogue = (raw) => {
         // SCORE points this option pays (scoreDialogueChoice). Carried only when set, so every
         // tree saved before the field existed comes through byte for byte (see `once` below).
         ...(Number(c.points) > 0 ? { points: Math.round(Number(c.points)) } : {}),
+        // 💵 How much the "Give you money" act pays. Carried only when set, for the same reason.
+        ...(Number(c.money) > 0 ? { money: Math.round(Number(c.money)) } : {}),
       })),
+      // One time only on a LINE (dialogueEntryNode): carried only when ticked, like the tree's.
+      ...(n.once ? { once: true } : {}),
     };
   }
   // A `to` aimed at a node that no longer exists (deleted in the editor, or lost in a bad save)
@@ -5118,6 +5129,10 @@ export const migrateDialogue = (raw) => {
     // the box existed comes through here byte-for-byte what it was, and the save keeper sees no
     // change on a record nobody touched.
     ...(src.once ? { once: true } : {}),
+    // Talks first / After the fight (dialogueTalksFirst / dialogueAfterFight). Carried only when
+    // ticked, the byte-for-byte rule again.
+    ...(src.talksFirst ? { talksFirst: true } : {}),
+    ...(src.afterFight ? { afterFight: true } : {}),
     // 🔊 The sound looped while its lines are said (audio.js talkSeconds), set on the Sounds
     // screen. Carried only when set, for the same byte-for-byte reason as `once` — and carried at
     // all because every load comes through here: dropping it would quietly un-assign the sound
@@ -5136,6 +5151,54 @@ export const migrateDialogue = (raw) => {
 // carries it on its `ep` (so it survives doors and gates, the way `ep.talked` does), a sign in the
 // session's talkSpentSigns; only ▶ Playtest brings either back.
 export const dialogueIsOnce = (d) => !!(d && d.once);
+// TALKS FIRST (Blake, 2026-11-27, Liquor Store 2: "have the robber force dialogue when you come
+// near"). The speaker does not wait for E: the moment you come into talking range (the same box the
+// E prompt uses, TALK_RANGE_CELLS by TALK_RANGE_ROWS) the conversation opens by itself. Once per
+// approach — it fires as you step INTO range, so walking away with Esc and straight back does not
+// re-open it until you have left range first. Until it speaks, such a person is BUSY: it holds its
+// placed facing side-on (the robber on the shop keeper, gun out) instead of standing front-on and
+// turning to watch you walk up, which is what an ordinary talker waiting for E does.
+export const dialogueTalksFirst = (d) => !!(d && d.talksFirst);
+// AFTER THE FIGHT (same day: the owner "thanks you for fighting off the robber"). Nobody can talk
+// to a speaker with this ticked while a fight is on or about to start near them — see
+// talkWaitsOnFight for exactly who counts. Without it you could walk round the robber, have the owner
+// thank you for a fight that has not happened, and pocket the reward first.
+export const dialogueAfterFight = (d) => !!(d && d.afterFight);
+// How near a fight has to be to hold an "After the fight" speaker back, in cells either side. A room
+// is 40 columns, so in a room this is everybody in it; on a street it is the fight you are standing in,
+// not an enemy two screens away.
+export const AFTER_FIGHT_CELLS = 40;
+// Who holds an "After the fight" speaker back: anybody still standing who is fighting you (side
+// "hostile"), or who is about to — a "Talks first" person who has not said their piece yet (the
+// robber, peaceful until he speaks, and untouchable until then). A calm NPC does not count: a
+// peaceful talker cannot be hurt, so counting one would lock the speaker forever. Allies never count.
+// `units` = [{ side, talksFirst, talked, dead, dx }] built by the caller, where the live state is.
+// `talked` means they FINISHED (ep.talkDone, an ending option picked), not just opened (ep.talked):
+// Esc out of the robber's threat and he is still about to start something.
+export const talkWaitsOnFight = (units, rangePx) => (units || []).some((u) => u && !u.dead && Math.abs(u.dx) <= rangePx
+  && (u.side === "hostile" || (u.side === "neutral" && u.talksFirst && !u.talked)));
+// ONE TIME ONLY ON A LINE (same day: "the part where he gives you money is flagged one time").
+// The tree's own box spends the whole conversation; this one spends a single line. A line you have
+// already answered with this person is never said to you again: the next talk with them skips past
+// it, to where its first option leads (the first one that leads anywhere), and so on down. Spent when
+// you PICK one of its options (chooseTalkOption), never on Esc — walking off mid-thanks must not lose
+// you the money you never took. `said` = the line ids this speaker has spent (ep.saidOnce, an array).
+// Returns the line the talk opens on, or null when everything they had to say is spent: then there
+// is nothing left to say, and the E prompt skips them the way it skips a spent "One time only" tree.
+export const dialogueEntryNode = (d, said) => {
+  const nodes = (d && d.nodes) || null;
+  if (!nodes) return null;
+  const spent = (id) => Array.isArray(said) && said.includes(id);
+  let id = d.start;
+  const seen = new Set();
+  while (id && nodes[id] && nodes[id].once && spent(id)) {
+    if (seen.has(id)) return null; // a ring of spent lines leads nowhere new
+    seen.add(id);
+    const on = ((nodes[id].choices || []).find((c) => c && c.to && nodes[c.to]));
+    id = on ? on.to : null;
+  }
+  return id && nodes[id] ? id : null;
+};
 // Display order: the START node first, always, then the rest in insertion order. Which node the
 // talk opens on is the one thing you look for when you open somebody else's tree, so it is not
 // left to wherever it happens to sit in the map.
@@ -5179,7 +5242,8 @@ export const dialogueAdvance = (d, nodeId, i) => {
   const node = d && d.nodes && d.nodes[nodeId];
   const opt = dialogueOptions(node)[i];
   if (!node || !opt) return { ok: false, act: "", nextId: null, shopTag: "" };
-  return { ok: true, act: DIALOGUE_ACTS[opt.act] ? opt.act : "", nextId: (opt.to && d.nodes[opt.to]) ? opt.to : null, shopTag: (opt.shopTag || "").trim() };
+  const money = Number(opt.money) > 0 ? Math.round(Number(opt.money)) : 0; // 💵 the "Give you money" amount, only when set
+  return { ok: true, act: DIALOGUE_ACTS[opt.act] ? opt.act : "", nextId: (opt.to && d.nodes[opt.to]) ? opt.to : null, shopTag: (opt.shopTag || "").trim(), ...(money ? { money } : {}) };
 };
 // Every node the talk can actually get to from the start. The editor flags the rest — an
 // orphaned node is a line you wrote that no player will ever see, and it looks identical to a
@@ -15534,6 +15598,9 @@ export const followerToSave = (spawn, ep, hp, roll) => ({
   home: (ep && ep.home) || null,
   talkSpent: !!(ep && ep.talkSpent),
   talked: !!(ep && ep.talked),
+  // One time only LINES already answered (dialogueEntryNode). Only when there are some, so a save
+  // that never met one reads exactly as before.
+  ...(Array.isArray(ep && ep.saidOnce) && ep.saidOnce.length ? { saidOnce: [...ep.saidOnce] } : {}),
 });
 // ...and back: the ep fields to lay over a fresh unit state, the HP, and the roll with its items
 // found again by id (one deleted since is left out). `findA(id)` → asset or null.
@@ -15544,7 +15611,7 @@ export const followerFromSave = (a, findA) => {
     spawn: JSON.parse(JSON.stringify(a.spawn)),
     hp: typeof a.hp === "number" && a.hp > 0 ? a.hp : undefined,
     gear: g ? { enemyId: g.enemyId || null, items: (g.items || []).map((id) => findA(id)).filter(Boolean) } : undefined,
-    ep: { friendly: true, peaceful: false, turned: null, allyKind: a.kind || null, livesUsed: Math.max(0, Math.round(a.livesUsed || 0)), resurrectedOnce: !!a.raised, allyHpPaid: Array.isArray(a.paid) ? [...a.paid] : [], ...(a.home ? { home: String(a.home) } : {}), talkSpent: !!a.talkSpent, talked: !!a.talked },
+    ep: { friendly: true, peaceful: false, turned: null, allyKind: a.kind || null, livesUsed: Math.max(0, Math.round(a.livesUsed || 0)), resurrectedOnce: !!a.raised, allyHpPaid: Array.isArray(a.paid) ? [...a.paid] : [], ...(a.home ? { home: String(a.home) } : {}), talkSpent: !!a.talkSpent, talked: !!a.talked, ...(Array.isArray(a.saidOnce) && a.saidOnce.length ? { saidOnce: a.saidOnce.map(String) } : {}) },
   };
 };
 /* 🗺️ THE RUN REMEMBERS EVERY LEVEL ACROSS A LOAD (Blake, 2026-11-26: a zoo level, an allied Harembe,
@@ -15572,8 +15639,10 @@ export const unitHomeAt = (parts, k) => {
 };
 // What a load lays back over a unit still standing, or null when nothing has been said to it. A
 // friendly one in your car is not a follower (isFollower) and is not saved as one, so it keeps its side.
+// `saidOnce`: the One time only LINES it has said to you (dialogueEntryNode) — the Liquor Store 2 owner
+// does not pay you for the robber a second time because you quit to the menu and loaded.
 const unitMemOf = (ep) => (ep && (ep.talkSpent || ep.talked || ep.turned || ep.friendly)
-  ? { talkSpent: !!ep.talkSpent, talked: !!ep.talked, turned: ep.turned || null, peaceful: !!ep.peaceful, ...(ep.friendly ? { friendly: true, allyKind: ep.allyKind || null } : {}) }
+  ? { talkSpent: !!ep.talkSpent, talked: !!ep.talked, turned: ep.turned || null, peaceful: !!ep.peaceful, ...(ep.friendly ? { friendly: true, allyKind: ep.allyKind || null } : {}), ...(Array.isArray(ep.saidOnce) && ep.saidOnce.length ? { saidOnce: [...ep.saidOnce] } : {}), ...(ep.talkDone ? { talkDone: true } : {}) }
   : null);
 // The save's memory of the run: what was "carried" in from the save it was loaded from (applyRunWorld),
 // with every level's books now laid over it. "buckets" is roomState; "anims" the scenes played, by
@@ -18019,11 +18088,30 @@ export default function AssetStudio({ game = false } = {}) {
     const node = t.dlg && t.dlg.nodes ? t.dlg.nodes[t.nodeId] : null;
     bobAudio.talk(dialogueSoundId(t.dlg, bobAudio.has), talkSeconds(node && node.text), t.dlg && t.dlg.soundVol); // its slider on the Sounds screen
   };
+  // The One time only LINES this speaker has already said to you (dialogueEntryNode). A person keeps
+  // them on its ep (ep.saidOnce, which rides through doors, gates and saves like ep.talkSpent); a sign
+  // has no ep, so its spent lines go in the same talkSpentSigns set as a spent sign tree, as
+  // "<level>|<cell>#<line>" — saved with the game already, and never equal to a whole-sign entry.
+  const saidOnceOf = (kind, key, lvKey) => {
+    if (kind === "npc") { const ep = enemyPos.current[key]; return (ep && Array.isArray(ep.saidOnce)) ? ep.saidOnce : []; }
+    const pre = (lvKey || "") + "|" + key + "#", out = [];
+    for (const s of talkSpentSigns.current || []) if (s.startsWith(pre)) out.push(s.slice(pre.length));
+    return out;
+  };
+  const spendLine = (t, nodeId) => {
+    if (t.kind === "npc") { const ep = enemyPos.current[t.key]; if (ep && !(ep.saidOnce || []).includes(nodeId)) ep.saidOnce = [...(ep.saidOnce || []), nodeId]; }
+    else talkSpentSigns.current.add((t.lvKey || "") + "|" + t.key + "#" + nodeId);
+  };
   const openTalk = (t) => {
     const dlg = resolveTalkTree(t);
     if (!dlg) { flash(t.kind === "sign" ? "💬 This sign has nothing written on it." : "💬 They have nothing to say — their dialogue was deleted."); return; }
     const who = t.name || (t.kind === "sign" ? "Sign" : "");
-    const next = { dlg, nodeId: dlg.start, kind: t.kind, key: t.key, lvKey: t.lvKey || "", name: who, picked: null, ...talkAnchorFor(t) };
+    // Opens on the first line not yet spent (dialogueEntryNode), which is the start for any tree with
+    // no One time only line in it. Nothing left (the prompt skips such a speaker, so this is only a
+    // backstop): say nothing rather than replay a spent line.
+    const entry = dialogueEntryNode(dlg, saidOnceOf(t.kind, t.key, t.lvKey));
+    if (!entry) return;
+    const next = { dlg, nodeId: entry, kind: t.kind, key: t.key, lvKey: t.lvKey || "", name: who, picked: null, ...talkAnchorFor(t) };
     // The ref is set HERE, synchronously, as well as by the effect that mirrors `talk`. The loop
     // is mid-frame when this runs and checks the ref at the top of the NEXT one; waiting for React
     // to commit would let one more frame of physics through underneath the text.
@@ -18099,6 +18187,14 @@ export default function AssetStudio({ game = false } = {}) {
       const tag = (step && step.shopTag) || "";
       if (!tag) { flash("🛒 That shop option has no tag typed on it — open the 💬 Dialogue editor and say which tag it sells (e.g. T1)."); return; }
       openShop(tag, name, t.key);
+    } else if (act === "money") {
+      // 💵 Into the run's wallet, the way a bill off a plinth goes (setWallet also makes the HUD
+      // count jump). An option with no amount typed says so, like a shop with no tag.
+      const n = (step && step.money) || 0;
+      if (!n) { flash(MONEY_CHAR + " That money option has no amount typed on it — open the 💬 Dialogue editor and type how much."); return; }
+      setWallet(wallet.current + n);
+      flash(DIALOGUE_ACTS.money.flash.replace("{name}", name).replace("{n}", String(n)) + " (" + wallet.current + " total)"); // the same words a bill off a plinth flashes
+      return;
     } else if (ep) {
       // A sign cannot turn anybody hostile — there is nobody there. Said out loud rather than
       // silently ignored, because a choice that visibly does nothing reads as a broken feature.
@@ -18435,10 +18531,17 @@ export default function AssetStudio({ game = false } = {}) {
     const opt = dialogueOptions(t.dlg.nodes[t.nodeId])[i];
     const commit = () => {
       clearTalkTimer();
+      // A One time only line is spent the moment you answer it (dialogueEntryNode) — before its act,
+      // so the 💵 it pays and the line itself go together.
+      if (t.dlg.nodes[t.nodeId] && t.dlg.nodes[t.nodeId].once) spendLine(t, t.nodeId);
       if (opt && opt.points) scoreDialogueChoice(scoreRef.current, (t.dlg.id || "") + "|" + (opt.id || t.nodeId + ":" + i), opt.points);
       applyTalkAct(step.act, t, step);
       if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); talkSoundFor(next); }
-      else closeTalk();
+      else {
+        // Heard them OUT (an ending option, not Esc): what talkWaitsOnFight reads as "said their piece".
+        if (t.kind === "npc") { const ep = enemyPos.current[t.key]; if (ep) ep.talkDone = true; }
+        closeTalk();
+      }
     };
     // EVERY PICK FLASHES. A tagged option lights green or red and holds long enough to read it;
     // an untagged one blinks the panel's own blue for a fraction of that. The first pass committed
@@ -19304,6 +19407,10 @@ export default function AssetStudio({ game = false } = {}) {
     let lastPedestalKey = null;
     let lastDoorKey = null;
     let lastTalkSig = "";   // "npc:12,40" / "sign:8,3" / "" — so the 💬 prompt only hits React state when it CHANGES
+    // ...and the prompt starts EMPTY with it. A loop starting with "" while the state still held the last
+    // run's prompt never cleared it: ■ Stop beside the Liquor Store 2 keeper, ▶ Playtest again, and
+    // "Talk to The Shop Keeper" hung over the door with nobody in reach (2026-11-27).
+    setTalkPrompt(null);
     let lastAnimSig = "";   // the 🎬 "Walk up + E" stage you stand in ("" none), on the same rule
     const walkInDx = {};    // 🎬 "Walk in" stages you are inside: how far (px) you were from the actor's spot last frame (animWalkedIn)
     // 🎬 ONE FRAME OF A CUTSCENE (the loop calls this and returns: the world is paused under it). The
@@ -21126,7 +21233,8 @@ export default function AssetStudio({ game = false } = {}) {
           // NEVER ep.face directly, or this becomes the third writer in the loop and the sprite
           // strobes between both orientations at 60fps, which is the exact bug holdFacing exists
           // to prevent.
-          if (!stunned && !acts && talkDialogueId(spawn) && !ep.talked) {
+          // A Talks first person is busy until it speaks (dialogueTalksFirst): it keeps its placed facing.
+          if (!stunned && !acts && talkDialogueId(spawn) && !ep.talked && !dialogueTalksFirst((dlgLibRef.current || []).find((x) => x && x.id === talkDialogueId(spawn)))) {
             const dxTalk = (p.x + pw / 2) - eCenterXNow, dyTalk = Math.abs((p.y + ph / 2) - (ep.y + standEph / 2));
             if (Math.abs(dxTalk) <= TALK_NOTICE_CELLS * CW && dyTalk <= TALK_NOTICE_ROWS * CH) wantFace = enemyFaceToward(dxTalk, ep.face);
           }
@@ -24095,13 +24203,47 @@ export default function AssetStudio({ game = false } = {}) {
       // happens to drop its rifle must not stop you picking the rifle up. Nothing above changes.
       //
       // A sign beats an NPC because you are standing ON a sign and merely NEXT TO a person.
+      // WHO CAN BE TALKED TO, one unit at a time: the E prompt's candidate list and the Talks first
+      // opener both ask here, so the two can never disagree about who is talkable. Null = not now.
+      const dlgById = (id) => (dlgLibRef.current || []).find((x) => x && x.id === id);
+      const talkableUnit = (lvT, k2) => {
+        const sp2 = lvT.enemies[k2]; const dId = talkDialogueId(sp2); if (!dId) return null;
+        const ep2 = enemyPos.current[k2]; if (!ep2) return null;
+        if (ep2.talkSpent) return null; // their "One time only" conversation has been had (closeTalk)
+        if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) return null; // no chatting with a corpse
+        const ea2 = unitAssetAt(k2, sp2); if (!ea2) return null;
+        if (unitSide(ea2, ep2) === "hostile") return null;
+        const dlg2 = dlgById(dId);
+        // Every line they had is a spent One time only line: nothing left to say (dialogueEntryNode).
+        if (dlg2 && !dialogueEntryNode(dlg2, ep2.saidOnce)) return null;
+        // After the fight: not while somebody near them is fighting you, or about to (talkWaitsOnFight).
+        if (dialogueAfterFight(dlg2)) {
+          const others = [];
+          for (const k3 of Object.keys(lvT.enemies)) {
+            if (k3 === k2) continue;
+            const ep3 = enemyPos.current[k3]; if (!ep3) continue;
+            const ea3 = unitAssetAt(k3, lvT.enemies[k3]); if (!ea3) continue;
+            const d3 = talkDialogueId(lvT.enemies[k3]);
+            others.push({ side: unitSide(ea3, ep3), talksFirst: !!d3 && dialogueTalksFirst(dlgById(d3)), talked: !!ep3.talkDone, dead: enemyHP.current[k3] !== undefined && enemyHP.current[k3] <= 0, dx: ep3.x - ep2.x });
+          }
+          if (talkWaitsOnFight(others, AFTER_FIGHT_CELLS * CW)) return null;
+        }
+        const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
+        return { key: k2, dialogueId: dId, name: talkerName(dlg2), cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 };
+      };
       let curTalk = null;
       if (!curDoorKey && !curPedKey && !curDropKey && !p.transitioning && !vehDriven) {
         // A sign whose "One time only" talk is spent is not there any more, as far as E is
         // concerned — skipped rather than matched and refused, so a person standing beside it can
         // still be talked to.
         const talkLvKey = lv.runKey || lv.id || "";
-        const signHit = signOverlapping(lv, p.x, p.y, pw, ph, CW, CH, (sk) => talkSpentSigns.current.has(talkLvKey + "|" + sk));
+        // ...and so is one whose every line is a spent One time only line (dialogueEntryNode null).
+        const signSaidAll = (sk) => {
+          const sId = talkDialogueId(lv.markers && lv.markers[sk]); if (!sId) return false;
+          const sd = (dlgLibRef.current || []).find((x) => x && x.id === sId);
+          return !!sd && !dialogueEntryNode(sd, saidOnceOf("sign", sk, talkLvKey));
+        };
+        const signHit = signOverlapping(lv, p.x, p.y, pw, ph, CW, CH, (sk) => talkSpentSigns.current.has(talkLvKey + "|" + sk) || signSaidAll(sk));
         if (signHit) {
           curTalk = { kind: "sign", key: signHit.key, name: "", marker: signHit.marker, lvKey: talkLvKey };
         } else {
@@ -24111,15 +24253,8 @@ export default function AssetStudio({ game = false } = {}) {
           // strobing over a running fight.
           const cands = [];
           for (const k2 of Object.keys(lv.enemies || {})) {
-            const sp2 = lv.enemies[k2]; const dId = talkDialogueId(sp2); if (!dId) continue;
-            const ep2 = enemyPos.current[k2]; if (!ep2) continue;
-            if (ep2.talkSpent) continue; // their "One time only" conversation has been had (closeTalk)
-            if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // no chatting with a corpse
-            const ea2 = unitAssetAt(k2, sp2); if (!ea2) continue;
-            if (unitSide(ea2, ep2) === "hostile") continue;
-            const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
-            const dlg2 = (dlgLibRef.current || []).find((x) => x && x.id === dId);
-            cands.push({ key: k2, dialogueId: dId, name: talkerName(dlg2), cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 });
+            const c2 = talkableUnit(lv, k2);
+            if (c2) cands.push(c2);
           }
           const near = nearestTalkable(cands, p.x + pw / 2, p.y + ph / 2, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH);
           if (near) curTalk = { kind: "npc", key: near.key, name: near.name, marker: null, lvKey: talkLvKey };
@@ -24137,6 +24272,31 @@ export default function AssetStudio({ game = false } = {}) {
           // would sit a third of the way across the room from the person it names.
           setTalkPrompt({ kind: curTalk.kind, key: curTalk.key, name: curTalk.name, ...talkAnchorFor(curTalk) });
         }
+      }
+      // TALKS FIRST (dialogueTalksFirst): the robber does not wait for E. The moment you step INTO
+      // the box the E prompt uses, he opens the conversation himself. Edge-triggered on ep.talkNear
+      // (in range this frame, not last frame), so Esc does not trap you in a loop of him re-opening
+      // it while you stand there: step out of range and back in, and he speaks up again. Not gated
+      // on a door, a pedestal or loot under your feet the way E is — he talks over all of that — but
+      // never while a talk, a shop or a cutscene is already up, mid door-walk, dying or at a wheel.
+      // AFTER the prompt update above, on purpose: opening the talk clears the prompt (openTalk), and run
+      // before it, the same frame then set the prompt again and it outlived the talk ("Talk to Robber"
+      // hung over his corpse after he turned hostile).
+      if (lv.enemies && !talkRef.current && !shopRef.current && !cutRef.current && !p.dying && !p.transitioning && !vehDriven) {
+        const pcx = p.x + pw / 2, pcy = p.y + ph / 2;
+        let opener = null;
+        for (const k2 of Object.keys(lv.enemies)) {
+          const sp2 = lv.enemies[k2], dId = talkDialogueId(sp2); if (!dId) continue;
+          const ep2 = enemyPos.current[k2]; if (!ep2) continue;
+          const dlg2 = (dlgLibRef.current || []).find((x) => x && x.id === dId);
+          if (!dialogueTalksFirst(dlg2)) continue;
+          const c2 = talkableUnit(lv, k2);
+          const inReach = !!(c2 && Math.abs(c2.cx - pcx) <= TALK_RANGE_CELLS * CW && Math.abs(c2.cy - pcy) <= TALK_RANGE_ROWS * CH);
+          const was = !!ep2.talkNear;
+          ep2.talkNear = inReach;
+          if (inReach && !was && !opener) opener = { kind: "npc", key: k2, name: c2.name, marker: null, lvKey: lv.runKey || lv.id || "" };
+        }
+        if (opener) openTalk(opener);
       }
       // 🎬 A "Walk up + E" ANIMATION. Its first state is the scenery it loops while you walk up (the
       // copter hovering). Walking into its stage plays the rest of its scenery (animReachAt: the
@@ -31218,6 +31378,10 @@ export default function AssetStudio({ game = false } = {}) {
           {/* A property of the whole conversation, like its name, so it sits beside the name.
               Off DELETES the field rather than writing false — see migrateDialogue. */}
           <label className="chk" style={{ marginTop: 0, whiteSpace: "nowrap" }} title="Once this conversation ends, nobody using it can be talked to again until ▶ Playtest"><input type="checkbox" checked={dialogueIsOnce(d)} onChange={(e) => { const next = { ...d, once: true }; if (!e.target.checked) delete next.once; put(next); }} /> One time only</label>
+          {/* Talks first / After the fight (2026-11-27, the Liquor Store 2 robbery): whole-tree
+              properties like One time only, so they sit beside it, and off DELETES the field too. */}
+          <label className="chk" style={{ marginTop: 0, whiteSpace: "nowrap" }} title="They start this conversation themselves the moment you come into talking range"><input type="checkbox" checked={dialogueTalksFirst(d)} onChange={(e) => { const next = { ...d, talksFirst: true }; if (!e.target.checked) delete next.talksFirst; put(next); }} /> Talks first</label>
+          <label className="chk" style={{ marginTop: 0, whiteSpace: "nowrap" }} title="Can't be talked to while anyone nearby is fighting you, or is a Talks first person who hasn't had their say"><input type="checkbox" checked={dialogueAfterFight(d)} onChange={(e) => { const next = { ...d, afterFight: true }; if (!e.target.checked) delete next.afterFight; put(next); }} /> After the fight</label>
           <span className="badge">💬 Dialogue{dirty ? " ·  unsaved" : ""}</span>
           <button className="ltbtn" onClick={() => { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); flash("New blank dialogue"); }}>✚ New</button>
           <button className="ltbtn saveRead" onClick={() => { loadDialogues(); setDlgQ(""); setDlgLoadOpen(true); }}>📂 Load ({dlgLib.length})</button>
@@ -31236,6 +31400,9 @@ export default function AssetStudio({ game = false } = {}) {
                 <div className="ct">
                   <span>#{ni + 1}{isStart ? " ▶ start" : ""}</span>
                   <span className="dlgNodeBtns">
+                    {/* One time only on this LINE (dialogueEntryNode): once answered, the next talk
+                        with that person skips it. Off deletes the field (migrateDialogue). */}
+                    <label className="chk" style={{ marginTop: 0, whiteSpace: "nowrap" }} title="Once you answer this line, that person never says it to you again: next time the talk skips to where its first option leads"><input type="checkbox" checked={!!n.once} onChange={(e) => { const nn = { ...n, once: true }; if (!e.target.checked) delete nn.once; put({ ...d, nodes: { ...d.nodes, [nid]: nn } }); }} /> One time only</label>
                     {!isStart && <button className="ltbtn" onClick={() => put({ ...d, start: nid })} title="Open the conversation on this line instead">▶ Make it the start</button>}
                     {ids.length > 1 && <button className="ltbtn" onClick={() => delNode(nid)} title="Delete this line — anything pointing at it will just end the talk instead">🗑 Delete line</button>}
                   </span>
@@ -31286,6 +31453,14 @@ export default function AssetStudio({ game = false } = {}) {
                         </>
                       );
                     })()}
+                    {/* 💵 How much "Give you money" hands over — shown only while that act is picked,
+                        the same rule as the shop's tag box above. */}
+                    {DIALOGUE_ACTS[c.act] && DIALOGUE_ACTS[c.act].moneyParam && (
+                      <>
+                        <input className="dlgPoints" type="number" min="0" step="1" value={c.money || ""} onChange={(e) => { const v = Math.max(0, Math.round(+e.target.value || 0)); patchChoice(nid, ci, { money: v || undefined }); }} placeholder={MONEY_CHAR} title="How much money they give you" />
+                        {!(c.money > 0) && <span className="hint2">⚠ no amount</span>}
+                      </>
+                    )}
                     <button className="ltbtn" disabled={ci === 0} onClick={() => moveChoice(nid, ci, -1)} title="Move up — this is the number the player presses">⌃</button>
                     <button className="ltbtn" disabled={ci === n.choices.length - 1} onClick={() => moveChoice(nid, ci, 1)} title="Move down">⌄</button>
                     <button className="ltbtn" onClick={() => delChoice(nid, ci)} title="Delete this option">🗑</button>
@@ -33383,8 +33558,12 @@ export default function AssetStudio({ game = false } = {}) {
                   // drawing cannot walk. The 💬 badge (eTalkWaiting) still goes once you have talked.
                   const eTalker = !!(ep && talkDialogueId(U.lv.enemies[k]) && !eUseAtkPose && !ducking);
                   const eTalkWaiting = eTalker && !ep.talked && unitSide(ea, ep) !== "hostile";
+                  // Talks first and not yet spoken: BUSY (the robber with his gun on the shop keeper),
+                  // so Side at its placed facing rather than Front (dialogueTalksFirst). Once it has
+                  // spoken the ordinary rules below take over.
+                  const eTalkBusy = eTalkWaiting && dialogueTalksFirst((dlgLibRef.current || []).find((x) => x && x.id === talkDialogueId(U.lv.enemies[k])));
                   const eCarDodge = ep && ep.carDodge && ep.carDodge.kind !== "jump" ? ep.carDodge.kind : null; // 🚗 stepped back ("bg") or forward ("fg") out of your car's way
-                  const eFrontPose = (eTalkWaiting || (eTalker && ep.talked && unitSide(ea, ep) === "neutral") || (eCarDodge === "bg" && !eUseAtkPose)) && enemyPoseKey(ea, "front") === "front";
+                  const eFrontPose = ((eTalkWaiting && !eTalkBusy) ||(eTalker && ep.talked && unitSide(ea, ep) === "neutral") || (eCarDodge === "bg" && !eUseAtkPose)) && enemyPoseKey(ea, "front") === "front";
                   // 🪜 A unit CLIMBING shows the player's climbing pose (playerPoseKey): its Back on a
                   // ladder or a ledge, Side hanging from bars. Art with no Back drawn falls back as ever.
                   const eClimbBack = !!(ep && ((ep.climbing && ep.climbing !== "bars") || eCarDodge === "fg") && !eUseAtkPose && !eFrontPose) && enemyPoseKey(ea, "back") === "back";

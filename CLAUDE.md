@@ -832,6 +832,15 @@ plus traps it does not cover:
   Food""): "or" (or `,` `/` `|`) sells anything with ANY of them, "and" (or `&` `+`) only what has
   ALL of them, through the pedestal's own matcher (`itemMatchesPedestal`); a single tag such as
   "Craft Services" is still one tag. The box takes 48 characters.
+- **A tree can talk first, wait for the fight, and pay once** (2026-11-27, Liquor Store 2's robbery, his
+  words: the robber "force dialogue when you come near", the owner gives money but "the part where he
+  gives you money is flagged one time"). Tree boxes `talksFirst` (opens itself as you step INTO the E
+  reach, edge-triggered on `ep.talkNear`; Side at its placed facing until it speaks) and `afterFight`
+  (`talkWaitsOnFight`: not while a hostile, or an unheard Talks-first unit, is within `AFTER_FIGHT_CELLS`).
+  A LINE's `once` (`dialogueEntryNode`, spent on answering it, never on Esc, kept in `ep.saidOnce`, saved
+  with the unit). The act `money` pays `choice.money`. All carried only when set. `ep.talkDone` = heard
+  out (an ending option), not `ep.talked` (opened). The forced opener runs AFTER the prompt update, and
+  the loop clears the prompt when it starts, or a stale "Talk to …" outlives the talk or the run.
 - **🎬 Animations (cutscenes)** are assets of type `"anim"` (no new saved kind); the rules are in
   `src/anim.js`, which is the game's like `audio.js`. Built on the 🎬 Animations screen, placed with
   a 🎬 marker whose cell is the stage's BOTTOM-LEFT (`animStageBox`; `flipMarkerLayer` moves it on
