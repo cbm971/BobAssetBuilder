@@ -1,5 +1,5 @@
 {
- "set": "0cf6227883c48fd7",
+ "set": "df35d714c564d377",
  "part": 2,
  "assets": [
   {
@@ -184396,7 +184396,10 @@
    "editedFrom": 1794915849800,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "kcj40n4",
@@ -196161,7 +196164,10 @@
    "boomerang": false,
    "pickupCount": 3,
    "editedFrom": 1793613180314,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "kfqipao",
@@ -205635,7 +205641,10 @@
    "editedFrom": 1793454712895,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "kj6zdxa",
@@ -277600,7 +277609,10 @@
    "soundVol": {
     "hit": 0.2
    },
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "lamaid1",
@@ -307325,7 +307337,10 @@
    "pierce": true,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "ma7adq1",
@@ -318156,7 +318171,10 @@
     "hit": 0.15
    },
    "savedAt": 1795688845600,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "mcqync5",
@@ -326412,7 +326430,10 @@
    "soundWave": true,
    "soundWaveReach": 6,
    "soundWavePush": 2,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "minign1",
@@ -334166,7 +334187,10 @@
     ]
    },
    "savedAt": 1795734518943,
-   "editedFrom": 1795734510312
+   "editedFrom": 1795734510312,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "mmabacs",
@@ -440772,7 +440796,10 @@
     "land": 0.4
    },
    "throwBlast": true,
-   "editedFrom": 1795712246472
+   "editedFrom": 1795712246472,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "mnpian1",
@@ -477935,7 +477962,10 @@
    "editedFrom": 1792333155785,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "mstng65",
@@ -531857,7 +531887,10 @@
    "editedFrom": 1792266563506,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "nhls82t",
@@ -543662,7 +543695,10 @@
    "editedFrom": 1795696910059,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "nstlmp1",
@@ -584093,7 +584129,10 @@
    "boomerang": false,
    "pickupCount": 3,
    "savedAt": 1795312627475,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "phchili",
@@ -641153,7 +641192,10 @@
    },
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "qfexzka",
@@ -685148,7 +685190,10 @@
    "boomerang": false,
    "pickupCount": 3,
    "editedFrom": 1793442347590,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "rkice01",
@@ -701406,7 +701451,10 @@
    "editedFrom": 1792266702289,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "rptcam1",
@@ -750303,7 +750351,10 @@
    "swingSpeed": 1.3,
    "swingSpeedMult": 1.3,
    "editedFrom": 1795269036526,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "shjvbax",
@@ -789503,7 +789554,10 @@
    "editedFrom": 1793454712895,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "slvpnt1",
@@ -875065,7 +875119,10 @@
      }
     ]
    },
-   "savedAt": 1795732041871
+   "savedAt": 1795732041871,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "stland1",
@@ -905006,7 +905063,10 @@
    "editedFrom": 1793454712895,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "t73jzui",
@@ -938587,7 +938647,10 @@
     ]
    },
    "savedAt": 1795734588574,
-   "editedFrom": 1795734561594
+   "editedFrom": 1795734561594,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "tntcot1",
@@ -955989,7 +956052,10 @@
    "editedFrom": 1792267718483,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "trplmp1",
@@ -977899,7 +977965,10 @@
    "editedFrom": 1792279564134,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "u23o5an",
@@ -1019716,7 +1019785,10 @@
    },
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "uvaagun",

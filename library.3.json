@@ -1,5 +1,5 @@
 {
- "set": "0cf6227883c48fd7",
+ "set": "df35d714c564d377",
  "part": 3,
  "assets": [
   {
@@ -55785,7 +55785,10 @@
    "editedFrom": 1793454712895,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "wdywgn6",
@@ -139989,7 +139992,10 @@
    "editedFrom": 1792274443299,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "z38lzvj",
@@ -192399,7 +192405,10 @@
    "editedFrom": 1793790497240,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "zzzfx01",

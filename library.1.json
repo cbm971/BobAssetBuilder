@@ -1,5 +1,5 @@
 {
- "set": "0cf6227883c48fd7",
+ "set": "df35d714c564d377",
  "part": 1,
  "assets": [
   {
@@ -83131,7 +83131,10 @@
    "editedFrom": 1792634284241,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "3t3iost",
@@ -318423,7 +318426,10 @@
    "editedFrom": 1792274423887,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "9boz0o8",
@@ -398460,7 +398466,10 @@
    "editedFrom": 1792266601605,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "b8kwtcz",
@@ -454948,7 +454957,10 @@
    "soundVol": {
     "hit": 0.3
    },
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "brdrug1",
@@ -554823,7 +554835,10 @@
    },
    "savedAt": 1794915849773,
    "editedFrom": 1794880768635,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "cbnsky1",
@@ -592909,7 +592924,10 @@
    "editedFrom": 1793454712895,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "cptrarv",
@@ -614328,7 +614346,10 @@
    "editedFrom": 1793458364468,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "crtns01",
@@ -678100,7 +678121,10 @@
    "editedFrom": 1792333867493,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "dkbarl1",
@@ -722102,7 +722126,10 @@
    "boomerang": false,
    "pickupCount": 3,
    "editedFrom": 1792366829274,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "eo0mino",
@@ -766501,7 +766528,10 @@
    "boomerang": false,
    "pickupCount": 3,
    "savedAt": 1795696908299,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "flymsk1",
@@ -774086,7 +774116,10 @@
    "editedFrom": 1793454712895,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "fnzre7x",
@@ -820124,7 +820157,10 @@
     ]
    },
    "savedAt": 1795732583014,
-   "editedFrom": 1795732041870
+   "editedFrom": 1795732041870,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "frmpkup",
@@ -860806,7 +860842,10 @@
    "editedFrom": 1793458364468,
    "boomerang": false,
    "pickupCount": 3,
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "ftbstd1",
@@ -991655,7 +991694,10 @@
    "soundVol": {
     "land": 0.4
    },
-   "throwBlast": false
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55
   },
   {
    "id": "gr3nsh1",
