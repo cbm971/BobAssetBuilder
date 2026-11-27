@@ -388,7 +388,11 @@ export const normalizeGameOptions = (o) => {
 // look's: the Tree Tops 2 NPC who says it wears the Bob Li starter look itself (2026-10-31).
 // `picked` is every pickup (a record from before it was counted starts at the items already found), repeats and all (no lock reads it: Super Bob is 500 UNIQUE items, `found`); `kills` is every hostile
 // defeated and `rangedKills` the ones whose last blow was a shot or a throw (Agent Bob 1,000, Bob The Alien 500).
-export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, floorKills: {}, picked: 0, games: 0 });
+// `floorWins` counts EVERY finish of a floor, by floorKey and difficulty rank: { vietnam: { 2: 3, 3: 1 } } is three
+// Medium finishes and one Hard. Bob the Builder reads it (Blake, 2026-11-26: "beating Vietnam on Medium or harder 5
+// times"), repeats and any fighter included. It began 2026-11-26; a record from before it has no count, so it starts
+// from what `floorsDiff` proves: each fighter who beat a floor on a rank beat it there at least once (a lower bound).
+export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, floorWins: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, floorKills: {}, picked: 0, games: 0 });
 export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
 export const normalizeGameRecord = (r) => {
   const b = newGameRecord();
@@ -406,7 +410,12 @@ export const normalizeGameRecord = (r) => {
   // floorKills: enemies defeated on each floor, by floorKey (so either spelling of a floor is one count).
   const fk = {};
   if (r.floorKills && typeof r.floorKills === "object") for (const f of Object.keys(r.floorKills)) { const k = floorKey(f), v = n(r.floorKills[f]); if (k && v) fk[k] = (fk[k] || 0) + v; }
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), floorKills: fk, picked: r.picked === undefined ? ids(r.found).length : n(r.picked), games: n(r.games) };
+  // floorWins: every finish, by floorKey and rank. A record from before the count has none: start it from floorsDiff
+  // (one finish per fighter at the hardest rank that fighter reached), never from nothing and never a guess above that.
+  const fwn = {}, addWin = (f, k, v) => { const fkey = floorKey(f); if (!fkey || !(k >= 1 && k <= DIFFICULTIES.length) || !v) return; const o = fwn[fkey] || (fwn[fkey] = {}); o[k] = (o[k] || 0) + v; };
+  if (r.floorWins && typeof r.floorWins === "object") { for (const f of Object.keys(r.floorWins)) { const v = r.floorWins[f]; if (v && typeof v === "object") for (const k of Object.keys(v)) addWin(f, Math.round(Number(k)), n(v[k])); } }
+  else for (const f of Object.keys(fd)) for (const who of Object.keys(fd[f])) addWin(f, fd[f][who], 1);
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, floorWins: fwn, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), floorKills: fk, picked: r.picked === undefined ? ids(r.found).length : n(r.picked), games: n(r.games) };
 };
 // Returns the SAME object when nothing changed, so a caller can skip the write. A pickup of something
 // already found changes nothing but the count of pickups.
@@ -423,7 +432,10 @@ export const recordFloorDone = (rec, floor, score, lookName, diffId) => {
   // Only the hardest finish counts, and only when a difficulty is given (older callers and saves have none).
   const hadDiff = (rec.floorsDiff && rec.floorsDiff[floor]) || {}, rank = diffId ? diffRank(diffId) : 0;
   const floorsDiff = !floor || !rank || (hadDiff[who || ""] || 0) >= rank ? rec.floorsDiff || {} : { ...(rec.floorsDiff || {}), [floor]: { ...hadDiff, [who || ""]: rank } };
-  return { ...rec, floors: !floor || rec.floors.includes(floor) ? rec.floors : [...rec.floors, floor], floorsWith, floorsDiff, bestScore: Math.max(rec.bestScore, Math.round(Number(score) || 0)) };
+  // Every finish counts here, repeats too (Bob the Builder). A record without the count starts from its floorsDiff.
+  const wins0 = rec.floorWins || normalizeGameRecord(rec).floorWins, fk = floorKey(floor);
+  const floorWins = !fk || !rank ? wins0 : { ...wins0, [fk]: { ...(wins0[fk] || {}), [rank]: ((wins0[fk] || {})[rank] || 0) + 1 } };
+  return { ...rec, floors: !floor || rec.floors.includes(floor) ? rec.floors : [...rec.floors, floor], floorsWith, floorsDiff, floorWins, bestScore: Math.max(rec.bestScore, Math.round(Number(score) || 0)) };
 };
 
 // ---------- the player card: what a fighter starts with, and the floors they have beaten ----------
@@ -543,7 +555,7 @@ export const STARTER_LOCKS = [
   { name: "bob the alien", ranged: 500 }, // Blake (2026-10-31): "until you have defeated 500 enemies with Ranged weapons"
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
   { name: "the general", kills: 500, on: "Vietnam" }, // Blake (2026-11-07): "the general should be unlocked by defeating 500 enemies in Vietnam" (was 1,000 ranged kills, earlier the same day)
-  { name: "bob the builder", floor: "Vietnam", diff: "hard", characters: 5 }, // Blake (2026-11-26): "Beat Vietnam on Hard with five unique characters" — five different looks, each having beaten Vietnam on Hard (record.floorsDiff)
+  { name: "bob the builder", floor: "Vietnam", diff: "medium", wins: 5 }, // Blake (2026-11-26, second word): "Bob the Builder should actually rely on beating Vietnam on Medium or harder 5 times" — 5 finishes on Medium or Hard, by anyone, repeats count (record.floorWins). It was five different fighters on Hard earlier that day.
   { name: "bobena", enemies: 50 }, // Blake (2026-11-07): "50 unique enemies. Like the stats show how many enemies you have met"
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
@@ -560,6 +572,13 @@ const floorDiffRank = (rec, floor, as) => {
   let best = 0;
   for (const f of Object.keys(rec.floorsDiff || {})) if (floorKey(f) === k) for (const who of Object.keys(rec.floorsDiff[f])) if (!as || who === as) best = Math.max(best, rec.floorsDiff[f][who]);
   return best;
+};
+// How many times a floor was finished on `minRank` or harder, by anyone, repeats included (record.floorWins).
+const floorWinsAtLeast = (rec, floor, minRank) => {
+  const o = (rec.floorWins || {})[floorKey(floor)] || {};
+  let n = 0;
+  for (const k of Object.keys(o)) if (Number(k) >= minRank) n += o[k];
+  return n;
 };
 // How many DIFFERENT fighters beat a floor on `minRank` or harder ("VietBob" and "Viet Bob" are one).
 const floorDiffCharacters = (rec, floor, minRank) => {
@@ -596,6 +615,10 @@ export const starterLock = (look, rec, assets) => {
   if (lock.items) {
     const have = itemsFoundCount(r, assets);
     return have >= lock.items ? null : { need: "Unlock " + lock.items + " Items", have, of: lock.items };
+  }
+  if (lock.diff && lock.wins) {
+    const have = floorWinsAtLeast(r, lock.floor, diffRank(lock.diff)), harder = diffRank(lock.diff) < DIFFICULTIES.length;
+    return have >= lock.wins ? null : { need: "Beat " + lock.floor + " on " + difficultyOf(lock.diff).label + (harder ? " or Harder " : " ") + lock.wins + " Times", have, of: lock.wins };
   }
   if (lock.diff && lock.characters) {
     const have = floorDiffCharacters(r, lock.floor, diffRank(lock.diff));

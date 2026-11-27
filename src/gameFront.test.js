@@ -468,23 +468,31 @@ describe("locked starters", () => {
     expect(starterLock(look("Viet Bob"), r, assets)).toBeNull();
     expect(starterLock(look("VietBob"), r, assets)).toBeNull();
   });
-  test("Bob the builder opens once five different fighters have beaten Vietnam on Hard", () => {
+  test("Bob the builder opens after Vietnam is beaten on Medium or harder 5 times, by anyone, repeats included", () => {
     let r = newGameRecord();
-    expect(starterLock(look("Bob the builder"), r, assets)).toEqual({ need: "Beat Vietnam on Hard With 5 Unique Characters", have: 0, of: 5 });
-    r = recordFloorDone(r, "Vietnam", 10, "Bob", "hard");
-    r = recordFloorDone(r, "Vietnam", 10, "Bob", "hard");   // a repeat by the same fighter is not a new one
-    r = recordFloorDone(r, "Vietnam", 10, "Viet Bob", "hard");
-    r = recordFloorDone(r, "Vietnam", 10, "VietBob", "hard"); // same fighter, spaces ignored
-    r = recordFloorDone(r, "Vietnam", 10, "Rob", "medium");   // not Hard
+    expect(starterLock(look("Bob the builder"), r, assets)).toEqual({ need: "Beat Vietnam on Medium or Harder 5 Times", have: 0, of: 5 });
+    r = recordFloorDone(r, "Vietnam", 10, "Bob", "medium");
+    r = recordFloorDone(r, "Vietnam", 10, "Bob", "medium");     // a repeat by the same fighter counts
+    r = recordFloorDone(r, "Vietnam", 10, "Rob", "hard");       // harder counts
+    r = recordFloorDone(r, "Vietnam", 10, "Rob", "easy");       // Easy does not
     r = recordFloorDone(r, "Trailor Park", 10, "Bobby", "hard"); // wrong floor
-    expect(starterLock(look("Bob The Builder"), r, assets).have).toBe(2);
-    const before = recordFloorDone(r, "Vietnam", 10, "Robert", "hard");
-    expect(starterLock(look("Bob the builder"), before, assets).have).toBe(3);
-    const four = recordFloorDone(before, "Vietnam", 10, "Bobette", "hard");
-    expect(starterLock(look("Bob the builder"), four, assets)).not.toBeNull();
-    const five = recordFloorDone(four, "Vietnam", 10, "Bobbi", "hard");
+    r = recordFloorDone(r, "Vietnam", 10, "Bob");               // no difficulty known: not counted
+    expect(starterLock(look("Bob The Builder"), r, assets).have).toBe(3);
+    expect(r.floorWins).toEqual({ vietnam: { 1: 1, 2: 2, 3: 1 }, trailerpark: { 3: 1 } });
+    const four = recordFloorDone(r, "Vietnam", 10, "Bob", "medium");
+    expect(starterLock(look("Bob the builder"), four, assets)).toEqual({ need: "Beat Vietnam on Medium or Harder 5 Times", have: 4, of: 5 });
+    const five = recordFloorDone(four, "Vietnam", 10, "Bob", "hard");
     expect(starterLock(look("Bob the builder"), five, assets)).toBeNull();
     expect(newlyUnlocked([look("Bob the builder")], four, five).map((a) => a.name)).toEqual(["Bob the builder"]);
+    expect(normalizeGameRecord(JSON.parse(JSON.stringify(five))).floorWins).toEqual(five.floorWins); // survives the store
+  });
+  test("a record from before floorWins starts from what floorsDiff proves, and never more", () => {
+    const old = { floors: ["Vietnam"], floorsDiff: { Vietnam: { bob: 2, rob: 3, bobby: 1 }, "Trailor Park": { bob: 3 } } };
+    const n = normalizeGameRecord(old);
+    expect(n.floorWins).toEqual({ vietnam: { 1: 1, 2: 1, 3: 1 }, trailerpark: { 3: 1 } });
+    expect(starterLock(look("Bob the builder"), old, assets).have).toBe(2); // Bob on Medium, Rob on Hard: at least once each
+    expect(recordFloorDone(old, "Vietnam", 10, "Bob", "medium").floorWins.vietnam).toEqual({ 1: 1, 2: 2, 3: 1 }); // the count goes on from there
+    expect(normalizeGameRecord({ floorsDiff: { Vietnam: { bob: 3 } }, floorWins: {} }).floorWins).toEqual({}); // once counting started, the count is the truth
   });
   test("Bob Li opens once the Bob Li conversation has been met, and the record keeps it", () => {
     let r = newGameRecord();
