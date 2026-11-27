@@ -2214,6 +2214,23 @@ export const sawDamageStep = (acc, dps, dtMul) => {
 // A melee weapon's Damage scaled by Strength exactly as a swing's is (playerMeleeDamage), unrounded.
 export const meleeDpsOf = (dmg, strength) => Math.max(0, (dmg ?? 5) * effectiveStrength(strength) / 5);
 // Does a raised saw guard stop an attack arriving from attackerX? The block's own front rule.
+// 🪚 THE RAISED SAW BITES TOO (Blake 2026-11-27: "if you run up on an enemy with Q it does damage, just
+// at a lower range"). Guarding, the saw does its DPS like running it, but in ONE short box: from the
+// wearer's front edge out AUTO_GUARD_REACH_CELLS, as high as the running saw's hitbox reaches (its top),
+// so you have to be right up against them. (Cutting the running hitbox off at that reach left nothing:
+// the bar starts at the hand, already further out than that.) sawReachDown then takes it to the feet.
+export const AUTO_GUARD_REACH_CELLS = 0.75;
+export const guardSawBoxes = (boxes, centerX, halfW, face, reach) => {
+  if (!boxes.length) return [];
+  const top = Math.min(...boxes.map((b) => b.y)), bottom = Math.max(...boxes.map((b) => b.y + b.h));
+  const edge = centerX + (face < 0 ? -halfW - reach : halfW);
+  return [{ x: edge, y: top, w: reach, h: bottom - top }];
+};
+// SHORT BODIES (Blake 2026-11-27: "the chainsaw will not work against short enemies"). The bar is held
+// at chest height and never swings, so a Rat or a Frog walked under it, and the stomp that covers short
+// bodies for a swung weapon never fires (F does not swing it). Every saw box reaches straight down to the
+// wearer's feet: whatever is in front of it, at any height up to the bar, is in the teeth.
+export const sawReachDown = (boxes, feetY) => boxes.map((b) => (b.y + b.h < feetY ? { ...b, h: feetY - b.y } : b));
 export const sawGuardStops = (guardUp, face, attackerX, wearerX, wearerW) => !!guardUp && blockStopsHit(true, face, attackerX, wearerX, wearerW);
 // What is left of fire damage after every worn Fire Resistance (1 = none worn).
 export const fireDamageMult = (effects) => {
@@ -3002,7 +3019,7 @@ export const WEAPON_ABILITIES = {
   // and F both, so the Sound wave (Q) and a Resurrect staff (a swing that raises) come off with it.
   automatic: {
     icon: "🪚", label: "Automatic", types: ["melee"],
-    blurb: "No swing: it is held out like a chainsaw. Hold Fire to raise it and run it — the Fire sound loops and everything in its hitbox loses the Damage every second. Hold Block to lift it up across your face: while it is up, every attack from the front is stopped. Holding either drains the bar; let go and it fills. Run it dry and neither works until the bar is full again. Running, it plays its frames (Fire, Frame 2, Frame 3…) so the teeth move. Works in both directions: in a 👹 Enemy's hands it saws YOU, and blocks your shots.",
+    blurb: "No swing: it is held out like a chainsaw. Hold Fire to raise it and run it — the Fire sound loops and everything in its hitbox loses the Damage every second. Hold Block to lift it up across your face (the Fire sound runs then too): while it is up, every attack from the front is stopped, and anything right up against it still gets sawed. Holding either drains the bar; let go and it fills. Run it dry and neither works until the bar is full again. Running, it plays its frames (Fire, Frame 2, Frame 3…) so the teeth move. Works in both directions: in a 👹 Enemy's hands it saws YOU, and blocks your shots.",
     brief: () => "hold Fire to saw",
     melee: true,
     isOn: (a) => !!automaticOf(a),
@@ -21906,13 +21923,15 @@ export default function AssetStudio({ game = false } = {}) {
           // would sweep. Each loses this unit's DPS (unitSawDps) a little every frame, through its armour, and
           // your raised guard (p.blocking, your saw's included) or a unit's raised saw turns it aside. It asks
           // the revive grace and no i-frames: a saw is a steady drain, like standing in fire.
-          const eSawW = (!stunned && attacking && meleeGeom && ew && ep.auto && ep.auto.mode === "saw") ? automaticOf(ew) : null;
+          const eSawW = (!stunned && meleeGeom && ew && ep.auto && ((ep.auto.mode === "saw" && attacking) || ep.auto.mode === "guard")) ? automaticOf(ew) : null; // raised, it bites at a shorter reach (guardSawBoxes)
           if (eSawW) {
             if (!ep.sawAcc) ep.sawAcc = {};
-            const arcS = enemyMeleeHitboxAt(meleeGeom, ew, AUTO_RUN_SWING_DEG).map((hb) => {
+            const arcRun = enemyMeleeHitboxAt(meleeGeom, ew, AUTO_RUN_SWING_DEG).map((hb) => {
               const lxE = (hb.x / W) * eRenderW, lwE = (hb.w / W) * eRenderW;
               return { x: ep.x + (ep.face < 0 ? eRenderW - (lxE + lwE) : lxE), y: ep.y + (hb.y / H) * newEph, w: lwE, h: (hb.h / H) * newEph };
             });
+            const eShS = sideBodyShape(ea);
+            const arcS = sawReachDown(ep.auto.mode === "guard" ? guardSawBoxes(arcRun, ep.x + eShS.centerFrac * eRenderW, eRenderW * eShS.fraction / 2, ep.face, AUTO_GUARD_REACH_CELLS * CW) : arcRun, ep.y + newEph);
             const sawBodies = [{ kind: targetKind, key: targetKind === "player" ? "player" : targetKey, ep: targetEp, ea: targetEa }];
             for (const o of aliveOpposite(hostile)) if (o.key !== targetKey) sawBodies.push({ kind: "unit", key: o.key, ep: o.ep, ea: o.ea });
             if (hostile && targetKind !== "player") sawBodies.push({ kind: "player", key: "player", ep: null, ea: null });
@@ -22256,10 +22275,10 @@ export default function AssetStudio({ game = false } = {}) {
             // What the drawing is made from (unitArtSig): the mode and the teeth frame, never the meter.
             const sawFrame = stA.mode === "saw" ? Math.floor(ep.sawRunT * AUTO_FRAME_FPS / 60) : 0;
             if (!ep.auto || ep.auto.mode !== stA.mode || ep.auto.frame !== sawFrame) ep.auto = { mode: stA.mode, frame: sawFrame };
-            if (stA.mode !== "saw" && ep.sawAcc) ep.sawAcc = null;
+            if (!stA.mode && ep.sawAcc) ep.sawAcc = null;
             ep.swingT = 0; ep.swingHit = null; // it never swings
           }
-          bobAudio.sawLoop(k, !!(eAuto && ep.auto && ep.auto.mode === "saw"), ew, eCenterXFinal, ep.y + newEph * 0.45); // 🔊 its saw's Fire, as yours
+          bobAudio.sawLoop(k, !!(eAuto && ep.auto && ep.auto.mode), ew, eCenterXFinal, ep.y + newEph * 0.45); // 🔊 its saw's Fire while it runs OR guards, as yours
           const rangedReady = !rangedEnemy || canFireNow(ep.weaponAmmo);
           const eChargeWpn = rangedEnemy && isChargeLaser(ew);
           if (!eChargeWpn && (ep.laserCharge || ep.laserCharged)) { ep.laserCharge = 0; ep.laserCharged = false; }
@@ -22689,7 +22708,7 @@ export default function AssetStudio({ game = false } = {}) {
         const canRun = !p.climbing && !p.dying && !((p.stun || 0) > 0) && !((p.down || 0) > 0) && !p.transitioning && !vehDriven && !p.throwAiming && !((p.throwFiring || 0) > 0) && !p.stomp && !p.firing;
         const st = stepAutomatic(p.auto, !!K.fire, !!K.melee, canRun, pAuto, dtMul);
         const was = p.auto || {};
-        p.auto = { meter: st.meter, locked: st.locked, mode: st.mode, runT: st.mode === "saw" ? (was.runT || 0) + dtMul : 0, acc: st.mode === "saw" ? (was.acc || {}) : {}, hitT: Math.max(0, (was.hitT || 0) - dtMul) };
+        p.auto = { meter: st.meter, locked: st.locked, mode: st.mode, runT: st.mode === "saw" ? (was.runT || 0) + dtMul : 0, acc: st.mode ? (was.acc || {}) : {}, hitT: Math.max(0, (was.hitT || 0) - dtMul) };
         if (st.mode === "guard") { if (!p.blocking) p.blocking = { t: 0, saw: true }; } else p.blocking = null;
         p.blockCd = 0;
       } else {
@@ -22700,13 +22719,14 @@ export default function AssetStudio({ game = false } = {}) {
         else p.blocking = { t: guard.t };
         p.blockCd = guard.cd;
       }
-      bobAudio.sawLoop("player", !!(p.auto && p.auto.mode === "saw"), playtestWeapon, p.x + pw / 2, p.y + ph * 0.45); // 🔊 the saw's Fire, looped while it runs
+      bobAudio.sawLoop("player", !!(p.auto && p.auto.mode), playtestWeapon, p.x + pw / 2, p.y + ph * 0.45); // 🔊 the saw's Fire, looped while it runs (F) AND while it guards (Q) — Blake 11-27
       // 🪚 RUNNING: everybody on the other side inside the saw's 🎯 hitbox (its Fire art, on the arm raised to
       // AUTO_RUN_SWING_DEG — the same attach the swing's hit test makes) loses its DPS a little every frame.
       // Through their armour like a blow (incomingPlayerDamageExact, unrounded, so a small DPS is not floored
       // up to 1 a frame); no crit roll and no stun, which would be rolled or re-applied 60 times a second;
       // fire, ice and poison are kept topped up while it bites. A unit's own raised saw turns it aside.
-      if (p.auto && p.auto.mode === "saw" && playerAsset && playtestWeapon) {
+      // Guarding (Q) it bites as well, at a shorter reach (guardSawBoxes).
+      if (p.auto && p.auto.mode && playerAsset && playtestWeapon) {
         const angleS = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
         const heldMirS = playerSpriteMirrored(basePlayerAsset, p.face);
         const heldPoseS = (ang) => (heldMirS ? bake(playerAsset, ang) : (playerAsset.angles[ang] || []));
@@ -22721,7 +22741,8 @@ export default function AssetStudio({ game = false } = {}) {
           const hbS = attachHeldToArms(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfitS.states, wPoseS) }, wPoseS)), curArmS, null, wHandS, wBaseS);
           const renderWS = CW * PLAYER_RENDER_W_CELLS;
           const wrapLeftS = p.x - (bodyShape.centerFrac * renderWS - pw / 2);
-          const sawBoxes = hbS.map((hb) => { const lx = (hb.x / W) * renderWS, bw = (hb.w / W) * renderWS; return { x: wrapLeftS + (heldMirS ? renderWS - (lx + bw) : lx), y: p.y + (hb.y / H) * ph, w: bw, h: (hb.h / H) * ph }; });
+          const sawBoxesRun = hbS.map((hb) => { const lx = (hb.x / W) * renderWS, bw = (hb.w / W) * renderWS; return { x: wrapLeftS + (heldMirS ? renderWS - (lx + bw) : lx), y: p.y + (hb.y / H) * ph, w: bw, h: (hb.h / H) * ph }; });
+          const sawBoxes = sawReachDown(p.auto.mode === "guard" ? guardSawBoxes(sawBoxesRun, p.x + pw / 2, pw / 2, p.face, AUTO_GUARD_REACH_CELLS * CW) : sawBoxesRun, p.y + ph);
           const rawDps = meleeDpsOf((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)) * moneyPowerMultiplier(playerAsset?.effects, wallet.current), pstats.strength);
           const sawNotes = [];
           let sawTouched = false;

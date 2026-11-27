@@ -18692,7 +18692,7 @@ describe("walking winds up (2026-11-26: a tap off a ladder flung you two feet)",
 import {
   automaticOf, stepAutomatic, automaticFrameKeys, automaticRunArt, sawDamageStep, meleeDpsOf, sawGuardStops, automaticSwingDeg,
   incomingPlayerDamageExact, unitSawDps, liftHeldAboutHand, AUTO_RUN_DEFAULT_SECS, AUTO_COOL_DEFAULT_SECS, AUTO_FRAME_FPS,
-  AUTO_CARRY_SWING_DEG, AUTO_RUN_SWING_DEG, AUTO_GUARD_SWING_DEG,
+  AUTO_CARRY_SWING_DEG, AUTO_RUN_SWING_DEG, AUTO_GUARD_SWING_DEG, guardSawBoxes, AUTO_GUARD_REACH_CELLS, sawReachDown,
 } from "./App";
 
 /* 🪚 AUTOMATIC (Blake, 2026-11-27, for the Legendary Chainsaw): held out not swung, F runs it for DPS, Q
@@ -18777,6 +18777,17 @@ describe("🪚 Automatic", () => {
     expect(sawGuardStops(false, 1, 200, 100, 40)).toBe(false); // not raised
     expect(sawGuardStops(true, -1, 0, 100, 40)).toBe(true);
   });
+  test("raised (Q) it bites only right in front: one box from the front edge out the short reach, as high as the saw", () => {
+    const boxes = [{ x: 130, y: 20, w: 60, h: 10 }, { x: 150, y: 5, w: 20, h: 10 }]; // the running hitbox, out past the hand
+    expect(guardSawBoxes(boxes, 90, 10, 1, 15)).toEqual([{ x: 100, y: 5, w: 15, h: 25 }]); // facing right: front edge 100
+    expect(guardSawBoxes(boxes, 90, 10, -1, 15)).toEqual([{ x: 65, y: 5, w: 15, h: 25 }]); // facing left: front edge 80
+    expect(guardSawBoxes([], 90, 10, 1, 15)).toEqual([]); // no hitbox, no bite
+    expect(AUTO_GUARD_REACH_CELLS).toBeLessThan(1);
+  });
+  test("a short body under the bar is still sawed: every box reaches down to the wearer's feet", () => {
+    expect(sawReachDown([{ x: 100, y: 40, w: 30, h: 10 }], 120)).toEqual([{ x: 100, y: 40, w: 30, h: 80 }]);
+    expect(sawReachDown([{ x: 100, y: 40, w: 30, h: 100 }], 120)).toEqual([{ x: 100, y: 40, w: 30, h: 100 }]); // already reaches
+  });
   test("the guard lift turns the held saw about the hand, nose up", () => {
     const arm = { id: "a", kind: "rect", x: 90, y: 100, w: 20, h: 80, rot: -90, armPivot: "top", role: "weaponArm" }; // straight out forward
     const bar = [{ id: "s", kind: "rect", x: 170, y: 136, w: 60, h: 8, rot: 0 }]; // lying forward of the hand
@@ -18791,6 +18802,8 @@ describe("🪚 Automatic", () => {
     expect(src).toContain("if (pAuto && meleeInHand) {");
     expect((src.match(/sawGuardStops\(/g) || []).length).toBeGreaterThanOrEqual(11); // player: shot, blast, throw · units: your swing, a unit's blow, both shot lanes, both blast loops, both saws
     expect(src).toContain("bobAudio.sawLoopsEnd();");
+    expect(src).toContain('bobAudio.sawLoop("player", !!(p.auto && p.auto.mode), '); // Fire loops while F runs it AND while Q guards
+    expect(src).toContain("bobAudio.sawLoop(k, !!(eAuto && ep.auto && ep.auto.mode), "); // a unit's too
     expect(src).toContain("const wantRun = (ep.sawHold || 0) > 0 && !threatDir && !coolingA;"); // a unit run dry lets go, or its bar never fills
   });
 });
