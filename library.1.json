@@ -1,5 +1,5 @@
 {
- "set": "934dbbc4240df9c7",
+ "set": "9d8db8ae32219bd1",
  "part": 1,
  "assets": [
   {
@@ -991651,7 +991651,7 @@
    ],
    "projectileId": null,
    "projectileSpeed": 12,
-   "damage": 12,
+   "damage": 40,
    "fireRate": 3,
    "clipSize": 6,
    "reloadTime": 1.2,
@@ -991687,17 +991687,17 @@
     "throw": "qd117xl",
     "land": "aghad42"
    },
-   "savedAt": 1795312610268,
+   "savedAt": 1795738679083,
    "boomerang": false,
    "pickupCount": 3,
-   "editedFrom": 1794915849789,
+   "editedFrom": 1795312610268,
    "soundVol": {
     "land": 0.4
    },
-   "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "throwBlast": false
   },
   {
    "id": "gr3nsh1",

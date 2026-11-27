@@ -1,5 +1,5 @@
 {
- "set": "934dbbc4240df9c7",
+ "set": "9d8db8ae32219bd1",
  "part": 4,
  "levels": [
   {
@@ -33826,23 +33826,6 @@
       "z": 41
      }
     ],
-    "33,103": [
-     {
-      "kind": "prop",
-      "propId": "lt1i1vk",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "turnedBox": false,
-      "size": 2,
-      "ox": 0,
-      "oy": 0.5608,
-      "z": 42
-     }
-    ],
     "25,12": [
      {
       "kind": "shape",
@@ -34374,6 +34357,23 @@
       "rot": 0,
       "flip": false,
       "z": 83
+     }
+    ],
+    "34,103": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "canvasScale": false,
+      "turnedBox": false,
+      "size": 2,
+      "ox": 0,
+      "oy": 0.5608,
+      "z": 42
      }
     ]
    },
@@ -35229,8 +35229,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1794961094289,
-   "editedFrom": 1794960528807
+   "savedAt": 1795738725884,
+   "editedFrom": 1794961094289
   },
   {
    "id": "trpm25a",
