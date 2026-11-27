@@ -155,7 +155,7 @@ describe("a swing is the swing, the punch is the blow landing", () => {
     expect(count('sndMoment(playtestWeapon, "swing", "swing", p.x, p.y)')).toBe(1);
     expect(count('sndEvent("swing", p.x, p.y)')).toBe(1);
     expect(count("if (swingHitNotes.length || swingParried)")).toBe(1);
-    expect(count('ew ? "hit" : "attack", "punch"')).toBe(2); // a unit's arc test and its instant blow
+    expect(count('ew ? "hit" : "attack", "punch"')).toBe(3); // a unit's arc test, its instant blow, and a flying creature's catch on contact (flyerTouches)
   });
 });
 

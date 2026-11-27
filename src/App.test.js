@@ -785,6 +785,10 @@ import {
   flyEaseVy,
   flyHoverVy,
   flyerSwoopStep,
+  flyerCatches,
+  knockOutOfSky,
+  FLYER_CATCH_GROUND_FRAMES,
+  creatureFlies,
   FLYER_SWOOP_ALT_CELLS,
   FLYER_SWOOP_DIVE_SPEED_MUL,
   FLYER_SWOOP_TURN_EASE,
@@ -11587,6 +11591,60 @@ describe("runs", () => {
     expect([...ends].sort()).toEqual([...IDS].sort());   // all three endings come up
   });
 
+  // Blake, 2026-11-27: "make alt versions of Vietnam E1? Make two alt versions as we have been doing but keep
+  // the same ending animation. Maybe have an eagle flying on one that can catch players trying to fly above
+  // to the ending". E2 and E3 keep E1's ground, paint, gates and the Jungle Ambush marker cell for cell; the
+  // camp's props, the pedestal and the cast change. E2 puts two Eagles in the sky; E3 is a POW camp.
+  test("on the REAL library, Vietnam E2 and E3 are E1's jungle with the same ambush, and only the Exit of a run changes", () => {
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
+    const IDS = ["vtnme1a", "vtnme2a", "vtnme3a"];
+    const [e1, e2, e3] = IDS.map((id) => lib.levels.find((l) => l.id === id));
+    const ground = (lv) => ({ floor: lv.floor, cols: lv.cols, rows: lv.rows, conns: lv.conns, fg: lv.fg, bg: lv.bg, front: lv.front, climb: lv.climb, hazard: lv.hazard });
+    const trees = new Set(lib.dialogues.map((d) => d.id));
+    for (const v of [e2, e3]) {
+      expect(runRole(v)).toBe("exit");
+      expect(ground(v)).toEqual(ground(e1));
+      expect(v.markers["35,110"]).toEqual(e1.markers["35,110"]);   // the same Jungle Ambush, on the same spot
+      expect(Object.values(v.markers).filter((m) => m.kind === "pedestal")).toHaveLength(1);   // one item source, as E1
+      expect(Object.keys(v.enemies)).not.toEqual(Object.keys(e1.enemies));
+      for (const [k, u] of Object.entries(v.enemies)) {
+        expect(+k.split(",")[1]).toBeLessThan(100);   // nobody waits in the last 60 columns, as in E1
+        if (u.dialogueId) expect(trees.has(u.dialogueId)).toBe(true);
+      }
+    }
+    const eagles = Object.entries(e2.enemies).filter(([, u]) => u.enemyId === "eagl1x9");
+    expect(eagles).toHaveLength(2);
+    for (const [k, u] of eagles) { expect(+k.split(",")[0]).toBeLessThan(15); expect(u.ai).toBe("guard"); }   // posted up in the sky: no chase into the ambush
+    expect(creatureFlies(lib.assets.find((a) => a.id === "eagl1x9"))).toBe(true);
+    expect(Object.values(e3.enemies).find((u) => u.dialogueId === "dlgpow1")).toEqual(expect.objectContaining({ enemyId: "izglsjb", ai: "guard" }));
+    const e1Only = lib.levels.filter((l) => l !== e2 && l !== e3), ends = new Set();
+    for (let i = 0; i < 80; i++) {
+      const sd = "vn-exit-" + i;
+      const one = buildRun(e1Only, sd, { floor: "Vietnam" }), all = buildRun(lib.levels, sd, { floor: "Vietnam" });
+      const ids1 = one.order.map((k) => one.nodes[k].level.id), idsAll = all.order.map((k) => all.nodes[k].level.id);
+      expect(all.order).toEqual(one.order);
+      ids1.forEach((id, j) => {
+        if (id === IDS[0]) { expect(IDS).toContain(idsAll[j]); ends.add(idsAll[j]); } else expect(idsAll[j]).toBe(id);
+      });
+    }
+    expect([...ends].sort()).toEqual([...IDS].sort());   // all three endings come up
+  });
+
+  // 🦸 Blake, 2026-11-27: "an eagle flying ... that can catch players trying to fly above to the ending".
+  test("a flying creature's blow knocks a flyer on Fly gear out of the sky, both ways, and never grounds wings", () => {
+    expect(flyerCatches(true, true, false)).toBe(true);    // an Eagle's swoop on you (or a unit) up on Fly gear
+    expect(flyerCatches(true, false, false)).toBe(false);  // on someone on their feet: an ordinary peck
+    expect(flyerCatches(false, true, false)).toBe(false);  // a VC's bayonet does not ground a flyer
+    expect(flyerCatches(true, true, true)).toBe(false);    // another Eagle has wings, not gear
+    const p = { flying: true, vy: -4, flyBlockT: 0 };
+    expect(knockOutOfSky(p)).toBe(p);
+    expect(p).toEqual({ flying: false, vy: 0, flyBlockT: FLYER_CATCH_GROUND_FRAMES });   // it falls from where it was struck
+    const falling = { flying: true, vy: 3, flyBlockT: 400 };
+    knockOutOfSky(falling);
+    expect(falling).toEqual({ flying: false, vy: 3, flyBlockT: 400 });   // a longer grounding already running is kept
+    expect(FLYER_CATCH_GROUND_FRAMES).toBe(180);   // 3 s, a unit's roof bump (flyBlockT) too
+  });
+
   test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {
     const pool = [A, B, C, D, SEWER, SEWER2];
     // The start of a run without an Intro is a seeded pick among east-open levels, so take the first
@@ -13945,7 +14003,7 @@ describe("a unit plays by the player's rules", () => {
   // 2026-11-14: "The eagle / flying enemies just kind of hover at human height. It would be better
   // if they sort of swooped in to attack." A flyer simulated through the loop's own flight (the
   // eased, capped vy) and its attack rules (in reach, feet within a body, a wind-up, then a swing).
-  describe("🦅 a flying creature swoops", () => {
+  describe("🦸 a flying creature swoops", () => {
     const CELL = 30, SPEED = 7.26, REACH = 27, BODY = 90, CLEAR = Math.min(BODY * 0.2, CELL * 0.75);
     const ALT = FLYER_SWOOP_ALT_CELLS * CELL;
     const fly = (frames, opts = {}) => {

@@ -6479,6 +6479,29 @@ export const flyerSwoopStep = (s, o) => {
   const vx = vx0 + (wantVx - vx0) * Math.min(1, FLYER_SWOOP_TURN_EASE * dt);
   return { phase, t, dir, vx, height, vyMul, stepX: vx * dt };
 };
+// 🦸 A FLYING CREATURE CATCHES A FLYER (2026-11-27). Blake, asking for the Vietnam E1 variants: "have an
+// eagle flying on one that can catch players trying to fly above to the ending". A blow from a `flies`
+// creature (an Eagle's swoop) that lands on somebody up on 🦸 Fly gear knocks them out of the air: the
+// flight ends and cannot start again for FLYER_CATCH_GROUND_FRAMES (3 s, the same flyBlockT a unit's
+// roof bump already sets), so they drop into whatever is under them. Both ways, by the same helper: an
+// Eagle grounds you or a flying unit, and you, playing as a flying creature, ground a flying unit with
+// your own blow. Something that flies by nature (`flies`, wings and not gear) is never grounded by it.
+export const FLYER_CATCH_GROUND_FRAMES = 180;
+export const flyerCatches = (attackerFlies, targetFlying, targetFliesByNature) => !!attackerFlies && !!targetFlying && !targetFliesByNature;
+// Contact: the catcher's body box against the target's, the target's box stretched back over the
+// step it took this frame (from x0), so a fast flyer cannot pass clean through between two frames.
+export const flyerTouches = (c, t, x0 = t.x) => {
+  if (!c || !t) return false;
+  const left = Math.min(x0, t.x), right = Math.max(x0, t.x) + t.w;
+  return c.x < right && c.x + c.w > left && c.y < t.y + t.h && c.y + c.h > t.y;
+};
+export const knockOutOfSky = (body) => {
+  if (!body) return body;
+  body.flying = false;
+  body.flyBlockT = Math.max(body.flyBlockT || 0, FLYER_CATCH_GROUND_FRAMES);
+  if ((body.vy || 0) < 0) body.vy = 0; // it stops climbing at once and falls from where it was struck
+  return body;
+};
 // The one line the screen says about it (the studio's showFlyHint): "when you pick up or start with a
 // flying item it should say (In subtle font on screen) how to activate flight".
 export const FLY_HINT_TEXT = "Press W in mid-air to fly";
@@ -18926,7 +18949,7 @@ export default function AssetStudio({ game = false } = {}) {
         d.began = true;
         d.rested = !!p.topdown || !!p.vehicle || (!!p.onGround && !p.climbing);
         if (p.crouch) p.y -= ph - CH * PLAYER_CROUCH_H_CELLS;
-        p.crouch = false; p.walking = false; p.climbing = false; p.climbJump = false; p.climbJumpKind = null; p.flying = false;
+        p.crouch = false; p.walking = false; p.climbing = false; p.climbJump = false; p.climbJumpKind = null; p.flying = false; p.flyBlockT = 0;
         p.stomp = null; p.aiming = false; p.firing = null; p.stun = 0; p.down = 0; p.knock = null; p.hsAir = null; p.hsFall = false;
         p.transitioning = null; p.invuln = 0; p.vx = 0; p.vy = Math.max(0, p.vy || 0);
         if (!p.topdown) p.onGround = true; // drawn standing, not mid-jump, while it goes over
@@ -19776,7 +19799,8 @@ export default function AssetStudio({ game = false } = {}) {
       // speed, which may run past walking pace — so it is exempt from the airborne cap too. FK is
       // the flight's own keys (flyKeys): raw W/S, and whether W and Jump were PRESSED this frame.
       const FK = flyKeys(RK, K.jump, p.wasFlyUp, p.wasJump, frozen);
-      const flyMove = flyState(flyEffect, FK, p.onGround, p.climbing || p.topdown, p.flying, p.flyUsed, CH);
+      if ((p.flyBlockT || 0) > 0) p.flyBlockT = Math.max(0, p.flyBlockT - dtMul); // 🦸 caught by a flyer (knockOutOfSky): no take-off until it runs out
+      const flyMove = (p.flyBlockT || 0) > 0 ? null : flyState(flyEffect, FK, p.onGround, p.climbing || p.topdown, p.flying, p.flyUsed, CH);
       const glideMove = flyMove ? null : glideState(glideEffect, K, p.onGround, p.climbing || p.topdown, p.vy);
       const airSteer = flyMove || glideMove;
       // 🚶 The walk winds up (walkRampStep): on your feet, a ladder or a plane, without a Slide item
@@ -19822,6 +19846,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (knockStepPx > 0) dx = p.knock.dir * knockStepPx;
       else if (p.knock) p.knock = null;
       const prevX = p.x;
+      p.sweepX0 = prevX; // where this frame's step started, for a catch that must not miss a fast flyer (flyerTouches)
       p.x += dx;
       // The level's edges are walls — except an open seam with a level behind it (a RUN seam: a side
       // seam all along the edge the two levels share, a top/bottom seam at its gate), where
@@ -20168,7 +20193,7 @@ export default function AssetStudio({ game = false } = {}) {
         // glide is simply there the moment the flight ends with Space still held.
         const fly = pCreatureFlies
           ? { vyTarget: (!frozen && (K.up || K.jump)) ? -speed : (!frozen && K.down) ? speed : 0 }
-          : flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);
+          : (p.flyBlockT || 0) > 0 ? null : flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);
         if (fly && !p.flying) clearFlyPose(p); // a fresh take-off starts its pose from the hover
         p.flying = !!fly;
         if (fly) p.tailHold = false; // 🐒 W with a Fly worn takes off out of a tail hold
@@ -20752,6 +20777,7 @@ export default function AssetStudio({ game = false } = {}) {
             const tBoxTop = ep.y + unitHitTop(ea, eShape, oldEph), tBoxH = eShape.heightFrac * oldEph;
             if (!(ep.down > 0) && !(ep.downCd > 0) && boxesOverlap(p.x, p.y, pw, ph, tBoxLeft, tBoxTop, epw, tBoxH)) {
               ep.down = tackleDownFrames(tackleSecs);
+              if (creatureFlies(ea) && flyerCatches(true, p.flying, creatureFlies(basePlayerAsset))) knockOutOfSky(p); // 🦸 flown into an Eagle: you tackle it, and it still catches you (the contact catch further down skips a unit that is down)
               ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; ep.walking = false;
               ep.attackT = Math.max(ep.attackT || 0, ep.down); // no free swing the instant they get back up
               flash("🏈 Tackled " + (ea.name || "them") + " — down for " + tackleSecs + "s");
@@ -21248,8 +21274,13 @@ export default function AssetStudio({ game = false } = {}) {
           // sighting by FLYER_SWOOP_MEMORY_FRAMES rather than freezing half way up.
           const hoverClearance = Math.min(newEph * 0.2, CH * 0.75);
           ep.swoopLostT = detected ? 0 : (ep.swoopLostT || 0) + dtMul;
+          // 🦸 ...but not at somebody up on 🦸 Fly gear (FLYER_CATCH_GROUND_FRAMES): a pass that circles for
+          // 40 frames first never meets a flyer three times its speed, so it goes straight for their
+          // height instead (the hover line below, at the dive's climb rate) and catches them on contact.
+          const tgtGearFlying = targetKind === "player" ? (!!p.flying && !creatureFlies(basePlayerAsset) && !vehDriven)
+            : targetKind === "unit" ? (!!targetEp && !!targetEa && !!targetEp.flying && !creatureFlies(targetEa)) : false;
           let eSwoop = null;
-          if (eCreatureFlies && acts && !rangedEnemy && ai === "seek" && !following && !charging && huntInReach && flyTgtFeet != null
+          if (eCreatureFlies && acts && !rangedEnemy && ai === "seek" && !following && !charging && huntInReach && flyTgtFeet != null && !tgtGearFlying
               && !((ep.down || 0) > 0) && (detected || (ep.swoop && ep.swoopLostT < FLYER_SWOOP_MEMORY_FRAMES))) {
             if (stunned || ep.stomp || ep.tailT > 0) { if (ep.swoop) ep.swoop.vx = 0; } // frozen where it is; the pass picks up after
             else {
@@ -21565,12 +21596,14 @@ export default function AssetStudio({ game = false } = {}) {
               // 🦸 ...unless it is on a swoop (eSwoop, above): then the height it wants is the pass's own —
               // altitude while it circles and climbs out, the dive's curve on the way in — over that
               // same hover line, through the same eased flight and the same roof and floor tests.
-              const eFlyAct = !stunned && acts && flyTgtFeet != null && (following || charging || (detected && (ai === "seek" || ai === "avoid")));
+              // 🦸 A Guard flyer holds its spot but still rises or drops into the path of somebody flying past on
+              // Fly gear (tgtGearFlying), so an Eagle set to Guard keeps the sky over its post (Vietnam E2).
+              const eFlyAct = !stunned && acts && flyTgtFeet != null && (following || charging || (detected && (ai === "seek" || ai === "avoid" || tgtGearFlying)));
               const eFlyWantFeet = eSwoop ? (flyTgtFeet - hoverClearance - eSwoop.height)
                 : !eFlyAct ? (ep.y + newEph)
                 : (ai === "avoid" && !following && !charging) ? Math.min(ep.y + newEph, flyTgtFeet - CH * 2)
                 : (flyTgtFeet - hoverClearance);
-              const eFlySpeedY = (charging ? chargeSpeed : aiSpeed) / Math.max(0.01, dtMul) * (eSwoop ? eSwoop.vyMul : 1);
+              const eFlySpeedY = (charging ? chargeSpeed : aiSpeed) / Math.max(0.01, dtMul) * (eSwoop ? eSwoop.vyMul : (tgtGearFlying && eFlyAct) ? FLYER_SWOOP_DIVE_VY_MUL : 1);
               ep.vy = flyEaseVy(ep.vy, flyHoverVy(eFlyWantFeet - (ep.y + newEph), eFlySpeedY), dtMul);
               const ny = ep.y + ep.vy * dtMul;
               const eWallTop = !ep.crouch ? Math.max(0, Math.min(newEph - 1, unitHitTop(ea, eShape, newEph))) : 0;
@@ -21881,8 +21914,12 @@ export default function AssetStudio({ game = false } = {}) {
                 // Deliberately inside the else and behind the i-frame and block gates above: a hit
                 // that killed you, that never landed, or that you turned aside cannot daze you.
                 if (!bodyBlow) afflictBody(p, hitEw, DEFAULT_IGNITE_DPS, ea?.effects, ea);
-                if ((hitEw?.stun ?? 0) > 0) { stunPlayer(p, hitEw.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + hitEw.stun + "s (" + playerHP.current + " HP left)"); }
-                else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
+                // 🦸 An Eagle's swoop on you up on Fly gear knocks you out of the air (knockOutOfSky).
+                const caught = flyerCatches(creatureFlies(ea), p.flying, creatureFlies(basePlayerAsset));
+                if (caught) knockOutOfSky(p);
+                const caughtNote = caught ? " — knocked out of the sky" : "";
+                if ((hitEw?.stun ?? 0) > 0) { stunPlayer(p, hitEw.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + caughtNote + " — 💫 stunned for " + hitEw.stun + "s (" + playerHP.current + " HP left)"); }
+                else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + caughtNote + " (" + playerHP.current + " HP left)");
               }
               return true;
             }
@@ -21899,6 +21936,7 @@ export default function AssetStudio({ game = false } = {}) {
               const uDmg = coldResistedHit(incomingUnitDamage((crit ? rawDmg0 * 2 : rawDmg0) * uBackMul, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)), hitEw, bEa.effects);
               if (shrugsHit(key, bEa.effects, uDmg, k, unitCenterX(bEa, bEp, CW), bEp ? bEp.y : 0)) return true; // 🐞 / 🪞
               enemyHP.current[key] = Math.max(0, cur - uDmg);
+              if (bEp && enemyHP.current[key] > 0 && flyerCatches(creatureFlies(ea), bEp.flying, creatureFlies(bEa))) knockOutOfSky(bEp); // 🦸 unit on unit, as on you
               if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
               if (bEp) bEp.lastHitByFx = ea.effects || []; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
               if (bEp && enemyHP.current[key] > 0 && !bodyBlow) afflictBody(bEp, hitEw, DEFAULT_IGNITE_DPS, ea?.effects, ea); // 🔥 / ❄️ / 🧪 weapon + clothes + innate poison, unit on unit as on you
@@ -21908,6 +21946,20 @@ export default function AssetStudio({ game = false } = {}) {
             return false;
           };
           const applyAttackHit = (rawDmg) => applyHitTo(targetKind, targetKey, targetEp, targetEa, rawDmg); // ...on whatever this unit is fighting
+          // 🦸 A FLYER THAT FLIES INTO A FLYING CREATURE IS CAUGHT (flyerTouches + knockOutOfSky): the
+          // creature's own blow, if it is ready, and out of the sky either way. Contact, swept over your
+          // step this frame, because Super Bob covers more than an Eagle's whole body in one frame.
+          if (eCreatureFlies && acts && !stunned && tgtGearFlying && !((ep.down || 0) > 0)) {
+            const cBox = unitBodyBox(ea, ep, CW);
+            const tBox = targetKind === "player" ? { x: p.x, y: p.y, w: pw, h: ph } : unitBodyBox(targetEa, targetEp, CW);
+            if (flyerTouches(cBox, tBox, targetKind === "player" ? (p.sweepX0 ?? p.x) : tBox.x)) {
+              if (!((ep.attackT || 0) > 0) && applyAttackHit(enemyAttackDamage(ea, ew))) { sndMoment(ew || ea, ew ? "hit" : "attack", "punch", tBox.x + tBox.w / 2, tBox.y + tBox.h / 2); ep.attackT = unitMeleeCooldownFrames(ew, ea?.effects); }
+              knockOutOfSky(targetKind === "player" ? p : targetEp);
+            }
+          }
+          // ...and the other way: you, playing as a flying creature, catch a hostile on Fly gear you fly into.
+          if (hostile && creatureFlies(basePlayerAsset) && !((p.down || 0) > 0) && !vehDriven && ep.flying && !eCreatureFlies
+            && flyerTouches({ x: p.x, y: p.y, w: pw, h: ph }, unitBodyBox(ea, ep, CW))) knockOutOfSky(ep);
           // PLAYER-BASED melee connects like the player's own swing: while the swing timer runs, place
           // the weapon's hitbox on the swung arm and land the hit the frame it overlaps a body. The
           // SAME crowd rule the player's swing has: one hit per body per swing, every opposing body
@@ -23156,6 +23208,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const dmg = coldResistedHit(incomingUnitDamage((isCrit ? base * 2 : base) * backMul, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor)), !unarmedSwing ? playtestWeapon : null, ea.effects);
                     if (shrugsHit(k, ea.effects, dmg, "player", eHitLeft + epw / 2, hitTop)) { p.swingHits[k] = true; continue; } // 🐞 / 🪞 struck, for nothing: still one hit per body per stroke
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
+                    if (ep && enemyHP.current[k] > 0 && flyerCatches(creatureFlies(basePlayerAsset), ep.flying, creatureFlies(ea))) knockOutOfSky(ep); // 🦸 your swoop, as an Eagle's on you
                     if (ep) { ep.lastHitByFx = null; ep.lastHitRanged = false; ep.lastHitMelee = !unarmedSwing && !!playtestWeapon; } // the last blow was yours; a MELEE WEAPON blow counts toward Bobb (record.meleeKills), bare fists do not
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                     if (ep && enemyHP.current[k] > 0) afflictBody(ep, !unarmedSwing ? playtestWeapon : null, DEFAULT_IGNITE_DPS, playerAsset?.effects, basePlayerAsset);
