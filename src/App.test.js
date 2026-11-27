@@ -490,6 +490,7 @@ import {
   flipConns,
   maxPlayerHP,
   applyHeal,
+  healWithOverflow,
   enemyMaxHP,
   doorAnimProgress,
   doorFadeAlpha,
@@ -1216,6 +1217,16 @@ describe("the player's HP pool", () => {
     const mx = maxPlayerHP({ stats: { hp: 5 } });
     expect(applyHeal(4, mx, 20)).toBe(24);
     expect(applyHeal(20, mx, 20)).toBe(25);
+  });
+  test("a heal you do not need goes to your allies: full you, all of it; hurt you, what is left", () => {
+    const allies = [{ key: "a", hp: 10, max: 50 }, { key: "b", hp: 48, max: 50 }, { key: "dead", hp: 0, max: 50 }, { key: "full", hp: 50, max: 50 }];
+    // full health: every living ally gets the whole heal, each to its own ceiling; the dead and the full get nothing
+    expect(healWithOverflow(25, 25, 20, allies)).toEqual({ hp: 25, left: 20, allies: { a: 30, b: 50 } });
+    // hurt by 5: you take 5, the allies share in the 15 left (each up to 15)
+    expect(healWithOverflow(20, 25, 20, allies)).toEqual({ hp: 25, left: 15, allies: { a: 25, b: 50 } });
+    // hurt by more than the heal: nothing left over, the allies get nothing
+    expect(healWithOverflow(2, 25, 20, allies)).toEqual({ hp: 22, left: 0, allies: {} });
+    expect(healWithOverflow(25, 25, 20, [])).toEqual({ hp: 25, left: 20, allies: {} });
   });
 });
 

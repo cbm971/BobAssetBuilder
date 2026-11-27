@@ -1279,6 +1279,13 @@ plus traps it does not cover:
 - **🟣 Ally Health is paid once per ITEM per LIFE** (`allyHPSources`, `payAllyHPSources`, `ep.allyHpPaid`). Putting on or picking up a piece tops every living ally up by that piece's HP once. A piece already paid this life pays nothing more, so swapping cannot farm it. Every extra life (`extraLifeHP`) comes back on `EXTRA_LIFE_HP` plus the whole worn bonus, and counts every worn piece as paid again. It never raises the wearer's own HP.
 - **Followers go through doors and on to the next floor** (his: "be sure followers follow across levels"). A door takes every living, non-riding ally (`isFollower`) out of the level into the `arrivingFollowers` books (`takeFollowersOut`, `moveRunUnit`) and sets them down beside you on the other side (`setFollowerDown`, the placement `catchUpFollowers` uses). A unit recruited inside a room goes in the room bucket's `gone`, so the room, re-made from the library, never spawns it twice. A dead ally stays where it fell. A game save carries them (`followersToSave` → `makeGameSave.allies` → `applyGameResume`), so the next floor starts with them. Plain ▶ Playtest's ■ Stop after a door hands the editor back its own level (`playEditorLevel`), never a copy with units moved out.
 
+### His bug list of 2026-11-26, second one (five items, one push each)
+
+- **A heal you do not need goes to your allies** (his: "When you have full health and you pick up a healing item it should
+  heal allies"). `healWithOverflow` in `consumeEffectNow`: you are healed first, and what is left of the amount heals EVERY
+  living ally (riders included) by up to that much, each to its `unitMaxHP`. It never raises a ceiling and is not an Ally
+  Health payment. The line reads "Allies +N HP" (full you) or "+5 HP · Allies +10 HP". A dialogue's heal act is not an item.
+
 ## Working style
 
 - Ship it. Push fixes directly, with no option menus. Try things before calling them impossible.

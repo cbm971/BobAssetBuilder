@@ -4558,6 +4558,22 @@ export const shopSellChangeRows = (entry, ctx) => {
 };
 // Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
 export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
+// 💚 A HEAL YOU DO NOT NEED GOES TO YOUR ALLIES (2026-11-26, Blake: "When you have full health and you pick up a
+// healing item it should heal allies"). You are healed first; what is left of the item's amount heals EVERY living
+// ally by up to that much, each to its own ceiling (unitMaxHP, the worn Ally Health share included). It never
+// raises a ceiling and never counts as an Ally Health payment (that stays once per item per life). Pure:
+// `allies` is [{ key, hp, max }], and the result is { hp, left, allies: { key: newHp } } for the ones it raised.
+export const healWithOverflow = (curHP, maxHP, amount, allies) => {
+  const hp = applyHeal(curHP, maxHP, amount);
+  const left = Math.max(0, Math.max(0, amount || 0) - (hp - curHP));
+  const out = {};
+  if (left > 0) for (const a of allies || []) {
+    if (!a || !(a.hp > 0) || !(a.max > 0)) continue;
+    const n = Math.min(a.max, a.hp + left);
+    if (n > a.hp) out[a.key] = n;
+  }
+  return { hp, left, allies: out };
+};
 // How much extra maximum HP the worn kit gives everything fighting for you. Several items stack,
 // the same way Magazine Size does — one number summed off the effects list, so a look assembled in
 // Dress Bob and a jacket picked up off a pedestal mid-run reach it by the same route.
@@ -17923,8 +17939,19 @@ export default function AssetStudio({ game = false } = {}) {
     let line;
     if (eff.kind === "heal") {
       const mx = maxPlayerHP(livePlayerAsset()), was = playerHP.current;
-      playerHP.current = applyHeal(playerHP.current, mx, eff.full ? mx : eff.amount);
-      line = "+" + (playerHP.current - was) + " HP";
+      // 💚 What you do not need heals your living allies (healWithOverflow), riders in your car included.
+      const allyBonus = allyMaxHPBonus(livePlayerAsset()?.effects), lvE = (level && level.enemies) || {}, allies = [];
+      for (const ak of Object.keys(lvE)) {
+        const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
+        const aea = unitAssetAt(ak, lvE[ak]); if (!aea) continue;
+        const amax = unitMaxHP(aea, aep, allyBonus);
+        allies.push({ key: ak, hp: enemyHP.current[ak] === undefined ? amax : enemyHP.current[ak], max: amax });
+      }
+      const healRes = healWithOverflow(playerHP.current, mx, eff.full ? mx : eff.amount, allies);
+      playerHP.current = healRes.hp;
+      let allyTop = 0;
+      for (const ak of Object.keys(healRes.allies)) { const a = allies.find((x) => x.key === ak); allyTop = Math.max(allyTop, healRes.allies[ak] - a.hp); enemyHP.current[ak] = healRes.allies[ak]; }
+      line = allyTop > 0 && playerHP.current === was ? "Allies +" + allyTop + " HP" : "+" + (playerHP.current - was) + " HP" + (allyTop > 0 ? " · Allies +" + allyTop + " HP" : "");
       if (!quiet) flash("🧪 " + item.name + " · " + line + " (" + playerHP.current + "/" + mx + ")" + tail);
     } else if (eff.kind === "hurt") {
       const mx = maxPlayerHP(livePlayerAsset()), was = playerHP.current;
