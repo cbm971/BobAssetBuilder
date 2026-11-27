@@ -1,5 +1,5 @@
 {
- "set": "aeb6e89b965a09e6",
+ "set": "7fd165e32d851afa",
  "part": 1,
  "assets": [
   {
@@ -83170,7 +83170,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "3t3iost",
@@ -318613,7 +318614,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "9boz0o8",
@@ -398653,7 +398655,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "b8kwtcz",
@@ -455180,7 +455183,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "brdrug1",
@@ -488195,7 +488199,8 @@
     }
    },
    "savedAt": 1795736325595,
-   "editedFrom": 1795734965531
+   "editedFrom": 1795734965531,
+   "automatic": false
   },
   {
    "id": "brnatrk",
@@ -555058,7 +555063,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "cbnsky1",
@@ -605934,7 +605940,8 @@
     "side": [],
     "up": [],
     "crouch": []
-   }
+   },
+   "pickupCount": 3
   },
   {
    "id": "chraltr",
@@ -625870,7 +625877,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "cptrarv",
@@ -647292,7 +647300,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "crtns01",
@@ -712402,7 +712411,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "dkbarl1",
@@ -763164,7 +763174,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "eo0mino",
@@ -807566,7 +807577,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "flymsk1",
@@ -815154,7 +815166,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "fnzre7x",
@@ -861195,7 +861208,8 @@
    "editedFrom": 1795732041870,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "frmpkup",
@@ -901880,7 +901894,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "ftbstd1",
@@ -1032732,7 +1032747,8 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
-   "throwBlast": false
+   "throwBlast": false,
+   "automatic": false
   },
   {
    "id": "gr3nsh1",

@@ -1,5 +1,5 @@
 {
- "set": "aeb6e89b965a09e6",
+ "set": "7fd165e32d851afa",
  "part": 3,
  "assets": [
   {
@@ -102149,7 +102149,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "wdywgn6",
@@ -186356,7 +186357,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "z38lzvj",
@@ -238769,7 +238771,8 @@
    "throwBlast": false,
    "chargeLaser": false,
    "chargeTime": 0.65,
-   "beamTime": 0.55
+   "beamTime": 0.55,
+   "automatic": false
   },
   {
    "id": "zzzfx01",
