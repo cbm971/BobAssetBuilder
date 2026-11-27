@@ -1,5 +1,5 @@
 {
- "set": "71a378563cf9b80d",
+ "set": "24854410f6abd9cb",
  "part": 1,
  "assets": [
   {
@@ -241486,7 +241486,7 @@
       "y": 64.5,
       "w": 172,
       "h": 82,
-      "color": "#c8a23c",
+      "color": "#5d6b39",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -241518,7 +241518,7 @@
       "y": 77,
       "w": 57,
       "h": 54,
-      "color": "#c8a23c",
+      "color": "#5d6b39",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -241544,6 +241544,60 @@
        "glowColor": "#ffd76b",
        "bright": 1
       }
+     },
+     {
+      "id": "f7x5ut2",
+      "kind": "rect",
+      "x": 58,
+      "y": 114.5,
+      "w": 159.5,
+      "h": 111,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10,
+      "isCutter": true
+     },
+     {
+      "id": "641j8et",
+      "kind": "rect",
+      "x": 85,
+      "y": 19,
+      "w": 159.5,
+      "h": 111,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10,
+      "isCutter": true
+     },
+     {
+      "id": "39aw6eq",
+      "kind": "text",
+      "text": "10",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": -5,
+      "y": 65.5,
+      "w": 73.5,
+      "h": 19.5,
+      "color": "#5d6b39",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
      }
     ],
     "back": [],
@@ -241554,17 +241608,18 @@
    "guideId": "default",
    "effect": {
     "kind": "money",
-    "amount": 11
+    "amount": 3
    },
    "categories": [
     "T1",
     "Money",
     ""
    ],
-   "value": 11,
-   "savedAt": 1795739098397,
-   "dropWeight": 1,
-   "rank": "rare"
+   "value": 10,
+   "savedAt": 1795739224962,
+   "dropWeight": 2,
+   "rank": "rare",
+   "editedFrom": 1795739098397
   },
   {
    "id": "8jgv811",
@@ -438432,6 +438487,42 @@
        "glowColor": "#ffd76b",
        "bright": 1
       }
+     },
+     {
+      "id": "w6exla5",
+      "kind": "text",
+      "text": "1",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": -5,
+      "y": 68,
+      "w": 70,
+      "h": 20,
+      "color": "#5d6b39",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hughm84",
+      "kind": "text",
+      "text": "1",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": 135,
+      "y": 121,
+      "w": 70,
+      "h": 20,
+      "color": "#5d6b39",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
      }
     ],
     "back": [],
@@ -438450,10 +438541,10 @@
     ""
    ],
    "value": 1,
-   "savedAt": 1793454712895,
+   "savedAt": 1795739251896,
    "dropWeight": 5,
    "rank": "poor",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "bkshlf6",
