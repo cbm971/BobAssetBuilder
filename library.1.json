@@ -1,5 +1,5 @@
 {
- "set": "573faf1cc042528b",
+ "set": "972777241e98620b",
  "part": 1,
  "assets": [
   {
@@ -596736,7 +596736,7 @@
      }
     }
    },
-   "savedAt": 1795779869745,
+   "savedAt": 1795787076679,
    "states": {
     "rest": {
      "front": [
@@ -606537,7 +606537,7 @@
    "chargeTime": 0.65,
    "beamTime": 0.55,
    "automatic": true,
-   "autoRunSecs": 5,
+   "autoRunSecs": 5.5,
    "autoCoolSecs": 2,
    "soundWave": false,
    "resurrect": false,
@@ -606549,10 +606549,11 @@
     "crouch": []
    },
    "pickupCount": 3,
-   "editedFrom": 1795779864174,
+   "editedFrom": 1795779869745,
    "soundVol": {
     "fire": 0.65
-   }
+   },
+   "backstab": 0
   },
   {
    "id": "chraltr",
