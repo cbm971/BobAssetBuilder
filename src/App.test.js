@@ -11513,6 +11513,31 @@ describe("runs", () => {
     startVariantsKeepTheRun("Trailer Park", ["6ktwvoo", "trps2a1", "trps3a1"], "tp-start-");   // Trailer Park S1 (his), S2, S3
   });
 
+  // Blake, 2026-11-26: "For each of the 3 tree interiors can you make a version with a shop keeper and a
+  // version with a random vk enemy automatically hostile?" Each version is its room cell for cell (same
+  // roomTag, so a "Tree" door rolls any of the nine): the Shop Keeper one swaps the pedestals for The Shop
+  // Keeper (his Trailer Int pattern), the Vietkong one keeps the pedestals and adds one 🎲 Vietkong on Seek.
+  test("on the REAL library, every Tree Int has a Shop Keeper version and a Vietkong version of the same room", () => {
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
+    const byId = (id) => lib.levels.find((l) => l.id === id);
+    const same = (lv) => { const { id, name, savedAt, editedFrom, enemies, markers, ...rest } = lv; return rest; };   // editedFrom is save bookkeeping
+    const noPed = (m) => Object.fromEntries(Object.entries(m || {}).filter(([, v]) => v.kind !== "pedestal"));
+    const added = (base, lv) => Object.entries(lv.enemies).filter(([k]) => !base.enemies[k]).map(([, v]) => v);
+    for (const [baseId, n] of [["k7385z5", 1], ["treeint2", 2], ["fsos6jt", 3]]) {
+      const base = byId(baseId), shop = byId("trnt0" + n + "s"), vc = byId("trnt0" + n + "v");
+      expect(base.roomTag).toBe("Tree");
+      expect([shop.name, vc.name]).toEqual([base.name + " Shop Keeper", base.name + " Vietkong"]);
+      for (const lv of [shop, vc]) {
+        expect(same(lv)).toEqual(same(base));
+        for (const [k, v] of Object.entries(base.enemies)) expect(lv.enemies[k]).toEqual(v);   // residents kept
+      }
+      expect(shop.markers).toEqual(noPed(base.markers));
+      expect(added(base, shop)).toEqual([expect.objectContaining({ enemyId: "vmcrl51", ai: "guard", dialogueId: "h4o3v93" })]);
+      expect(vc.markers).toEqual(base.markers);
+      expect(added(base, vc)).toEqual([expect.objectContaining({ enemyTag: "Vietkong", ai: "seek" })]);
+    }
+  });
+
   // Blake, 2026-11-26: "make two varients of the Vietnam intro level? ... Same logic as Trailor Park S1".
   test("on the REAL library, Vietnam S1, S2 and S3 share gates and edge columns, and every run after the start is S1's", () => {
     startVariantsKeepTheRun("Vietnam", ["vtnms1a", "vtnms2a", "vtnms3a"], "vn-start-");   // Vietnam S1 (FIREBASE FREEDOM), S2, S3

@@ -1163,6 +1163,9 @@ plus traps it does not cover:
   Shop Keeper (`63edlrj`, seek, his `95e2gzd`, gearTags Meelee + T1). The keeper is the room's item source. Every
   Shaq room has both (`vshqNNs` / `vshqNNe`, named "<room> Shop Keeper" / "<room> Evil Shop Keeper") and keeps
   its own residents; a door rolls any of the 12 with one draw. A new Shaq room gets its two versions too.
+  **Tree Int rooms** (Blake, 2026-11-26) carry a Shop Keeper version (`trnt0Ns`, pedestals out, keeper at a pedestal's
+  spot) and a Vietkong version (`trnt0Nv`, "<room> Vietkong": pedestals kept, plus one 🎲 Vietkong on Seek, gearTags T1),
+  not an Evil one; the "Tree" pool is 9. A REAL library test holds each to its room cell for cell.
 - **Drug dens** (Blake, 2026-11-23: "you enter a shaq and it is a drug dealers den and two people attack you", plus
   "a simular Trailor room"). VShaq 5 (`vshaq05` + `vshq05s` / `vshq05e`, so the Shaq pool is 15) is VShaq's shell
   with Bamboo walls and the Packed Earth floor; Trailer Int13 (`trlnt13`) is his Trailer Int11 shell with Wood panelling,
