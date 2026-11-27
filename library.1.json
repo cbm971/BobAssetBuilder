@@ -1,5 +1,5 @@
 {
- "set": "7fd165e32d851afa",
+ "set": "a1615786c5708d29",
  "part": 1,
  "assets": [
   {
@@ -573233,7 +573233,7 @@
    "projectileId": null,
    "projectileSpeed": 12,
    "projectileRange": 14,
-   "damage": 20,
+   "damage": 80,
    "fireRate": 3,
    "clipSize": 6,
    "reloadTime": 1.2,
@@ -596331,7 +596331,7 @@
      }
     }
    },
-   "savedAt": 1795778421468,
+   "savedAt": 1795779273582,
    "states": {
     "rest": {
      "front": [
@@ -605941,7 +605941,8 @@
     "up": [],
     "crouch": []
    },
-   "pickupCount": 3
+   "pickupCount": 3,
+   "editedFrom": 1795778421468
   },
   {
    "id": "chraltr",
