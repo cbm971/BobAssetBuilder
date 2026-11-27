@@ -11558,6 +11558,38 @@ describe("runs", () => {
     }
   });
 
+  // Blake, 2026-11-22: "3 varients of each, one with a shop keeper, one with an evil shop keeper and whatever
+  // the base is". Every Shaq room (VShaq ... VShaq 6) has both versions, each the room cell for cell with its
+  // pedestal out and the keeper on row 17 at the pedestal's column; the residents stay. A new Shaq room
+  // without its two versions, or a version that drifted from its room, fails here.
+  test("on the REAL library, every Shaq room has a Shop Keeper and an Evil Shop Keeper version of the same room", () => {
+    const lib = require("./libraryFiles").readLibraryFile(require("path").join(__dirname, "..", "asset-data", "library.json"));
+    const byId = (id) => lib.levels.find((l) => l.id === id);
+    const same = (lv) => { const { id, name, savedAt, editedFrom, enemies, markers, ...rest } = lv; return rest; };
+    const noPed = (m) => Object.fromEntries(Object.entries(m || {}).filter(([, v]) => v.kind !== "pedestal"));
+    const added = (base, lv) => Object.entries(lv.enemies).filter(([k]) => !base.enemies[k]);
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      const base = byId("vshaq0" + n), shop = byId("vshq0" + n + "s"), evil = byId("vshq0" + n + "e");
+      expect(base.roomTag).toBe("Shaq");
+      expect([shop.name, evil.name]).toEqual([base.name + " Shop Keeper", base.name + " Evil Shop Keeper"]);
+      for (const lv of [shop, evil]) {
+        expect(same(lv)).toEqual(same(base));
+        for (const [k, v] of Object.entries(base.enemies)) expect(lv.enemies[k]).toEqual(v);   // residents kept
+        expect(lv.markers).toEqual(noPed(base.markers));
+      }
+      expect(added(base, shop).map(([, v]) => v)).toEqual([expect.objectContaining({ enemyId: "vmcrl51", ai: "guard", dialogueId: "h4o3v93" })]);
+      expect(added(base, evil).map(([, v]) => v)).toEqual([expect.objectContaining({ enemyId: "63edlrj", ai: "seek", dialogueId: "95e2gzd" })]);
+    }
+    // VShaq 6, the bike shop: its pedestal rolls Shoes (the tyre sandals), and Shoes holds no gold item.
+    const v6 = byId("vshaq06");
+    const ped = Object.values(v6.markers).find((m) => m.kind === "pedestal");
+    const pool = pedestalItemPool(lib.assets, ped.cats, ped.logic);
+    expect(pool.map((a) => a.id)).toContain("vcsndls");
+    expect(pool.filter((a) => itemRank(a) === "mystic")).toEqual([]);
+    // Its eight bike-shop props are all things his editor can make.
+    for (const id of ["bkbench", "bktools", "bkwhel1", "bkflip1", "bktube1", "bksndl1", "bkbasn1", "bkpump1"]) expect([id, editorReachIssues(lib.assets.find((x) => x.id === id))]).toEqual([id, []]);
+  });
+
   // Blake, 2026-11-26: "make two varients of the Vietnam intro level? ... Same logic as Trailor Park S1".
   test("on the REAL library, Vietnam S1, S2 and S3 share gates and edge columns, and every run after the start is S1's", () => {
     startVariantsKeepTheRun("Vietnam", ["vtnms1a", "vtnms2a", "vtnms3a"], "vn-start-");   // Vietnam S1 (FIREBASE FREEDOM), S2, S3

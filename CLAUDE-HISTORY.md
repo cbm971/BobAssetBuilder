@@ -6414,3 +6414,23 @@ gives you money is flagged one time".
   drive longer than the tool's 45 s must run in the page and be polled. A hidden pane clamps
   setTimeout/setInterval to 1 s, so the driver's waits and the rAF shim both run on MessageChannel.
   Emoji in App.js comments count as UI symbols (symbols.test.js): "☑" failed it.
+
+## VSHAQ 6, THE BIKE SHOP (2026-11-27)
+
+Blake: "On Bob can you make a new Shaq Interior?" The five before it are a meeting room (his VShaq), the WBOB
+radio shack, the Pho kitchen, the barber and the drug den, so VShaq 6 is a village bicycle repair shop: the bikes
+that carried supplies down the trail, and rubber sandals cut from old tyres (his Ho Chi Minh Sandals `vcsndls`).
+
+- **Shell:** VShaq 5's cells with three textures swapped (roof `vcthch1` -> `rsttin1` Rusty Tin, walls `vcbmbo1` ->
+  `wthpln1` Weathered Planks, floor `phearth` -> `oilrth1` Oily Earth), `more` fills included.
+- **The walls were first a grey `wood` texture.** Offline renders draw textures flat, so it looked fine there; in
+  the running game the staggered plank ends read as grey stone brick. Upright `woodPanel` boards fixed it. Look at
+  a new texture in the game before shipping it.
+- **Sandals on a Background wall:** the wall draws at 42%, so #2b2b2b soles vanished into it. A #9a8c5c outline
+  (the tan layer his sandals carry) makes them read.
+- **Item source:** one pedestal, tag Shoes (13 items, no gold, one purple). The keeper versions drop it for The
+  Shop Keeper / Evil Shop Keeper at 17,27; the Mechanic stays.
+- **Driven live** (dev server, god mode): Room Creator -> VShaq 6 -> Playtest as Army Bob; W to the back row,
+  "Talk to Mechanic" at about 4 cells, the line shows; the pedestal rolled #2 Socks, then Bobs Skates. The Evil
+  version had the Mechanic and the keeper and no pedestal.
+- Generator: `props.js` + `gen.js` in session f3d34d66's scratchpad (`shaq6/`).

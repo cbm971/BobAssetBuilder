@@ -366,6 +366,8 @@ plus traps it does not cover:
   (5101+ vs 6000), so cut the paint where the sign sits (E1's Local Board Sign, rows 17-19).
 - Reuse his palettes (`PALETTES.trailer60s`, `PALETTES.vietnam` + the `vietnamGrass` texture for the Vietnam floor, `#2b2b2b` for tyres and trim, `#8a929c` for chrome)
   and his textures. The Vietnam floor also has `bamboo` (canes, walls) and `thatch` (roofs) registry textures.
+  A board wall is `woodPanel` (upright boards). The `wood` kind's staggered planks read as stone brick once
+  they are grey (VShaq 6's first wall, 2026-11-27); keep `wood` for floors.
 - `solidDefault` sets the Solid box when the prop is picked (still editable). Solid means collision
   and nothing else; the drawing layer is `lay` (bg / fg / front).
 - **Props cannot be climbed.** Climbing comes only from the level's Climb layer (ladder, bars,
@@ -1177,7 +1179,8 @@ plus traps it does not cover:
   same room with its pedestal removed, plus The Shop Keeper (`vmcrl51`, guard, his `h4o3v93` shop T1) or the Evil
   Shop Keeper (`63edlrj`, seek, his `95e2gzd`, gearTags Meelee + T1). The keeper is the room's item source. Every
   Shaq room has both (`vshqNNs` / `vshqNNe`, named "<room> Shop Keeper" / "<room> Evil Shop Keeper") and keeps
-  its own residents; a door rolls any of the 12 with one draw. A new Shaq room gets its two versions too.
+  its own residents; a door rolls any of the 18 with one draw. A new Shaq room gets its two versions too, and a
+  REAL library test holds every `vshqNNs` / `vshqNNe` to its room cell for cell.
   **Tree Int rooms** (Blake, 2026-11-26) carry a Shop Keeper version (`trnt0Ns`, pedestals out, keeper at a pedestal's
   spot) and a Vietkong version (`trnt0Nv`, "<room> Vietkong": pedestals kept, plus one 🎲 Vietkong on Seek, gearTags T1),
   not an Evil one; the "Tree" pool is 9. A REAL library test holds each to its room cell for cell.
@@ -1188,6 +1191,13 @@ plus traps it does not cover:
   rush you the moment you walk in (Vietkong Meelee + Gun; Trailer Meelee + Meelee), no dialogue, and one pedestal of
   tag "Drug" at 18,31 (Extended Range Pill, Joint, Ritalin, Steroids: one blue at most). Props `dd*`: Dirty Mattress,
   Deal Table, Foil Window, Bead Curtain (Interior), Trash Pile, Bong, Wrapped Bricks (Decoration), Opium Bed (Vietnam).
+- **VShaq 6, the bike shop** (Blake, 2026-11-27: "make a new Shaq Interior"). `vshaq06` + `vshq06s` / `vshq06e`
+  (Shaq pool 18): VShaq's shell under a Rusty Tin roof (`rsttin1`, metal), Weathered Planks walls (`wthpln1`,
+  woodPanel) and an Oily Earth floor (`oilrth1`, gravel). A village repair shop for the trail's bicycles: Viatnamese 3
+  (`fc52zct`) as the Mechanic at 17,11 (`dlgbike`, one line), his Cargo Bicycle waiting under the window, and one
+  pedestal of tag "Shoes" at 19,27 by the Tyre Sandal Rack (no gold; Super Boots is its one purple). Props `bk*`:
+  Workbench, Tool Board, Puncture Basin (Interior), Wheel Rack, Upside-Down Bicycle, Inner Tubes (Decoration),
+  Tyre Sandal Rack (Vietnam), Bicycle Pump (Equipment).
 - **A look's name is record keeping too.** A talker is named by its tree's speaker (`talkerName`):
   the "Talk to …" prompt and the box. A 🎲 tag placement rolls a different look every Playtest.
 - There is no 👹 enemy flag and no weapon picker in Dress Bob. What a character carries is set per
