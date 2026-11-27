@@ -1,5 +1,5 @@
 {
- "set": "fb1886b597b7e680",
+ "set": "23567f5e460c3bad",
  "part": 4,
  "levels": [
   {
@@ -681712,7 +681712,7 @@
    },
    "enemies": {
     "38,130": {
-     "enemyId": "7vh0ltj",
+     "enemyId": "hrr4xyc",
      "facing": 1,
      "ai": "guard",
      "dialogueId": "8meobob",
@@ -681756,8 +681756,8 @@
    "floor": "Tree Tops",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1794880768653,
-   "editedFrom": 1793489411352
+   "savedAt": 1795740505671,
+   "editedFrom": 1794880768653
   },
   {
    "id": "ypjilr0",
