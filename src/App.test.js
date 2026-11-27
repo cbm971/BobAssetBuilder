@@ -234,7 +234,7 @@ import {
   relocatedObjectKey,
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
-  catchUpFollowers, isFollower, setFollowerDown, followerToSave, followerFromSave, newUnitState, firedOffArmTwins, ladderFootHits, ladderUnderFeet, trailDrop, trailShift, trailPickUp, trailNext, followDetourStep, followJumpsWall,
+  catchUpFollowers, isFollower, setFollowerDown, followerToSave, followerFromSave, newUnitState, unitHomeAt, runWorldToSave, applyRunWorld, firedOffArmTwins, ladderFootHits, ladderUnderFeet, trailDrop, trailShift, trailPickUp, trailNext, followDetourStep, followJumpsWall,
   FOLLOW_BLOCKED_FRAMES, FOLLOW_TRAIL_GIVE_UP_FRAMES, ladderJogDx,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
   runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runFloors, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, roomViewZoom, centreRoomInView, ROOM_VIEW_ROWS, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
@@ -12227,13 +12227,16 @@ describe("runs", () => {
     const spawn = { enemyTag: "Vietkong", gearTags: ["Hat"], behavior: "seek" };
     const ep = { uid: 9, friendly: true, allyKind: "captured", livesUsed: 2, resurrectedOnce: true, allyHpPaid: ["boxers"], x: 5, y: 6 };
     const saved = followerToSave(spawn, ep, 17, { enemyId: "vc2", items: [hat] });
-    expect(saved).toEqual({ spawn, hp: 17, gear: { enemyId: "vc2", items: ["hat1"] }, kind: "captured", livesUsed: 2, raised: true, paid: ["boxers"] });
+    expect(saved).toEqual({ spawn, hp: 17, gear: { enemyId: "vc2", items: ["hat1"] }, kind: "captured", livesUsed: 2, raised: true, paid: ["boxers"], home: null, talkSpent: false, talked: false });
     expect(JSON.parse(JSON.stringify(saved))).toEqual(saved);          // plain data: it goes in a save
     const back = followerFromSave(saved, (id) => assets[id] || null);
     expect(back.spawn).toEqual(spawn); expect(back.spawn).not.toBe(spawn);
     expect(back.hp).toBe(17);
     expect(back.gear).toEqual({ enemyId: "vc2", items: [hat] });
-    expect(back.ep).toEqual({ friendly: true, peaceful: false, turned: null, allyKind: "captured", livesUsed: 2, resurrectedOnce: true, allyHpPaid: ["boxers"] });
+    expect(back.ep).toEqual({ friendly: true, peaceful: false, turned: null, allyKind: "captured", livesUsed: 2, resurrectedOnce: true, allyHpPaid: ["boxers"], talkSpent: false, talked: false });
+    // A "One time only" talker who followed you stays talked out, and keeps the cell it was placed in.
+    const harembe = followerFromSave(followerToSave(spawn, { friendly: true, talkSpent: true, talked: true, home: "run2|34,32" }, 50, null), () => null);
+    expect([harembe.ep.talkSpent, harembe.ep.talked, harembe.ep.home]).toEqual([true, true, "run2|34,32"]);
     // Untouched (no HP entry) comes back at full; an item deleted since is left out; junk is nothing.
     expect(followerFromSave(followerToSave(spawn, { friendly: true }, undefined, null), () => null).hp).toBeUndefined();
     expect(followerFromSave({ ...saved, gear: { enemyId: null, items: ["gone"] } }, () => null).gear.items).toEqual([]);
@@ -12242,6 +12245,58 @@ describe("runs", () => {
     // A fresh unit state for it, the loop's own: at rest, uid'd.
     const st = newUnitState(spawn, 10, 20);
     expect(st.x).toBe(10); expect(st.y).toBe(20); expect(st.uid).toBeGreaterThan(0); expect(st.peaceful).toBe(false);
+  });
+
+  // Blake, 2026-11-26 — "broken seed memory": a zoo level, an allied Harembe, through a sewer and back.
+  // A load rebuilds the run from its seed; the save's world memory (runWorldToSave / applyRunWorld) is
+  // what keeps the dead dead, a spent talk spent, and the Intro played.
+  test("a save remembers every level of the run, and a load puts it back", () => {
+    const lion = { enemyId: "lion" }, harembe = { enemyId: "harembe", dialogueId: "tour" }, keeper = { enemyId: "keeper", dialogueId: "hi" };
+    const zoo = () => ({ "40,5": lion, "40,20": harembe, "40,30": keeper });
+    const run = twoNodeRun({}, zoo()), n1 = run.nodes.run1;
+    const buckets = {};
+    adoptRunNeighbours(run, n1, buckets, CELL);
+    // The loop meets each unit while it stands in the start level's books, keyed across the gate.
+    const parts = runWorldParts(n1.level, runSeams(run, n1, CELL), CELL);
+    const lb = buckets.run1;
+    for (const k of Object.keys(n1.level.enemies)) { lb.ePos[k] = newUnitState(n1.level.enemies[k], 0, 0); lb.ePos[k].home = unitHomeAt(parts, k); }
+    const keyOf = (sp) => Object.keys(n1.level.enemies).find((k) => n1.level.enemies[k] === sp);
+    expect([lion, harembe, keeper].map((sp) => lb.ePos[keyOf(sp)].home)).toEqual(["run2|40,5", "run2|40,20", "run2|40,30"]);
+    expect(unitHomeAt(parts, "40,5")).toBe("run1|40,5");
+    expect(unitHomeAt(parts, "999,5")).toBeNull();                       // off every level
+    // The lion is killed, Harembe talked into following you, the keeper talked out where he stands.
+    lb.eHP[keyOf(lion)] = 0;
+    Object.assign(lb.ePos[keyOf(harembe)], { friendly: true, allyKind: "talked", talkSpent: true, talked: true });
+    Object.assign(lb.ePos[keyOf(keeper)], { talkSpent: true, talked: true });
+    lb.depleted.add("30,30");
+    const world = runWorldToSave(run, buckets, null, { "run1|34,5": { si: 2, t: 3.6, done: true } });
+    expect(JSON.parse(JSON.stringify(world))).toEqual(world);           // plain data: it goes in a save
+    const byKey = Object.fromEntries(world.nodes.map((n) => [n.key, n]));
+    expect(byKey.run2.gone.sort()).toEqual(["40,20", "40,5"]);
+    expect(byKey.run2.units).toEqual({ "40,30": { talkSpent: true, talked: true, turned: null, peaceful: true } }); // a talker starts peaceful (newUnitState)
+    expect(byKey.run1.depleted).toEqual(["30,30"]);
+    expect(byKey.run1.anims).toEqual({ "34,5": { si: 2, t: 3.6, done: true } });
+    // LOAD: the same seed laid out fresh, with the memory laid back over it.
+    const again = twoNodeRun({}, zoo());
+    const m = applyRunWorld(again, world);
+    expect(Object.keys(again.nodes.run2.level.enemies)).toEqual(["40,30"]);   // no lion, and no second Harembe
+    expect(m.anims).toEqual({ "run1|34,5": { si: 2, t: 3.6, done: true } });  // the Intro has played
+    expect(m.units["run2|40,30"].talkSpent).toBe(true);                       // the keeper is still talked out
+    expect([...m.buckets.run1.depleted]).toEqual(["30,30"]);
+    // ...and the NEXT save still has all of it, though nothing of it is in any book now.
+    const next = runWorldToSave(again, {}, m.carried, {});
+    expect(Object.fromEntries(next.nodes.map((n) => [n.key, n.gone.sort()]))).toEqual({ run2: ["40,20", "40,5"], run1: [] });
+    // The levels moved slots (his levels changed between save and load): found by level, not by slot.
+    const moved = twoNodeRun({}, zoo());
+    [moved.nodes.run1.level, moved.nodes.run2.level] = [moved.nodes.run2.level, moved.nodes.run1.level];
+    const mm = applyRunWorld(moved, world);
+    expect(Object.keys(moved.nodes.run1.level.enemies)).toEqual(["40,30"]);
+    expect(mm.units["run1|40,30"].talkSpent).toBe(true);
+    // A room keeps its own: its gone units are not stood up when it is re-made.
+    const rm = applyRunWorld(again, { nodes: [{ key: "roomX", levelId: "roomX", room: true, gone: ["3,4"], units: {}, depleted: [], anims: {} }] });
+    expect([...rm.buckets.roomX.gone]).toEqual(["3,4"]);
+    // An older save has no memory: nothing changes.
+    expect(applyRunWorld(again, null)).toEqual({ buckets: {}, anims: {}, units: {}, carried: { nodes: [] } });
   });
 
   test("releaseRunUnits gives every unit back to the level it is standing in", () => {

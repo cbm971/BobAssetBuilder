@@ -1285,6 +1285,21 @@ plus traps it does not cover:
   heal allies"). `healWithOverflow` in `consumeEffectNow`: you are healed first, and what is left of the amount heals EVERY
   living ally (riders included) by up to that much, each to its `unitMaxHP`. It never raises a ceiling and is not an Ally
   Health payment. The line reads "Allies +N HP" (full you) or "+5 HP · Allies +10 HP". A dialogue's heal act is not an item.
+- **SEED MEMORY: a load is the same run, not the seed laid out fresh** (his report: a zoo level, an allied Harembe, through a
+  sewer and back round — a once-only talk could be had again, enemies came back, the Intro wake-up played again). Within
+  one sitting every level keeps its books (roomState: dead stay dead, `ep.talkSpent` rides with the unit through gates,
+  sewers, catch-up and doors, animInst keeps "Level start" to once). What lost it all was LOAD: the game checkpoints at
+  every level, and Load Game / Quit to Main Menu / a reload rebuilds the run from its seed. The save's `world`
+  (`runWorldToSave` / `applyRunWorld`) now carries, per level slot (and per room): `gone` (placements whose unit died or
+  left with you), `units` (talkSpent / talked / turned / peaceful of the ones still standing), `depleted` pedestals and
+  played `anims`. A unit is named by its HOME, `ep.home` = "<level slot>|<r,c>" (`unitHomeAt`), stamped where the loop
+  first meets it; its key changes at every handoff, its home never does. Followers save `home` + `talkSpent` too, so a
+  load never stands a second copy at the placement and a talked-out follower stays talked out (also on the next floor,
+  where `carryToNextFloor` drops `world` and the homes: a new floor is a new run). Earlier one-instance fixes of the same
+  class: `talkSpentSigns` (signs only) was already saved; a room's `gone` set was in-session only.
+  Rules for anything new a level should remember: keep it in that level's bucket or on `ep`, AND add it to
+  `runWorldToSave`/`applyRunWorld`, or a load forgets it. Prove a memory fix with Quit to Main Menu → Load Game, not
+  only by walking back.
 
 ## Working style
 

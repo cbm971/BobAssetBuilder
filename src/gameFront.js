@@ -332,6 +332,11 @@ export const makeGameSave = (prev, s) => ({
   // you (carryToNextFloor keeps the field) and come back on a load (Blake, 2026-11-26: "be sure
   // followers follow across levels"). A save from before them has none.
   allies: Array.isArray(s.allies) ? s.allies.filter((a) => a && a.spawn && typeof a.spawn === "object").map((a) => JSON.parse(JSON.stringify(a))) : [],
+  // 🗺️ What every level of the run has been through — its dead, the ones who left with you, taken
+  // pedestals, scenes played, what was said (App.js runWorldToSave / applyRunWorld), so a load is the
+  // same run and not the seed laid out fresh (Blake, 2026-11-26). null on an older save, and on a new
+  // floor (carryToNextFloor): that is a different run.
+  world: s.world && Array.isArray(s.world.nodes) ? JSON.parse(JSON.stringify({ nodes: s.world.nodes.filter((n) => n && n.key) })) : null,
 });
 // Newest first, at most GAME_SAVES_MAX, one per id (the newest copy of an id wins).
 export const sortGameSaves = (saves) => {
@@ -501,6 +506,10 @@ export const carryToNextFloor = (save, nextFloor, now = Date.now()) => makeGameS
   score: fileScoreUnderFloor(save.score, gameRunFloor(save)),
   nodeKey: null, levelId: null, levelName: "", gateKey: null,
   objectives: { list: [], done: [] }, talkSpent: [],
+  // A new floor is a new run: nothing of this one's levels goes with you, and a follower's home (the
+  // cell it was placed in, App.js unitHomeAt) names a level of THIS run, so it is left behind too.
+  world: null,
+  allies: (save.allies || []).map((a) => ({ ...a, home: null })),
 });
 export const withPlannedFloors = (floors) => {
   const out = [...(floors || [])];

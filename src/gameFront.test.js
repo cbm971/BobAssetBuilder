@@ -101,9 +101,18 @@ describe("saved games", () => {
     const s = makeGameSave(null, { ...base, id: "g1", allies });
     expect(s.allies).toEqual(allies);
     expect(s.allies[0]).not.toBe(allies[0]);                       // nothing shared with the live state
-    expect(carryToNextFloor(s, "Forest").allies).toEqual(allies);
+    expect(carryToNextFloor(s, "Forest").allies).toEqual(allies.map((a) => ({ ...a, home: null }))); // its home is a level of THIS run
     expect(makeGameSave(null, { ...base, id: "g2" }).allies).toEqual([]); // an older save has none
     expect(makeGameSave(null, { ...base, id: "g3", allies: [null, { hp: 3 }] }).allies).toEqual([]);
+  });
+  // Blake, 2026-11-26 ("broken seed memory"): a load must be the same run, not the seed laid out fresh.
+  test("a save carries the run's level memory; the next floor starts without it", () => {
+    const world = { nodes: [{ key: "run2", levelId: "zoo", room: false, gone: ["34,98"], units: {}, depleted: [], anims: {} }] };
+    const s = makeGameSave(null, { ...base, id: "w1", world });
+    expect(s.world).toEqual(world);
+    expect(s.world).not.toBe(world);
+    expect(carryToNextFloor(s, "Forest").world).toBeNull();
+    expect(makeGameSave(null, { ...base, id: "w2" }).world).toBeNull(); // an older save has none
   });
   test("a checkpoint keeps its game's id and start", () => {
     const first = makeGameSave(null, { ...base, id: "g1", startedAt: 5 });

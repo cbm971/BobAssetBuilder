@@ -15352,6 +15352,12 @@ export const followerToSave = (spawn, ep, hp, roll) => ({
   livesUsed: Math.max(0, Math.round((ep && ep.livesUsed) || 0)),
   raised: !!(ep && ep.resurrectedOnce),
   paid: Array.isArray(ep && ep.allyHpPaid) ? [...ep.allyHpPaid] : [],
+  // 🗺️ Where it was placed (ep.home, unitHomeAt), so a load does not stand it up there a second time,
+  // and its talk: a "One time only" talker who followed you is still talked out after a load or on
+  // the next floor (Blake, 2026-11-26).
+  home: (ep && ep.home) || null,
+  talkSpent: !!(ep && ep.talkSpent),
+  talked: !!(ep && ep.talked),
 });
 // ...and back: the ep fields to lay over a fresh unit state, the HP, and the roll with its items
 // found again by id (one deleted since is left out). `findA(id)` → asset or null.
@@ -15362,8 +15368,99 @@ export const followerFromSave = (a, findA) => {
     spawn: JSON.parse(JSON.stringify(a.spawn)),
     hp: typeof a.hp === "number" && a.hp > 0 ? a.hp : undefined,
     gear: g ? { enemyId: g.enemyId || null, items: (g.items || []).map((id) => findA(id)).filter(Boolean) } : undefined,
-    ep: { friendly: true, peaceful: false, turned: null, allyKind: a.kind || null, livesUsed: Math.max(0, Math.round(a.livesUsed || 0)), resurrectedOnce: !!a.raised, allyHpPaid: Array.isArray(a.paid) ? [...a.paid] : [] },
+    ep: { friendly: true, peaceful: false, turned: null, allyKind: a.kind || null, livesUsed: Math.max(0, Math.round(a.livesUsed || 0)), resurrectedOnce: !!a.raised, allyHpPaid: Array.isArray(a.paid) ? [...a.paid] : [], ...(a.home ? { home: String(a.home) } : {}), talkSpent: !!a.talkSpent, talked: !!a.talked },
   };
+};
+/* 🗺️ THE RUN REMEMBERS EVERY LEVEL ACROSS A LOAD (Blake, 2026-11-26: a zoo level, an allied Harembe,
+   through a sewer and back round — "broken seed memory"). Within one sitting every level keeps its own
+   books (roomState) and nothing in it comes back. But a game is checkpointed at every level, and Load
+   Game (Quit to Main Menu and back, a reload) rebuilds the run from its SEED: every level as he built
+   it. Measured on seed 1010 (S1, then the zoo M15 with Sewer M1 under it): after a load the four
+   animals killed in the zoo stood up again at full HP, Harembe stood at his placement with his "One
+   time only" talk open again (and the saved follower copy of him came along too), and the first
+   level played its Intro wake-up again. The save now carries what each level has been through, as
+   { nodes: [{ key, levelId, room, gone, units, depleted, anims }] }:
+     * gone     — cells (in that level) whose unit is dead or left with you as a follower: not stood
+                  back up on a load. A follower comes back as the save's ally (followerFromSave).
+     * units    — what was said to one still standing (talkSpent / talked / turned / peaceful),
+                  laid over it the first time the loop meets it again.
+     * depleted — the pedestals already taken.
+     * anims    — the 🎬 scenes that have played (animInst), so "Level start" never plays twice a run.
+   A unit's name for all of it is its HOME, "<level slot>|<r,c>": the level it was placed in and its
+   cell there (unitHomeAt), stamped on ep the first time the loop meets it. Its key changes every time
+   it changes level's books (moveRunUnit); its home never does. */
+export const unitHomeAt = (parts, k) => {
+  const i = k.indexOf(","), r = +k.slice(0, i), c = +k.slice(i + 1);
+  const P = worldPartOfCell(parts, r, c);
+  return P && P.key ? P.key + "|" + (r - P.dr) + "," + (c - P.dc) : null;
+};
+// What a load lays back over a unit still standing, or null when nothing has been said to it. A
+// friendly one in your car is not a follower (isFollower) and is not saved as one, so it keeps its side.
+const unitMemOf = (ep) => (ep && (ep.talkSpent || ep.talked || ep.turned || ep.friendly)
+  ? { talkSpent: !!ep.talkSpent, talked: !!ep.talked, turned: ep.turned || null, peaceful: !!ep.peaceful, ...(ep.friendly ? { friendly: true, allyKind: ep.allyKind || null } : {}) }
+  : null);
+// The save's memory of the run: what was "carried" in from the save it was loaded from (applyRunWorld),
+// with every level's books now laid over it. "buckets" is roomState; "anims" the scenes played, by
+// animInstKey ("<level slot>|<cell>").
+export const runWorldToSave = (run, buckets, carried, anims) => {
+  const by = {};
+  const nodes = (run && run.nodes) || {};
+  const at = (key, levelId, room) => by[key] || (by[key] = { key, levelId: levelId !== undefined ? levelId : nodes[key] ? nodes[key].level.id : key, room: room !== undefined ? room : !nodes[key], gone: new Set(), units: {}, depleted: new Set(), anims: {} });
+  for (const n of (carried && carried.nodes) || []) {
+    if (!n || !n.key) continue;
+    const e = at(n.key, n.levelId || null, !!n.room);
+    for (const g of n.gone || []) e.gone.add(g);
+    Object.assign(e.units, n.units || {});
+    for (const d of n.depleted || []) e.depleted.add(d);
+    Object.assign(e.anims, n.anims || {});
+  }
+  for (const bk of Object.keys(buckets || {})) {
+    const b = buckets[bk]; if (!b) continue;
+    if (b.depleted) for (const d of b.depleted) at(bk).depleted.add(d);
+    if (b.gone) for (const g of b.gone) at(bk).gone.add(g);
+    for (const k of Object.keys(b.ePos || {})) {
+      const ep = b.ePos[k]; if (!ep || !ep.home) continue;
+      const i = ep.home.lastIndexOf("|"); if (i <= 0) continue;
+      const e = at(ep.home.slice(0, i)), cell = ep.home.slice(i + 1), hp = b.eHP ? b.eHP[k] : undefined;
+      if ((typeof hp === "number" && hp <= 0) || isFollower(ep, hp)) { e.gone.add(cell); delete e.units[cell]; continue; }
+      const u = unitMemOf(ep); if (u) e.units[cell] = u;
+    }
+  }
+  for (const ik of Object.keys(anims || {})) { const i = ik.indexOf("|"); if (i > 0) at(ik.slice(0, i)).anims[ik.slice(i + 1)] = { ...anims[ik] }; }
+  return {
+    nodes: Object.values(by)
+      .filter((e) => e.gone.size || e.depleted.size || Object.keys(e.units).length || Object.keys(e.anims).length)
+      .map((e) => ({ key: e.key, levelId: e.levelId, room: e.room, gone: [...e.gone], units: e.units, depleted: [...e.depleted], anims: e.anims })),
+  };
+};
+// ...and back, onto a run just rebuilt from the same seed. A level is found by its slot when that slot
+// still holds the same level, else wherever that level now sits (resumeNodeKey's rule); its gone
+// placements are taken out of its spawn list here and now. Returns what the loader puts in place:
+// "buckets" ({ depleted, gone } by level slot or room), "anims" (animInst entries, played), "units"
+// (by home), and "carried" — the memory under this run's slots, kept for the next save. A level the
+// rebuilt run no longer holds is carried as it was, with nothing to put back.
+export const applyRunWorld = (run, world) => {
+  const out = { buckets: {}, anims: {}, units: {}, carried: { nodes: [] } };
+  if (!run || !run.nodes || !world || !Array.isArray(world.nodes)) return out;
+  for (const n0 of world.nodes) {
+    if (!n0 || !n0.key) continue;
+    const n = { key: String(n0.key), levelId: n0.levelId || null, room: !!n0.room, gone: [...(n0.gone || [])], units: { ...(n0.units || {}) }, depleted: [...(n0.depleted || [])], anims: { ...(n0.anims || {}) } };
+    if (!n.room) {
+      const same = (k) => run.nodes[k] && run.nodes[k].level && (!n.levelId || run.nodes[k].level.id === n.levelId);
+      const key = same(n.key) ? n.key : (n.levelId && Object.keys(run.nodes).find((k) => run.nodes[k] && run.nodes[k].level && run.nodes[k].level.id === n.levelId)) || null;
+      if (!key) { out.carried.nodes.push(n); continue; }
+      n.key = key;
+      const nd = run.nodes[key], en = { ...(nd.level.enemies || {}) };
+      let cut = false;
+      for (const g of n.gone) if (en[g] !== undefined) { delete en[g]; cut = true; }
+      if (cut) nd.level = { ...nd.level, enemies: en };
+    }
+    out.buckets[n.key] = { depleted: new Set(n.depleted), gone: n.room && n.gone.length ? new Set(n.gone) : null };
+    for (const mk of Object.keys(n.anims)) out.anims[n.key + "|" + mk] = { ...n.anims[mk], done: true };
+    for (const cell of Object.keys(n.units)) out.units[n.key + "|" + cell] = { ...n.units[cell] };
+    out.carried.nodes.push(n);
+  }
+  return out;
 };
 export const catchUpFollowers = (run, node, buckets, spot, boxOf, cell = LV_CELL) => {
   if (!run || !node || !node.level) return [];
@@ -20424,6 +20521,10 @@ export default function AssetStudio({ game = false } = {}) {
             // rebuilt on the very frame the level swaps — ~140 DOM nodes per unit on screen, in the
             // one frame that must be cheap. Keyed on uid it is the same element before and after.
             enemyPos.current[k] = newUnitState(spawn, spawnLeft, (er + 1) * CH - standEph);
+            // 🗺️ Its home, named now while its key is still its placement re-based (unitHomeAt), and
+            // what a loaded save remembers of it (applyRunWorld → run.unitMem).
+            const hm = unitHomeAt(worldParts, k);
+            if (hm) { enemyPos.current[k].home = hm; const mem = runNow && runNow.unitMem && runNow.unitMem[hm]; if (mem) Object.assign(enemyPos.current[k], mem); }
           }
           const ep = enemyPos.current[k];
           // 🧍 IN YOUR CAR: held on its seat, standing on the car's bottom at its place like you are at
@@ -28759,7 +28860,7 @@ export default function AssetStudio({ game = false } = {}) {
     roomReturn.current = null; arrivingFollowers.current = null; playEditorLevel.current = null; roomState.current = {}; vehLive.current = {}; vehWoken.current = new Set(); setCarPrompt(null); sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, onPoison: 0, poisonPool: 0, inFlameAura: 0, inIceAura: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, throwFiringId: null, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null, stairs: false, stairHop: false }; projectiles.current = []; thrown.current = []; booms.current = []; throwStack.current = []; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; followTrail.current = []; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); runWarmDone.current = new WeakSet(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
-    if (resume) applyGameResume(resume, basePlayerAsset);
+    if (resume) applyGameResume(resume, basePlayerAsset, runStart);
     if (runStart) {
       const startNode = runAt;
       runStart.curKey = startNode.key;
@@ -29068,6 +29169,13 @@ export default function AssetStudio({ game = false } = {}) {
     return out;
   };
   // What the player is carrying now, as a save at `loc` (gameFront.js makeGameSave).
+  // 🎬 The scenes that have played this run, for the save (runWorldToSave): every finished one, and the
+  // one on screen now as if finished — a load never starts a scene over.
+  const animsToSave = () => {
+    const out = {}, cur = cutRef.current;
+    for (const ik of Object.keys(animInst.current || {})) { const v = animInst.current[ik]; if (v && (v.done || (cur && cur.ik === ik))) out[ik] = { si: v.si || 0, t: v.t || 0, done: true }; }
+    return out;
+  };
   const gameSnapshot = (loc) => {
     const run = runRef.current;
     const eq = {};
@@ -29090,6 +29198,7 @@ export default function AssetStudio({ game = false } = {}) {
       playSecs: scorePlaySecs(scoreRef.current),
       buffs: buffsToSave(itemBuffs.current, playNowMs()), // 🧪 a drink still running goes with you (buffsToSave)
       allies: followersToSave(), // 🚪 your followers go on to the next floor, and come back on a load
+      world: run ? runWorldToSave(run, roomState.current, run.world, animsToSave()) : null, // 🗺️ what every level has been through (runWorldToSave)
     });
   };
   const gameCheckpoint = () => {
@@ -29114,7 +29223,7 @@ export default function AssetStudio({ game = false } = {}) {
   // Put a loaded game's carried state back (called by togglePlaytest after its resets). The look
   // and the held weapon are already committed (gameLoadGame), and the throwable row waits for the
   // loop's start (throwStackSeed); a garment, weapon or grenade he has since deleted is simply not there.
-  const applyGameResume = (s, base) => {
+  const applyGameResume = (s, base, run) => {
     const eq = {};
     for (const sl of Object.keys(s.equipped || {})) { const id = s.equipped[sl]; if (id === null) eq[sl] = null; else { const it = findA(id); if (it) eq[sl] = it; } }
     equipped.current = eq;
@@ -29142,6 +29251,19 @@ export default function AssetStudio({ game = false } = {}) {
       if (f.gear !== undefined) hold.gear[k] = f.gear;
     });
     arrivingFollowers.current = Object.keys(hold.enemies).length ? hold : null;
+    // 🗺️ ...and what every level of the run had been through (applyRunWorld): its dead and its departed
+    // taken out of its spawn list, its taken pedestals, the scenes already played, and what was said to
+    // whoever is still standing. Here, after togglePlaytest's resets and before the first level goes live.
+    if (run) {
+      const m = applyRunWorld(run, s.world);
+      for (const key of Object.keys(m.buckets)) {
+        const mb = m.buckets[key];
+        roomState.current[key] = { ...newLevelBucket(), depleted: mb.depleted, ...(mb.gone ? { gone: mb.gone } : {}) };
+      }
+      Object.assign(animInst.current, m.anims);
+      run.unitMem = m.units;
+      run.world = m.carried;
+    }
   };
   const beginGameRun = (b) => {
     lastRunSeedRef.current = String(b.seed || "");
