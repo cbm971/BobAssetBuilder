@@ -1,5 +1,5 @@
 {
- "set": "24854410f6abd9cb",
+ "set": "fb1886b597b7e680",
  "part": 2,
  "assets": [
   {
@@ -20726,7 +20726,43 @@
       "y": 74.5,
       "w": 116,
       "h": 47.5,
-      "color": "#2b2b2b",
+      "color": "#3d4a28",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "xsln4ok",
+      "kind": "text",
+      "text": "5",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": -18,
+      "y": 63,
+      "w": 96.5,
+      "h": 29.5,
+      "color": "#5d6b39",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vs7ej8w",
+      "kind": "text",
+      "text": "5",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": 120.5,
+      "y": 109,
+      "w": 96.5,
+      "h": 29.5,
+      "color": "#5d6b39",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -20752,10 +20788,10 @@
     ""
    ],
    "value": 6,
-   "savedAt": 1794915849794,
+   "savedAt": 1795739320786,
    "dropWeight": 4,
    "rank": "common",
-   "editedFrom": 1793454712895
+   "editedFrom": 1794915849794
   },
   {
    "id": "icecrwn",

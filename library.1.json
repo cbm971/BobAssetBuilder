@@ -1,5 +1,5 @@
 {
- "set": "24854410f6abd9cb",
+ "set": "fb1886b597b7e680",
  "part": 1,
  "assets": [
   {
@@ -65,7 +65,43 @@
       "y": 74.5,
       "w": 116,
       "h": 47.5,
-      "color": "#2b2b2b",
+      "color": "#3d4a28",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "33kbhbk",
+      "kind": "text",
+      "text": "11",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": -2,
+      "y": 66.5,
+      "w": 71.5,
+      "h": 21,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "0jkqmio",
+      "kind": "text",
+      "text": "11",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": 131,
+      "y": 119.5,
+      "w": 71.5,
+      "h": 21,
+      "color": "#c8a23c",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -91,10 +127,10 @@
     ""
    ],
    "value": 11,
-   "savedAt": 1794915849756,
+   "savedAt": 1795739280893,
    "dropWeight": 1,
    "rank": "rare",
-   "editedFrom": 1793454712895
+   "editedFrom": 1794915849756
   },
   {
    "id": "0ec8qh0",
@@ -438479,7 +438515,7 @@
       "y": 74.5,
       "w": 116,
       "h": 47.5,
-      "color": "#2b2b2b",
+      "color": "#3d4a28",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -438541,10 +438577,10 @@
     ""
    ],
    "value": 1,
-   "savedAt": 1795739251896,
+   "savedAt": 1795739292750,
    "dropWeight": 5,
    "rank": "poor",
-   "editedFrom": 1793454712895
+   "editedFrom": 1795739251896
   },
   {
    "id": "bkshlf6",
