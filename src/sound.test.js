@@ -86,6 +86,7 @@ describe("which sound plays: the asset's own, else the basic one, else silence",
 
   test("the slots each kind of asset has, and setting / clearing one", () => {
     expect(assetSoundSlots({ type: "weapon", wtype: "melee" }).map((s) => s.key)).toEqual(["swing", "hit"]);
+    expect(assetSoundSlots({ type: "weapon", wtype: "melee", automatic: true }).map((s) => s.key)).toEqual(["fire", "hit"]); // 🪚 it runs, never swings
     expect(assetSoundSlots({ type: "weapon", wtype: "ranged" }).map((s) => s.key)).toEqual(["fire", "hit"]);
     expect(assetSoundSlots({ type: "weapon", wtype: "throw" }).map((s) => s.key)).toEqual(["throw", "land"]);
     expect(assetSoundSlots({ type: "weapon" }).map((s) => s.key)).toEqual(["swing", "hit"]); // an old weapon with no wtype is melee, as migrate says

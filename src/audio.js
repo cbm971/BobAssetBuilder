@@ -65,6 +65,8 @@ export const SOUND_EVENT_KEYS = SOUND_EVENTS.map((e) => e.key);
 // so it plays on contact like the Punch it stands in for; its stroke starting is the basic Swing.
 export const ASSET_SOUND_SLOTS = {
   melee: [{ key: "swing", label: "Swing", basic: "swing" }, { key: "hit", label: "Hit", basic: "punch" }],
+  // 🪚 A melee weapon with Automatic never swings: it runs, and its Fire loops while it does.
+  automatic: [{ key: "fire", label: "Fire", basic: null }, { key: "hit", label: "Hit", basic: "punch" }],
   ranged: [{ key: "fire", label: "Fire", basic: null }, { key: "hit", label: "Hit", basic: null }],
   throw: [{ key: "throw", label: "Throw", basic: null }, { key: "land", label: "Land", basic: null }],
   enemy: [{ key: "attack", label: "Attack", basic: "punch" }, { key: "hurt", label: "Hurt", basic: "enemyHurt" }, { key: "death", label: "Death", basic: "enemyDeath" }],
@@ -94,7 +96,7 @@ export const splitHurtDeath = (board) => {
 // enemy; everything else (props, clothes, bodies…) has no sounds of its own.
 export const assetSoundSlots = (asset) => {
   if (!asset) return [];
-  if (asset.type === "weapon") return ASSET_SOUND_SLOTS[asset.wtype === "ranged" ? "ranged" : asset.wtype === "throw" ? "throw" : "melee"];
+  if (asset.type === "weapon") return ASSET_SOUND_SLOTS[asset.wtype === "ranged" ? "ranged" : asset.wtype === "throw" ? "throw" : asset.automatic ? "automatic" : "melee"];
   if (asset.type === "enemy") return ASSET_SOUND_SLOTS.enemy;
   return [];
 };
@@ -730,14 +732,17 @@ export const createAudioEngine = ({ loadClip } = {}) => {
         src.stop(t0 + 0.1);
       } catch { try { src.stop(); } catch { /* already stopped */ } }
     };
+    // `basic` is a basic sound's key, or { asset, slot } for an asset's own slot (🪚 a chainsaw's Fire,
+    // looped while it runs). resolveSound / resolveSoundVol take either the same way.
     const hold = (basic, gainMul, rate, x, y, glide = 0.05) => {
-      const id = resolveSound({ basic, board, has: engine.has });
+      const spec = basic && typeof basic === "object" ? { asset: basic.asset, slot: basic.slot } : { basic };
+      const id = resolveSound({ ...spec, board, has: engine.has });
       if (!id) { if (v.src) stop(); return false; }
       const s = sounds.get(id), c = ctx;
       if (!s || !s.clip || !c || c.state !== "running") return false;
       const buf = buffers.get(s.clip);
       if (!buf) { decode(s.clip); return false; }
-      const gain = soundGainAt(x, y, view) * soundVolume(s) * resolveSoundVol({ basic, board, has: engine.has }) * gainMul;
+      const gain = soundGainAt(x, y, view) * soundVolume(s) * resolveSoundVol({ ...spec, board, has: engine.has }) * gainMul;
       if (v.src && v.id !== id) stop();
       if (!v.src) {
         try {
@@ -760,7 +765,12 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     return { v, stop, hold };
   };
   const engineVoice = heldLoop("engine"), radioVoice = heldLoop("radio");
-  const stopEngine = () => { engineVoice.stop(); radioVoice.stop(); };
+  // 🪚 One held loop per running chainsaw (WEAPON_ABILITIES.automatic), keyed by who holds it: "player"
+  // or a unit's "r,c". A loop nobody renewed this frame is let go by sawLoopsEnd, so a unit that died,
+  // walked off the level or was left behind by a door stops buzzing without anyone remembering it.
+  const sawVoices = new Map(), sawSeen = new Set();
+  const stopSaws = () => { for (const v of sawVoices.values()) v.stop(); sawVoices.clear(); sawSeen.clear(); };
+  const stopEngine = () => { engineVoice.stop(); radioVoice.stop(); stopSaws(); };
 
   const engine = {
     // 🚗 THE CAR ENGINE: the board's Car engine sound looped while `on`, placed at x/y like a moment
@@ -777,6 +787,22 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       radioVoice.hold("carRadio", 1, 1, x, y);
       return engineVoice.hold("car", carEngineGain(gas, sp), 0.8 + 0.8 * sp, x, y, gas ? 0.06 : 0.18);
     },
+    // 🪚 A RUNNING CHAINSAW: its weapon's own Fire sound, looped for as long as it is called each frame
+    // with `on` (Blake: "When they press F ... the Fire sound starts"). Off, or not called this frame,
+    // it fades out like the car engine. Call sawLoopsEnd() once a frame after every holder's call.
+    sawLoop: (key, on, asset, x, y) => {
+      if (!key) return false;
+      if (!on || !asset) { const v = sawVoices.get(key); if (v) { v.stop(); sawVoices.delete(key); } return false; }
+      let v = sawVoices.get(key);
+      if (!v) { v = heldLoop("saw"); sawVoices.set(key, v); }
+      sawSeen.add(key);
+      return v.hold({ asset, slot: "fire" }, 1, 1, x, y);
+    },
+    sawLoopsEnd: () => {
+      for (const [k, v] of sawVoices) if (!sawSeen.has(k)) { v.stop(); sawVoices.delete(k); }
+      sawSeen.clear();
+    },
+    stopSaws: () => stopSaws(),
     // The library: every sound record (the board is picked out of the same list).
     setLibrary: (records, boardRec) => {
       sounds.clear();

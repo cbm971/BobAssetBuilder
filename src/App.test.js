@@ -4541,8 +4541,8 @@ describe("weapon magazines and enemy reloads", () => {
 
 describe("which abilities a weapon may carry", () => {
   test("a melee weapon is offered exactly the powers a swing can carry", () => {
-    expect(weaponAbilitiesFor("melee").sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]);
-    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]); // older saves have no wtype
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["automatic", "iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["automatic", "iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]); // older saves have no wtype
   });
 
   test("a ranged weapon gets every ranged ability (excluding melee-only and throw-only powers)", () => {
@@ -13718,8 +13718,8 @@ describe("a unit's armour counts the way yours does", () => {
     // drain and the gold revive glow, and to nothing else.
     // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(10); // the fire drain, the ❄️ ice drain, the 🧪 poison drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away), and the two bullets' 🐞/🪞 turnShot rolls (a body mid-revive turns a round away before it can deflect or reflect it)
-    for (const [, ln] of untouchable) expect(/eDps > 0|ePoisonDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)|!unitUntouchable\(ep\) && turnShot\(/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
+    expect(untouchable.length).toBe(12); // the two 🪚 saw drains (yours and a unit's: a steady drain like fire, so only the revive grace), the fire drain, the ❄️ ice drain, the 🧪 poison drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away), and the two bullets' 🐞/🪞 turnShot rolls (a body mid-revive turns a round away before it can deflect or reflect it)
+    for (const [, ln] of untouchable) expect(/eDps > 0|ePoisonDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)|!unitUntouchable\(ep\) && turnShot\(/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;") || ln.includes("// 🪚 the revive grace")).toBe(true); // ...or your swing's gate, or a saw's
   });
 
   test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {
@@ -14683,7 +14683,7 @@ describe("🛡 god mode (a testing switch)", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/playerHP\.current\s*=\s*Math\.max\(0,\s*playerHP\.current\s*-/);
     expect(src).not.toMatch(/playerHP\.current\s*-=/);
-    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(9); // +1: the ❄️ ice drain; +1: the 🧪 poison drain; +1: detonate's own-blast self-damage; +1: a 🪞 Reflect sending your own hit back (shrugsHit)
+    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(10); // +1: a unit's 🪚 running saw; +1: the ❄️ ice drain; +1: the 🧪 poison drain; +1: detonate's own-blast self-damage; +1: a 🪞 Reflect sending your own hit back (shrugsHit)
   });
 });
 
@@ -15037,7 +15037,7 @@ describe("🏹 timed tag-damage items", () => {
   test("the shot, the swing and the HUD all read the running buffs", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toContain("tagDamageMultiplier(playerAsset?.effects");
-    expect((src.match(/tagDamageMultiplier\(withTimedTagBoosts\(playerAsset\?\.effects, itemBuffs\.current, nowT\)/g) || []).length).toBe(2);
+    expect((src.match(/tagDamageMultiplier\(withTimedTagBoosts\(playerAsset\?\.effects, itemBuffs\.current, nowT\)/g) || []).length).toBe(3); // the shot, the swing, the 🪚 running saw
     expect(src).toContain("withTimedTagBoosts(merged?.effects, itemBuffs.current, playNowMs())");
   });
 });
@@ -18688,3 +18688,109 @@ describe("walking winds up (2026-11-26: a tap off a ladder flung you two feet)",
   });
 });
 
+
+import {
+  automaticOf, stepAutomatic, automaticFrameKeys, automaticRunArt, sawDamageStep, meleeDpsOf, sawGuardStops, automaticSwingDeg,
+  incomingPlayerDamageExact, unitSawDps, liftHeldAboutHand, AUTO_RUN_DEFAULT_SECS, AUTO_COOL_DEFAULT_SECS, AUTO_FRAME_FPS,
+  AUTO_CARRY_SWING_DEG, AUTO_RUN_SWING_DEG, AUTO_GUARD_SWING_DEG,
+} from "./App";
+
+/* 🪚 AUTOMATIC (Blake, 2026-11-27, for the Legendary Chainsaw): held out not swung, F runs it for DPS, Q
+   raises it across the face and stops everything from the front, a bar that drains while either is
+   held and fills otherwise (run it dry = cool down until full), and running frames for the teeth. */
+describe("🪚 Automatic", () => {
+  const auto = { runSecs: 1, coolSecs: 0.5 }; // 60 frames to drain, 30 to fill
+  test("only a melee weapon carries it, with its two times clamped", () => {
+    expect(automaticOf({ wtype: "melee", automatic: true })).toEqual({ runSecs: AUTO_RUN_DEFAULT_SECS, coolSecs: AUTO_COOL_DEFAULT_SECS });
+    expect(automaticOf({ automatic: true, autoRunSecs: 6, autoCoolSecs: 1 })).toEqual({ runSecs: 6, coolSecs: 1 }); // no wtype = melee
+    expect(automaticOf({ wtype: "ranged", automatic: true })).toBe(null);
+    expect(automaticOf({ wtype: "throw", automatic: true })).toBe(null);
+    expect(automaticOf({ wtype: "melee", automatic: false })).toBe(null);
+  });
+  test("held F runs it, held Q guards (Q wins), and either drains the bar", () => {
+    let st = stepAutomatic(null, true, false, true, auto, 1);
+    expect(st.mode).toBe("saw");
+    expect(st.meter).toBeCloseTo(1 - 1 / 60, 6);
+    st = stepAutomatic(st, true, true, true, auto, 1);
+    expect(st.mode).toBe("guard");
+    st = stepAutomatic(st, false, false, true, auto, 1);
+    expect(st.mode).toBe(null); // carried
+    expect(st.meter).toBeCloseTo(1, 6); // filled back up, 1/30 a frame, capped at full
+  });
+  test("run dry it is on cool down: nothing works until the bar is FULL again", () => {
+    let st = null;
+    for (let i = 0; i < 60; i++) st = stepAutomatic(st, true, false, true, auto, 1);
+    expect(st.meter).toBe(0);
+    expect(st.locked).toBe(true);
+    expect(st.mode).toBe(null);
+    st = stepAutomatic(st, true, false, true, auto, 1); // still holding: it stays empty and does nothing
+    expect([st.meter, st.mode]).toEqual([0, null]);
+    for (let i = 0; i < 29; i++) st = stepAutomatic(st, false, false, true, auto, 1);
+    expect(st.locked).toBe(true);
+    expect(stepAutomatic(st, false, true, true, auto, 0).mode).toBe(null); // Q at 29/30 full: still cooling
+    st = stepAutomatic(st, false, false, true, auto, 1);
+    expect(st.meter).toBeCloseTo(1, 6);
+    expect(st.locked).toBe(false);
+    expect(stepAutomatic(st, false, true, true, auto, 1).mode).toBe("guard");
+  });
+  test("busy arms (a ladder, a stun) do not run it, and the bar fills meanwhile", () => {
+    const st = stepAutomatic({ meter: 0.5, locked: false }, true, true, false, auto, 3);
+    expect(st.mode).toBe(null);
+    expect(st.meter).toBeCloseTo(0.6, 6);
+  });
+  test("the arm angles: carried a bit out, raised a little to run, up for the guard", () => {
+    expect(automaticSwingDeg(null)).toBe(AUTO_CARRY_SWING_DEG);
+    expect(automaticSwingDeg("saw")).toBe(AUTO_RUN_SWING_DEG);
+    expect(automaticSwingDeg("guard")).toBe(AUTO_GUARD_SWING_DEG);
+    expect(AUTO_CARRY_SWING_DEG).toBeLessThan(AUTO_RUN_SWING_DEG);
+    expect(AUTO_RUN_SWING_DEG).toBeLessThan(AUTO_GUARD_SWING_DEG);
+  });
+  test("its running frames are Fire then each fireN with art, cycling at AUTO_FRAME_FPS", () => {
+    const art = (id) => ({ front: [], back: [], side: [{ id }], up: [], crouch: [] });
+    const blank = { front: [], back: [], side: [], up: [], crouch: [] };
+    const states = { rest: art("r"), fire: art("f1"), fire2: art("f2"), fire3: art("f3"), fire5: art("f5") };
+    expect(automaticFrameKeys(states)).toEqual(["fire", "fire2", "fire3"]); // stops at the first gap
+    const per = 60 / AUTO_FRAME_FPS;
+    expect(automaticRunArt(states, "side", 0).side[0].id).toBe("f1");
+    expect(automaticRunArt(states, "side", per).side[0].id).toBe("f2");
+    expect(automaticRunArt(states, "side", per * 2).side[0].id).toBe("f3");
+    expect(automaticRunArt(states, "side", per * 3).side[0].id).toBe("f1");
+    // a frame with nothing in this pose shows Fire; Fire with nothing shows Rest
+    expect(automaticRunArt({ rest: art("r"), fire: art("f1"), fire2: { ...blank, back: [{ id: "b" }] } }, "side", per).side[0].id).toBe("f1");
+    expect(automaticRunArt({ rest: art("r"), fire: blank }, "side", 0).side[0].id).toBe("r");
+  });
+  test("its damage is per second, paid out a little each frame with nothing lost or floored up", () => {
+    let acc = 0, total = 0;
+    for (let i = 0; i < 120; i++) { const st = sawDamageStep(acc, 15, 1); acc = st.acc; total += st.whole; }
+    expect(total).toBe(30); // 15 DPS for 2 s
+    let acc2 = 0, total2 = 0;
+    for (let i = 0; i < 60; i++) { const st = sawDamageStep(acc2, 0.5, 1); acc2 = st.acc; total2 += st.whole; }
+    expect(total2).toBe(0); // half an HP a second: no hit floored up to 1 a frame
+    expect(meleeDpsOf(10, 5)).toBe(10); // Strength 5 = exactly its DPS
+    expect(incomingPlayerDamageExact(10, 0, 1, 0, 10, null, null, false, false)).toBe(10);
+    expect(incomingPlayerDamageExact(0.2, 0, 1, 0, 10, null, null, false, false)).toBeCloseTo(0.2, 6); // incomingPlayerDamage would say 1
+    expect(unitSawDps({ stats: { strength: 5 }, effects: [] }, { damage: 12, categories: [] })).toBe(12);
+  });
+  test("the raised saw stops what comes at its front, never its back", () => {
+    expect(sawGuardStops(true, 1, 200, 100, 40)).toBe(true);   // facing right, attacker to the right
+    expect(sawGuardStops(true, 1, 0, 100, 40)).toBe(false);    // behind
+    expect(sawGuardStops(false, 1, 200, 100, 40)).toBe(false); // not raised
+    expect(sawGuardStops(true, -1, 0, 100, 40)).toBe(true);
+  });
+  test("the guard lift turns the held saw about the hand, nose up", () => {
+    const arm = { id: "a", kind: "rect", x: 90, y: 100, w: 20, h: 80, rot: -90, armPivot: "top", role: "weaponArm" }; // straight out forward
+    const bar = [{ id: "s", kind: "rect", x: 170, y: 136, w: 60, h: 8, rot: 0 }]; // lying forward of the hand
+    const up = liftHeldAboutHand(bar, arm, 90, true)[0];
+    const down = liftHeldAboutHand(bar, arm, -90, true)[0];
+    expect(up.y + up.h / 2).toBeLessThan(down.y + down.h / 2); // + is up the screen for art that faces right
+    expect(liftHeldAboutHand(bar, arm, 0, true)).toBe(bar);
+  });
+  test("it is wired in: F never swings it, Q never taps a block for it, and every hurt site asks the raised saw", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("(K.fire && !p.wasFire && !pAuto)");
+    expect(src).toContain("if (pAuto && meleeInHand) {");
+    expect((src.match(/sawGuardStops\(/g) || []).length).toBeGreaterThanOrEqual(11); // player: shot, blast, throw · units: your swing, a unit's blow, both shot lanes, both blast loops, both saws
+    expect(src).toContain("bobAudio.sawLoopsEnd();");
+    expect(src).toContain("const wantRun = (ep.sawHold || 0) > 0 && !threatDir && !coolingA;"); // a unit run dry lets go, or its bar never fills
+  });
+});

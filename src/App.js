@@ -2119,6 +2119,102 @@ export const blowThrowBack = (g, dir, pushPx) => {
 // floor, inside the Reach, and nothing else has its arms (a swing, a ladder, a stun, a talk).
 export const unitWantsSoundWave = ({ sw, gapPx, cell, inFront, sameFloor, busy }) =>
   !!sw && !busy && !!sameFloor && !!inFront && gapPx <= sw.reach * cell;
+// 🪚 AUTOMATIC (Blake, 2026-11-27, for his Legendary Chainsaw). A melee weapon ability that replaces the
+// swing. His words, point by point, and where each one lives:
+//  * "Instead of swinging the player holds the melee weapon out a bit as they would a chainsaw" — the
+//    arm is SET to AUTO_CARRY_SWING_DEG whenever it is in hand and the arms are free (the render's
+//    automatic branch, the player's and a unit's). Fire never starts a swing for it.
+//  * "When they press F they raise it a little bit, the Fire sound starts and they start dealing a smooth
+//    consistent amount of damage" — held F is mode "saw": the arm goes up to AUTO_RUN_SWING_DEG, the
+//    weapon's own Fire sound loops (bobAudio.sawLoop), and every body in its 🎯 hitbox loses the weapon's
+//    Damage PER SECOND, a little every frame (sawDamageStep), not a blow per stroke.
+//  * "The damage slider with this ability should change to DPS" — the weapon's Damage box reads DPS.
+//  * "a little cool down bar every time you are holding Q or F that constantly goes down or up unless full
+//    then it disapears. Down if you are holding F or Q else up." — `meter` (1 = full). Held F or Q drains
+//    it over autoRunSecs; let go, it fills over autoCoolSecs. Run dry and it is ON COOL DOWN (`locked`):
+//    neither F nor Q does anything until it is full again. Drawn over your head (the reload bar's place) while not full.
+//  * "While holding Q not on cool down blocks everything. Also holding Q lifts the object up at a sideways
+//    angle (So the players face is now protected by the chainsaw)" — held Q is mode "guard": the arm goes
+//    up to AUTO_GUARD_SWING_DEG and the saw turns AUTO_GUARD_TILT_DEG further about the grip, so it
+//    stands up across the face. While it is up EVERY attack from the front is stopped: blows, shots,
+//    throws and blasts (sawGuardStops at each of those damage sites). Q wins when both are held.
+//  * "Automate adds multiple frames to the weapon so you can simulate chainsaw teeth moving" — the editor
+//    offers 🎞 frames after Fire (states.fire2 … fire8, AUTO_MAX_FRAMES); running, the saw cycles Fire,
+//    Frame 2, Frame 3 … at AUTO_FRAME_FPS (automaticRunArt). Carried or guarding, it shows its Rest art.
+// Works both ways: a unit holding one carries it out, runs it on whoever is inside its reach, and raises
+// the guard when a shot or a swing is coming at its front.
+export const AUTO_RUN_DEFAULT_SECS = 4;
+export const AUTO_COOL_DEFAULT_SECS = 2;
+export const AUTO_FRAME_FPS = 20;
+export const AUTO_MAX_FRAMES = 8;
+// Arm angles as SWING angles — the turn from the arm as drawn that meleeSwingAngle uses (0 = as drawn,
+// hanging; 90 = straight out level) — so a unit's hitbox (enemyMeleeHitboxAt) and both renders read them.
+export const AUTO_CARRY_SWING_DEG = 55;
+export const AUTO_RUN_SWING_DEG = 80;
+export const AUTO_GUARD_SWING_DEG = 100;
+export const AUTO_GUARD_TILT_DEG = 65;
+export const AUTO_UNIT_HOLD_FRAMES = 18; // a unit keeps running it this long after its target leaves the reach
+export const AUTO_UNIT_GUARD_CELLS = 6;  // a shot this close in front of a unit, coming at it, raises its guard
+export const automaticOf = (w) => {
+  if (!w || !w.automatic || isRanged(w.wtype) || isThrowable(w.wtype)) return null;
+  const num = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.max(lo, Math.min(hi, n)) : d; };
+  return { runSecs: num(w.autoRunSecs, AUTO_RUN_DEFAULT_SECS, 0.5, 30), coolSecs: num(w.autoCoolSecs, AUTO_COOL_DEFAULT_SECS, 0.5, 30) };
+};
+// One frame of the bar. `s` is the last { meter, locked } (null = a full bar). Returns the next one plus
+// `mode`: "saw", "guard" or null (carried).
+export const stepAutomatic = (s, fireHeld, blockHeld, canUse, auto, dtMul = 1) => {
+  const step = dtMul > 0 ? dtMul : 0;
+  let meter = s && Number.isFinite(s.meter) ? s.meter : 1, locked = !!(s && s.locked), mode = null;
+  if (canUse && (fireHeld || blockHeld)) {
+    meter = Math.max(0, meter - step / (auto.runSecs * 60));
+    if (meter <= 1e-9) { meter = 0; locked = true; } // snapped: thirty 1/30ths add up to 0.9999…
+    if (!locked) mode = blockHeld ? "guard" : "saw";
+  } else {
+    meter = Math.min(1, meter + step / (auto.coolSecs * 60));
+    if (meter >= 1 - 1e-9) { meter = 1; locked = false; }
+  }
+  return { meter, locked, mode };
+};
+export const automaticSwingDeg = (mode) => (mode === "guard" ? AUTO_GUARD_SWING_DEG : mode === "saw" ? AUTO_RUN_SWING_DEG : AUTO_CARRY_SWING_DEG);
+export const automaticTiltDeg = (mode) => (mode === "guard" ? AUTO_GUARD_TILT_DEG : 0);
+// Turn pieces already in the hand about the hand by `deg` more, nose UP for a positive `deg` — the saw
+// guard's sideways lift. attachWeaponBlocks with the grip already on the hand is a pure rigid turn,
+// mirrored twins included (layHeldFlat's trick). `facesRight` = the art is drawn facing right (forward is
+// +x on its canvas), where nose-up is a counter-clockwise turn; art drawn facing left turns the other way.
+export const liftHeldAboutHand = (pieces, arm, deg, facesRight = true) => {
+  if (!deg || !arm) return pieces;
+  const view = heldArmView(arm), rig = armRig(view);
+  if (!rig) return pieces;
+  return attachWeaponBlocks(pieces, view, rig.hand, (view.rot || 0) + (facesRight ? deg : -deg));
+};
+// The running frames, in order: Fire, then each fireN that has art, up to the first one missing.
+export const automaticFrameKeys = (states) => {
+  const keys = ["fire"];
+  for (let i = 2; i <= AUTO_MAX_FRAMES; i++) {
+    const st = states && states["fire" + i];
+    if (!st || anglesEmpty(st)) break;
+    keys.push("fire" + i);
+  }
+  return keys;
+};
+// `runT` = frames it has been running. A frame with nothing drawn in this pose shows Fire (and Fire with
+// nothing drawn shows Rest, weaponFireArt's rule), so a half-drawn frame never blinks the saw out.
+export const automaticRunArt = (states, pose, runT) => {
+  const ks = automaticFrameKeys(states);
+  const k = ks[Math.floor(Math.max(0, runT || 0) * AUTO_FRAME_FPS / 60) % ks.length];
+  const a = states && states[k];
+  return a && (a[pose] || []).length ? a : weaponFireArt(states, pose);
+};
+// Damage per second paid out frame by frame: `acc` carries the fraction, `whole` is the HP to take now.
+export const sawDamageStep = (acc, dps, dtMul) => {
+  const a = (acc || 0) + Math.max(0, dps || 0) * Math.max(0, dtMul || 0) / 60;
+  const whole = Math.floor(a + 1e-9);
+  return { acc: a - whole, whole };
+};
+// A melee weapon's Damage scaled by Strength exactly as a swing's is (playerMeleeDamage), unrounded.
+export const meleeDpsOf = (dmg, strength) => Math.max(0, (dmg ?? 5) * effectiveStrength(strength) / 5);
+// Does a raised saw guard stop an attack arriving from attackerX? The block's own front rule.
+export const sawGuardStops = (guardUp, face, attackerX, wearerX, wearerW) => !!guardUp && blockStopsHit(true, face, attackerX, wearerX, wearerW);
 // What is left of fire damage after every worn Fire Resistance (1 = none worn).
 export const fireDamageMult = (effects) => {
   let m = 1;
@@ -2293,6 +2389,9 @@ export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAP
   const frames = Math.max(1, Math.round(secs * 60));
   const hit = Math.max(0, perHit || 0);
   const pDps = totalPoisonDps(weapon, effects);
+  // 🪚 Automatic: its Damage IS per second (perHit, already scaled by Strength), held on the target
+  // the whole window; poison is kept topped up by the steady contact.
+  if (automaticOf(weapon)) return (hit * secs + poisonDpsInWindow(frames, pDps, (f) => f % 60 === 0)) / secs;
   if (!weapon || !isRanged(weapon.wtype)) {
     const sw = playerSwingFrames(weapon, effects);
     const poisonDmg = poisonDpsInWindow(frames, pDps, (f) => f % sw === 0);
@@ -2897,7 +2996,17 @@ export const WEAPON_ABILITIES = {
     brief: (a) => { const sw = soundWaveOf(a) || { reach: SOUND_WAVE_DEFAULT_REACH, push: SOUND_WAVE_DEFAULT_PUSH }; return "hold Block to push enemies back"; },
     melee: true,
     isOn: (a) => !!soundWaveOf(a),
-    on: { soundWave: true, soundWaveReach: SOUND_WAVE_DEFAULT_REACH, soundWavePush: SOUND_WAVE_DEFAULT_PUSH }, off: { soundWave: false },
+    on: { soundWave: true, soundWaveReach: SOUND_WAVE_DEFAULT_REACH, soundWavePush: SOUND_WAVE_DEFAULT_PUSH, automatic: false }, off: { soundWave: false },
+  },
+  // 🪚 see automaticOf. Fire runs it (Damage becomes DPS), Block raises it across the face. It takes Q
+  // and F both, so the Sound wave (Q) and a Resurrect staff (a swing that raises) come off with it.
+  automatic: {
+    icon: "🪚", label: "Automatic", types: ["melee"],
+    blurb: "No swing: it is held out like a chainsaw. Hold Fire to raise it and run it — the Fire sound loops and everything in its hitbox loses the Damage every second. Hold Block to lift it up across your face: while it is up, every attack from the front is stopped. Holding either drains the bar; let go and it fills. Run it dry and neither works until the bar is full again. Running, it plays its frames (Fire, Frame 2, Frame 3…) so the teeth move. Works in both directions: in a 👹 Enemy's hands it saws YOU, and blocks your shots.",
+    brief: () => "hold Fire to saw",
+    melee: true,
+    isOn: (a) => !!automaticOf(a),
+    on: { automatic: true, autoRunSecs: AUTO_RUN_DEFAULT_SECS, autoCoolSecs: AUTO_COOL_DEFAULT_SECS, soundWave: false, resurrect: false }, off: { automatic: false },
   },
   swingSpeed: {
     icon: "💨", label: "Swing speed", types: ["melee"],
@@ -2912,7 +3021,7 @@ export const WEAPON_ABILITIES = {
     blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you, glowing 🟣 purple. The staff gets ONE raise per body ever: you carry it all level, so without a ceiling one dog is an endless army. A 🔴 Capture throwable is limited by how many you brought instead, and can raise the same body again and again.",
     brief: () => "raises the dead as allies",
     melee: true,
-    on: { resurrect: true, explode: false, boomerang: false }, off: { resurrect: false },
+    on: { resurrect: true, explode: false, boomerang: false, automatic: false }, off: { resurrect: false },
   },
   /* --- Throwable payloads -------------------------------------------------------------------
      Everything a thrown object does happens WHERE IT LANDS, and all three read landRadius for
@@ -5445,12 +5554,16 @@ export const applyCrouchGuard = (damage, crouching, reduce) => crouching ? damag
 // `ignoreArmor` skips the Defense step only. Back Guard and Crouch Guard are timing/positioning
 // abilities rather than armour, so they still apply — an armour-piercing shot rewards being caught
 // out of position, it does not make guarding pointless.
-export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGuardReduce, crouchGuardReduce, crouching, ignoreArmor) => {
+// The same, unrounded and with no floor of 1: what a steady per-second damage (🪚 a running saw) is
+// worth after armour, Back Guard and Crouch Guard. incomingPlayerDamage is this rounded, at least 1.
+export const incomingPlayerDamageExact = (raw, def, face, attackerX, wearerX, backGuardReduce, crouchGuardReduce, crouching, ignoreArmor) => {
   let d = ignoreArmor ? raw : applyDefense(raw, def);
   if (backGuardReduce != null) d = applyBackGuard(d, isHitFromBehind(face, attackerX, wearerX), backGuardReduce);
   if (crouchGuardReduce != null) d = applyCrouchGuard(d, !!crouching, crouchGuardReduce);
-  return Math.max(1, Math.round(d));
+  return Math.max(0, d);
 };
+export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGuardReduce, crouchGuardReduce, crouching, ignoreArmor) =>
+  Math.max(1, Math.round(incomingPlayerDamageExact(raw, def, face, attackerX, wearerX, backGuardReduce, crouchGuardReduce, crouching, ignoreArmor)));
 // 🛡 GOD MODE — a TESTING switch for agents driving playtests, never a game feature, so it has no
 // button and nothing on screen (Blake, 2026-10-09: "an invincible Bob for testing ... I often see
 // you die in testing for whatever reason ... i don't even need a button tbh"). Test drives kept
@@ -7224,6 +7337,10 @@ export const enemyAttackDamage = (ea, weapon, money = ea && ea.wallet) => {
   if (isCreatureUnit(ea)) return Math.max(1, Math.round(creatureMeleeDamage(str) * moneyMult * anyMult));          // jaws/claws: Strength IS the damage
   return playerMeleeDamage(UNARMED_DAMAGE * moneyMult * anyMult, str);                    // a PERSON's fists — still yours
 };
+// 🪚 A unit's running saw, per second: enemyAttackDamage's weapon line, unrounded (meleeDpsOf), so it is
+// the very number your saw bites for off the same Strength, tags and money.
+export const unitSawDps = (ea, weapon, money = ea && ea.wallet) =>
+  meleeDpsOf((weapon && weapon.damage != null ? weapon.damage : 5) * tagDamageMultiplier(ea && ea.effects, itemTagList(weapon)) * moneyPowerMultiplier(ea && ea.effects, money), ea?.stats?.strength ?? 5);
 // WHAT A CREATURE HITS FOR: twice its Strength, and nothing else feeds in.
 // A drawn creature — anything built in the Enemy creator, so every animal — cannot hold a weapon,
 // so its bite used to fall through to UNARMED_DAMAGE scaled by Strength: Bob's bare knuckles
@@ -7844,7 +7961,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.chargeLaser = false; a.chargeTime = DEFAULT_CHARGE_LASER_SECS; a.beamTime = DEFAULT_LASER_BEAM_SECS; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.throwBlast = false; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.chargeLaser = false; a.chargeTime = DEFAULT_CHARGE_LASER_SECS; a.beamTime = DEFAULT_LASER_BEAM_SECS; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.throwBlast = false; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.automatic = false; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
@@ -15105,7 +15222,7 @@ export const runGridOrder = (a, b) => (a.row - b.row) || (a.col - b.col);
 // Trailor Park M15 (2026-10-11): an idle unit's state does not change at all between frames, so it
 // hits every frame; a walking one changes walkPhase and misses, as before. null (a field that cannot
 // be written out) means draw it fresh.
-export const UNIT_ART_SIG_SKIP = new Set(["x", "y", "vy", "slideVx", "stepEase", "flapPhase", "uid"]);
+export const UNIT_ART_SIG_SKIP = new Set(["x", "y", "vy", "slideVx", "stepEase", "flapPhase", "uid", "sawMeter", "sawLocked", "sawAcc", "sawRunT", "sawHold", "sawHitT"]); // 🪚 the saw's clocks: its picture is ep.auto
 export const unitArtSig = (ep) => {
   if (!ep) return "";
   let s = "";
@@ -21734,6 +21851,11 @@ export default function AssetStudio({ game = false } = {}) {
             }
             if (kind === "unit" && key) {
               if (unitHitImmune(bEp)) return false; // mid-revive or in its i-frames: the swing finds nobody, exactly as the player's i-frames read just above
+              // 🪚 Its raised saw: turned aside and the attacker staggered, your guard's rule (above) on a unit.
+              if (bEp && bEa && sawGuardStops(!!(bEp.auto && bEp.auto.mode === "guard"), bEp.face, atkCX, unitCenterX(bEa, bEp, CW), enemyRenderW(bEa, CW) * sideBodyShape(bEa).fraction)) {
+                if (!bodyBlow && ep) { ep.stun = Math.max(ep.stun || 0, Math.round(BLOCK_STAGGER_SECS * 60)); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; ep.attackT = Math.max(ep.attackT || 0, Math.round(BLOCK_STAGGER_SECS * 60)); }
+                return true;
+              }
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
               const crit = Math.random() < critChance(eIntel);
               const uDmg = coldResistedHit(incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)), hitEw, bEa.effects);
@@ -21778,6 +21900,60 @@ export default function AssetStudio({ game = false } = {}) {
               ep.swingHit[body.key] = true;
               if (ep.swingT <= 0) break; // the blow was BLOCKED and the stagger cut the swing short: nobody behind the shield gets hit by a stroke that stopped
             }
+          }
+          // 🪚 A RUNNING SAW, ITS SIDE (see automaticOf, and your saw's pass): the 🎯 hitbox on the arm raised
+          // to AUTO_RUN_SWING_DEG (enemyMeleeHitboxAt, the swing test's own attach) against the bodies its swing
+          // would sweep. Each loses this unit's DPS (unitSawDps) a little every frame, through its armour, and
+          // your raised guard (p.blocking, your saw's included) or a unit's raised saw turns it aside. It asks
+          // the revive grace and no i-frames: a saw is a steady drain, like standing in fire.
+          const eSawW = (!stunned && attacking && meleeGeom && ew && ep.auto && ep.auto.mode === "saw") ? automaticOf(ew) : null;
+          if (eSawW) {
+            if (!ep.sawAcc) ep.sawAcc = {};
+            const arcS = enemyMeleeHitboxAt(meleeGeom, ew, AUTO_RUN_SWING_DEG).map((hb) => {
+              const lxE = (hb.x / W) * eRenderW, lwE = (hb.w / W) * eRenderW;
+              return { x: ep.x + (ep.face < 0 ? eRenderW - (lxE + lwE) : lxE), y: ep.y + (hb.y / H) * newEph, w: lwE, h: (hb.h / H) * newEph };
+            });
+            const sawBodies = [{ kind: targetKind, key: targetKind === "player" ? "player" : targetKey, ep: targetEp, ea: targetEa }];
+            for (const o of aliveOpposite(hostile)) if (o.key !== targetKey) sawBodies.push({ kind: "unit", key: o.key, ep: o.ep, ea: o.ea });
+            if (hostile && targetKind !== "player") sawBodies.push({ kind: "player", key: "player", ep: null, ea: null });
+            const sawRaw = unitSawDps(ea, ew);
+            const iceM = (eff) => (shotIsIce(ew) ? coldDamageMult(eff) : 1); // ❄️ cold resist, as coldResistedHit
+            let sawTouched = false;
+            for (const body of sawBodies) {
+              if (body.kind !== "player" && !(body.ep && body.ea)) continue;
+              const box = hitBodyOf(body.kind, body.ep, body.ea);
+              if (!box || !arcS.some((hb) => hb.x < box.left + box.w && hb.x + hb.w > box.left && hb.y < box.top + box.h && hb.y + hb.h > box.top)) continue;
+              const bcx = box.left + box.w / 2;
+              if (body.kind === "player") {
+                if (vehDriven || (p.lifeGrace || 0) > 0) continue;
+                sawTouched = true;
+                if (blockStopsHit(p.blocking, p.face, atkCX, p.x + pw / 2, pw)) continue;
+                const effP = incomingPlayerDamageExact(sawRaw, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!ew.ignoreArmor) * iceM(playerAsset?.effects);
+                const stP = sawDamageStep(ep.sawAcc.player, effP, dtMul);
+                ep.sawAcc.player = stP.acc;
+                if (stP.whole <= 0) continue;
+                playerHP.current = playerHpAfterHit(playerHP.current, stP.whole);
+                if (playerHP.current <= 0) playerDefeated(p, "💀 " + ea.name + " sawed you down — back to the start.");
+                else afflictBody(p, { ...ew, stun: 0 }, DEFAULT_IGNITE_DPS, ea?.effects, ea);
+                continue;
+              }
+              if (unitUntouchable(body.ep)) continue; // 🪚 the revive grace, as your saw's gate
+              const cur = enemyHP.current[body.key] === undefined ? unitMaxHP(body.ea, body.ep, allyHpBonus) : enemyHP.current[body.key];
+              if (!(cur > 0)) continue;
+              sawTouched = true;
+              if (sawGuardStops(!!(body.ep.auto && body.ep.auto.mode === "guard"), body.ep.face, atkCX, bcx, box.w)) continue;
+              const effU = incomingPlayerDamageExact(sawRaw, body.ea.defense || 0, body.ep.face || 1, atkCX, bcx, guardReduceOf(body.ea.effects, "backGuard"), guardReduceOf(body.ea.effects, "crouchGuard"), !!body.ep.crouch, !!ew.ignoreArmor) * iceM(body.ea.effects);
+              const stU = sawDamageStep(ep.sawAcc[body.key], effU, dtMul);
+              ep.sawAcc[body.key] = stU.acc;
+              const loss = stU.whole;
+              if (loss <= 0) continue;
+              enemyHP.current[body.key] = Math.max(0, cur - loss);
+              body.ep.lastHitByFx = ea.effects || []; // who struck it, for a 🍀 Lucky Find the striker wears
+              if (enemyHP.current[body.key] > 0) afflictBody(body.ep, { ...ew, stun: 0 }, DEFAULT_IGNITE_DPS, ea?.effects, ea);
+              else flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (body.ea.name || "a foe") + "!") : ("💔 Your " + (body.ea.name || "ally") + " fell."));
+            }
+            ep.sawHitT = Math.max(0, (ep.sawHitT || 0) - dtMul);
+            if (sawTouched && !(ep.sawHitT > 0)) { sndMoment(ew, "hit", "punch", atkCX + ep.face * epw / 2, ep.y + newEph * 0.5); ep.sawHitT = 15; }
           }
           // 🦶 Every short opposing body under this unit's foot, nearest first — the player's own
           // stompTargets rule, run from this unit's hit box against everybody on the other side:
@@ -22043,6 +22219,47 @@ export default function AssetStudio({ game = false } = {}) {
               if (ep.waveCd <= 0) { const eMouth = enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, 0); booms.current.push(makeSoundWave(unitBodyBox(ea, ep, CW), ep.face, eWave, hostile ? "hostile" : "friendly", k, CW, eMouth)); ep.waveCd += SOUND_WAVE_EVERY_FRAMES; }
             }
           }
+          // 🪚 AUTOMATIC, ITS SIDE (see automaticOf). Carried out in front all the time. It RUNS while its
+          // target is inside the saw's reach on its floor (and AUTO_UNIT_HOLD_FRAMES after, so a step back
+          // does not stall it), and it RAISES it when something is coming at its front: an opposing round
+          // within AUTO_UNIT_GUARD_CELLS flying at it, or your swing within a cell of it. The bar is the
+          // player's (stepAutomatic), so it runs dry and cools down exactly as yours does. Its saw does its
+          // damage in the pass above (it reads last frame's mode, as the swing test reads last frame's swing).
+          const eAuto = (!rangedEnemy && meleeGeom) ? automaticOf(ew) : null;
+          if (!eAuto && (ep.auto || ep.sawMeter != null)) { ep.auto = null; ep.sawMeter = null; ep.sawLocked = false; ep.sawAcc = null; ep.sawRunT = 0; ep.sawHold = 0; }
+          if (eAuto) {
+            const tgtDirA = Math.sign(tgtAimCX - eCenterXFinal) || ep.face || 1;
+            const eBusyA = stunned || !acts || unitTalkImmune(ep) || !!ep.climbing || (ep.throwT || 0) > 0 || !!ep.stomp || (ep.down || 0) > 0;
+            const inReachA = attacking && detected && sameFloor && gapNow <= attackRange;
+            ep.sawHold = inReachA ? AUTO_UNIT_HOLD_FRAMES : Math.max(0, (ep.sawHold || 0) - dtMul);
+            let threatDir = 0;
+            if (!eBusyA) {
+              const eMidY = ep.y + newEph * 0.5;
+              for (const pr of projectiles.current) {
+                if (pr.drop || (hostile ? !!pr.foe : !pr.foe)) continue; // a round from its own side
+                const dx = pr.x - eCenterXFinal;
+                if (Math.abs(dx) > AUTO_UNIT_GUARD_CELLS * CW || Math.abs(pr.y - eMidY) > newEph * 0.6) continue;
+                if (Math.sign(pr.vx || 0) !== -Math.sign(dx)) continue; // going away
+                threatDir = Math.sign(dx) || ep.face; break;
+              }
+              if (!threatDir && hostile && p.firing && !(p.firing.t >= p.firing.dur) && boxGap(p.x + pw / 2, pw, eCenterXFinal, epw) <= CW) threatDir = Math.sign(p.x + pw / 2 - eCenterXFinal) || ep.face;
+            }
+            // Run dry, it LETS GO until the bar is full again: held, an empty bar stays empty (that is the
+            // player's rule), and a unit that kept its finger on the trigger never got its saw back.
+            const coolingA = !!ep.sawLocked;
+            const wantRun = (ep.sawHold || 0) > 0 && !threatDir && !coolingA;
+            const stA = stepAutomatic(ep.sawMeter != null ? { meter: ep.sawMeter, locked: ep.sawLocked } : null, wantRun, !!threatDir && !coolingA, !eBusyA, eAuto, dtMul);
+            ep.sawMeter = stA.meter; ep.sawLocked = stA.locked;
+            if (stA.mode === "guard") ep.face = threatDir;
+            else if (stA.mode === "saw" && attacking) ep.face = tgtDirA;
+            ep.sawRunT = stA.mode === "saw" ? (ep.sawRunT || 0) + dtMul : 0;
+            // What the drawing is made from (unitArtSig): the mode and the teeth frame, never the meter.
+            const sawFrame = stA.mode === "saw" ? Math.floor(ep.sawRunT * AUTO_FRAME_FPS / 60) : 0;
+            if (!ep.auto || ep.auto.mode !== stA.mode || ep.auto.frame !== sawFrame) ep.auto = { mode: stA.mode, frame: sawFrame };
+            if (stA.mode !== "saw" && ep.sawAcc) ep.sawAcc = null;
+            ep.swingT = 0; ep.swingHit = null; // it never swings
+          }
+          bobAudio.sawLoop(k, !!(eAuto && ep.auto && ep.auto.mode === "saw"), ew, eCenterXFinal, ep.y + newEph * 0.45); // 🔊 its saw's Fire, as yours
           const rangedReady = !rangedEnemy || canFireNow(ep.weaponAmmo);
           const eChargeWpn = rangedEnemy && isChargeLaser(ew);
           if (!eChargeWpn && (ep.laserCharge || ep.laserCharged)) { ep.laserCharge = 0; ep.laserCharged = false; }
@@ -22142,6 +22359,9 @@ export default function AssetStudio({ game = false } = {}) {
                   ep.burstLeft = weaponBurstShotCount(ew) - 1; ep.burstT = burstDelayFrames(ew.burstDelay);
                   // 🔥 FULL AUTO: the trigger stays held after this first round (the rest go out below).
                   ep.autoFire = weaponFireMode(ew) === "auto";
+                } else if (meleeGeom && automaticOf(ew)) {
+                  ep.swingT = 0; ep.swingHit = null; // 🪚 no swing: the saw runs on its own clock (the automatic block above)
+                  ep.attackT = 0;
                 } else if (meleeGeom) {
                   sndMoment(ew, "swing", "swing", eCenterXFinal, ep.y + newEph * 0.5); // 🔊 its blade's Swing, else the basic Swing — the blow landing plays from the swing test above
                   ep.swingHit = {}; // weapon-hitbox melee: committing only STARTS the swing; the hits (one per body in the arc) land in the swing test above
@@ -22268,7 +22488,9 @@ export default function AssetStudio({ game = false } = {}) {
       } else if (p.laserCharge || p.laserCharged) {
         p.laserCharge = 0; p.laserCharged = false;
       }
-      const wantFire = wpnChargeLaser ? laserReleaseFire : wpnIsRanged ? rangedTriggerWantsFire(K.fire, p.wasFire, playtestWeapon) : (K.fire && !p.wasFire);
+      // 🪚 An Automatic weapon never swings: held Fire RUNS it (the automatic block below the guard).
+      const pAuto = !wpnIsRanged ? automaticOf(playtestWeapon) : null;
+      const wantFire = wpnChargeLaser ? laserReleaseFire : wpnIsRanged ? rangedTriggerWantsFire(K.fire, p.wasFire, playtestWeapon) : (K.fire && !p.wasFire && !pAuto);
       // Burst continuation: tick the inter-shot timer and decide whether the next round of the
       // salvo already in flight is due. Holding or releasing Fire makes no difference once a burst
       // has started — a burst is a committed salvo, which is what separates it from full-auto.
@@ -22459,11 +22681,81 @@ export default function AssetStudio({ game = false } = {}) {
       // again. Attacking or grabbing a ladder drops it immediately (both hands go elsewhere), and
       // so does swapping off the melee weapon. p.blocking is mutated in place rather than replaced
       // so the object identity survives a frame — this runs 60 times a second.
-      const guard = advanceBlock(p.blocking ? p.blocking.t : null, p.blockCd || 0, !!K.melee, meleeInHand && !p.firing && !p.climbing, dtMul);
-      if (guard.t == null) p.blocking = null;
-      else if (p.blocking) p.blocking.t = guard.t;
-      else p.blocking = { t: guard.t };
-      p.blockCd = guard.cd;
+      // 🪚 AUTOMATIC (see automaticOf): no tapped guard. Held Q raises the saw across the face and holds it
+      // there for as long as the bar lasts; held F runs it. p.blocking stands for the raised saw, so every
+      // blow the block already turns aside is turned aside by it too (and the shot, throw and blast gates
+      // ask sawGuardStops on top). p.auto = { meter, locked, mode, runT, acc: { unitKey: HP fraction } }.
+      if (pAuto && meleeInHand) {
+        const canRun = !p.climbing && !p.dying && !((p.stun || 0) > 0) && !((p.down || 0) > 0) && !p.transitioning && !vehDriven && !p.throwAiming && !((p.throwFiring || 0) > 0) && !p.stomp && !p.firing;
+        const st = stepAutomatic(p.auto, !!K.fire, !!K.melee, canRun, pAuto, dtMul);
+        const was = p.auto || {};
+        p.auto = { meter: st.meter, locked: st.locked, mode: st.mode, runT: st.mode === "saw" ? (was.runT || 0) + dtMul : 0, acc: st.mode === "saw" ? (was.acc || {}) : {}, hitT: Math.max(0, (was.hitT || 0) - dtMul) };
+        if (st.mode === "guard") { if (!p.blocking) p.blocking = { t: 0, saw: true }; } else p.blocking = null;
+        p.blockCd = 0;
+      } else {
+        if (p.auto) p.auto = null;
+        const guard = advanceBlock(p.blocking ? p.blocking.t : null, p.blockCd || 0, !!K.melee, meleeInHand && !p.firing && !p.climbing, dtMul);
+        if (guard.t == null) p.blocking = null;
+        else if (p.blocking) p.blocking.t = guard.t;
+        else p.blocking = { t: guard.t };
+        p.blockCd = guard.cd;
+      }
+      bobAudio.sawLoop("player", !!(p.auto && p.auto.mode === "saw"), playtestWeapon, p.x + pw / 2, p.y + ph * 0.45); // 🔊 the saw's Fire, looped while it runs
+      // 🪚 RUNNING: everybody on the other side inside the saw's 🎯 hitbox (its Fire art, on the arm raised to
+      // AUTO_RUN_SWING_DEG — the same attach the swing's hit test makes) loses its DPS a little every frame.
+      // Through their armour like a blow (incomingPlayerDamageExact, unrounded, so a small DPS is not floored
+      // up to 1 a frame); no crit roll and no stun, which would be rolled or re-applied 60 times a second;
+      // fire, ice and poison are kept topped up while it bites. A unit's own raised saw turns it aside.
+      if (p.auto && p.auto.mode === "saw" && playerAsset && playtestWeapon) {
+        const angleS = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
+        const heldMirS = playerSpriteMirrored(basePlayerAsset, p.face);
+        const heldPoseS = (ang) => (heldMirS ? bake(playerAsset, ang) : (playerAsset.angles[ang] || []));
+        const armS = heldArmOf(heldPoseS(angleS), heldMirS);
+        if (armS) {
+          const baseS = armS.rot || 0;
+          const curArmS = { ...armS, rot: baseS + armPivotSign(armS.armPivot) * AUTO_RUN_SWING_DEG * armMirrorTwist(armS) };
+          const wfitS = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
+          const wPoseS = weaponArtPose(angleS);
+          const wHandS = handForGuideId(wfitS.guideId)[wPoseS] || DEFAULT_HAND[wPoseS];
+          const wBaseS = wPoseS === angleS ? baseS : armBaseFrom(heldArmOf(heldPoseS(wPoseS), heldMirS), armS, baseS);
+          const hbS = attachHeldToArms(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfitS.states, wPoseS) }, wPoseS)), curArmS, null, wHandS, wBaseS);
+          const renderWS = CW * PLAYER_RENDER_W_CELLS;
+          const wrapLeftS = p.x - (bodyShape.centerFrac * renderWS - pw / 2);
+          const sawBoxes = hbS.map((hb) => { const lx = (hb.x / W) * renderWS, bw = (hb.w / W) * renderWS; return { x: wrapLeftS + (heldMirS ? renderWS - (lx + bw) : lx), y: p.y + (hb.y / H) * ph, w: bw, h: (hb.h / H) * ph }; });
+          const rawDps = meleeDpsOf((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)) * moneyPowerMultiplier(playerAsset?.effects, wallet.current), pstats.strength);
+          const sawNotes = [];
+          let sawTouched = false;
+          for (const k of Object.keys(lv.enemies || {})) {
+            const ep = enemyPos.current[k];
+            const ea = ep ? unitAssetAt(k, liveSpawnAt(k, lv.enemies[k])) : null;
+            if (!ea) continue;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+            if (enemyHP.current[k] <= 0 || ep.friendly || unitUntouchable(ep)) continue; // 🪚 the revive grace, as your swing's gate
+            const eShape = sideBodyShape(ea);
+            const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+            const eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
+            const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
+            const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
+            if (!sawBoxes.some((b) => b.x < eHitLeft + epw && b.x + b.w > eHitLeft && b.y < hitTop + hitH && b.y + b.h > hitTop)) continue;
+            if (unitTalkImmune(ep)) continue;
+            sawTouched = true;
+            const ecx = eHitLeft + epw / 2;
+            if (sawGuardStops(ep.auto && ep.auto.mode === "guard", ep.face, p.x + pw / 2, ecx, epw)) continue; // its own saw is up at you
+            const effDps = incomingPlayerDamageExact(rawDps, ea.defense || 0, ep.face || 1, p.x + pw / 2, ecx, guardReduceOf(ea.effects, "backGuard"), guardReduceOf(ea.effects, "crouchGuard"), !!ep.crouch, !!playtestWeapon.ignoreArmor) * (shotIsIce(playtestWeapon) ? coldDamageMult(ea.effects) : 1); // ❄️ cold resist, as coldResistedHit
+            const stp = sawDamageStep(p.auto.acc[k], effDps, dtMul);
+            p.auto.acc[k] = stp.acc;
+            const loss = stp.whole;
+            if (loss <= 0) continue;
+            enemyHP.current[k] = Math.max(0, enemyHP.current[k] - loss);
+            ep.lastHitByFx = null; ep.lastHitRanged = false; ep.lastHitMelee = true; // a MELEE WEAPON kill, for Bobb, as a swing's
+            if (enemyHP.current[k] > 0) afflictBody(ep, { ...playtestWeapon, stun: 0 }, DEFAULT_IGNITE_DPS, playerAsset?.effects, basePlayerAsset);
+            else sawNotes.push(ea.name);
+          }
+          // 🔊 Its Hit while the teeth are in somebody, every few frames (the Fire loop carries the rest).
+          if (sawTouched && !(p.auto.hitT > 0)) { sndMoment(playtestWeapon, "hit", "punch", p.x + p.face * pw, p.y); p.auto.hitT = 15; }
+          if (sawNotes.length) flash("🪚 Sawed " + sawNotes.join(", ") + " — defeated!");
+        }
+      }
       // 📢 A Sound wave weapon held out sends a ring every SOUND_WAVE_EVERY_FRAMES while the guard is up,
       // the first on the frame it goes up, right from the held weapon's far tip (the Megaphone's horn
       // bell, heldShotPoint on the level-extended block arm). The rings are moved and do their pushing in
@@ -22550,7 +22842,7 @@ export default function AssetStudio({ game = false } = {}) {
           if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) afflictBody(ep, pr);
         };
         if (pr.foe) {
-          if (p.invuln <= 0 && !pBlastImmune) { // 🪖
+          if (p.invuln <= 0 && !pBlastImmune && !sawGuardStops(!!(p.auto && p.auto.mode === "guard"), p.face, ix, p.x + pw / 2, pw)) { // 🪖 · 🪚 a blast in front of a raised saw
             const pcx = p.x + pw / 2;
             if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
               // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
@@ -22571,6 +22863,7 @@ export default function AssetStudio({ game = false } = {}) {
             const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitHitImmune(ep)) continue;
             const ea = unitAssetAt(k, lv.enemies[k]); if (!ea || blastImmune(ea.effects)) continue; // 🪖
             const bx = enemyBlastBox(ea, ep);
+            if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, ix, bx.x + bx.w / 2, bx.w)) continue; // 🪚 in front of its raised saw
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
               // Armour counts, as it does on you just above; the shooter's crit and the weapon's
               // stun land on your ally exactly as yours land on a hostile in the branch below.
@@ -22592,6 +22885,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] <= 0) continue;
             const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitHitImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive or in its i-frames
             const bx = enemyBlastBox(ea, ep);
+            if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, ix, bx.x + bx.w / 2, bx.w)) continue; // 🪚 in front of its raised saw
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
               if (blastImmune(ea.effects)) { pushImmuneCallout(booms.current, k, ix, iy, bx); continue; } // 🪖 tell the player why the blast did 0
               // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
@@ -22787,6 +23081,14 @@ export default function AssetStudio({ game = false } = {}) {
                     // not a break: the arc carries on looking for somebody it can actually hit, and
                     // hitRegistered is untouched, so swinging through an NPC does not eat your swing.
                     if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
+                    // 🪚 ITS RAISED SAW turns your blow aside the way your guard turns its blow aside — and
+                    // staggers you for it, as your block staggers it (applyHitTo's block, the other way round).
+                    if (ep && sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, p.x + pw / 2, eHitLeft + epw / 2, epw)) {
+                      p.swingHits[k] = true;
+                      if (!unarmedSwing) sndMoment(playtestWeapon, "hit", "punch", p.x + p.face * pw, p.y);
+                      stunPlayer(p, BLOCK_STAGGER_SECS); flash("🛡️ " + (ea.name || "It") + " blocked you — 💫 staggered");
+                      break hitLoop;
+                    }
                     // ⚔️ CLASH, YOUR SIDE (see meleeClash): your pistol-whip meets its swing coming
                     // the other way, mid-air and face to face. Neither lands, both of you are shoved
                     // apart, and the rest of this stroke is spent.
@@ -23022,6 +23324,7 @@ export default function AssetStudio({ game = false } = {}) {
               // case of being hit, so it must not have its own arithmetic.
               if (p.invuln > 0) continue;
               if (pBlastImmune && throwIsExplosive(g.asset)) continue; // 🪖 a grenade going off on you; it still stopped on you
+              if (sawGuardStops(!!(p.auto && p.auto.mode === "guard"), p.face, g.x, p.x + pw / 2, pw)) continue; // 🪚 off the raised saw
               const dmg = incomingPlayerDamage(impactDmg, playerAsset?.defense ?? 0, p.face, g.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(g.asset && g.asset.ignoreArmor));
               if (shrugsHit("player", playerAsset?.effects, dmg, g.throwerKey || null, p.x + pw / 2, p.y)) continue; // 🐞 / 🪞
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
@@ -23368,9 +23671,12 @@ export default function AssetStudio({ game = false } = {}) {
               if (!pr.pierce) return false;
             }
             if (!vehDriven && shotHitsBox(p.x, p.y, pw, ph) && pierceFreshHit(pr, "player")) {
-              if (turnShot(pr, "player", playerAsset?.effects, pr.shooterKey || null, p.x + pw / 2, p.y, p.y + ph)) return true; // 🐞 / 🪞
+              // 🪚 A raised saw stops it at the teeth (sawGuardStops): a round is spent on it, a beam or a
+              // piercing round flies on past, and a blast still goes off there — detonate asks the guard too.
+              const sawStop = sawGuardStops(!!(p.auto && p.auto.mode === "guard"), p.face, pr.x, p.x + pw / 2, pw);
+              if (!sawStop && turnShot(pr, "player", playerAsset?.effects, pr.shooterKey || null, p.x + pw / 2, p.y, p.y + ph)) return true; // 🐞 / 🪞
               if (pr.explode) { pr.turnRolled = "player"; detonate(pr, boxCx, boxCy); return false; }
-              if (pFireImmune && shotIsFlame(pr)) { if (!pr.pierce) return false; } // 🧯 the flames wash over you
+              if (sawStop || (pFireImmune && shotIsFlame(pr))) { if (!pr.pierce) return false; } // 🧯 the flames wash over you
               else if (p.invuln <= 0 || (pr.pair && p.invulnPair === pr.pair)) { // ⏩ a Double Shot's twin is the same shot, not a second hit to wait out
                 // For a projectile, "from behind" is decided by which way the shot is travelling
                 // relative to the way you're facing — a bullet catching you in the back is one
@@ -23402,6 +23708,7 @@ export default function AssetStudio({ game = false } = {}) {
               const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (shotHitsBox(eHitLeft, hitTop, epw, hitH) && pierceFreshHit(pr, k)) {
+                if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, pr.x, eHitLeft + epw / 2, epw)) { if (pr.explode) { detonate(pr, boxCx, boxCy); return false; } if (!pr.pierce) return false; continue; } // 🪚 off its raised saw (detonate asks it again)
                 if (!unitUntouchable(ep) && turnShot(pr, k, ea.effects, pr.shooterKey || null, eHitLeft + epw / 2, hitTop, hitTop + hitH)) return true; // 🐞 / 🪞
                 if (pr.explode) { pr.turnRolled = k; detonate(pr, boxCx, boxCy); return false; }
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing. A bullet ignores i-frames (see the shot at a hostile below)
@@ -23468,6 +23775,7 @@ export default function AssetStudio({ game = false } = {}) {
               // the explode branch: a rocket must not detonate on a body it cannot hurt.
               if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
               if (!pierceFreshHit(pr, k)) continue; // 🪡 already went through this one
+              if (ep && sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, pr.x, eHitLeft + epw / 2, epw)) { if (pr.explode) { detonate(pr, boxCx, boxCy); return false; } if (!pr.pierce) return false; continue; } // 🪚 off its raised saw (detonate asks it again)
               if (!unitUntouchable(ep) && turnShot(pr, k, ea.effects, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop, hitTop + hitH)) return true; // 🐞 / 🪞
               if (pr.explode) { pr.turnRolled = k; detonate(pr, boxCx, boxCy); return false; }
               // 🐱 Mid-revive, or inside the 40 i-frames after its last hit: the round is consumed
@@ -24015,6 +24323,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (runNodeLive && --warmWait <= 0) { warmWait = RUN_WARM_EVERY_FRAMES; warmRunAhead(runNow, runNodeLive); }
 
       if (vehDriven) vehSeat(p, vehDriven); // 🚗 your own physics had no keys, but it had gravity
+      bobAudio.sawLoopsEnd(); // 🪚 a saw nobody ran this frame (its unit died, or is on another level) falls quiet
       bobAudio.engineLoop(!!vehDriven, vehDriven ? Math.abs(vehDriven.vx) / VEH_ENGINE_TOP : 0, vehDriven ? vehDriven.x + vehDriven.w / 2 : 0, vehDriven ? vehDriven.y + vehDriven.h / 2 : 0, !!(vehDriven && vehDriven.gas)); // 🔊 the one Car engine sound, pitched by speed, loud on the throttle; the radio beside it
       soundFrame(p, pw, ph, dtMul, nowT); // hurt, death and landing, for you and every unit (see sndSeen)
       updateCamera(p, pw, ph, dtMul);
@@ -25201,6 +25510,10 @@ export default function AssetStudio({ game = false } = {}) {
               <label className="slider">Reach<input type="range" min="2" max="14" step="1" value={asset.soundWaveReach || SOUND_WAVE_DEFAULT_REACH} onChange={(e) => setAsset((a) => ({ ...a, soundWaveReach: +e.target.value }))} /><span className="hint2">{(asset.soundWaveReach || SOUND_WAVE_DEFAULT_REACH)} cells</span></label>
               <label className="slider">Push<input type="range" min="0.5" max="6" step="0.5" value={asset.soundWavePush || SOUND_WAVE_DEFAULT_PUSH} onChange={(e) => setAsset((a) => ({ ...a, soundWavePush: +e.target.value }))} /><span className="hint2">{(asset.soundWavePush || SOUND_WAVE_DEFAULT_PUSH)} cells</span></label>
             </>)}
+            {k === "automatic" && (() => { const au = automaticOf(asset) || { runSecs: AUTO_RUN_DEFAULT_SECS, coolSecs: AUTO_COOL_DEFAULT_SECS }; return (<>
+              <label className="slider">Run time<input type="range" min="1" max="12" step="0.5" value={au.runSecs} onChange={(e) => setAsset((a) => ({ ...a, autoRunSecs: +e.target.value }))} /><span className="hint2">{au.runSecs}s</span></label>
+              <label className="slider">Cool down<input type="range" min="0.5" max="8" step="0.5" value={au.coolSecs} onChange={(e) => setAsset((a) => ({ ...a, autoCoolSecs: +e.target.value }))} /><span className="hint2">{au.coolSecs}s</span></label>
+            </>); })()}
             {k === "swingSpeed" && (
               <label className="slider">Speed ×<input type="range" min="1.1" max="3" step="0.1" value={weaponSwingSpeedMult(asset)} onChange={(e) => { const m = +e.target.value; setAsset((a) => ({ ...a, swingSpeed: m, swingSpeedMult: m })); }} /><span className="hint2">×{weaponSwingSpeedMult(asset).toFixed(1)}</span></label>
             )}
@@ -25322,6 +25635,42 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const closePicker = () => { setPicker(null); setEmojiQuery(""); };
   const switchWState = (st) => { if (st === wState) return; setAsset((a) => { const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) }; states[wState] = a.angles; let nxt = states[st]; if (st === "fire" && anglesEmpty(nxt)) nxt = JSON.parse(JSON.stringify(states.rest)); states[st] = nxt; return { ...a, states, angles: nxt }; }); setSelId(null); setWState(st); };
+  // 🪚 AUTOMATIC'S RUNNING FRAMES: states.fire2 … fireN of this fit, in order, with no gaps (a delete
+  // shifts the later ones down), so automaticFrameKeys reads exactly the tabs shown here.
+  const autoFrameTabs = () => {
+    const out = [];
+    for (let i = 2; i <= AUTO_MAX_FRAMES; i++) { const k = "fire" + i; if (wState === k || (asset.states && asset.states[k])) out.push(k); else break; }
+    return out;
+  };
+  const addAutoFrame = () => {
+    const n = autoFrameTabs().length + 2;
+    if (n > AUTO_MAX_FRAMES) return;
+    const key = "fire" + n;
+    setAsset((a) => {
+      if (!effEdit) dirtyGuides.current.add(a.guideId || "default");
+      const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) };
+      states[wState] = a.angles;
+      const from = /^fire\d*$/.test(wState) ? a.angles : (anglesEmpty(states.fire) ? states.rest : states.fire);
+      const nxt = JSON.parse(JSON.stringify(from));
+      states[key] = nxt;
+      return { ...a, states, angles: nxt };
+    });
+    setSelId(null); setWState(key);
+  };
+  const deleteAutoFrame = () => {
+    const m = /^fire(\d+)$/.exec(wState);
+    if (!m) return;
+    const at = +m[1], last = autoFrameTabs().length + 1, back = at - 1 >= 2 ? "fire" + (at - 1) : "fire";
+    setAsset((a) => {
+      if (!effEdit) dirtyGuides.current.add(a.guideId || "default");
+      const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) };
+      states[wState] = a.angles;
+      for (let i = at; i < last; i++) states["fire" + i] = states["fire" + (i + 1)];
+      delete states["fire" + last];
+      return { ...a, states, angles: states[back] || blankAngles() };
+    });
+    setSelId(null); setWState(back);
+  };
   const copyWState = () => { const other = wState === "rest" ? "fire" : "rest"; setAsset((a) => { if (!effEdit) dirtyGuides.current.add(a.guideId || "default"); const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) }; states[wState] = a.angles; states[other] = JSON.parse(JSON.stringify(a.angles)); return { ...a, states }; }); flash("Copied " + wState + " → " + other); };
   // Enemy appearance variants — same rest/fire pattern as weapons, but three states. Switching
   // into an empty onFire/charge inherits Normal (same "auto-clone from the base look" the
@@ -26471,7 +26820,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.chargeLaser === undefined) a.chargeLaser = false; if (a.chargeTime === undefined) a.chargeTime = DEFAULT_CHARGE_LASER_SECS; if (a.beamTime === undefined) a.beamTime = DEFAULT_LASER_BEAM_SECS; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.throwBlast === undefined) a.throwBlast = false; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.chargeLaser === undefined) a.chargeLaser = false; if (a.chargeTime === undefined) a.chargeTime = DEFAULT_CHARGE_LASER_SECS; if (a.beamTime === undefined) a.beamTime = DEFAULT_LASER_BEAM_SECS; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.throwBlast === undefined) a.throwBlast = false; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; if (a.automatic === undefined) a.automatic = false; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
@@ -32405,6 +32754,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // the gun stays gripped and sweeps round with the arm (it's the thing you're
                   // hitting with), on its Rest art since no round was fired.
                   const meleeSwinging = blocks && p.firing && (p.firing.unarmed || !playtestWeapon || !isRanged(playtestWeapon.wtype)) && !playerAtkPose && !creatureFlies(basePlayerAsset);
+                  const renderAuto = !!automaticOf(playtestWeapon) && !playerAtkPose && !creatureFlies(basePlayerAsset); // 🪚 held out, not swung (below)
                   if (meleeSwinging) {
                     // CSS +rot is clockwise: for a top-pivot arm hanging DOWN that sweeps the hand
                     // BACKWARD (behind a right-facing player), so a forward swing is -swingAngle.
@@ -32442,6 +32792,20 @@ export default function AssetStudio({ game = false } = {}) {
                       const a = windupAnchorOf(b);
                       if (!a) return { ...b, rot: windupArmRot(b) };
                       return rigidArmFollow(b, a, windupArmRot(a));
+                    });
+                  } else if (blocks && renderAuto && !p.climbing) {
+                    // 🪚 AUTOMATIC (automaticOf): held out like a chainsaw, never swung. The arm is SET to
+                    // its mode's swing angle (carried / running / guard, automaticSwingDeg) by the melee
+                    // swing's own formula, so the weapon attached below rides it; sleeves follow rigidly.
+                    const autoDeg = automaticSwingDeg(p.auto && p.auto.mode);
+                    const autoAnchorOf = armAnchorFinder(blocks);
+                    const autoArmRot = (a) => (a.rot || 0) + armPivotSign(a.armPivot) * autoDeg * armMirrorTwist(a);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      if (b.role === "weaponArm") return { ...b, rot: autoArmRot(b) };
+                      const a = autoAnchorOf(b);
+                      if (!a) return { ...b, rot: autoArmRot(b) };
+                      return rigidArmFollow(b, a, autoArmRot(a));
                     });
                   } else if (blocks && p.blocking) {
                     // BLOCK (Q/V holding a melee weapon): a HELD pose, not an arc. The arm sets to
@@ -32553,9 +32917,14 @@ export default function AssetStudio({ game = false } = {}) {
                       // weaponFireArt falls back to Rest rather than baking an empty array (which
                       // is what used to make the weapon vanish mid-swing).
                       const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current, playtestWeapon, !!p.laserCharged);
-                      const wpnAngles = firedNow ? weaponFireArt(wfit.states, wPose) : (wfit.states.rest || blankAngles());
+                      // 🪚 A running saw plays its frames (Fire, Frame 2, …: automaticRunArt) so the teeth move.
+                      const sawRunning = renderAuto && !p.climbing && !!(p.auto && p.auto.mode === "saw");
+                      const wpnAngles = sawRunning ? automaticRunArt(wfit.states, wPose, p.auto.runT) : firedNow ? weaponFireArt(wfit.states, wPose) : (wfit.states.rest || blankAngles());
                       const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, wPose).concat(firedNow ? firedOffArmTwins(wfit.states, wPose) : []); // the far arm stays on (firedOffArmTwins)
-                      blocks = mergeWeaponBlocks(blocks, attachHeldToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot));
+                      let heldNow = attachHeldToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot);
+                      // 🪚 ...and raised as a guard it stands up across the face: turned up about the hand.
+                      if (renderAuto && !p.climbing && p.auto && p.auto.mode === "guard") heldNow = liftHeldAboutHand(heldNow, curArm, AUTO_GUARD_TILT_DEG, playerArtFacesRight(basePlayerAsset));
+                      blocks = mergeWeaponBlocks(blocks, heldNow);
                     }
                   }
                   // Carried throwable in hand: shown while aiming (G held) or during the brief
@@ -32664,6 +33033,11 @@ export default function AssetStudio({ game = false } = {}) {
                         const done = Math.max(0, Math.min(1, 1 - w.reloadT / total));
                         return <div className="playerReloadTrack" style={{ left: p.x, top: p.y - 17 + (p.stepEase || 0) - climbLift, width: pw }}><div className="playerReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
                       })()}
+                      {/* 🪚 The saw's bar (stepAutomatic), in the reload bar's place: going down while F or Q is
+                          held, up otherwise, gone when full. Red while it is on cool down. */}
+                      {p.auto && p.auto.meter < 1 && automaticOf(playtestWeapon) && (
+                        <div className="playerReloadTrack" style={{ left: p.x, top: p.y - 17 + (p.stepEase || 0) - climbLift, width: pw }}><div className={"playerSawFill" + (p.auto.locked ? " locked" : "")} style={{ width: (Math.max(0, p.auto.meter) * 100) + "%" }} /></div>
+                      )}
                       {/* 💫 dazed on your feet, 😵 flat on your back — the same two badges, in the
                           same two states, that an enemy shows when you do this to them. Without one
                           a stun reads as the controls having died rather than as something that was
@@ -33088,12 +33462,14 @@ export default function AssetStudio({ game = false } = {}) {
                   // 📢 A Sound wave weapon held out (ep.waveGuard, the unit's guard clock): the arm goes out level,
                   // the player's block pose, for as long as the guard is up. A swing or a throw outranks it.
                   const eWaveGuard = !!(ep && ep.waveGuard != null && !eRanged && !eThrowingNow && !(ep.swingT > 0));
+                  // 🪚 An Automatic weapon is held out, never swung: the arm at its mode's angle (automaticSwingDeg).
+                  const eAutoMode = (ep && !eRanged && !eThrowingNow && !eClimbArms && automaticOf(ew)) ? ((ep.auto && ep.auto.mode) || "carry") : null;
                   if (eClimbArms) {
                     eBlocks = driveUnitArms(eBlocks, eArm0, (a) => armClimbAbs(a.armPivot));
                     if (ep.climbing === "ladder") eBlocks = applyLimbSwing(eBlocks, new Set(), identifyLimbs(eBlocks).armIds, 0, { alternate: true, armReach: Math.sin(ep.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP });
-                  } else if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged) || eWaveGuard)) {
+                  } else if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged) || eWaveGuard || eAutoMode)) {
                     const eSwDur = eThrowingNow ? ATTACK_SWING_FRAMES : (ep.swingDur || ATTACK_SWING_FRAMES);
-                    const eSwingA = meleeSwingAngle(eSwDur - (eThrowingNow ? ep.throwT : ep.swingT), eSwDur);
+                    const eSwingA = eAutoMode ? automaticSwingDeg(eAutoMode) : meleeSwingAngle(eSwDur - (eThrowingNow ? ep.throwT : ep.swingT), eSwDur);
                     // A ranged unit's arm follows the shot it just fired (ep.shotTilt, facing-frame
                     // degrees off level, + = down) for the swing frames — the same visible lock-on
                     // the player's p.firing.aimTilt gives. The stored rot is in the ART's frame,
@@ -33150,10 +33526,14 @@ export default function AssetStudio({ game = false } = {}) {
                       // way yours does.
                       const eSwDur = (ep && ep.swingDur) || ATTACK_SWING_FRAMES;
                       const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: eSwDur - ep.swingT, dur: eSwDur } : null, ep && ep.weaponAmmo, ew, !!(ep && ep.laserCharged));
-                      const wpnAngles = eFired ? weaponFireArt(wfit.states, hv.pose) : (wfit.states.rest || blankAngles());
+                      // 🪚 A running saw plays its frames, as yours does (ep.auto.frame is the teeth frame, in unitArtSig).
+                      const eSawRun = eAutoMode === "saw";
+                      const wpnAngles = eSawRun ? automaticRunArt(wfit.states, hv.pose, ((ep.auto && ep.auto.frame) || 0) * 60 / AUTO_FRAME_FPS) : eFired ? weaponFireArt(wfit.states, hv.pose) : (wfit.states.rest || blankAngles());
                       // Drawn for a right-facing body, so mirrored about its grip for left-facing art.
                       const wArt = bake({ ...ew, angles: wpnAngles }, hv.pose).concat(eFired ? firedOffArmTwins(wfit.states, hv.pose) : []); // the far arm stays on, as yours does
-                      eBlocks = mergeWeaponBlocks(eBlocks, eAttachHeld(wArt, hv, curArm));
+                      let eHeld = eAttachHeld(wArt, hv, curArm);
+                      if (eAutoMode === "guard") eHeld = liftHeldAboutHand(eHeld, curArm, AUTO_GUARD_TILT_DEG, eFacesRight); // 🪚 up across its face, as yours
+                      eBlocks = mergeWeaponBlocks(eBlocks, eHeld);
                     }
                   }
                   // The grenade in its hand while it winds up and lets go — the same idea as the
@@ -34414,7 +34794,13 @@ export default function AssetStudio({ game = false } = {}) {
           {["rest", "fire"].map((st) => (
             <button key={st} className={wState === st ? "on" : ""} onClick={() => switchWState(st)}>{st === "rest" ? "🪨 Rest" : "💥 Fire"}</button>
           ))}
-          <button className="wcopy" onClick={copyWState}>copy {wState} → {wState === "rest" ? "fire" : "rest"}</button>
+          {/* 🪚 Automatic: the running frames after Fire (automaticRunArt cycles Fire, 2, 3 …). */}
+          {automaticOf(asset) && autoFrameTabs().map((st, i) => (
+            <button key={st} className={wState === st ? "on" : ""} onClick={() => switchWState(st)}>🎞 {i + 2}</button>
+          ))}
+          {automaticOf(asset) && autoFrameTabs().length < AUTO_MAX_FRAMES - 1 && <button className="wcopy" onClick={addAutoFrame}>⧉ Duplicate frame</button>}
+          {automaticOf(asset) && /^fire\d+$/.test(wState) && <button className="wcopy" onClick={deleteAutoFrame}>🗑 Delete frame</button>}
+          {(wState === "rest" || wState === "fire") && <button className="wcopy" onClick={copyWState}>copy {wState} → {wState === "rest" ? "fire" : "rest"}</button>}
         </div>
       )}
       {/* The On fire / Charge alternate-look tabs are GONE: the game never rendered either state
@@ -34455,7 +34841,7 @@ export default function AssetStudio({ game = false } = {}) {
       )}
       {asset.type === "weapon" && (
         <div className="wstates">
-          <span className="wslab">Damage:</span>
+          <span className="wslab">{automaticOf(asset) ? "DPS:" : "Damage:"}</span>
           <input className="dmgInput" type="number" min="0" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} />
         </div>
       )}
@@ -36280,6 +36666,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8000;pointer-events:none}
 .playerReloadTrack{position:absolute;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8000;pointer-events:none}
 .playerReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}
+.playerSawFill{height:100%;background:#f0a030}
+.playerSawFill.locked{background:#d23a2a}
 .playerHpFill{height:100%;transition:width .15s ease}
 .rampGhost{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;pointer-events:none;z-index:4000;opacity:.5}
 .blockGhost{position:absolute;pointer-events:none;z-index:4000;opacity:.5;outline:2px dashed rgba(255,255,255,.55);outline-offset:-2px;box-sizing:border-box}
