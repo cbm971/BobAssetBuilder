@@ -826,6 +826,11 @@ plus traps it does not cover:
   bubble, sound view). The camera centres a narrow room (`centreRoomInView`), not margin:auto.
   In a 24-row room the view never climbs above about row 4, even with you on the plane's back row,
   so a sign or anything meant to be read sits at row 5 or lower (VShaq 2's WBOB sign was cut off at row 3).
+- **The play view never scrolls** (2026-11-27): `.lscroll` stays at scrollTop/Left 0 during play
+  (`updateCamera` puts it back), and nothing may call `scrollIntoView`/`focus()` on anything inside it.
+  `overflow:hidden` still scrolls for a script, and an offset there moved the level AND the HUD for the
+  rest of the run. **Measure anything placed inside `.lgrid` in layout px** (`offsetWidth/Height`), never
+  `getBoundingClientRect` (screen px = level px × room zoom × the game's fit scale).
 - **Dialogue trees** are the sixth saved kind: `{ id, name, start, once?, nodes: { nId: { speaker,
   text, choices: [{ text, to, act, tone, shopTag? }] } } }`. `to` and `act` are independent. Keys
   1–9 pick options. A tree on a spawn makes it peaceful, and a conversation pauses the WORLD. A shop
@@ -1254,6 +1259,7 @@ plus traps it does not cover:
 ### His bug list of 2026-11-14 (ten items, one push)
 
 - **Off a tree top you FALL.** No side or bottom edge of a tree-top level (run row < 0) is a wall or a floor where a level lies under it: `runFallSeams` joins the level under the air past each side (`fall`, or `fallSides` on the seam already joined below) and marks every level beneath `under` (`seamUnder`: the whole bottom edge is open, not only the ladder's gate). `p.skyFall` keeps the "flung off the top of the world" respawn from firing on the way down. His Tree Tops 2 and 3 stop part-way across the level on purpose.
+- **A tree end's drop must FALL INTO the level under it, not land on its top rows.** The handoff is at the body's centre, so feet that land within ~3 rows of the street level's top leave you in the tree top, boxed between its last branch and its invisible end wall (Forest M18's roof is row 0: Blake's soft lock 2026-11-27). The pockets are cols 64-70 (TT2/TT6, west ends) and 109-115 (TT3/TT7, east ends) on a 180-wide level; M18 has a chimney through the roof under each. Check a new tall street level with buildRun + `seamUnder` over many seeds.
 - **Walking + ↑ (or ↓) is the 45°** (`aimSideHeld`: A/D count as the sideways half). Standing still, ↑ alone is straight up.
 - **The gun stays in the same hand in both facings** in the two-arm poses (`heldArmOf`, `heldArmView`, `attachHeldToArms`); units too.
 - **Ladder hands and feet move a rung per rung climbed** (`climbPhaseStep`, `LADDER_RUNG_PX`), player and units.

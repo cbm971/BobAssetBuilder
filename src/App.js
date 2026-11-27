@@ -18039,7 +18039,15 @@ export default function AssetStudio({ game = false } = {}) {
   // are very different heights, and keeping a stale one flips the bubble below for no reason.
   const [talkH, setTalkH] = useState(0);
   const talkBubbleEl = useRef(null);
-  const talkBubbleRef = (el) => { talkBubbleEl.current = el; if (el) { const h = el.getBoundingClientRect().height; setTalkH((prev) => (Math.abs(prev - h) > 1 ? h : prev)); } };
+  // The height talkBubbleBox places the panel by is in LEVEL pixels, like everything else in .lgrid,
+  // so it is read as offsetHeight (layout px, which no transform touches). It was the box's
+  // getBoundingClientRect().height — SCREEN pixels — and inside a room that is the level height
+  // times the room zoom (roomViewZoom, 1.79 on a 16-row view), and in the game times the view's own
+  // fit-to-window scale as well (gameViewStyle, 1.26 on Blake's fullscreen): his DJ Ronnie Ray panel
+  // is 242 px tall and was placed as if it were 561. Held on screen by that height, the panel was
+  // shoved down over the speaker and on past the bottom of the view, which is what the old
+  // scrollIntoView then "fixed" by scrolling the whole view (see THE PLAY VIEW NEVER SCROLLS).
+  const talkBubbleRef = (el) => { talkBubbleEl.current = el; if (el) { const h = el.offsetHeight; setTalkH((prev) => (Math.abs(prev - h) > 1 ? h : prev)); } };
   // SAY WHY NOTHING HAPPENED, once per person. A shot that visibly passes through somebody with no
   // number, no flinch and no bullet spent is indistinguishable from the weapon being broken — it is
   // the same "it did nothing" the thrown-rock impact test was added to fix. Once each, keyed on the
@@ -18159,16 +18167,20 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const closeShop = () => { shopRef.current = null; setShop(null); };
   const setShopTab = (tab) => { const cur = shopRef.current; if (!cur || cur.tab === tab) return; bobAudio.event("menuClick"); const s = { ...cur, tab }; shopRef.current = s; setShop(s); };
-  // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
-  // the player — so on a 160-column level the person you just walked up to is very often outside
-  // the scrolled viewport, and so is what they are saying. Scoped as tightly as it can be: only on
-  // opening, only if it is not already fully visible, and `block/inline: nearest` so a bubble that
-  // IS visible does not get nudged. This is not a camera and must not grow into one.
-  useEffect(() => {
-    if (!talk) return;
-    const el = talkBubbleEl.current;
-    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [talk && talk.key, talk && talk.nodeId]);
+  // THE PLAY VIEW NEVER SCROLLS (Blake, 2026-11-27: the camera "suddenly swings down a bunch" on
+  // entering a room, mostly Vietnam rooms, noticed at the dialogue, "carrying on when I exited the
+  // room", gone again on the next visit; his screenshot had the bottom HUD floating two thirds of the
+  // way up the screen with grass under it). A conversation used to run
+  // talkBubble.scrollIntoView({ block: "nearest" }) on every new line — written when the game had no
+  // camera and the bubble could be off in a scrolled editor viewport. The camera has owned the view
+  // since: .lscroll.playing is overflow:hidden and .lgrid moves by transform, and talkBubbleBox keeps
+  // the panel inside the camera's window. But overflow:hidden still scrolls when a script asks, so a
+  // panel pushed past the view's bottom (the screen-pixel height above) scrolled the WHOLE VIEW down —
+  // the level and the HUD with it — and nothing ever scrolled it back, in that level or the next.
+  // Reproduced in VShaq 2 at his fullscreen scale: answer 1 to DJ Ronnie Ray scrolled it 160 px, the
+  // HUD 211 px off the screen's bottom edge. The call is gone; updateCamera holds the view at 0,0.
+  // Measured at his fullscreen scale with the fix in: the same answer leaves it at 0, and the panel sits
+  // in the view.
   // What an option DOES to the world. One switch, off DIALOGUE_ACTS, so "what can a choice do" has
   // exactly one answer and adding an entry to the registry is the only edit a new consequence needs.
   const applyTalkAct = (act, t, step) => {
@@ -18744,6 +18756,10 @@ export default function AssetStudio({ game = false } = {}) {
     // too; the editor never does (the transform is only emitted while play is on).
     const updateCamera = (p, pw, ph, dtMul) => {
       const view = lscrollRef.current; if (!view) return;
+      // THE PLAY VIEW NEVER SCROLLS (see there): the camera is the only thing that moves the picture,
+      // so a view something has scrolled (a focused button, the browser's find bar) is put back at
+      // once instead of offsetting every frame after it, in this level and every level after.
+      if (view.scrollTop || view.scrollLeft) { view.scrollTop = 0; view.scrollLeft = 0; }
       // A room is zoomed in (roomViewZoom), so the camera works in a view that many times smaller,
       // in level pixels; the render multiplies it back out. z is not eased — it changes only at a
       // door, which is a cut behind the fade.

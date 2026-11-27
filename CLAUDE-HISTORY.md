@@ -6434,3 +6434,35 @@ that carried supplies down the trail, and rubber sandals cut from old tyres (his
   "Talk to Mechanic" at about 4 cells, the line shows; the pedestal rolled #2 Socks, then Bobs Skates. The Evil
   version had the Mechanic and the keeper and no pedestal.
 - Generator: `props.js` + `gen.js` in session f3d34d66's scratchpad (`shaq6/`).
+
+## 2026-11-27: the camera that "swings down" in rooms, and the Forest M18 roof soft lock
+
+Blake, on a run: "a camera bug when entering a room where it suddenly swings the camera down a bunch ... mostly
+in vietnam based rooms ... the effect carrying on when i exited the room ... it did go away when i reentered the
+room". His screenshot (Pages /game) had the bottom HUD two thirds of the way up the screen with grass under it.
+
+- **The view itself had scrolled.** A conversation ran `talkBubble.scrollIntoView({ block: "nearest" })` on every
+  new line, from before the camera existed. `.lscroll.playing` is overflow:hidden, which still scrolls for a
+  script, so the level and the HUD (a sibling of `.lgrid` inside `.lscroll`) moved up together and stayed that way.
+- **Why the bubble was off screen at all:** its height was measured with `getBoundingClientRect` (screen px) and
+  used as level px by `talkBubbleBox`. In a room that is ×1.79 (room zoom); in the game ×1.26 more (the view's
+  fit-to-window scale). DJ Ronnie Ray's panel: 242 px real, measured 561, so the "keep it on screen" clamp pushed
+  it down over the speaker and past the view's bottom. Only a NEW line scrolled (the effect's deps were key and
+  nodeId), so the first line looked fine and answering made it jump.
+- **Reproduced** in the studio: VShaq 2, BoB, `.lscroll` given `scale(1.3)` (the game's scale), talk, press 1 →
+  scrollTop 160, HUD 211 px above the view's bottom; still 160 after Escape. **Fixed** (offsetHeight, no
+  scrollIntoView, `updateCamera` resets any scroll): the same drive stays at 0, the panel sits above the DJ, and a
+  forced scrollTop of 160 snaps back the next frame.
+
+Second report, same message: from the tree tops onto "the top of the mansion where an invisible wall stops me
+from traveling the roof ... there should be a chimney or something here that drops you into the mansion".
+
+- **Forest M18's roof is row 0.** Tree Tops 2/6 (west ends) and 3/7 (east ends) stop short, and the 7 columns
+  between the last branch and the tree's hideInPlay end wall drop straight onto it. The S handoff happens when the
+  body's CENTRE crosses the tree top's bottom edge, so feet landing on row 0 left you in the tree top, boxed between
+  the canopy and that wall. A probe (buildRun + runSeams + seamUnder, 1,500 Vietnam seeds) found M18 the only
+  level with this, in about 1 run in 10: pockets 64-70 and 109-115.
+- **Chimneys:** M18's roof cells rows 0-4 cut out at those columns, the flue's background #241712, sides his Federal
+  Brick (`fdbrck1`). In Playtest a drop over either one lands on the third floor (row 14); a drop on the roof
+  beside them stays on the roof. The probe then found no pocket left; the only roof landings are past the tree's
+  end walls, where the roof slopes down to the eaves.
