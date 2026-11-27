@@ -468,48 +468,42 @@ describe("locked starters", () => {
     expect(starterLock(look("Viet Bob"), r, assets)).toBeNull();
     expect(starterLock(look("VietBob"), r, assets)).toBeNull();
   });
-  test("Bob the builder opens after Vietnam is beaten on Medium or harder 5 times, by anyone, repeats included", () => {
+  test("Bob the builder opens once five DIFFERENT fighters have beaten Vietnam on Medium or harder", () => {
     let r = newGameRecord();
-    expect(starterLock(look("Bob the builder"), r, assets)).toEqual({ need: "Beat Vietnam on Medium or Harder 5 Times", have: 0, of: 5 });
+    const need = "Beat Vietnam on Medium or Harder With 5 Unique Characters";
+    expect(starterLock(look("Bob the builder"), r, assets)).toEqual({ need, have: 0, of: 5 });
     r = recordFloorDone(r, "Vietnam", 10, "Bob", "medium");
-    r = recordFloorDone(r, "Vietnam", 10, "Bob", "medium");     // a repeat by the same fighter counts
-    r = recordFloorDone(r, "Vietnam", 10, "Rob", "hard");       // harder counts
+    r = recordFloorDone(r, "Vietnam", 10, "Bob", "medium");     // a repeat by the same fighter is not a new one
+    r = recordFloorDone(r, "Vietnam", 10, "Bob", "hard");       // nor is the same fighter on a harder level
+    r = recordFloorDone(r, "Vietnam", 10, "Viet Bob", "hard");  // Hard counts
+    r = recordFloorDone(r, "Vietnam", 10, "VietBob", "medium"); // same fighter, spaces ignored
     r = recordFloorDone(r, "Vietnam", 10, "Rob", "easy");       // Easy does not
     r = recordFloorDone(r, "Trailor Park", 10, "Bobby", "hard"); // wrong floor
-    r = recordFloorDone(r, "Vietnam", 10, "Bob");               // no difficulty known: not counted
-    expect(starterLock(look("Bob The Builder"), r, assets).have).toBe(3);
-    expect(r.floorWins).toEqual({ vietnam: { 1: 1, 2: 2, 3: 1 }, trailerpark: { 3: 1 } });
-    const four = recordFloorDone(r, "Vietnam", 10, "Bob", "medium");
-    expect(starterLock(look("Bob the builder"), four, assets)).toEqual({ need: "Beat Vietnam on Medium or Harder 5 Times", have: 4, of: 5 });
-    const five = recordFloorDone(four, "Vietnam", 10, "Bob", "hard");
+    expect(starterLock(look("Bob The Builder"), r, assets)).toEqual({ need, have: 2, of: 5 });
+    r = recordFloorDone(r, "Vietnam", 10, "Rob", "medium");     // Rob's Easy win does not count, his Medium one does
+    const four = recordFloorDone(recordFloorDone(r, "Vietnam", 10, "Robert", "medium"), "Vietnam", 10, "Robert", "medium");
+    expect(starterLock(look("Bob the builder"), four, assets)).toEqual({ need, have: 4, of: 5 });
+    const five = recordFloorDone(four, "Vietnam", 10, "Bobette", "medium");
     expect(starterLock(look("Bob the builder"), five, assets)).toBeNull();
     expect(newlyUnlocked([look("Bob the builder")], four, five).map((a) => a.name)).toEqual(["Bob the builder"]);
-    expect(normalizeGameRecord(JSON.parse(JSON.stringify(five))).floorWins).toEqual(five.floorWins); // survives the store
+    expect(starterLock(look("Bob the builder"), JSON.parse(JSON.stringify(five)), assets)).toBeNull(); // survives the store
   });
-  test("Bobb opens at 100 kills whose last blow was a melee weapon, and nothing else counts", () => {
+  test("Bobb opens at 250 kills whose last blow was a melee weapon, and nothing else counts", () => {
     let r = newGameRecord();
-    expect(starterLock(look("Bobb"), r, assets)).toEqual({ need: "Defeat 100 Enemies With Melee Weapons", have: 0, of: 100 });
+    expect(starterLock(look("Bobb"), r, assets)).toEqual({ need: "Defeat 250 Enemies With Melee Weapons", have: 0, of: 250 });
     expect(starterLock(look("Bobby"), r, assets).need).toBe("Complete Trailer Park"); // Bobby is not Bobb
     r = recordDefeated(r, "dog", true, "Vietnam");          // a shot or a throw
     r = recordDefeated(r, "dog", false, "Vietnam");         // a stomp, a car, fists
     r = recordDefeated(r, "dog", true, "Vietnam", true);    // ranged wins over a stale melee flag
     expect(r.meleeKills).toBe(0);
     expect(r.kills).toBe(3);
-    for (let i = 0; i < 99; i++) r = recordDefeated(r, "rat", false, "Vietnam", true);
-    expect(starterLock(look("Bobb"), r, assets)).toEqual({ need: "Defeat 100 Enemies With Melee Weapons", have: 99, of: 100 });
+    for (let i = 0; i < 249; i++) r = recordDefeated(r, "rat", false, "Vietnam", true);
+    expect(starterLock(look("Bobb"), r, assets)).toEqual({ need: "Defeat 250 Enemies With Melee Weapons", have: 249, of: 250 });
     const done = recordDefeated(r, "rat", false, "Vietnam", true);
     expect(starterLock(look("Bobb"), done, assets)).toBeNull();
     expect(newlyUnlocked([look("Bobb")], r, done).map((a) => a.name)).toEqual(["Bobb"]);
-    expect(normalizeGameRecord(JSON.parse(JSON.stringify(done))).meleeKills).toBe(100);
+    expect(normalizeGameRecord(JSON.parse(JSON.stringify(done))).meleeKills).toBe(250);
     expect(normalizeGameRecord({ kills: 40, rangedKills: 10 }).meleeKills).toBe(0); // an old record starts at none
-  });
-  test("a record from before floorWins starts from what floorsDiff proves, and never more", () => {
-    const old = { floors: ["Vietnam"], floorsDiff: { Vietnam: { bob: 2, rob: 3, bobby: 1 }, "Trailor Park": { bob: 3 } } };
-    const n = normalizeGameRecord(old);
-    expect(n.floorWins).toEqual({ vietnam: { 1: 1, 2: 1, 3: 1 }, trailerpark: { 3: 1 } });
-    expect(starterLock(look("Bob the builder"), old, assets).have).toBe(2); // Bob on Medium, Rob on Hard: at least once each
-    expect(recordFloorDone(old, "Vietnam", 10, "Bob", "medium").floorWins.vietnam).toEqual({ 1: 1, 2: 2, 3: 1 }); // the count goes on from there
-    expect(normalizeGameRecord({ floorsDiff: { Vietnam: { bob: 3 } }, floorWins: {} }).floorWins).toEqual({}); // once counting started, the count is the truth
   });
   test("Bob Li opens once the Bob Li conversation has been met, and the record keeps it", () => {
     let r = newGameRecord();
