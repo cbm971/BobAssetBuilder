@@ -6342,3 +6342,11 @@ and a leftover dev server running.
   one and read 1 HP, correctly, for a player with no Ally Health). `enemyHP.current[k]` has no entry
   until something hurts the unit, so one shot made the entry before I could set it. After TaskStop
   the dev server's node process still held the port and had to be killed by port.
+
+## 2026-11-27: Backstab melee ability, Hockey Stick (`hckystk`), and Iron Dagger (`irndagr`)
+
+Blake asked for two new melee weapons: a **Hockey Stick** and an **Iron Dagger**, with the Iron Dagger tagged `T2`, swinging faster, dealing double damage from behind, and landing at a front DPS higher than Kitchen Knife & similar starters while staying lower than most melee weapons even after its faster swing speed.
+
+- **🔪 Backstab (`WEAPON_ABILITIES.backstab`, symbol `🔪` → `gi:backstab`).** `backstabMultOf` (default `DEFAULT_BACKSTAB_MULT = 2`, slider `1.5–4` step `0.5`) and `backstabHitMult(weapon, targetFace, attackerX, targetX)` reuse `isHitFromBehind` so both player and unit melee strikes (swings and automatic saws, excluding unarmed punches/stomps/tail blows) multiply raw damage before Defense and Back Guard. `weaponDpsOver` continues to report unconditional front DPS.
+- **Iron Dagger (`irndagr`).** Good (`rank: "rare"`, \$14), tagged `["T2", "Meelee", "Rogue"]` (pairing with T2 Rogue `Hood` `hoodplain1` and keeping `"Rogue"` off the garment-only `equipKindTags` displacement rule). `damage: 6`, `swingSpeed: 1.7` (`playerSwingFrames = 7`, ~8.6 swings/s → **51.6 front DPS** at Str 5, strictly above Cane/Bat/Megaphone 35, Kitchen Knife 40, and Shock Baton 45 across every Strength 0–10, and strictly below Crowbar 55, Electric Guitar 55, Hockey Stick 60, Nunchucks 60, Machete 65, Spear/Axe 75, Sledgehammer 85, Katana 90, Schweitzer Sword 107.2, and Chainsaw 150; **103.2 DPS** from behind), `backstab: 2`, blade hit sound `j8bdd8g`, fitted to BoB and Bobbett across `back`/`side`/`crouch` (`rest` + `fire`).
+- **Hockey Stick (`hckystk`).** Common (`rank: "common"`, \$10), tagged `["T1", "Meelee", "Trailer"]` (filling Trailer Park's missing Common melee tier without touching M19's `Rare AND Trailer` pool). `damage: 12` (**60 DPS** at Str 5), `stun: 0.25`, wooden stick smack sound `1dhtfw5`, classic heritage red/black shaft stripes and black-taped blade fitted to BoB and Bobbett.

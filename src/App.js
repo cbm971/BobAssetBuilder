@@ -2337,6 +2337,11 @@ export const advanceAutoReloadWeapon = (w, dt, reloadFrames) => {
 //     restarted faster than it plays, so that is the ceiling the HUD can honestly quote.
 export const WEAPON_DPS_WINDOW_SECS = 10;
 export const PLAYER_SWING_FRAMES = 12;
+export const DEFAULT_BACKSTAB_MULT = 2;
+export const backstabMultOf = (w) => {
+  if (!w || !w.backstab || isRanged(w.wtype) || isThrowable(w.wtype)) return 1;
+  return typeof w.backstab === "number" && w.backstab > 1 ? w.backstab : DEFAULT_BACKSTAB_MULT;
+};
 export const weaponSwingSpeedMult = (w) => {
   if (!w || !w.swingSpeed) return 1;
   const m = typeof w.swingSpeed === "number" && w.swingSpeed > 1 ? w.swingSpeed : (w.swingSpeedMult ?? DEFAULT_SWING_SPEED_MULT);
@@ -3032,6 +3037,14 @@ export const WEAPON_ABILITIES = {
     melee: true,
     isOn: (a) => !!a && (!a.wtype || !isRanged(a.wtype) && !isThrowable(a.wtype)) && ((a.swingSpeed ?? 0) > 1 || (!!a.swingSpeed && (a.swingSpeedMult ?? 0) > 1)),
     on: { swingSpeed: DEFAULT_SWING_SPEED_MULT, swingSpeedMult: DEFAULT_SWING_SPEED_MULT }, off: { swingSpeed: 0 },
+  },
+  backstab: {
+    icon: "🔪", label: "Backstab", types: ["melee"],
+    blurb: "Strikes that land on a target from behind deal multiplied damage (double by default). Works in both directions: in a 👹 Enemy's hands a blow from behind hits YOU harder.",
+    brief: (a) => (backstabMultOf(a) === 2 ? "double damage from behind" : "×" + briefNum(backstabMultOf(a)) + " damage from behind"),
+    melee: true,
+    isOn: (a) => backstabMultOf(a) > 1,
+    on: { backstab: DEFAULT_BACKSTAB_MULT }, off: { backstab: 0 },
   },
   resurrect: {
     icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
@@ -5554,6 +5567,12 @@ export const isHitFromBehind = (face, attackerX, wearerX) => {
   if (dx === 0) return false;
   return Math.sign(dx) !== (face || 1); // attacker is on the side you're NOT facing
 };
+// 🔪 Backstab: multiplies a melee blow when the striker is behind the target (isHitFromBehind).
+// Player and units both read it at their swing/saw sites, before Defense and Back Guard.
+export const backstabHitMult = (w, targetFace, attackerX, targetX) => {
+  const m = backstabMultOf(w);
+  return m > 1 && isHitFromBehind(targetFace, attackerX, targetX) ? m : 1;
+};
 // Back Guard: eats `reduce` (0..1) of a hit, but only when it lands from behind. Applied AFTER
 // normal Defense (so it's the cape catching what armor didn't). reduce 0.5 halves the blow.
 export const applyBackGuard = (damage, fromBehind, reduce) => fromBehind ? damage * (1 - Math.max(0, Math.min(1, reduce || 0))) : damage;
@@ -7978,7 +7997,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.chargeLaser = false; a.chargeTime = DEFAULT_CHARGE_LASER_SECS; a.beamTime = DEFAULT_LASER_BEAM_SECS; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.throwBlast = false; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.automatic = false; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.chargeLaser = false; a.chargeTime = DEFAULT_CHARGE_LASER_SECS; a.beamTime = DEFAULT_LASER_BEAM_SECS; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.throwBlast = false; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.poison = 0; a.poisonDps = POISON_DAMAGE_DPS; a.swingSpeed = 0; a.swingSpeedMult = DEFAULT_SWING_SPEED_MULT; a.backstab = 0; a.automatic = false; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
@@ -21846,7 +21865,8 @@ export default function AssetStudio({ game = false } = {}) {
               // Returns true like the block does: one swing, one clash.
               if (!bodyBlow && whipLiveOn(k) && meleeClash(p.face, p.x + pw / 2, pw, ep.face, atkCX, epw)) { clashApart(ep, ea, atkCX); return true; }
               const crit = Math.random() < critChance(eIntel);
-              const dmg = coldResistedHit(incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor)), hitEw, playerAsset?.effects);
+              const backMul = backstabHitMult(hitEw, p.face, atkCX, p.x + pw / 2);
+              const dmg = coldResistedHit(incomingPlayerDamage((crit ? rawDmg0 * 2 : rawDmg0) * backMul, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor)), hitEw, playerAsset?.effects);
               const critNote = crit ? "💥 Critical! " : "";
               if (shrugsHit("player", playerAsset?.effects, dmg, k, p.x + pw / 2, p.y)) return true; // 🐞 / 🪞 the blow is spent, as a block spends it
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
@@ -21875,7 +21895,8 @@ export default function AssetStudio({ game = false } = {}) {
               }
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
               const crit = Math.random() < critChance(eIntel);
-              const uDmg = coldResistedHit(incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)), hitEw, bEa.effects);
+              const uBackMul = backstabHitMult(hitEw, (bEp && bEp.face) || 1, atkCX, unitCenterX(bEa, bEp, CW));
+              const uDmg = coldResistedHit(incomingUnitDamage((crit ? rawDmg0 * 2 : rawDmg0) * uBackMul, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)), hitEw, bEa.effects);
               if (shrugsHit(key, bEa.effects, uDmg, k, unitCenterX(bEa, bEp, CW), bEp ? bEp.y : 0)) return true; // 🐞 / 🪞
               enemyHP.current[key] = Math.max(0, cur - uDmg);
               if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
@@ -21947,7 +21968,7 @@ export default function AssetStudio({ game = false } = {}) {
                 if (vehDriven || (p.lifeGrace || 0) > 0) continue;
                 sawTouched = true;
                 if (blockStopsHit(p.blocking, p.face, atkCX, p.x + pw / 2, pw)) continue;
-                const effP = incomingPlayerDamageExact(sawRaw, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!ew.ignoreArmor) * iceM(playerAsset?.effects);
+                const effP = incomingPlayerDamageExact(sawRaw * backstabHitMult(ew, p.face, atkCX, p.x + pw / 2), playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!ew.ignoreArmor) * iceM(playerAsset?.effects);
                 const stP = sawDamageStep(ep.sawAcc.player, effP, dtMul);
                 ep.sawAcc.player = stP.acc;
                 if (stP.whole <= 0) continue;
@@ -21961,7 +21982,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (!(cur > 0)) continue;
               sawTouched = true;
               if (sawGuardStops(!!(body.ep.auto && body.ep.auto.mode === "guard"), body.ep.face, atkCX, bcx, box.w)) continue;
-              const effU = incomingPlayerDamageExact(sawRaw, body.ea.defense || 0, body.ep.face || 1, atkCX, bcx, guardReduceOf(body.ea.effects, "backGuard"), guardReduceOf(body.ea.effects, "crouchGuard"), !!body.ep.crouch, !!ew.ignoreArmor) * iceM(body.ea.effects);
+              const effU = incomingPlayerDamageExact(sawRaw * backstabHitMult(ew, body.ep.face || 1, atkCX, bcx), body.ea.defense || 0, body.ep.face || 1, atkCX, bcx, guardReduceOf(body.ea.effects, "backGuard"), guardReduceOf(body.ea.effects, "crouchGuard"), !!body.ep.crouch, !!ew.ignoreArmor) * iceM(body.ea.effects);
               const stU = sawDamageStep(ep.sawAcc[body.key], effU, dtMul);
               ep.sawAcc[body.key] = stU.acc;
               const loss = stU.whole;
@@ -22762,7 +22783,7 @@ export default function AssetStudio({ game = false } = {}) {
             sawTouched = true;
             const ecx = eHitLeft + epw / 2;
             if (sawGuardStops(ep.auto && ep.auto.mode === "guard", ep.face, p.x + pw / 2, ecx, epw)) continue; // its own saw is up at you
-            const effDps = incomingPlayerDamageExact(rawDps, ea.defense || 0, ep.face || 1, p.x + pw / 2, ecx, guardReduceOf(ea.effects, "backGuard"), guardReduceOf(ea.effects, "crouchGuard"), !!ep.crouch, !!playtestWeapon.ignoreArmor) * (shotIsIce(playtestWeapon) ? coldDamageMult(ea.effects) : 1); // ❄️ cold resist, as coldResistedHit
+            const effDps = incomingPlayerDamageExact(rawDps * backstabHitMult(playtestWeapon, ep.face || 1, p.x + pw / 2, ecx), ea.defense || 0, ep.face || 1, p.x + pw / 2, ecx, guardReduceOf(ea.effects, "backGuard"), guardReduceOf(ea.effects, "crouchGuard"), !!ep.crouch, !!playtestWeapon.ignoreArmor) * (shotIsIce(playtestWeapon) ? coldDamageMult(ea.effects) : 1); // ❄️ cold resist, as coldResistedHit
             const stp = sawDamageStep(p.auto.acc[k], effDps, dtMul);
             p.auto.acc[k] = stp.acc;
             const loss = stp.whole;
@@ -23130,8 +23151,9 @@ export default function AssetStudio({ game = false } = {}) {
                       ? Math.max(1, Math.round(creatureMeleeDamage(strength) * moneyMult * timedDamageMult(itemBuffs.current, nowT)))
                       : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon) * moneyMult * timedDamageMult(itemBuffs.current, nowT), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder; 💥 a drink, harder again
                     const isCrit = Math.random() < critChance(intelligence);
+                    const backMul = (!unarmedSwing && playtestWeapon) ? backstabHitMult(playtestWeapon, (ep && ep.face) || 1, p.x + pw / 2, eHitLeft + epw / 2) : 1;
                     // ...through the unit's own armour, the way their swing at you goes through yours.
-                    const dmg = coldResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor)), !unarmedSwing ? playtestWeapon : null, ea.effects);
+                    const dmg = coldResistedHit(incomingUnitDamage((isCrit ? base * 2 : base) * backMul, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor)), !unarmedSwing ? playtestWeapon : null, ea.effects);
                     if (shrugsHit(k, ea.effects, dmg, "player", eHitLeft + epw / 2, hitTop)) { p.swingHits[k] = true; continue; } // 🐞 / 🪞 struck, for nothing: still one hit per body per stroke
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
                     if (ep) { ep.lastHitByFx = null; ep.lastHitRanged = false; ep.lastHitMelee = !unarmedSwing && !!playtestWeapon; } // the last blow was yours; a MELEE WEAPON blow counts toward Bobb (record.meleeKills), bare fists do not
@@ -25538,6 +25560,9 @@ export default function AssetStudio({ game = false } = {}) {
             {k === "swingSpeed" && (
               <label className="slider">Speed ×<input type="range" min="1.1" max="3" step="0.1" value={weaponSwingSpeedMult(asset)} onChange={(e) => { const m = +e.target.value; setAsset((a) => ({ ...a, swingSpeed: m, swingSpeedMult: m })); }} /><span className="hint2">×{weaponSwingSpeedMult(asset).toFixed(1)}</span></label>
             )}
+            {k === "backstab" && (
+              <label className="slider">Damage ×<input type="range" min="1.5" max="4" step="0.5" value={backstabMultOf(asset)} onChange={(e) => setAsset((a) => ({ ...a, backstab: +e.target.value }))} /><span className="hint2">×{backstabMultOf(asset).toFixed(1)}</span></label>
+            )}
             {k === "burn" && (<>
               <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.landEffectDps || 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps || 6)} HP/sec</span></label>
               {/* Half-second steps: the Grenade in the library is set to 2.5s, which a step of 1
@@ -26841,7 +26866,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.chargeLaser === undefined) a.chargeLaser = false; if (a.chargeTime === undefined) a.chargeTime = DEFAULT_CHARGE_LASER_SECS; if (a.beamTime === undefined) a.beamTime = DEFAULT_LASER_BEAM_SECS; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.throwBlast === undefined) a.throwBlast = false; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; if (a.automatic === undefined) a.automatic = false; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); if (!a.angles && Array.isArray(a.frames) && a.frames[0]) a.angles = a.frames[0]; const m = a.mirror !== false; for (const ang of ANGLES) ((a.angles && a.angles[ang]) || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.chargeLaser === undefined) a.chargeLaser = false; if (a.chargeTime === undefined) a.chargeTime = DEFAULT_CHARGE_LASER_SECS; if (a.beamTime === undefined) a.beamTime = DEFAULT_LASER_BEAM_SECS; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.throwBlast === undefined) a.throwBlast = false; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; if (a.backstab === undefined) a.backstab = 0; if (a.automatic === undefined) a.automatic = false; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.

@@ -81,6 +81,7 @@
   { "k": "🍄", "l": "One up", "g": "Abilities", "d": "gi:super-mushroom", "c": "#7cd67a" },
   { "k": "🐢", "l": "Game speed", "g": "Abilities", "d": "gi:turtle", "c": "#7cd67a" },
   { "k": "🪚", "l": "Automatic", "g": "Abilities", "d": "gi:chainsaw", "c": "#f0a030" },
+  { "k": "🔪", "l": "Backstab", "g": "Abilities", "d": "gi:backstab", "c": "#d94a38" },
   { "k": "📢", "l": "Sound wave", "g": "Abilities", "d": "gi:megaphone", "c": "#e8f6ff" },
   { "k": "➕", "l": "Magazine / amount", "g": "Abilities", "d": "mdi:plus-box" },
   { "k": "✨", "l": "Effects", "g": "Abilities", "d": "gi:sparkles" },

@@ -4541,8 +4541,8 @@ describe("weapon magazines and enemy reloads", () => {
 
 describe("which abilities a weapon may carry", () => {
   test("a melee weapon is offered exactly the powers a swing can carry", () => {
-    expect(weaponAbilitiesFor("melee").sort()).toEqual(["automatic", "iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]);
-    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["automatic", "iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]); // older saves have no wtype
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["automatic", "backstab", "iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["automatic", "backstab", "iceDamage", "ignite", "ignoreArmor", "poison", "resurrect", "soundWave", "stun", "swingSpeed"]); // older saves have no wtype
   });
 
   test("a ranged weapon gets every ranged ability (excluding melee-only and throw-only powers)", () => {
@@ -18805,5 +18805,88 @@ describe("🪚 Automatic", () => {
     expect(src).toContain('bobAudio.sawLoop("player", !!(p.auto && p.auto.mode), '); // Fire loops while F runs it AND while Q guards
     expect(src).toContain("bobAudio.sawLoop(k, !!(eAuto && ep.auto && ep.auto.mode), "); // a unit's too
     expect(src).toContain("const wantRun = (ep.sawHold || 0) > 0 && !threatDir && !coolingA;"); // a unit run dry lets go, or its bar never fills
+  });
+});
+
+import {
+  DEFAULT_BACKSTAB_MULT, backstabMultOf, backstabHitMult,
+} from "./App";
+
+describe("🔪 Backstab (WEAPON_ABILITIES.backstab) + Hockey Stick & Iron Dagger", () => {
+  const libFiles = require("./libraryFiles");
+  const path = require("path");
+  const lib = () => libFiles.readLibraryFile(path.join(__dirname, "..", "asset-data", "library.json"));
+
+  test("backstab is a melee-only weapon ability that defaults to double damage from behind", () => {
+    expect(WEAPON_ABILITIES.backstab.types).toEqual(["melee"]);
+    expect(DEFAULT_BACKSTAB_MULT).toBe(2);
+    const on = { wtype: "melee", ...WEAPON_ABILITIES.backstab.on };
+    expect(weaponAbilityOn(on, "backstab")).toBe(true);
+    expect(backstabMultOf(on)).toBe(2);
+    expect(WEAPON_ABILITIES.backstab.brief(on)).toBe("double damage from behind");
+    expect(WEAPON_ABILITIES.backstab.brief({ wtype: "melee", backstab: 2.5 })).toBe("×2.5 damage from behind");
+    expect(weaponAbilityOn({ ...on, ...WEAPON_ABILITIES.backstab.off }, "backstab")).toBe(false);
+    expect(backstabMultOf({ wtype: "ranged", backstab: 2 })).toBe(1);
+    expect(backstabMultOf({ wtype: "throw", backstab: 2 })).toBe(1);
+    expect(newAsset("weapon", null, "melee").backstab).toBe(0);
+  });
+
+  test("backstabHitMult doubles strikes from behind and leaves front or same-column strikes at ×1", () => {
+    const dagger = { wtype: "melee", backstab: 2 };
+    // Target faces right (face = 1) at x = 200: striker at x = 150 is behind, striker at x = 250 is in front
+    expect(backstabHitMult(dagger, 1, 150, 200)).toBe(2);
+    expect(backstabHitMult(dagger, 1, 250, 200)).toBe(1);
+    expect(backstabHitMult(dagger, 1, 200, 200)).toBe(1);
+    // Target faces left (face = -1) at x = 200: striker at x = 250 is behind, striker at x = 150 is in front
+    expect(backstabHitMult(dagger, -1, 250, 200)).toBe(2);
+    expect(backstabHitMult(dagger, -1, 150, 200)).toBe(1);
+    // Plain melee weapon without backstab never multiplies
+    expect(backstabHitMult({ wtype: "melee", backstab: 0 }, 1, 150, 200)).toBe(1);
+  });
+
+  test("both player and unit melee hit sites wire backstabHitMult", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect((src.match(/backstabHitMult\(/g) || []).length).toBeGreaterThanOrEqual(5);
+  });
+
+  test("Hockey Stick (hckystk) and Iron Dagger (irndagr) ship fitted to BoB and Bobbett with zero editorReachIssues and balanced DPS", () => {
+    const assets = lib().assets;
+    const stick = assets.find((a) => a.id === "hckystk");
+    const dagger = assets.find((a) => a.id === "irndagr");
+    const knife = assets.find((a) => a.id === "kitchnk");
+    const crowbar = assets.find((a) => a.id === "crowbr1");
+    const machete = assets.find((a) => a.id === "cprksaz");
+    expect(stick).toBeDefined();
+    expect(dagger).toBeDefined();
+    for (const [w, name] of [[stick, "Hockey Stick"], [dagger, "Iron Dagger"]]) {
+      expect(w.name).toBe(name);
+      expect(w.type).toBe("weapon");
+      expect(w.wtype).toBe("melee");
+      expect(w.confirmedFits).toEqual(expect.arrayContaining(["telfv37", "oipvf3l"]));
+      expect(editorReachIssues(w)).toEqual([]);
+      for (const fit of ["default", "telfv37", "oipvf3l"]) {
+        for (const pose of editablePoses("weapon", "melee")) {
+          expect(w.variants[fit].states.rest[pose].length).toBeGreaterThan(0);
+          expect(w.variants[fit].states.fire[pose].length).toBeGreaterThan(0);
+        }
+      }
+    }
+    // Iron Dagger is T2, swings faster, and deals double damage from behind
+    expect(dagger.categories).toContain("T2");
+    expect(dagger.categories).toContain("Meelee");
+    expect(weaponAbilityOn(dagger, "swingSpeed")).toBe(true);
+    expect(weaponSwingSpeedMult(dagger)).toBeGreaterThan(1);
+    expect(playerSwingFrames(dagger)).toBeLessThan(12);
+    expect(weaponAbilityOn(dagger, "backstab")).toBe(true);
+    expect(backstabMultOf(dagger)).toBe(2);
+
+    // Front DPS lines up above Kitchen Knife and below most melee weapons (Crowbar, Hockey Stick, Machete, etc.)
+    const dpsAt5 = (w) => weaponDpsOver(w, playerMeleeDamage(w.damage, 5), 5, []);
+    const knifeDps = dpsAt5(knife);
+    const daggerDps = dpsAt5(dagger);
+    expect(daggerDps).toBeGreaterThan(knifeDps);
+    expect(daggerDps).toBeLessThan(dpsAt5(crowbar));
+    expect(daggerDps).toBeLessThan(dpsAt5(stick));
+    expect(daggerDps).toBeLessThan(dpsAt5(machete));
   });
 });
