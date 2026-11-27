@@ -447,7 +447,7 @@ describe("locked starters", () => {
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob", "the general", "bob the builder", "bobena"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert", "super bob", "bob the alien", "agent bob", "the general", "bob the builder", "bobb", "bobena"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();
@@ -485,6 +485,23 @@ describe("locked starters", () => {
     expect(starterLock(look("Bob the builder"), five, assets)).toBeNull();
     expect(newlyUnlocked([look("Bob the builder")], four, five).map((a) => a.name)).toEqual(["Bob the builder"]);
     expect(normalizeGameRecord(JSON.parse(JSON.stringify(five))).floorWins).toEqual(five.floorWins); // survives the store
+  });
+  test("Bobb opens at 100 kills whose last blow was a melee weapon, and nothing else counts", () => {
+    let r = newGameRecord();
+    expect(starterLock(look("Bobb"), r, assets)).toEqual({ need: "Defeat 100 Enemies With Melee Weapons", have: 0, of: 100 });
+    expect(starterLock(look("Bobby"), r, assets).need).toBe("Complete Trailer Park"); // Bobby is not Bobb
+    r = recordDefeated(r, "dog", true, "Vietnam");          // a shot or a throw
+    r = recordDefeated(r, "dog", false, "Vietnam");         // a stomp, a car, fists
+    r = recordDefeated(r, "dog", true, "Vietnam", true);    // ranged wins over a stale melee flag
+    expect(r.meleeKills).toBe(0);
+    expect(r.kills).toBe(3);
+    for (let i = 0; i < 99; i++) r = recordDefeated(r, "rat", false, "Vietnam", true);
+    expect(starterLock(look("Bobb"), r, assets)).toEqual({ need: "Defeat 100 Enemies With Melee Weapons", have: 99, of: 100 });
+    const done = recordDefeated(r, "rat", false, "Vietnam", true);
+    expect(starterLock(look("Bobb"), done, assets)).toBeNull();
+    expect(newlyUnlocked([look("Bobb")], r, done).map((a) => a.name)).toEqual(["Bobb"]);
+    expect(normalizeGameRecord(JSON.parse(JSON.stringify(done))).meleeKills).toBe(100);
+    expect(normalizeGameRecord({ kills: 40, rangedKills: 10 }).meleeKills).toBe(0); // an old record starts at none
   });
   test("a record from before floorWins starts from what floorsDiff proves, and never more", () => {
     const old = { floors: ["Vietnam"], floorsDiff: { Vietnam: { bob: 2, rob: 3, bobby: 1 }, "Trailor Park": { bob: 3 } } };

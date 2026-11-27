@@ -392,7 +392,9 @@ export const normalizeGameOptions = (o) => {
 // Medium finishes and one Hard. Bob the Builder reads it (Blake, 2026-11-26: "beating Vietnam on Medium or harder 5
 // times"), repeats and any fighter included. It began 2026-11-26; a record from before it has no count, so it starts
 // from what `floorsDiff` proves: each fighter who beat a floor on a rank beat it there at least once (a lower bound).
-export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, floorWins: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, floorKills: {}, picked: 0, games: 0 });
+// `meleeKills` are the kills whose last blow was YOUR swing with a melee weapon in hand (Bobb, 100; Blake 2026-11-26):
+// not a shot, a throw, a stomp, a car, bare fists, or an ally's blow. Counted from 2026-11-26 on; nothing before it can be known.
+export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, floorWins: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, meleeKills: 0, floorKills: {}, picked: 0, games: 0 });
 export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
 export const normalizeGameRecord = (r) => {
   const b = newGameRecord();
@@ -415,7 +417,7 @@ export const normalizeGameRecord = (r) => {
   const fwn = {}, addWin = (f, k, v) => { const fkey = floorKey(f); if (!fkey || !(k >= 1 && k <= DIFFICULTIES.length) || !v) return; const o = fwn[fkey] || (fwn[fkey] = {}); o[k] = (o[k] || 0) + v; };
   if (r.floorWins && typeof r.floorWins === "object") { for (const f of Object.keys(r.floorWins)) { const v = r.floorWins[f]; if (v && typeof v === "object") for (const k of Object.keys(v)) addWin(f, Math.round(Number(k)), n(v[k])); } }
   else for (const f of Object.keys(fd)) for (const who of Object.keys(fd[f])) addWin(f, fd[f][who], 1);
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, floorWins: fwn, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), floorKills: fk, picked: r.picked === undefined ? ids(r.found).length : n(r.picked), games: n(r.games) };
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, floorWins: fwn, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), meleeKills: n(r.meleeKills), floorKills: fk, picked: r.picked === undefined ? ids(r.found).length : n(r.picked), games: n(r.games) };
 };
 // Returns the SAME object when nothing changed, so a caller can skip the write. A pickup of something
 // already found changes nothing but the count of pickups.
@@ -425,7 +427,8 @@ export const recordMet = (rec, dialogueName) => {
   return !k || had.includes(k) ? rec : { ...rec, met: [...had, k] };
 };
 // `floor`: the floor the kill happened on (the level's Floor, or the run's inside a room) — floorKills.
-export const recordDefeated = (rec, id, ranged, floor) => (!id ? rec : { ...rec, kills: rec.kills + 1, ...(floorKey(floor) ? { floorKills: { ...(rec.floorKills || {}), [floorKey(floor)]: ((rec.floorKills || {})[floorKey(floor)] || 0) + 1 } } : {}), rangedKills: (rec.rangedKills || 0) + (ranged ? 1 : 0), defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
+// `melee`: the last blow was your melee-weapon swing (meleeKills). A shot or throw (`ranged`) never counts as melee.
+export const recordDefeated = (rec, id, ranged, floor, melee) => (!id ? rec : { ...rec, kills: rec.kills + 1, ...(floorKey(floor) ? { floorKills: { ...(rec.floorKills || {}), [floorKey(floor)]: ((rec.floorKills || {})[floorKey(floor)] || 0) + 1 } } : {}), rangedKills: (rec.rangedKills || 0) + (ranged ? 1 : 0), meleeKills: (rec.meleeKills || 0) + (melee && !ranged ? 1 : 0), defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
 export const recordFloorDone = (rec, floor, score, lookName, diffId) => {
   const who = normName(lookName), had = (rec.floorsWith && rec.floorsWith[floor]) || [];
   const floorsWith = !floor || !who || had.includes(who) ? rec.floorsWith || {} : { ...(rec.floorsWith || {}), [floor]: [...had, who] };
@@ -556,6 +559,7 @@ export const STARTER_LOCKS = [
   { name: "agent bob", kills: 1000 }, // Blake (2026-10-31): "until you have defeated 1,000 enemies"
   { name: "the general", kills: 500, on: "Vietnam" }, // Blake (2026-11-07): "the general should be unlocked by defeating 500 enemies in Vietnam" (was 1,000 ranged kills, earlier the same day)
   { name: "bob the builder", floor: "Vietnam", diff: "medium", wins: 5 }, // Blake (2026-11-26, second word): "Bob the Builder should actually rely on beating Vietnam on Medium or harder 5 times" — 5 finishes on Medium or Hard, by anyone, repeats count (record.floorWins). It was five different fighters on Hard earlier that day.
+  { name: "bobb", melee: 100 }, // Blake (2026-11-26): "Bobb should be locked until you defeat X enemies with melee weapons ... if not then like 100" (there was no melee lock; record.meleeKills, counted from that day)
   { name: "bobena", enemies: 50 }, // Blake (2026-11-07): "50 unique enemies. Like the stats show how many enemies you have met"
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
@@ -604,6 +608,7 @@ export const starterLock = (look, rec, assets) => {
   const r = normalizeGameRecord(rec);
   if (lock.met) return r.met.some((m) => lockKey(m) === lockKey(lock.met)) ? null : { need: "Meet " + lock.met };
   if (lock.picks) return r.picked >= lock.picks ? null : { need: "Collect " + lock.picks + " Items", have: r.picked, of: lock.picks };
+  if (lock.melee) return r.meleeKills >= lock.melee ? null : { need: "Defeat " + lock.melee.toLocaleString("en-US") + " Enemies With Melee Weapons", have: r.meleeKills, of: lock.melee };
   if (lock.ranged) return r.rangedKills >= lock.ranged ? null : { need: "Defeat " + lock.ranged.toLocaleString("en-US") + " Enemies With Ranged Weapons", have: r.rangedKills, of: lock.ranged };
   if (lock.kills && lock.on) { const have = r.floorKills[floorKey(lock.on)] || 0; return have >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies in " + lock.on, have, of: lock.kills }; }
   if (lock.kills) return r.kills >= lock.kills ? null : { need: "Defeat " + lock.kills.toLocaleString("en-US") + " Enemies", have: r.kills, of: lock.kills };
