@@ -1,5 +1,5 @@
 {
- "set": "a1615786c5708d29",
+ "set": "1494129c2ab2f163",
  "part": 1,
  "assets": [
   {
@@ -573233,7 +573233,7 @@
    "projectileId": null,
    "projectileSpeed": 12,
    "projectileRange": 14,
-   "damage": 80,
+   "damage": 150,
    "fireRate": 3,
    "clipSize": 6,
    "reloadTime": 1.2,
@@ -596331,7 +596331,7 @@
      }
     }
    },
-   "savedAt": 1795779273582,
+   "savedAt": 1795779509919,
    "states": {
     "rest": {
      "front": [
@@ -605930,7 +605930,7 @@
    "chargeTime": 0.65,
    "beamTime": 0.55,
    "automatic": true,
-   "autoRunSecs": 4,
+   "autoRunSecs": 5,
    "autoCoolSecs": 2,
    "soundWave": false,
    "resurrect": false,
@@ -605942,7 +605942,10 @@
     "crouch": []
    },
    "pickupCount": 3,
-   "editedFrom": 1795778421468
+   "editedFrom": 1795779460860,
+   "soundVol": {
+    "fire": 0.65
+   }
   },
   {
    "id": "chraltr",
