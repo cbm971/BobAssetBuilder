@@ -1,5 +1,5 @@
 {
- "set": "9ee0409ea9259201",
+ "set": "07f31fc88e6de6eb",
  "part": 4,
  "levels": [
   {
@@ -946851,13 +946851,11 @@
    "id": "dlgliq2o",
    "name": "Liquor Store Owner",
    "start": "nown1",
-   "afterFight": true,
    "nodes": {
     "nown1": {
      "id": "nown1",
      "speaker": "The Shop Keeper",
      "text": "You ran him off. Here, take this.",
-     "once": true,
      "choices": [
       {
        "id": "cown1",
@@ -946868,7 +946866,8 @@
        "shopTag": "",
        "money": 10
       }
-     ]
+     ],
+     "once": true
     },
     "nown2": {
      "id": "nown2",
@@ -946894,13 +946893,13 @@
      ]
     }
    },
+   "afterFight": true,
    "savedAt": 1795805970049
   },
   {
    "id": "dlgliq2r",
    "name": "Liquor Store Robber",
    "start": "nrob1",
-   "talksFirst": true,
    "nodes": {
     "nrob1": {
      "id": "nrob1",
@@ -946926,6 +946925,7 @@
      ]
     }
    },
+   "talksFirst": true,
    "savedAt": 1795805970049
   },
   {

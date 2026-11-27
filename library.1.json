@@ -1,5 +1,5 @@
 {
- "set": "9ee0409ea9259201",
+ "set": "07f31fc88e6de6eb",
  "part": 1,
  "assets": [
   {
@@ -83171,6 +83171,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -318615,6 +318616,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -398656,6 +398658,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -455184,6 +455187,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -488200,6 +488204,7 @@
    },
    "savedAt": 1795736325595,
    "editedFrom": 1795734965531,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -555064,6 +555069,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -626490,6 +626496,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -647913,6 +647920,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -713024,6 +713032,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -763787,6 +763796,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -808190,6 +808200,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -815779,6 +815790,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -861821,6 +861833,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -902507,6 +902520,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -1033360,6 +1033374,7 @@
    "chargeTime": 0.65,
    "beamTime": 0.55,
    "throwBlast": false,
+   "backstab": 0,
    "automatic": false
   },
   {

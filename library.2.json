@@ -1,5 +1,5 @@
 {
- "set": "9ee0409ea9259201",
+ "set": "07f31fc88e6de6eb",
  "part": 2,
  "assets": [
   {
@@ -237108,6 +237108,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -248877,6 +248878,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -258355,6 +258357,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -330324,6 +330327,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -362357,6 +362361,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -373192,6 +373197,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -381452,6 +381458,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -389210,6 +389217,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -495820,6 +495828,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -532987,6 +532996,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -586913,6 +586923,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -598722,6 +598733,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -639157,6 +639169,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -696221,6 +696234,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -740220,6 +740234,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -756482,6 +756497,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -805383,6 +805399,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -844587,6 +844604,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -930153,6 +930171,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -960098,6 +960117,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -993683,6 +993703,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -1011089,6 +1011110,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
@@ -1033003,6 +1033025,7 @@
    "chargeLaser": false,
    "chargeTime": 0.65,
    "beamTime": 0.55,
+   "backstab": 0,
    "automatic": false
   },
   {
