@@ -1,5 +1,5 @@
 {
- "set": "ddf34be3eeaf253e",
+ "set": "a6137ec0b87766db",
  "part": 2,
  "assets": [
   {
@@ -1027724,6 +1027724,41 @@
       "color": "#d1c8ad",
       "mirror": false,
       "rot": 181
+     },
+     {
+      "id": "7hcmbru",
+      "kind": "circle",
+      "x": 113.5,
+      "y": 182.5,
+      "w": 19.5,
+      "h": 25,
+      "color": "#daa520",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "translucency": 0.55
+     },
+     {
+      "id": "2cfcqq3",
+      "kind": "rect",
+      "x": 122.5,
+      "y": 181,
+      "w": 46.5,
+      "h": 38,
+      "color": "#daa520",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 31,
+      "isCutter": true
      }
     ],
     "up": [
@@ -1028509,6 +1028544,41 @@
        "color": "#d1c8ad",
        "mirror": false,
        "rot": 181
+      },
+      {
+       "id": "7hcmbru",
+       "kind": "circle",
+       "x": 113.5,
+       "y": 182.5,
+       "w": 19.5,
+       "h": 25,
+       "color": "#daa520",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "translucency": 0.55
+      },
+      {
+       "id": "2cfcqq3",
+       "kind": "rect",
+       "x": 122.5,
+       "y": 181,
+       "w": 46.5,
+       "h": 38,
+       "color": "#daa520",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 31,
+       "isCutter": true
       }
      ],
      "up": [
@@ -1028665,7 +1028735,8 @@
    ],
    "value": 7,
    "rank": "common",
-   "savedAt": 1795741311429,
+   "savedAt": 1795741414670,
+   "editedFrom": 1795741311429,
    "groups": {
     "up": []
    }
