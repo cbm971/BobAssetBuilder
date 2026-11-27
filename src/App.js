@@ -2258,8 +2258,9 @@ export const LASER_WORM_AMP_DEG = 15;
 export const LASER_WORM_WAVELEN_CELLS = 3.2;
 export const LASER_WORM_SPEED = 0.36;
 // V FORMATION (Blake, 2026-11-26: "the beams should do a V formation a little bit with broken glasses with
-// both coming from the same spawn point"): every Brimstone shot is TWO beams out of the one muzzle, each
-// turned LASER_V_HALF_DEG off the aim, and each one kinks like a crack in glass (sharp bends, not a wave).
+// both coming from the same spawn point"): under ⏩ Double Shot (his Broken Glasses) a Brimstone shot is TWO
+// beams out of the one muzzle, each turned LASER_V_HALF_DEG off the aim, each kinked like a crack in glass.
+// Without it the beam is ONE, straight (2026-11-26: "it should shoot one beam without the glasses and two with").
 export const LASER_V_HALF_DEG = 4.5;
 export const LASER_CRACK_SEG_CELLS = 3;
 export const LASER_CRACK_DEG = [0, 4.6, -3.8, 5.2, -4.8, 3.4, -5.2, 3.0, -2.6];
@@ -5660,11 +5661,14 @@ export const doubleShotPair = (shot, cellPx) => {
 };
 // Where a gun's round goes into the air, for the player and every unit: one, or the ⏩ pair.
 export const pushShot = (list, effects, shot, cellPx) => {
-  // 🔴 a Brimstone beam is a V of two, from the one spawn point (each arm still gets its Double Shot twin)
-  const arms = shot.beam && !shot.beam.vSide
-    ? [-1, 1].map((v) => ({ ...shot, beam: { ...shot.beam, pts: (shot.beam.pts || [[0, 0]]).map((p) => [p[0], p[1]]), vSide: v } }))
-    : [shot];
-  for (const a of arms) { if (doubleShotOn(effects)) list.push(...doubleShotPair(a, cellPx)); else list.push(a); }
+  if (!doubleShotOn(effects)) { list.push(shot); return list; }
+  // 🔴 a Brimstone beam's Double Shot is the V of two from the one spawn point, not a parallel pair
+  if (shot.beam && !shot.beam.vSide) {
+    const pair = ++doubleShotPairSeq;
+    for (const v of [-1, 1]) list.push({ ...shot, beam: { ...shot.beam, pts: (shot.beam.pts || [[0, 0]]).map((p) => [p[0], p[1]]), vSide: v }, hits: undefined, pair });
+    return list;
+  }
+  list.push(...doubleShotPair(shot, cellPx));
   return list;
 };
 // 🧲 HOMING SHOT (Blake, 2026-10-25: "an ability you can assign to clothes or ranged weapons that adds
@@ -14074,9 +14078,18 @@ export const gateHasClimb = (lv, k, reach = GATE_CLIMB_REACH) => {
   for (const r of rows) for (let c = g - reach; c <= g + reach; c++) if (lv.climb[cellKey(r, c)]) return true;
   return false;
 };
+// A TREE TOP STANDS SQUARE OVER ITS TRUNK LEVEL (Blake, 2026-11-26: "my tree tops levels are not aligned
+// with Vietnam"). The staggered pairs above are for sewers. Tree Tops 1 and 4 carry their trunk at Bottom
+// Right and Forest M4's trunk is its Top Left, so the run stood them on M4 diagonally: the ladders met, but
+// the whole tree top hung 64 cells (40% of a level) west of the Vietnam level under it, and the tree tops
+// grown along it hung off the street the same way (Tree Tops 5 on Forest M3/M21, 64 east). A level over the
+// street now joins the level under it only straight up: Bottom Left over Top Left, Bottom Right over Top
+// Right. Sewers (the street on top) keep their stagger.
+const overStreet = (a, ka, b, kb) => { const [up, low] = CONN_SIDE[ka] === "S" ? [a, b] : [b, a]; return runRole(up) === "side" && runRole(low) !== "side"; };
 const vertWayOk = (a, ka, b, kb) => {
-  const [up, uk, low] = CONN_SIDE[ka] === "S" ? [a, ka, b] : [b, kb, a];
-  return !(runRole(up) === "side" && runRole(low) !== "side") || gateHasClimb(up, uk);
+  const uk = CONN_SIDE[ka] === "S" ? ka : kb;
+  if (!overStreet(a, ka, b, kb)) return true;
+  return ka.slice(1) === kb.slice(1) && gateHasClimb(CONN_SIDE[ka] === "S" ? a : b, uk);
 };
 export const seamGatePair = (left, right, side) => {
   if (!left || !right || !left.conns || !right.conns) return null;

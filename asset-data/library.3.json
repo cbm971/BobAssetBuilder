@@ -1,5 +1,5 @@
 {
- "set": "007a85f46d093403",
+ "set": "9cd5d5518acde584",
  "part": 3,
  "levels": [
   {
@@ -637099,7 +637099,7 @@
     "38,126": {
      "kind": "pedestal",
      "cats": [
-      "Kung Fu",
+      "Ninja",
       ""
      ],
      "logic": "or"
@@ -637107,7 +637107,7 @@
    },
    "enemies": {
     "38,130": {
-     "enemyId": "7vh0ltj",
+     "enemyId": "hrr4xyc",
      "facing": 1,
      "ai": "guard",
      "dialogueId": "8meobob",
@@ -637151,8 +637151,8 @@
    "floor": "Tree Tops",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1793489411352,
-   "editedFrom": 1792890464192
+   "savedAt": 1795740505671,
+   "editedFrom": 1794880768653
   },
   {
    "id": "vcfrm05",
