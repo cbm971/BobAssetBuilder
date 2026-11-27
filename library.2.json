@@ -1,5 +1,5 @@
 {
- "set": "9e0ac95569309a50",
+ "set": "0af236299dd5e33c",
  "part": 2,
  "assets": [
   {
@@ -1033406,11 +1033406,11 @@
      {
       "id": "v3h1928",
       "kind": "rect",
-      "x": 58,
-      "y": 88,
-      "w": 84,
-      "h": 90,
-      "color": "#c8a23c",
+      "x": 66,
+      "y": 85,
+      "w": 68,
+      "h": 65,
+      "color": "#4a5a28",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1033425,10 +1033425,10 @@
       "id": "9gz3h1f",
       "kind": "rect",
       "x": 134,
-      "y": 86,
-      "w": 23,
-      "h": 67,
-      "color": "#c8a23c",
+      "y": 84,
+      "w": 17,
+      "h": 65,
+      "color": "#4a5a28",
       "mirror": true,
       "fx": {
        "opacity": 1,
@@ -1033438,7 +1033438,7 @@
       },
       "overArms": true,
       "limb": "arm",
-      "rot": 353,
+      "rot": 358,
       "outline": true,
       "outlineFx": {
        "opacity": 1,
@@ -1033452,32 +1033452,68 @@
      {
       "id": "miumtyn",
       "kind": "circle",
-      "x": 70,
-      "y": 81,
+      "x": 73,
+      "y": 80,
       "w": 55,
-      "h": 13,
-      "color": "#7aa2d6",
+      "h": 12,
+      "color": "#c8a23c",
       "mirror": false,
       "fx": {
        "opacity": 1,
        "glow": 0,
        "glowColor": "#ffd76b",
-       "bright": 1
+       "bright": 0.65
       },
       "isCutter": true,
       "_src": "jfwt8r4",
       "_slot": "shirt"
+     },
+     {
+      "id": "iki8yt0",
+      "kind": "circle",
+      "x": 59,
+      "y": 87,
+      "w": 24,
+      "h": 31,
+      "color": "#4a5a28",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "_src": "jfwt8r4",
+      "_slot": "shirt"
+     },
+     {
+      "id": "eo96jmr",
+      "kind": "text",
+      "text": "$",
+      "font": "Arial, sans-serif",
+      "x": 43.5,
+      "y": 86.5,
+      "w": 115.5,
+      "h": 54.5,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.7
+      }
      }
     ],
     "back": [
      {
       "id": "taprnol",
       "kind": "rect",
-      "x": 59,
-      "y": 88,
-      "w": 83,
-      "h": 90,
-      "color": "#c8a23c",
+      "x": 66,
+      "y": 85,
+      "w": 67,
+      "h": 66,
+      "color": "#4a5a28",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1033489,11 +1033525,11 @@
      {
       "id": "l7r1pm9",
       "kind": "rect",
-      "x": 134,
-      "y": 86,
-      "w": 23,
-      "h": 67,
-      "color": "#c8a23c",
+      "x": 128,
+      "y": 84,
+      "w": 19,
+      "h": 64,
+      "color": "#4a5a28",
       "mirror": true,
       "fx": {
        "opacity": 1,
@@ -1033517,11 +1033553,11 @@
      {
       "id": "6w5jpyo",
       "kind": "rect",
-      "x": 59,
-      "y": 88,
-      "w": 83,
-      "h": 90,
-      "color": "#c8a23c",
+      "x": 69,
+      "y": 85,
+      "w": 59,
+      "h": 77,
+      "color": "#4a5a28",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1033533,11 +1033569,11 @@
      {
       "id": "wzjn8l7",
       "kind": "rect",
-      "x": 83,
-      "y": 95,
-      "w": 26,
-      "h": 68,
-      "color": "#c8a23c",
+      "x": 88,
+      "y": 96,
+      "w": 15.5,
+      "h": 55.5,
+      "color": "#4a5a28",
       "mirror": true,
       "fx": {
        "opacity": 1,
@@ -1033555,17 +1033591,15 @@
        "glowColor": "#ffd76b",
        "bright": 1
       }
-     }
-    ],
-    "up": [
+     },
      {
-      "id": "4q51lkn",
-      "kind": "rect",
-      "x": 59,
-      "y": 88,
-      "w": 83,
-      "h": 90,
-      "color": "#c8a23c",
+      "id": "t4a216v",
+      "kind": "circle",
+      "x": 118,
+      "y": 91,
+      "w": 15,
+      "h": 31,
+      "color": "#4a5a28",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1033575,38 +1033609,30 @@
       }
      },
      {
-      "id": "95b0zwl",
-      "kind": "rect",
-      "x": 134,
-      "y": 44,
-      "w": 18,
-      "h": 62,
+      "id": "w4zk9ew",
+      "kind": "text",
+      "text": "$",
+      "font": "Arial, sans-serif",
+      "x": 73,
+      "y": 93.5,
+      "w": 115.5,
+      "h": 54.5,
       "color": "#c8a23c",
-      "mirror": true,
+      "mirror": false,
       "fx": {
        "opacity": 1,
        "glow": 0,
        "glowColor": "#ffd76b",
-       "bright": 0.6
-      },
-      "overArms": true,
-      "limb": "arm",
-      "rot": 360,
-      "outline": true,
-      "outlineFx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
+       "bright": 0.7
       }
      },
      {
-      "id": "jm3gpeb",
-      "kind": "circle",
-      "x": 72,
-      "y": 81,
-      "w": 55,
-      "h": 13,
+      "id": "hrvu7ag",
+      "kind": "rect",
+      "x": 128,
+      "y": 118,
+      "w": 44,
+      "h": 44,
       "color": "#7aa2d6",
       "mirror": false,
       "fx": {
@@ -1033616,17 +1033642,156 @@
        "bright": 1
       },
       "isCutter": true
+     },
+     {
+      "id": "aznojp6",
+      "kind": "rect",
+      "x": 129,
+      "y": 116.5,
+      "w": 29,
+      "h": 12,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true,
+      "rot": 34
+     },
+     {
+      "id": "uzlda70",
+      "kind": "rect",
+      "x": 133.5,
+      "y": 93.5,
+      "w": 29.5,
+      "h": 26.5,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true,
+      "rot": 0
+     }
+    ],
+    "up": [
+     {
+      "id": "kj3w8xt",
+      "kind": "rect",
+      "x": 66,
+      "y": 85,
+      "w": 68,
+      "h": 65,
+      "color": "#4a5a28",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "_src": "jfwt8r4",
+      "_slot": "shirt"
+     },
+     {
+      "id": "n4vmlsu",
+      "kind": "rect",
+      "x": 134,
+      "y": 44.5,
+      "w": 21.5,
+      "h": 63,
+      "color": "#4a5a28",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "overArms": true,
+      "limb": "arm",
+      "rot": 360,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_src": "jfwt8r4",
+      "_slot": "shirt"
+     },
+     {
+      "id": "fs93g8k",
+      "kind": "circle",
+      "x": 73,
+      "y": 80,
+      "w": 55,
+      "h": 12,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.65
+      },
+      "isCutter": true,
+      "_src": "jfwt8r4",
+      "_slot": "shirt"
+     },
+     {
+      "id": "lqvkk96",
+      "kind": "circle",
+      "x": 59,
+      "y": 87,
+      "w": 24,
+      "h": 31,
+      "color": "#4a5a28",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "_src": "jfwt8r4",
+      "_slot": "shirt"
+     },
+     {
+      "id": "e2hqxw2",
+      "kind": "text",
+      "text": "$",
+      "font": "Arial, sans-serif",
+      "x": 43.5,
+      "y": 86.5,
+      "w": 115.5,
+      "h": 54.5,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.7
+      }
      }
     ],
     "crouch": [
      {
       "id": "8s51857",
       "kind": "rect",
-      "x": 59,
-      "y": 118,
-      "w": 81,
-      "h": 59,
-      "color": "#c8a23c",
+      "x": 70,
+      "y": 104,
+      "w": 60,
+      "h": 51,
+      "color": "#4a5a28",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1033638,11 +1033803,11 @@
      {
       "id": "rvfpo4f",
       "kind": "rect",
-      "x": 139,
-      "y": 123,
-      "w": 20,
-      "h": 52,
-      "color": "#c8a23c",
+      "x": 127,
+      "y": 101,
+      "w": 19,
+      "h": 51,
+      "color": "#4a5a28",
       "mirror": true,
       "fx": {
        "opacity": 1,
@@ -1033652,7 +1033817,7 @@
       },
       "overArms": true,
       "limb": "arm",
-      "rot": 0,
+      "rot": 350,
       "outline": true,
       "outlineFx": {
        "opacity": 1,
@@ -1033664,23 +1033829,41 @@
      {
       "id": "72qt1rf",
       "kind": "circle",
-      "x": 70,
-      "y": 112,
-      "w": 55,
-      "h": 13,
-      "color": "#7aa2d6",
+      "x": 76,
+      "y": 98,
+      "w": 49,
+      "h": 11,
+      "color": "#c8a23c",
       "mirror": false,
       "fx": {
        "opacity": 1,
        "glow": 0,
        "glowColor": "#ffd76b",
-       "bright": 1
+       "bright": 0.65
       },
       "isCutter": true
+     },
+     {
+      "id": "majhqiu",
+      "kind": "text",
+      "text": "$",
+      "font": "Arial, sans-serif",
+      "x": 43.5,
+      "y": 86.5,
+      "w": 115.5,
+      "h": 54.5,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.7
+      }
      }
     ]
    },
-   "guideId": "telfv37",
+   "guideId": "oipvf3l",
    "slot": "shirt",
    "variants": {
     "default": {
@@ -1033699,7 +1033882,7 @@
        "y": 88,
        "w": 84,
        "h": 90,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1033717,7 +1033900,7 @@
        "y": 86,
        "w": 23,
        "h": 67,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1033745,17 +1033928,35 @@
        "y": 81,
        "w": 55,
        "h": 13,
-       "color": "#7aa2d6",
+       "color": "#c8a23c",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 0.65
        },
        "isCutter": true,
        "_src": "jfwt8r4",
        "_slot": "shirt"
+      },
+      {
+       "id": "k2qdymi",
+       "kind": "text",
+       "text": "$",
+       "font": "Impact, 'Arial Narrow', sans-serif",
+       "x": 38,
+       "y": 93.5,
+       "w": 125,
+       "h": 71.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       }
       }
      ],
      "back": [
@@ -1033766,7 +1033967,7 @@
        "y": 88,
        "w": 83,
        "h": 90,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1033778,11 +1033979,11 @@
       {
        "id": "l7r1pm9",
        "kind": "rect",
-       "x": 134,
-       "y": 86,
+       "x": 138,
+       "y": 88.5,
        "w": 23,
        "h": 67,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1033792,7 +1033993,7 @@
        },
        "overArms": true,
        "limb": "arm",
-       "rot": 353,
+       "rot": 356,
        "outline": true,
        "outlineFx": {
         "opacity": 1,
@@ -1033810,7 +1034011,7 @@
        "y": 88,
        "w": 83,
        "h": 90,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1033826,7 +1034027,7 @@
        "y": 95,
        "w": 26,
        "h": 68,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1033844,33 +1034045,70 @@
         "glowColor": "#ffd76b",
         "bright": 1
        }
+      },
+      {
+       "id": "n1d4zaj",
+       "kind": "text",
+       "text": "$",
+       "font": "Impact, 'Arial Narrow', sans-serif",
+       "x": 80,
+       "y": 92.5,
+       "w": 125,
+       "h": 71.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       }
+      },
+      {
+       "id": "6ihnms6",
+       "kind": "rect",
+       "x": 142.5,
+       "y": 90.5,
+       "w": 49,
+       "h": 84,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.7
+       },
+       "isCutter": true
       }
      ],
      "up": [
       {
-       "id": "4q51lkn",
+       "id": "242119a",
        "kind": "rect",
-       "x": 59,
+       "x": 58,
        "y": 88,
-       "w": 83,
+       "w": 84,
        "h": 90,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 0.6
-       }
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
       },
       {
-       "id": "95b0zwl",
+       "id": "5vs4wyr",
        "kind": "rect",
        "x": 134,
-       "y": 44,
-       "w": 18,
-       "h": 62,
-       "color": "#c8a23c",
+       "y": 86,
+       "w": 23,
+       "h": 67,
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1033880,31 +1034118,53 @@
        },
        "overArms": true,
        "limb": "arm",
-       "rot": 360,
+       "rot": 353,
        "outline": true,
        "outlineFx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
       },
       {
-       "id": "jm3gpeb",
+       "id": "wpwt5lc",
        "kind": "circle",
-       "x": 72,
+       "x": 70,
        "y": 81,
        "w": 55,
        "h": 13,
-       "color": "#7aa2d6",
+       "color": "#c8a23c",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 0.65
        },
-       "isCutter": true
+       "isCutter": true,
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
+      },
+      {
+       "id": "i3z3fjj",
+       "kind": "text",
+       "text": "$",
+       "font": "Impact, 'Arial Narrow', sans-serif",
+       "x": 38,
+       "y": 93.5,
+       "w": 125,
+       "h": 71.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       }
       }
      ],
      "crouch": [
@@ -1033915,7 +1034175,7 @@
        "y": 118,
        "w": 81,
        "h": 59,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1033931,7 +1034191,7 @@
        "y": 123,
        "w": 20,
        "h": 52,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1033957,15 +1034217,33 @@
        "y": 112,
        "w": 55,
        "h": 13,
-       "color": "#7aa2d6",
+       "color": "#c8a23c",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 0.65
        },
        "isCutter": true
+      },
+      {
+       "id": "qzyzi20",
+       "kind": "text",
+       "text": "$",
+       "font": "Impact, 'Arial Narrow', sans-serif",
+       "x": 37.5,
+       "y": 122.5,
+       "w": 124.5,
+       "h": 57,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       }
       }
      ]
     },
@@ -1033978,7 +1034256,7 @@
        "y": 85,
        "w": 68,
        "h": 65,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1033996,7 +1034274,7 @@
        "y": 84,
        "w": 17,
        "h": 65,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1034024,13 +1034302,13 @@
        "y": 80,
        "w": 55,
        "h": 12,
-       "color": "#7aa2d6",
+       "color": "#c8a23c",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 0.65
        },
        "isCutter": true,
        "_src": "jfwt8r4",
@@ -1034043,7 +1034321,7 @@
        "y": 87,
        "w": 24,
        "h": 31,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1034053,6 +1034331,24 @@
        },
        "_src": "jfwt8r4",
        "_slot": "shirt"
+      },
+      {
+       "id": "eo96jmr",
+       "kind": "text",
+       "text": "$",
+       "font": "Arial, sans-serif",
+       "x": 43.5,
+       "y": 86.5,
+       "w": 115.5,
+       "h": 54.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.7
+       }
       }
      ],
      "back": [
@@ -1034063,7 +1034359,7 @@
        "y": 85,
        "w": 67,
        "h": 66,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1034079,7 +1034375,7 @@
        "y": 84,
        "w": 19,
        "h": 64,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1034107,7 +1034403,7 @@
        "y": 85,
        "w": 59,
        "h": 77,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1034123,7 +1034419,7 @@
        "y": 96,
        "w": 15.5,
        "h": 55.5,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1034149,25 +1034445,7 @@
        "y": 91,
        "w": 15,
        "h": 31,
-       "color": "#c8a23c",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 0.6
-       }
-      }
-     ],
-     "up": [
-      {
-       "id": "4q51lkn",
-       "kind": "rect",
-       "x": 67,
-       "y": 85,
-       "w": 67,
-       "h": 69,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1034177,13 +1034455,104 @@
        }
       },
       {
-       "id": "95b0zwl",
+       "id": "w4zk9ew",
+       "kind": "text",
+       "text": "$",
+       "font": "Arial, sans-serif",
+       "x": 73,
+       "y": 93.5,
+       "w": 115.5,
+       "h": 54.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.7
+       }
+      },
+      {
+       "id": "hrvu7ag",
+       "kind": "rect",
+       "x": 128,
+       "y": 118,
+       "w": 44,
+       "h": 44,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "aznojp6",
+       "kind": "rect",
+       "x": 129,
+       "y": 116.5,
+       "w": 29,
+       "h": 12,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true,
+       "rot": 34
+      },
+      {
+       "id": "uzlda70",
+       "kind": "rect",
+       "x": 133.5,
+       "y": 93.5,
+       "w": 29.5,
+       "h": 26.5,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true,
+       "rot": 0
+      }
+     ],
+     "up": [
+      {
+       "id": "kj3w8xt",
+       "kind": "rect",
+       "x": 66,
+       "y": 85,
+       "w": 68,
+       "h": 65,
+       "color": "#4a5a28",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
+      },
+      {
+       "id": "n4vmlsu",
        "kind": "rect",
        "x": 134,
-       "y": 44,
-       "w": 18,
-       "h": 62,
-       "color": "#c8a23c",
+       "y": 44.5,
+       "w": 21.5,
+       "h": 63,
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1034200,33 +1034569,37 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
       },
       {
-       "id": "jm3gpeb",
+       "id": "fs93g8k",
        "kind": "circle",
-       "x": 72,
-       "y": 81,
+       "x": 73,
+       "y": 80,
        "w": 55,
-       "h": 13,
-       "color": "#7aa2d6",
+       "h": 12,
+       "color": "#c8a23c",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 0.65
        },
-       "isCutter": true
+       "isCutter": true,
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
       },
       {
-       "id": "s77a6l8",
+       "id": "lqvkk96",
        "kind": "circle",
-       "x": 62,
-       "y": 95,
-       "w": 27,
-       "h": 22,
-       "color": "#c8a23c",
+       "x": 59,
+       "y": 87,
+       "w": 24,
+       "h": 31,
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1034234,7 +1034607,26 @@
         "glowColor": "#ffd76b",
         "bright": 0.6
        },
-       "rot": 33
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
+      },
+      {
+       "id": "e2hqxw2",
+       "kind": "text",
+       "text": "$",
+       "font": "Arial, sans-serif",
+       "x": 43.5,
+       "y": 86.5,
+       "w": 115.5,
+       "h": 54.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.7
+       }
       }
      ],
      "crouch": [
@@ -1034245,7 +1034637,7 @@
        "y": 104,
        "w": 60,
        "h": 51,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1034261,7 +1034653,7 @@
        "y": 101,
        "w": 19,
        "h": 51,
-       "color": "#c8a23c",
+       "color": "#4a5a28",
        "mirror": true,
        "fx": {
         "opacity": 1,
@@ -1034287,37 +1034679,62 @@
        "y": 98,
        "w": 49,
        "h": 11,
-       "color": "#7aa2d6",
+       "color": "#c8a23c",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 0.65
        },
        "isCutter": true
+      },
+      {
+       "id": "majhqiu",
+       "kind": "text",
+       "text": "$",
+       "font": "Arial, sans-serif",
+       "x": 43.5,
+       "y": 86.5,
+       "w": 115.5,
+       "h": 54.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.7
+       }
       }
      ]
     }
    },
-   "lastFit": "telfv37",
+   "lastFit": "oipvf3l",
    "confirmedFits": [
     "oipvf3l",
     "telfv37"
    ],
    "statBoosts": {
-    "hp": 1,
-    "speed": 0,
+    "hp": 0,
+    "speed": 2,
     "agility": 0,
-    "intelligence": 0,
+    "intelligence": 1,
     "strength": 0
    },
-   "defense": 3,
-   "effects": [],
+   "defense": 0,
+   "effects": [
+    {
+     "id": "gn4osyt",
+     "type": "moneyPower",
+     "animByBody": {},
+     "lastFit": "default"
+    }
+   ],
    "categories": [
     "T1",
     "Shirt",
-    "Trailer"
+    "Trailor"
    ],
    "groups": {
     "back": [],
@@ -1034325,9 +1034742,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1795785634866,
-   "value": 4,
-   "rank": "poor"
+   "savedAt": 1795786125309,
+   "value": 20,
+   "rank": "legendary",
+   "editedFrom": 1795786113108
   },
   {
    "id": "ucx2s3n",
