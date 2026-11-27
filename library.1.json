@@ -1,5 +1,5 @@
 {
- "set": "2b1f8e22c82b591d",
+ "set": "71a378563cf9b80d",
  "part": 1,
  "assets": [
   {
@@ -241472,6 +241472,99 @@
    "savedAt": 1794062446935,
    "tone": "#cea888",
    "editedFrom": 1789218986110
+  },
+  {
+   "id": "8h6xa4o",
+   "name": "Torn $10 Bill",
+   "type": "item",
+   "angles": {
+    "front": [
+     {
+      "id": "xenrjia",
+      "kind": "rect",
+      "x": 14,
+      "y": 64.5,
+      "w": 172,
+      "h": 82,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "lpx6zf3",
+      "kind": "rect",
+      "x": 21,
+      "y": 69.5,
+      "w": 157,
+      "h": 70,
+      "color": "#3d4a28",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "koj1kv8",
+      "kind": "circle",
+      "x": 70.5,
+      "y": 77,
+      "w": 57,
+      "h": 54,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "3jbvohc",
+      "kind": "text",
+      "text": "11",
+      "font": "Georgia, 'Times New Roman', serif",
+      "x": 42.5,
+      "y": 74.5,
+      "w": 116,
+      "h": 47.5,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "default",
+   "effect": {
+    "kind": "money",
+    "amount": 11
+   },
+   "categories": [
+    "T1",
+    "Money",
+    ""
+   ],
+   "value": 11,
+   "savedAt": 1795739098397,
+   "dropWeight": 1,
+   "rank": "rare"
   },
   {
    "id": "8jgv811",
