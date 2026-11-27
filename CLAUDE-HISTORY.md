@@ -6350,3 +6350,33 @@ Blake asked for two new melee weapons: a **Hockey Stick** and an **Iron Dagger**
 - **🔪 Backstab (`WEAPON_ABILITIES.backstab`, symbol `🔪` → `gi:backstab`).** `backstabMultOf` (default `DEFAULT_BACKSTAB_MULT = 2`, slider `1.5–4` step `0.5`) and `backstabHitMult(weapon, targetFace, attackerX, targetX)` reuse `isHitFromBehind` so both player and unit melee strikes (swings and automatic saws, excluding unarmed punches/stomps/tail blows) multiply raw damage before Defense and Back Guard. `weaponDpsOver` continues to report unconditional front DPS.
 - **Iron Dagger (`irndagr`).** Good (`rank: "rare"`, \$14), tagged `["T2", "Meelee", "Rogue"]` (pairing with T2 Rogue `Hood` `hoodplain1` and keeping `"Rogue"` off the garment-only `equipKindTags` displacement rule). `damage: 6`, `swingSpeed: 1.7` (`playerSwingFrames = 7`, ~8.6 swings/s → **51.6 front DPS** at Str 5, strictly above Cane/Bat/Megaphone 35, Kitchen Knife 40, and Shock Baton 45 across every Strength 0–10, and strictly below Crowbar 55, Electric Guitar 55, Hockey Stick 60, Nunchucks 60, Machete 65, Spear/Axe 75, Sledgehammer 85, Katana 90, Schweitzer Sword 107.2, and Chainsaw 150; **103.2 DPS** from behind), `backstab: 2`, blade hit sound `j8bdd8g`. Follow-up art pass replicated his `side rest` edit (`behindArm: true` on all pieces, crossguard snug under the fist) across every pose on BoB and Bobbett and sealed the spear-point join so Chrome `clip-path` renders zero floating hairline.
 - **Hockey Stick (`hckystk`).** Common (`rank: "common"`, \$10), tagged `["T1", "Meelee", "Trailer"]` (filling Trailer Park's missing Common melee tier without touching M19's `Rare AND Trailer` pool). `damage: 12` (**60 DPS** at Str 5), `stun: 0.25`, wooden stick smack sound `1dhtfw5`. Follow-up art pass replaced the two-piece `roundrect` wood pole (whose 22% CSS vertical border-radius pinched the shaft) with a single smooth white `#f2efe9` `rect` shaft, a C1-tangent `curveBandPoints` rounded heel bend, and red `#c82824` tape around the bottom blade (`behindArm: true`), verified in headless Chrome.
+
+## FOREST M24 KARST WALLS, A CLIMBING LEVEL EVERY LOOK CAN FINISH (2026-11-27)
+
+His ask: "make another Vietnam level with a bunch of climbing and parcor? make sure there aren't
+floating trees etc".
+
+- **The level** is Forest M24 (`vcfrm24`), a middle Vietnam level, W2/E2, 180 wide, ground row 36.
+  Two background karst walls (Dark Rock) carry foreground rock ledges; a karst spire with a tree on
+  top stands between them beside a waterfall into the river gorge. The route climbs vine ladders,
+  hops ledges, shimmies a vine line into the spire tree's crown, leaps the waterfall, traverses a
+  25-col cliff ledge and climbs to a bamboo VC lookout. Rewards: Heal OR Food on A3, Vietnam AND
+  Rare at the lookout. No gold.
+- **No floating art:** the generator refuses a tree whose trunk is broken or does not reach a floor,
+  crown cells with no tree, rock not joined to the ground (flood fill), a prop not seated on a flat
+  whole row, and anything in the edge columns.
+- **First layout was BoB-only.** The A1 → A2 hop went 2 rows up (Agility 3+) and the waterfall gap
+  was 8 cols; Army Bob could not do either and could never reach the lookout. M17 (his other
+  parkour level) passed Army Bob, so this one was rebuilt to: A1 level with A2, S1 widened to the
+  waterfall and B1 three rows lower and one col closer. Army Bob lands the waterfall leap 2.5 cols
+  onto B1.
+- **TE10 (Speed 10) checks the far end.** A running jump has one length per Speed, so a landing that
+  fits Army Bob can be overshot by TE10: its A1 hop is stopped by A3's face, its waterfall leap
+  catches the cliff, and its drop off the cliff landed 0.4 cols from B2's end until B2 was lengthened
+  by 2 cols.
+- **Harness trap:** holding Space re-jumps on every landing AND off every cliff grab, so the first
+  waterfall leap looked like it skipped B1 and landed on B2. A real player taps; the harness now
+  releases Space 8 frames after the jump.
+- **Ladder-top trap:** stepping off the L2 ladder top onto A3 carried BoB about 4 cols while still a
+  row high, and his head caught the vine line starting 6 cols away. The vine line now starts 8 cols
+  past the ladder at row 8 (A3's deck is row 16, so standing under it does not grab).
