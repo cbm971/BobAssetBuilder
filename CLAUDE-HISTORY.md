@@ -6466,3 +6466,37 @@ from traveling the roof ... there should be a chimney or something here that dro
   Brick (`fdbrck1`). In Playtest a drop over either one lands on the third floor (row 14); a drop on the roof
   beside them stays on the roof. The probe then found no pocket left; the only roof landings are past the tree's
   end walls, where the roof slopes down to the eaves.
+
+## THE LEADERBOARD (2026-11-28)
+
+Blake asked for "a fairly simple score and entry based leaderboard where after a run you type a name to be
+posted on a public leaderboard that keeps track of all scores and it kind of shows you your current place",
+the same board for him as for "someone playing in a different state", keeping "the more it can the better".
+
+**Why a Worker + D1.** A board every copy shares must live online. GitHub Pages is static, the keeper runs on
+his PC (and dies often), and a GitHub token inside the game would hand anyone his repo. Supabase's free tier
+pauses a project after a week with no traffic, which suits a quiet beta badly. Cloudflare's free Workers + D1
+plan has no card and no sleep, gives 100k requests a day and 5 GB, and D1 is plain SQLite. Deploying needs
+his own Cloudflare account. The work was built and tested with `wrangler dev --local` (Miniflare's D1)
+before that account existed.
+
+**Ranks without scanning.** D1 bills by rows read, and `COUNT(*) WHERE score > ?` reads every better score.
+`buckets` (board, score / 100, n) is kept by AFTER INSERT / AFTER DELETE triggers. A rank is the sum of the
+buckets above plus a count inside its own bucket, so it reads a few hundred rows however big the board
+grows. Ties go to the earlier post (lower id). The index is (board, score DESC, id), so the top, the two
+above and the two below are each a short index walk.
+
+**Tested** (scratchpad api.js against the local Worker): ranks with ties, total, top 10 order, neighbours
+with ranks, a repeated run returning the first post, the score cap, negatives, a slur, emoji-only and
+too-long names, the 10 s per-IP limit, admin delete with and without the key, totals and ranks after a
+delete, the CORS preflight from origin `null`, and separate boards. In the running game (dev server, pane):
+the menu row appears only with an address, the Leaderboard screen, a Hard run ended through the real
+`gameGameOver` (score set by hand on the score ref), a name typed with real keys ("Rob Wasd": W/A/S/D/E did
+not move the menu), Enter and the Post click, the board coming back with the row lit ("#7 of 15"), the
+"To be continued" end after both floors (`animLeaveRef` twice), the off-the-top layout (top five, a gap,
+13-16), the remembered name and best post in IndexedDB, and "Leaderboard offline" against a dead port.
+**Not tested:** a real deploy, and a whole run played through by hand.
+
+**The CSS trap.** The first screenshot showed the name in tiny studio type in a blue box. The studio's
+`.bb input:not([type])` (0,2,1) and `.bb input {font:inherit}` beat `.gLbName` (0,1,0), and the game is
+rendered inside `.bb`. Now it is `.gRoot .gLb input.gLbName`.

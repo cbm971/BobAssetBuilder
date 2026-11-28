@@ -328,9 +328,9 @@ describe("the menu's backdrop scene", () => {
     expect(new Set(ids).size).toBe(MENU_SCENE_VIEWS.length);
   });
   test("the other floors' street levels fill in before any level repeats", () => {
-    const levels = [lv("a", { fx: fx(3) }), lv("b", { fx: fx(2) }), lv("c", { fx: fx(1) }), lv("d", { fx: fx(9) }), lv("x", { floor: "Jungle", fx: fx(1) }), lv("y", { floor: "Jungle", fx: fx(8) }), lv("z", { floor: "Jungle" })];
+    const levels = [lv("a", { fx: fx(3) }), lv("b", { fx: fx(2) }), lv("c", { fx: fx(1) }), lv("d", { fx: fx(9) }), lv("x", { floor: "Jungle", fx: fx(1) }), lv("y", { floor: "Jungle", fx: fx(8) }), lv("z", { floor: "Jungle" }), lv("e")];
     const line = menuLevelLineup(levels);
-    expect(line.map((l) => l.id)).toEqual(["d", "a", "b", "c", "y", "x", "z"]);
+    expect(line.map((l) => l.id)).toEqual(["d", "a", "b", "c", "e", "y", "x", "z"]);
     const all = menuSceneLevels(line, {});
     expect(new Set(MENU_SCENE_VIEWS.map((v) => all[v].id)).size).toBe(MENU_SCENE_VIEWS.length);
   });

@@ -1,0 +1,14 @@
+{
+  "name": "bob-leaderboard",
+  "private": true,
+  "description": "BOB's public leaderboard: a Cloudflare Worker + D1. See README.md.",
+  "scripts": {
+    "dev": "wrangler dev --local --port 8787",
+    "schema:local": "wrangler d1 execute bob-leaderboard --local --file=schema.sql",
+    "schema:live": "wrangler d1 execute bob-leaderboard --remote --file=schema.sql",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.169.0"
+  }
+}

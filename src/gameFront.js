@@ -73,6 +73,10 @@ export const GAME_MENU = [
   { id: "unlocks", label: "Unlocks" },
   { id: "quit", label: "Quit Game" },
 ];
+// THE LEADERBOARD ROW (2026-11-28, src/leaderboard.js): his list with Leaderboard before Quit Game, and
+// only while the game has a board to show (LEADERBOARD_URL set); with none it is his list exactly.
+export const GAME_MENU_LEADERBOARD = { id: "leaderboard", label: "Leaderboard" };
+export const gameMenuRows = (lbOn) => (lbOn ? [...GAME_MENU.slice(0, -1), GAME_MENU_LEADERBOARD, GAME_MENU[GAME_MENU.length - 1]] : GAME_MENU);
 // Up/down through a list, wrapping, skipping disabled rows.
 export const menuStep = (items, at, dir) => {
   const n = (items || []).length;
@@ -195,7 +199,7 @@ export const deathEndsRun = (diffId, deathsBefore, oneUps) => runLivesLeft(diffI
 // and a ?scene pin doubled up the same way). The lineup runs on into the other floors' street levels
 // after the main floor's, so a level only repeats if he has fewer street levels than screens in all.
 export const MENU_SCENE_PROP_CAP = 160;
-export const MENU_SCENE_VIEWS = ["menu", "select", "load", "options", "unlocks", "gameOver", "toBeContinued"];
+export const MENU_SCENE_VIEWS = ["menu", "select", "load", "options", "unlocks", "gameOver", "toBeContinued", "leaderboard"];
 export const MENU_SCENE_PINNED = { menu: "eb4dqst" }; // Trailer Park M14, the UFO crash site
 export const menuLevelScore = (l) => {
   const objs = Object.values((l && l.fx) || {}).flat().filter(Boolean);
@@ -666,7 +670,8 @@ export const freshRunSeed = (prevSeed = "", rng = Math.random) => {
 // the header for why that keeps them out of the keeper's sweep. When IndexedDB cannot be opened (a
 // private window that refuses it) the game still plays; it just forgets on reload.
 export const GAME_DB_NAME = "bobOkayGame", GAME_DB_STORE = "kv";
-export const GAME_KEYS = { saves: "game:saves", options: "game:options", record: "game:record" };
+// `leaderboard` is the last name typed and the player's best post per board (src/leaderboard.js normalizeLbMemory).
+export const GAME_KEYS = { saves: "game:saves", options: "game:options", record: "game:record", leaderboard: "game:leaderboard" };
 export const createGameStore = (idb = (typeof indexedDB !== "undefined" ? indexedDB : null)) => {
   const mem = new Map();
   let conn = null;

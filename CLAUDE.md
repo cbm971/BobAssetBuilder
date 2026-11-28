@@ -668,6 +668,27 @@ plus traps it does not cover:
   (Wizards Hat + a cape both "Magic") would strip itself; Fire on the Fireman's Coat + Helmet did until the
   Molotov joined it. Give a set a third slot or a weapon, or pick another tag.
 
+## The leaderboard (2026-11-28)
+
+- Blake: after a run you type a name, it goes on ONE public board that everyone sees ("the same leaderboard
+  ... as someone playing in a different state"), and you see your place. It is a Cloudflare Worker + D1
+  (`leaderboard/`, deploy steps in its README). The rules are `src/leaderboard.js`, which the Worker imports
+  too. The game only calls GET and POST `/scores`.
+- **It is off until `LEADERBOARD_URL` is set**: no name box, no menu row, and the menu is his list exactly
+  (`gameMenuRows`). `?lb=<url>` or localStorage `bobLeaderboard` points a test page at a local `wrangler dev`.
+- A run posts only at its END: Game Over and "To be continued" (`PostScore`, gameShell.js). Its token is
+  `runToken(saveId, seed)`, unique per board, so a run posts once. A run that scored 0 shows the board
+  with no name box.
+- Every run is kept. A rank is the bucket table (kept by triggers, score / 100) plus a count inside one
+  bucket, so no request scans the whole board. `LB_BUCKET` must match the triggers (a test checks).
+- Anyone can post any score. The server refuses only what is not a run: past the cap, a bad name or a slur,
+  a repeated run, or more than one post per IP per 10 s. Blake removes junk with
+  `node tools/leaderboard.js remove <id>`. The admin key is a Worker secret; never commit it.
+- The board key is `beta` for the two-floor Beta. The full release gets a new key, and the Beta's board stays.
+- The name box's CSS is `.gRoot .gLb input.gLbName`. The studio's `.bb input:not([type])` (font:inherit, the
+  blue box) beats a plain class, and the game still sits inside `.bb`.
+- The packaged Beta must keep `LEADERBOARD_URL`. The Worker answers any origin (`*`), a local file included.
+
 ## Architecture — where things are
 
 - Pure logic is `export const` at module level and unit-tested. The giant `AssetStudio()` component
@@ -1376,5 +1397,6 @@ Grep it for the function or feature name. In order, it covers:
 - the 🐒 Tail Hold clothing ability, the Monkey Pants refit to Bobbett, and Tree Tops 6 and 7;
 - the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.
 - the game front end: why it is one app at two addresses, the title before the bundle, where saves live;
+- the leaderboard: why a Worker + D1, the bucket rank, what was tested;
 - and, last, the 🚗 vehicles: his 7 cars migrated, what was measured driving one, and the car's i-frames;
   then cars across seams, "a sitting player should fit", Bob on the tractor seat, ramp jump momentum carry, vehicle speed scaling, 1969 Muscle Car, and Trailor Park M17; then the Dragster and Trailor Park M18.

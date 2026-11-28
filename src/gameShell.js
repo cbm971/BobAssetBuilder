@@ -19,8 +19,9 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   GAME_MENU, menuStep, introRemainingMs, INTRO_OUT_MS, formatPlayTime, UNLOCK_TABS, unlockPool,
   starterRoster, pickStartLook, selectGridCols, selectGridFill, selectBoxPx, SELECT_GRID_ROWS_SHOWN, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
-  starterStats, lookFloorMedals,
+  starterStats, lookFloorMedals, gameMenuRows,
 } from "./gameFront";
+import { boardRows, cleanName, LB_NAME_MAX } from "./leaderboard";
 
 const fmtNum = (n) => Math.round(Number(n) || 0).toLocaleString("en-US");
 const fmtWhen = (t) => {
@@ -187,15 +188,15 @@ function TitleHandoff({ ready, onDone }) {
 // ---------- the main menu ----------
 // The mock-up's layout: the panel down the left, the scene open to the right of it. `at` lives in
 // the shell, so coming back from Options or Unlocks lands on the row you left by.
-function MainMenu({ go, note, click, at, setAt }) {
+function MainMenu({ go, note, click, at, setAt, rows = GAME_MENU }) {
   const pick = (r) => { click(); go(r.id === "new" ? "select" : r.id); };
-  useMenuKeys(true, { move: (d) => setAt((i) => menuStep(GAME_MENU, i, d)), pick: () => pick(GAME_MENU[at]) });
+  useMenuKeys(true, { move: (d) => setAt((i) => menuStep(rows, i, d)), pick: () => pick(rows[at] || rows[0]) });
   return (
     <div className="gBody gBodyMain">
       <div className="gPanel gMainPanel">
         <BobLogo className="gLogoMenu" />
         <div className="gKicker">Main Menu</div>
-        <MenuList rows={GAME_MENU} at={at} setAt={setAt} onPick={pick} className="gMain" />
+        <MenuList rows={rows} at={at} setAt={setAt} onPick={pick} className="gMain" />
       </div>
       {note ? <div className="gWarn">⚠ {note}</div> : null}
     </div>
@@ -576,18 +577,127 @@ function QuitScreen({ back }) {
 // next (the shell holds black for that moment, view "nextFloor"), and after the last one this is
 // all there is. Any key or click goes on to the main menu, once it has been up a beat so a key
 // held through the ending does not skip it.
-function ToBeContinued({ onDone, click }) {
+// WITH A LEADERBOARD (2026-11-28) the run's end is where its score is posted, so the screen holds:
+// the banner, the score, the name box and the board, and Main Menu to leave (a key that left at once
+// would have eaten the name).
+function ToBeContinued({ onDone, click, lb, end, lbMem, onLbPosted }) {
+  const boardUp = !!(lb && lb.enabled && end);
   const [armed, setArmed] = useState(false);
   useEffect(() => { const t = setTimeout(() => setArmed(true), 700); return () => clearTimeout(t); }, []);
+  useMenuKeys(boardUp, { pick: () => { click(); onDone(); }, back: () => { click(); onDone(); } });
   useEffect(() => {
-    if (!armed) return undefined;
+    if (!armed || boardUp) return undefined;
     const f = (e) => { if (e && e.type === "keydown" && e.preventDefault) e.preventDefault(); click(); onDone(); };
     window.addEventListener("keydown", f); window.addEventListener("pointerdown", f);
     return () => { window.removeEventListener("keydown", f); window.removeEventListener("pointerdown", f); };
-  }, [armed, onDone, click]);
+  }, [armed, boardUp, onDone, click]);
+  if (boardUp) {
+    return (
+      <Panel className="gOver">
+        <BobLogo text="TO BE CONTINUED" className="gBanner" />
+        <div className="gStats gStatsBig">
+          <span>Score <b>{fmtNum(end.score)}</b></span>
+          <span>Time <b>{formatPlayTime(end.secs)}</b></span>
+        </div>
+        <PostScore lb={lb} entry={lbEntry(end)} mem={lbMem} onPosted={onLbPosted} click={click} />
+        <MenuList rows={[{ id: "menu", label: "Main Menu" }]} at={0} setAt={() => {}} onPick={() => { click(); onDone(); }} />
+      </Panel>
+    );
+  }
   return (
     <Panel>
       <BobLogo text="TO BE CONTINUED" className="gBanner gBannerOnly" />
+    </Panel>
+  );
+}
+
+// ---------- the leaderboard (src/leaderboard.js) ----------
+// One board online for every copy of the game. Rows are rank, name, score; yours is lit; a dotted gap
+// where the top five end and the rows around you begin (boardRows).
+function LbTable({ res }) {
+  const rows = boardRows(res);
+  if (!rows.length) return null;
+  return (
+    <div className="gLbRows">
+      {rows.map((r) => (r.gap ? <div key={r.key} className="gLbGap" /> : (
+        <div key={r.key} className={"gLbRow" + (r.me ? " me" : "")}>
+          <span className="gLbRank">{fmtNum(r.rank)}</span><span className="gLbWho">{r.name}</span><b>{fmtNum(r.score)}</b>
+        </div>
+      )))}
+    </div>
+  );
+}
+// The one line the board can show, and only when something is wrong.
+const LB_WARN = { name: "Pick another name", wait: "Try again in a moment" };
+const lbWarn = (err) => (err ? LB_WARN[err] || "Leaderboard offline" : "");
+const lbPlace = (res) => (res && res.me ? "#" + fmtNum(res.me.rank) + " of " + fmtNum(res.total) : "");
+const lbEntry = (o) => ({ run: o.run, score: o.score, look: o.lookName, difficulty: o.difficulty, floor: o.floor, secs: o.secs });
+// After a run: the board as it stands, and a box for the name (the last one typed already in it). Enter
+// or Post sends it; the board comes back around your new row with your place over it. A run posts once
+// (the server keys it by the run's token). Esc or Down leaves the box for the screen's own rows, which
+// the keys drive again from there (useMenuKeys ignores keys typed into the box). A run that scored
+// nothing has nothing to post: the board alone.
+function PostScore({ lb, entry, mem, onPosted, click }) {
+  const [name, setName] = useState(() => (mem && mem.name) || "");
+  const [res, setRes] = useState(null);
+  const [phase, setPhase] = useState(() => (entry && entry.run && Number(entry.score) > 0 ? "entry" : "view")); // entry | posting | done | view
+  const [err, setErr] = useState("");
+  const box = useRef(null);
+  useEffect(() => {
+    let dead = false;
+    lb.view().then((r) => { if (dead) return; if (r.ok) setRes((cur) => cur || r); else setErr(r.error); });
+    return () => { dead = true; };
+  }, [lb]);
+  useEffect(() => { if (phase === "entry" && box.current) box.current.focus(); }, [phase]);
+  const send = async () => {
+    const n = cleanName(name);
+    if (!n || phase !== "entry") return;
+    click();
+    setPhase("posting"); setErr("");
+    const r = await lb.post({ ...entry, name: n });
+    if (r.ok) { setRes(r); setPhase("done"); if (onPosted) onPosted(n, r.me); }
+    else { setErr(r.error); setPhase("entry"); }
+  };
+  const onKey = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); send(); }
+    else if (e.key === "Escape" || e.key === "ArrowDown") { e.preventDefault(); e.currentTarget.blur(); }
+  };
+  return (
+    <div className="gLb">
+      {phase === "entry" || phase === "posting" ? (
+        <div className="gLbPost">
+          <input ref={box} className="gLbName" value={name} maxLength={LB_NAME_MAX} placeholder="Name" spellCheck={false} autoComplete="off"
+            onChange={(e) => setName(e.target.value)} onKeyDown={onKey} disabled={phase === "posting"} />
+          <div role="button" className={"gLbGo" + (cleanName(name) && phase === "entry" ? "" : " off")} onClick={send}><span>Post</span></div>
+        </div>
+      ) : null}
+      {res && res.me ? <div className="gLbPlace">{lbPlace(res)}</div> : null}
+      <LbTable res={res} />
+      {err ? <div className="gLbWarn">⚠ {lbWarn(err)}</div> : null}
+    </div>
+  );
+}
+// Leaderboard on the main menu: the board, with the player's best post on this copy lit when there is one.
+function LeaderboardScreen({ lb, mem, back, click }) {
+  const [res, setRes] = useState(null);
+  const [err, setErr] = useState("");
+  const mine = mem && mem.best && mem.best[lb.board] ? mem.best[lb.board].id : null;
+  useEffect(() => {
+    let dead = false;
+    lb.view(mine).then((r) => { if (dead) return; if (r.ok) { setRes(r); setErr(""); } else setErr(r.error); });
+    return () => { dead = true; };
+  }, [lb, mine]);
+  useMenuKeys(true, { back: () => { click(); back(); }, pick: () => { click(); back(); } });
+  return (
+    <Panel className="gLbScreen">
+      <div className="gHead">Leaderboard</div>
+      <div className="gLb">
+        {res && res.me ? <div className="gLbPlace">{lbPlace(res)}</div> : null}
+        <LbTable res={res} />
+        {res && !res.top.length ? <div className="gEmpty">No scores yet</div> : null}
+        {err ? <div className="gLbWarn">⚠ {lbWarn(err)}</div> : null}
+      </div>
+      <MenuList rows={[{ id: "__back", label: "Back" }]} at={0} setAt={() => {}} onPick={() => { click(); back(); }} className="gBackOnly" />
     </Panel>
   );
 }
@@ -597,7 +707,7 @@ function ToBeContinued({ onDone, click }) {
 // same difficulty — a new seed and a full set of lives; Main Menu leaves it. The old run's
 // checkpoint is already gone (App.js gameGameOver): out of lives is the end of that run, or Hard
 // would mean nothing.
-function GameOver({ over, onRetry, onMenu, click }) {
+function GameOver({ over, onRetry, onMenu, click, lb, lbMem, onLbPosted }) {
   const [at, setAt] = useState(0);
   const rows = [{ id: "retry", label: "Retry" }, { id: "menu", label: "Main Menu" }];
   const pick = (r) => { click(); if (r.id === "retry") onRetry(); else onMenu(); };
@@ -610,6 +720,7 @@ function GameOver({ over, onRetry, onMenu, click }) {
         <span>Score <b>{fmtNum(over.score)}</b></span>
         <span>Time <b>{formatPlayTime(over.secs)}</b></span>
       </div>
+      {lb && lb.enabled ? <PostScore lb={lb} entry={lbEntry(over)} mem={lbMem} onPosted={onLbPosted} click={click} /> : null}
       <MenuList rows={rows} at={at} setAt={setAt} onPick={pick} />
     </Panel>
   );
@@ -640,7 +751,7 @@ export function GamePause({ onResume, onQuit, options, setOptions, click }) {
 }
 
 // ---------- the shell: whichever menu screen is up, over the scene ----------
-export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, gameOver, onRetry, onGameOverMenu, note, click }) {
+export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, gameOver, onRetry, onGameOverMenu, note, click, lb, lbMem, onLbPosted, runEnd }) {
   const toMenu = React.useCallback(() => setView("menu"), [setView]);
   const [menuAt, setMenuAt] = useState(0);
   const vp = useViewport();
@@ -653,15 +764,16 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       <style>{GAME_CSS}</style>
       {sceneUp && <div className={"gScreen gStage" + (view === "menu" ? "" : " dim")}><SceneBackdrop key={scene ? scene.id : "none"} scene={scene} vp={vp} /></div>}
       {view === "title" && <TitleHandoff ready={ready} onDone={toMenu} />}
-      {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} />}
+      {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} rows={gameMenuRows(!!(lb && lb.enabled))} />}
       {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} abilitiesOf={abilitiesOf} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} onUpload={onUpload} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
       {view === "quit" && <QuitScreen back={toMenu} />}
       {view === "nextFloor" && <div className="gScreen gBlack" />}
-      {view === "toBeContinued" && <ToBeContinued onDone={toMenu} click={click} />}
-      {view === "gameOver" && gameOver && <GameOver over={gameOver} onRetry={onRetry} onMenu={onGameOverMenu} click={click} />}
+      {view === "toBeContinued" && <ToBeContinued onDone={toMenu} click={click} lb={lb} end={runEnd} lbMem={lbMem} onLbPosted={onLbPosted} />}
+      {view === "gameOver" && gameOver && <GameOver over={gameOver} onRetry={onRetry} onMenu={onGameOverMenu} click={click} lb={lb} lbMem={lbMem} onLbPosted={onLbPosted} />}
+      {view === "leaderboard" && lb && lb.enabled && <LeaderboardScreen lb={lb} mem={lbMem} back={toMenu} click={click} />}
     </div>
   );
 }
@@ -830,5 +942,28 @@ export const GAME_CSS = `
 .gStart.ready{animation:gPulse 1s ease-in-out infinite}
 @keyframes gPulse{50%{box-shadow:0 0 0 4px rgba(255,255,255,.5),0 0 30px rgba(216,69,47,.7),0 8px 0 rgba(0,0,0,.4)}}
 @media (max-width:760px){.gSelFoot{justify-content:center}.gDiffBox{align-items:center;margin-left:0}}
+/* ---- the leaderboard ---- */
+.gLb{align-self:stretch;display:flex;flex-direction:column;align-items:stretch;min-width:min(560px,86vw);margin:0 0 2.6vh}
+.gLbScreen .gLb{margin-bottom:1.6vh}
+.gLbPost{display:flex;gap:.7em;align-items:stretch;margin:0 0 1.8vh}
+/* .gRoot .gLb input. beats the studio's .bb input:not([type]) (font:inherit, its blue box), which the game still sits inside */
+.gRoot .gLb input.gLbName{flex:1;min-width:0;box-sizing:border-box;font:inherit;font-size:clamp(18px,1.8vw,32px);letter-spacing:.06em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.28);border:3px solid rgba(241,239,228,.6);border-radius:2px;padding:.18em .55em;outline:none;caret-color:var(--gGold);transition:border-color .12s}
+.gRoot .gLb input.gLbName:focus{border-color:var(--gGold)}
+.gRoot .gLb input.gLbName::placeholder{color:rgba(236,240,226,.32)}
+.gRoot .gLb input.gLbName:disabled{opacity:.6}
+.gLbGo{flex:none;display:flex;align-items:center;cursor:pointer;font-size:clamp(17px,1.6vw,28px);text-transform:uppercase;letter-spacing:.06em;color:var(--gG3);background:var(--gGold);border:3px solid var(--gEdge);padding:0 .9em;transform:skewX(-10deg);box-shadow:0 5px 0 rgba(0,0,0,.35);user-select:none;-webkit-user-select:none}
+.gLbGo>span{display:inline-block;transform:skewX(10deg)}
+.gLbGo.off{opacity:.4;cursor:default}
+.gLbPlace{text-align:center;font-size:clamp(18px,1.8vw,30px);letter-spacing:.08em;text-transform:uppercase;color:var(--gGold);text-shadow:0 3px 0 rgba(0,0,0,.35);margin:0 0 1vh}
+.gLbRows{display:flex;flex-direction:column;font-size:clamp(14px,1.25vw,22px);letter-spacing:.05em;text-transform:uppercase}
+.gLbRow{display:grid;grid-template-columns:3.4em 1fr auto;gap:.9em;align-items:baseline;padding:.14em .7em;color:var(--gDim);border-top:1px solid rgba(255,255,255,.07)}
+.gLbRow:first-child{border-top:0}
+.gLbRank{text-align:right}
+.gLbWho{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.gLbRow b{font-weight:inherit;color:#fff;text-align:right;letter-spacing:.03em}
+.gLbRow.me{background:var(--gGold);color:var(--gG3);border-radius:2px}
+.gLbRow.me .gLbWho,.gLbRow.me b{color:var(--gG3)}
+.gLbGap{height:0;border-top:3px dotted rgba(241,239,228,.4);margin:.5em 1.2em}
+.gLbWarn{text-align:center;font-family:Georgia,serif;font-style:normal;font-stretch:normal;font-weight:400;font-size:16px;color:#ffe08a;text-shadow:0 2px 3px #000;margin:1vh 0 0}
 .gPause{position:fixed;inset:0;z-index:9990;background:rgba(4,10,6,.6);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center}
 `;

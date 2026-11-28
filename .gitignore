@@ -2,3 +2,5 @@ node_modules
 build
 asset-data/snapshots
 .gh-pages-worktree
+.wrangler
+.dev.vars

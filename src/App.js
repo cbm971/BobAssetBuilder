@@ -12,6 +12,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // after startRun is where it meets the run engine.
 import { GAME_KEYS, keepsSavedOutfit, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, menuSceneLevels, MENU_SCENE_PINNED, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC, freshRunSeed, GAME_FLOORS, gameRunFloor, orderGameFloors, gameNextFloor, floorEndView, carryToNextFloor } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
+import { leaderboardUrl, createLeaderboard, normalizeLbMemory, rememberLbPost, runToken } from "./leaderboard";
 // library.json is an index naming its part files (libraryParts.js: one file would pass GitHub's 100 MB
 // limit). Both published copies are read through it; an old one-file library still reads as it is.
 import libraryParts from "./libraryParts";
@@ -29662,7 +29663,16 @@ export default function AssetStudio({ game = false } = {}) {
   const [gameRecord, setGameRecordUI] = useState(newGameRecord);
   const [gameBoot, setGameBoot] = useState(null);           // { lookId, seed, save } waiting for the look to be committed
   const [gameNote, setGameNote] = useState("");             // the one ⚠ the menu can show
-  const [gameOverInfo, setGameOverInfo] = useState(null);   // { score, secs, floor, lookId, lookName, difficulty, seed } for Game Over
+  const [gameOverInfo, setGameOverInfo] = useState(null);   // { score, secs, floor, lookId, lookName, difficulty, seed, run } for Game Over
+  // THE LEADERBOARD (2026-11-28, src/leaderboard.js): one board online for every copy of the game. A run
+  // that ends — Game Over, or "To be continued" after the last floor — offers its score to it under a
+  // name. `gameEndInfo` is the finished run for the "To be continued" screen (Game Over has its own).
+  // The client is off (no box, no menu row) until LEADERBOARD_URL is set; `?lb=<url>` or localStorage
+  // `bobLeaderboard` points a test copy at a local `wrangler dev`.
+  const [gameEndInfo, setGameEndInfo] = useState(null);     // { score, secs, floor, lookName, difficulty, run }
+  const gameLb = useMemo(() => (game ? createLeaderboard(leaderboardUrl(window.location, () => { try { return localStorage.getItem("bobLeaderboard"); } catch { return ""; } })) : null), [game]);
+  const [gameLbMem, setGameLbMemUI] = useState(() => normalizeLbMemory(null));
+  const gameLbMemRef = useRef(gameLbMem);
   const [gameVp, setGameVp] = useState(() => ({ w: typeof window !== "undefined" ? window.innerWidth : 1280, h: typeof window !== "undefined" ? window.innerHeight : 720 }));
   const gameSavesRef = useRef([]);
   const gameRecordRef = useRef(newGameRecord());
@@ -29693,6 +29703,18 @@ export default function AssetStudio({ game = false } = {}) {
     return () => { dead = true; window.removeEventListener("resize", fit); };
   }, []);
   const putGameSaves = (next) => { gameSavesRef.current = next; setGameSavesUI(next); if (gameStore) gameStore.set(GAME_KEYS.saves, next); };
+  // The name last typed on the board and this copy's best post (src/leaderboard.js normalizeLbMemory).
+  useEffect(() => {
+    if (!game) return undefined;
+    let dead = false;
+    gameStore.get(GAME_KEYS.leaderboard).then((m) => { if (dead) return; const mem = normalizeLbMemory(m); gameLbMemRef.current = mem; setGameLbMemUI(mem); });
+    return () => { dead = true; };
+  }, []);
+  const gameLbPosted = (name, entry) => {
+    const next = rememberLbPost(gameLbMemRef.current, gameLb ? gameLb.board : "", name, entry);
+    gameLbMemRef.current = next; setGameLbMemUI(next);
+    if (gameStore) gameStore.set(GAME_KEYS.leaderboard, next);
+  };
   // UNLOCKED BANNER (Blake, 2026-10-25): every record change is checked for a fighter it opened
   // (gameFront.js newlyUnlocked); each one is queued and shown in turn — "Unlocked", their box, their
   // name — over a level (beside the pickup banner) or over a menu screen.
@@ -29976,6 +29998,8 @@ export default function AssetStudio({ game = false } = {}) {
     // them. After the last floor (or with nothing built there) the run is over and the save goes.
     const next = gameCur.current.saveId ? gameNextFloorReady((run && run.floor) || floor, run && run.seed) : ""; // the RUN's floor: a side level on the way may name another
     gameNextSave.current = null;
+    // The last floor done is the end of the run: its score goes to the "To be continued" screen's board.
+    setGameEndInfo(!next && gameCur.current.saveId ? { score: sc.total, secs: scorePlaySecs(sc), floor, lookName: look ? look.name : "", difficulty: gameCur.current.difficulty, run: runToken(gameCur.current.saveId, run && run.seed) } : null);
     if (next) {
       const carry = carryToNextFloor(gameSnapshot({ nodeKey: null, levelId: null, levelName: "", floor: next, gateKey: null }), next);
       putGameSaves(upsertGameSave(gameSavesRef.current, carry));
@@ -30022,7 +30046,7 @@ export default function AssetStudio({ game = false } = {}) {
     // Out of lives is the end of that run: its checkpoint goes, or Load Game would hand the lives back.
     putGameSaves(dropGameSave(gameSavesRef.current, cur.saveId));
     putGameRecord({ ...gameRecordRef.current, bestScore: Math.max(gameRecordRef.current.bestScore, Math.round(sc.total || 0)) });
-    setGameOverInfo({ score: sc.total, secs: scorePlaySecs(sc), floor: (node && node.level && node.level.floor) || "", lookId: playerId, lookName: look ? look.name : "", difficulty: cur.difficulty, seed: run ? run.seed : "" });
+    setGameOverInfo({ score: sc.total, secs: scorePlaySecs(sc), floor: (node && node.level && node.level.floor) || "", lookId: playerId, lookName: look ? look.name : "", difficulty: cur.difficulty, seed: run ? run.seed : "", run: runToken(cur.saveId, run && run.seed) });
     gameCur.current = GAME_CUR_NONE;
     gameSetPaused(false);
     togglePlaytest();
@@ -30437,7 +30461,8 @@ export default function AssetStudio({ game = false } = {}) {
           saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px, frac) => gameArt(gameDressed(look), px, frac)} renderHead={gameHead}
           statIcon={(k, px) => sym(k, null, px)} abilitiesOf={lookAbilityNames} floors={gameFloors} sceneFor={menuSceneFor}
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
-          gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
+          gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick}
+          lb={gameLb} lbMem={gameLbMem} onLbPosted={gameLbPosted} runEnd={gameEndInfo} />
         {unlockBannerEl}
       </div>
     );
