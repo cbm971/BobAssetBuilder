@@ -1,5 +1,5 @@
 {
- "set": "29377454fa4314d1",
+ "set": "32fc99a9c5ec6dc2",
  "part": 1,
  "assets": [
   {
@@ -576187,7 +576187,7 @@
     "hp": 0,
     "speed": 3,
     "agility": 3,
-    "intelligence": 1,
+    "intelligence": 0,
     "strength": 0
    },
    "defense": 5,
@@ -576201,7 +576201,7 @@
     }
    ],
    "ignoreHideIfHat": false,
-   "savedAt": 1792120000000,
+   "savedAt": 1795886840447,
    "angles": {
     "front": [
      {
@@ -580992,7 +580992,7 @@
     "crouch": []
    },
    "rank": "legendary",
-   "editedFrom": 1790512135800
+   "editedFrom": 1792120000000
   },
   {
    "id": "chnk47a",
@@ -852588,8 +852588,8 @@
    "slot": "jacket",
    "statBoosts": {
     "hp": 0,
-    "speed": 0,
-    "agility": 0,
+    "speed": 1,
+    "agility": 2,
     "intelligence": 0,
     "strength": 0
    },
@@ -854087,8 +854087,8 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1795885812221,
-   "editedFrom": 1792120000000
+   "savedAt": 1795886840447,
+   "editedFrom": 1795885812221
   },
   {
    "id": "fm2kfx9",
