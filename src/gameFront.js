@@ -154,18 +154,20 @@ export const gridStep = (n, cols, at, dx, dy) => {
 // (HUD and the difficulty boxes), never the 🐱 Extra Life symbol. Sharing that symbol is what made
 // the run's lives read as the ability. An ability's lives keep the cat, on their own row above.
 // `points` multiplies every score payout of the run (Blake, 2026-11-28: "1.5x more points on medium
-// and 2x more points on hard"). Never written on a menu; stepping UP a difficulty on the character
-// select flashes it once over the box you landed on (gameShell.js DiffPointsFlash).
+// and 2x more points on hard"). Never written on a menu; landing on Medium or Hard on the character
+// select flashes it once, rising off the top of that box (gameShell.js .gDiffPts). Every landing
+// flashes: entering the difficulty step on the box already lit, a step either way, a click on it
+// (Blake, 2026-11-28: "the medium one never popped up and the hard one was inconsistent" -- it
+// flashed on a step UP only, and Medium is where the step opens).
 export const DIFFICULTIES = [
   { id: "easy", label: "Easy", lives: 3, points: 1 },
   { id: "medium", label: "Medium", lives: 2, points: 1.5 },
   { id: "hard", label: "Hard", lives: 1, points: 2 },
 ];
-// The flash's words: "1.5X Points", "2X Points"; null for a step that pays no more (down, or onto 1x).
-export const diffPointsFlash = (fromId, toId) => {
-  const a = DIFFICULTIES.findIndex((d) => d.id === fromId), b = DIFFICULTIES.findIndex((d) => d.id === toId);
-  if (b < 0 || !(b > a) || !(DIFFICULTIES[b].points > 1)) return null;
-  return DIFFICULTIES[b].points + "X Points";
+// The flash's words for landing on a difficulty: "1.5X Points", "2X Points"; null on 1x (Easy).
+export const diffPointsFlash = (id) => {
+  const d = DIFFICULTIES.find((x) => x.id === id);
+  return d && d.points > 1 ? d.points + "X Points" : null;
 };
 export const DEFAULT_DIFFICULTY = "medium";
 export const difficultyOf = (id) => DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES.find((d) => d.id === DEFAULT_DIFFICULTY);
@@ -655,14 +657,15 @@ export const UNLOCK_BANNER_MS = 4200;
 export const selectGridFill = (n, cols) => (n > 0 && cols > 0 ? (cols - (n % cols)) % cols : 0);
 // What each Unlocks tab lists, in a stable order (by name). Items are what can be carried or worn —
 // weapons (not their projectiles), clothing and consumables; enemies are every animal and every
-// dressed look, since any look can be placed as a unit.
+// dressed look, since any look can be placed as a unit. `only` (a Set of ids) narrows a tab further:
+// the Enemies tab passes who a run can actually deal (App.js gameKillableIds) plus who was defeated.
 export const UNLOCK_TABS = [
   { id: "items", label: "Items", match: (a) => a.type === "weapon" || a.type === "equipment" || a.type === "item" },
   { id: "enemies", label: "Enemies", match: (a) => a.type === "enemy" || a.type === "character" },
 ];
-export const unlockPool = (assets, tabId) => {
+export const unlockPool = (assets, tabId, only) => {
   const tab = UNLOCK_TABS.find((t) => t.id === tabId) || UNLOCK_TABS[0];
-  return (assets || []).filter((a) => a && a.id && tab.match(a)).sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")) || (a.id < b.id ? -1 : 1));
+  return (assets || []).filter((a) => a && a.id && tab.match(a) && (!only || only.has(a.id))).sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")) || (a.id < b.id ? -1 : 1));
 };
 
 // Roll a 0..999999 seed string that never deals the immediately preceding run's seed twice in a row.

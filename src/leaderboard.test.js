@@ -1,5 +1,5 @@
 import {
-  cleanName, nameAllowed, cleanScore, cleanPost, cleanBoard, runToken, scoreBucket, boardRows, leaderboardUrl, createLeaderboard,
+  cleanName, nameAllowed, maskName, LB_MASK, cleanScore, cleanPost, cleanBoard, runToken, scoreBucket, boardRows, leaderboardUrl, createLeaderboard,
   normalizeLbMemory, rememberLbPost, LB_NAME_MAX, LB_SCORE_MAX, LB_BUCKET, LEADERBOARD_BOARD,
 } from "./leaderboard";
 import { gameMenuRows, GAME_MENU, MENU_SCENE_VIEWS } from "./gameFront";
@@ -18,16 +18,22 @@ describe("leaderboard names", () => {
     expect(cleanName("José Müller")).toBe("José Müller");
     expect(cleanName("Ｂｏｂ")).toBe("Bob"); // full-width folds to plain
   });
-  test("the worst words are refused, ordinary words that contain them are not", () => {
-    expect(nameAllowed("Blake")).toBe(true);
-    expect(nameAllowed("Spicy Bob")).toBe(true);
-    expect(nameAllowed("Cocoon")).toBe(true);
-    expect(nameAllowed("Therapist")).toBe(true);
-    expect(nameAllowed("Shinigami")).toBe(true);
-    expect(nameAllowed("")).toBe(false);
-    expect(nameAllowed("n1gg3r")).toBe(false);
-    expect(nameAllowed("big fag")).toBe(false);
-    expect(nameAllowed("HITLER99")).toBe(false);
+  test("a racial or hate slur turns to ****, ordinary words that contain one do not (Blake, 2026-11-28)", () => {
+    for (const ok of ["Blake", "Spicy Bob", "Cocoon", "Therapist", "Shinigami", "Torpedo", "Big Bob", "Zóe", "Rob!", "Snigdha"]) expect(maskName(ok)).toBe(cleanName(ok));
+    expect(LB_MASK).toBe("****");
+    expect(maskName("n1gg3r")).toBe("****");
+    expect(maskName("big fag")).toBe("big ****");
+    expect(maskName("HITLER99")).toBe("****");
+    expect(maskName("Bob the n.1.g.g.a")).toBe("Bob the ****");
+    expect(maskName("n 1 g g 3 r")).toBe("**** 3 r");    // the letters that spell it go; one **** for the lot
+    expect(maskName("Spic Bob")).toBe("**** Bob");
+    expect(maskName("Spicy Bob")).toBe("Spicy Bob");
+    expect(maskName("****")).toBe("****");               // masking twice changes nothing (stored, then read)
+    expect(maskName("Holy shit")).toBe("Holy shit");        // swearing stays: racism and hate speech only
+    expect(maskName("")).toBe("");
+    // a name is only ever refused for being empty now
+    expect(nameAllowed("n1gg3r")).toBe(true);
+    expect(nameAllowed("  ")).toBe(false);
   });
 });
 
@@ -117,13 +123,13 @@ describe("the game's side", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body)).toMatchObject({ board: LEADERBOARD_BOARD, name: "Rob", score: 1500, run: "g1:s" });
   });
-  test("a refused name never leaves the game; a dead network is an answer, not a throw", async () => {
+  test("a slur leaves the game already masked; a dead network is an answer, not a throw", async () => {
     const fetchImpl = jest.fn(async () => { throw new Error("down"); });
     const lb = createLeaderboard("https://lb.test", fetchImpl);
-    expect(await lb.post({ name: "n1gg3r", score: 10, run: "r" })).toEqual({ ok: false, error: "name" });
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await lb.post({ name: "big n1gg3r", score: 10, run: "r" })).toEqual({ ok: false, error: "offline" });
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).name).toBe("big ****");
     expect(await lb.view(5)).toEqual({ ok: false, error: "offline" });
-    expect(fetchImpl.mock.calls[0][0]).toBe("https://lb.test/scores?board=" + LEADERBOARD_BOARD + "&around=5");
+    expect(fetchImpl.mock.calls[1][0]).toBe("https://lb.test/scores?board=" + LEADERBOARD_BOARD + "&around=5");
   });
   test("a server refusal comes back as its error", async () => {
     const lb = createLeaderboard("https://lb.test", async () => ({ ok: false, status: 429, json: async () => ({ error: "wait" }) }));

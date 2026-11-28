@@ -6519,5 +6519,21 @@ in the running game.
 **Weapon sounds**: in the running studio, a sound-less ranged asset's Fire resolved to the house gunshot (heard, muted
 by ?mute), its Hit to the house impact, a throwable's Throw/Land to Swing/Land, a chainsaw's Fire to nothing.
 
-**The red box over the tyres** was not found: scans of Trailer Park M17 and M23 for red-styled elements during play
-found none, and no prop or vehicle in his library carries an isHitbox piece.
+**The red box over the tyres** was not found at first: scans of Trailer Park M17 and M23 for red-styled elements
+during play found none, and no prop or vehicle in his library carries an isHitbox piece. His screenshot of M17
+then showed it over the School Buses: the editor's solid-object marker (`.lobj.solid::after`, a red dashed
+outline) was drawn in play too. The first scan read element borders only, never the `::after` box that drew it.
+
+### Same day, round two: points flash, Enemies tab, leaderboard names
+
+- He saw the "1.5X Points" flash as too big, and Medium never showed it: it flashed on a step UP only, and the
+  difficulty step opens ON Medium. It is now small white see-through text rising off the box's top edge, on
+  every landing on Medium or Hard.
+- "Make sure on the main game when it says Enemies it only lists people that are possible to kill in game":
+  the tab listed every character and animal (87). Now only who a run can deal (68), plus anyone defeated.
+  Found on the way: Forest M3's three tag placements ask for "Math Magicians", but the Math Magician looks sit
+  in the "Special" folder, so those placements roll nobody. Reported, his data left alone.
+- Leaderboard: he is sending the link to friends "with an edgy sense of humor". A slur used to make the post
+  fail with a warning; now the word is posted as **** and the rest of the name stays. Racism and hate speech
+  only (the old list's one non-slur entry was dropped). The Worker was redeployed the same day and a live
+  post to a throwaway board came back masked.

@@ -36,31 +36,70 @@ export const LB_POST_GAP_MS = 10000;    // one post per player per 10 s
 // ---------- names ----------
 // Letters and digits of any language, spaces and a little punctuation, at most LB_NAME_MAX. No emoji
 // (the menus draw none) and no combining marks (stacked "zalgo" text would climb over the rows).
-const NAME_DROP = /[^\p{L}\p{N} .'_!?&-]/gu;
+const NAME_DROP = /[^\p{L}\p{N} .'_!?&*-]/gu; // `*` stays: a masked word is posted as ****
 export const cleanName = (s) => {
   let t = String(s == null ? "" : s).normalize("NFKC").replace(/\p{M}/gu, "").replace(NAME_DROP, "").replace(/\s+/g, " ").trim();
   t = Array.from(t).slice(0, LB_NAME_MAX).join("").trim();
   return t;
 };
-// A public board gets slurs typed into it on day one. The worst are refused outright (the game shows
-// its one ⚠ line); anything else that gets through, Blake removes (tools/leaderboard.js remove <id>).
-// Stored base64 so the words themselves do not sit in his source. Matched on the name squashed to
-// plain letters with the usual stand-ins undone (n1gg3r, f@g), as a part of a word for the long
-// stems and as a whole word for the short ones (so "Spicy" and "Cocoon" stay fine).
+// A public board gets slurs typed into it on day one. Blake (2026-11-28, sending the link to friends
+// "with an edgy sense of humor"): "some obvious profanity should turn to "****" (Only racism and i
+// suppose hate speech)". So a name is never refused for one: the word that carries it is posted as
+// **** and the rest of the name stays ("big ****"). Racial and hate slurs only; plain swearing stays.
+// Anything else that gets through, Blake removes (tools/leaderboard.js remove <id>).
+// Stored base64 so the words themselves do not sit in his source. Matched on the name folded to plain
+// a-z (accents off, the usual stand-ins undone: n1gg3r, f@g) -- as a part of a word for the long stems,
+// across spaces and dots too ("n.i.g.g"), and as a whole word for the short ones (so "Spicy" and
+// "Cocoon" stay fine). The server masks on the way in AND on the way out (worker.js), so a word added
+// here later also covers every name already on the board, once the Worker is deployed again.
 const b64 = (s) => (typeof atob === "function" ? atob(s) : Buffer.from(s, "base64").toString("binary"));
 // (Stems that sit inside ordinary words were left out on purpose: "therapist", "torpedo", "Shinigami".)
-const BLOCK_STEMS = ["bmlnZw==", "ZmFnZ290", "a2lrZQ==", "Y2hpbms=", "dHJhbm55", "aGl0bGVy", "bmF6aQ=="].map(b64);
-const BLOCK_WORDS = ["ZmFn", "ZmFncw==", "c3BpYw==", "Y29vbg==", "a2tr", "cmFwZQ=="].map(b64);
+const BLOCK_STEMS = ["bmlnZw==", "bmlnbGV0", "ZmFnZ290", "a2lrZQ==", "Y2hpbms=", "dHJhbm55", "aGl0bGVy", "bmF6aQ==", "d2V0YmFjaw==", "YmVhbmVy", "cmFnaGVhZA==", "dG93ZWxoZWFk", "amlnYWJvbw==", "amlnZ2Fib28=", "emlwcGVyaGVhZA==", "cG9yY2htb25rZXk=", "cmVkc2tpbg==", "Y2hpbmFtYW4=", "Z29sbGl3b2c=", "Y2FtZWxqb2NrZXk=", "d2hpdGVwb3dlcg=="].map(b64);
+const BLOCK_WORDS = ["ZmFn", "ZmFncw==", "c3BpYw==", "c3BpY3M=", "Y29vbg==", "Y29vbnM=", "a2tr", "Z29vaw==", "Z29va3M=", "cGFraQ==", "cGFraXM=", "ZHlrZQ==", "ZHlrZXM=", "d29w", "d29wcw==", "ZGFnbw==", "ZGFnb3M=", "a3lrZQ==", "a3lrZXM=", "ZGFya2ll", "ZGFya2llcw==", "ZGFya3k=", "aW5qdW4=", "aW5qdW5z", "aGVpbA=="].map(b64);
 const UNLEET = { 0: "o", 1: "i", 3: "e", 4: "a", 5: "s", 7: "t", "@": "a", $: "s", "!": "i" };
-const unleet = (s) => String(s).toLowerCase().replace(/[013457@$!]/g, (c) => UNLEET[c] || c);
-export const nameAllowed = (name) => {
-  const n = cleanName(name);
-  if (!n) return false;
-  const squashed = unleet(n).replace(/[^a-z]/g, "");
-  if (BLOCK_STEMS.some((w) => squashed.includes(w))) return false;
-  const words = unleet(n).split(/[^a-z]+/).filter(Boolean);
-  return !words.some((w) => BLOCK_WORDS.includes(w));
+// One character of a name as the plain letter it stands for ("é" -> "e", "1" -> "i"), or "" for none.
+const foldChar = (c) => {
+  const b = String(c).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const u = b.length === 1 ? UNLEET[b] || b : b;
+  return /^[a-z]$/.test(u) ? u : "";
 };
+export const LB_MASK = "****";
+export const maskName = (name) => {
+  const chars = Array.from(cleanName(name));
+  const fold = chars.map(foldChar);
+  const hit = chars.map(() => false);
+  // The long stems, on the letters alone (gaps between them skipped).
+  const at = [];
+  fold.forEach((f, i) => { if (f) at.push(i); });
+  const squashed = at.map((i) => fold[i]).join("");
+  for (const w of BLOCK_STEMS) for (let k = squashed.indexOf(w); k >= 0; k = squashed.indexOf(w, k + 1)) for (let j = k; j < k + w.length; j++) hit[at[j]] = true;
+  // The short words, whole: a run of letters with no letter either side.
+  for (let i = 0; i < chars.length; ) {
+    if (!fold[i]) { i++; continue; }
+    let j = i;
+    while (j < chars.length && fold[j]) j++;
+    if (BLOCK_WORDS.includes(fold.slice(i, j).join(""))) for (let k = i; k < j; k++) hit[k] = true;
+    i = j;
+  }
+  if (!hit.some(Boolean)) return chars.join("");
+  // Every space-separated word holding a hit becomes ****, and side-by-side ones become ONE ****.
+  const words = [];
+  let cur = null;
+  chars.forEach((c, i) => {
+    if (/\s/.test(c)) { cur = null; return; }
+    if (!cur) { cur = { s: "", bad: false }; words.push(cur); }
+    cur.s += c;
+    if (hit[i]) cur.bad = true;
+  });
+  const out = [];
+  for (const w of words) {
+    if (!w.bad) out.push(w.s);
+    else if (out[out.length - 1] !== LB_MASK) out.push(LB_MASK);
+  }
+  return out.join(" ");
+};
+// Can this name go on the board at all? Only an empty one cannot; a slur in it is masked, not refused.
+export const nameAllowed = (name) => !!cleanName(name);
 
 // ---------- the rest of a post ----------
 export const cleanScore = (v) => {
@@ -107,7 +146,7 @@ export const boardRows = (res, topN = LB_TOP_N) => {
   ranks.forEach((r, i) => {
     if (i > 0 && r > ranks[i - 1] + 1) rows.push({ gap: true, key: "gap" + r });
     const e = byRank.get(r);
-    rows.push({ key: "r" + r, rank: r, name: e.name, score: e.score, me: !!(me && e.id === me.id) });
+    rows.push({ key: "r" + r, rank: r, name: maskName(e.name), score: e.score, me: !!(me && e.id === me.id) });
   });
   return rows;
 };
@@ -146,9 +185,8 @@ export const createLeaderboard = (base, fetchImpl = (typeof fetch === "function"
     board,
     view: (mineId) => call("/scores?board=" + encodeURIComponent(board) + (mineId ? "&around=" + encodeURIComponent(mineId) : "")),
     post: (entry) => {
-      const p = cleanPost({ ...entry, board });
+      const p = cleanPost({ ...entry, board, name: maskName(entry && entry.name) });
       if (!p) return Promise.resolve({ ok: false, error: "bad" });
-      if (!nameAllowed(p.name)) return Promise.resolve({ ok: false, error: "name" });
       return call("/scores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) });
     },
   };

@@ -637,6 +637,10 @@ plus traps it does not cover:
 - **Unlocks** is a record (`game:record`): `found` from `showPickup(…, item)` and `buyFromShop`,
   `defeated` from the loot pass's kill (`spawnEnemyIdAt`), floors and best score from the floor end.
   New pickup or kill sites must call `gameNoteRef.current`.
+- **The Enemies tab lists only who a run can put in front of you** (Blake, 2026-11-28): `gameKillableIds`
+  (App.js) = every unit placement's look, and every look a tag placement can roll (`enemyTagPool`), on a
+  room, a GAME_FLOORS level, or a sewer / tree top. His Test floor does not count. Ids already in
+  `defeated` stay listed. Starter looks nobody placed are off it (87 -> 68 in his library on 11-28).
 - **The menus have music** (`bobAudio.setMenuMusic`): the sound board's 📋 Menus track, else the
   🏁 Run track (`musicTrackFor`, audio.js). The menu click plays at `GAME_MENU_CLICK_GAIN` (0.45);
   at full it was "too loud". A silent menu read to him as "the game audio didn't work".
@@ -682,9 +686,13 @@ plus traps it does not cover:
   with no name box.
 - Every run is kept. A rank is the bucket table (kept by triggers, score / 100) plus a count inside one
   bucket, so no request scans the whole board. `LB_BUCKET` must match the triggers (a test checks).
-- Anyone can post any score. The server refuses only what is not a run: past the cap, a bad name or a slur,
-  a repeated run, or more than one post per IP per 10 s. Blake removes junk with
+- Anyone can post any score. The server refuses only what is not a run: past the cap, an empty name, a
+  repeated run, or more than one post per IP per 10 s. Blake removes junk with
   `node tools/leaderboard.js remove <id>`. The admin key is a Worker secret; never commit it.
+- **A racial or hate slur in a name turns to `****`** (`maskName`; Blake, 2026-11-28: "Only racism and i
+  suppose hate speech"). Only the word that carries it goes ("big ****"); plain swearing stays. The lists
+  are base64 in src/leaderboard.js, never plain. The client masks before posting, and the Worker masks on
+  write AND on every read, so adding a word and redeploying the Worker also scrubs names already on the board.
 - The board key is `beta` for the two-floor Beta. The full release gets a new key, and the Beta's board stays.
 - The name box's CSS is `.gRoot .gLb input.gLbName`. The studio's `.bb input:not([type])` (font:inherit, the
   blue box) beats a plain class, and the game still sits inside `.bb`.
@@ -1380,10 +1388,13 @@ plus traps it does not cover:
 - **Lucky Find on the character select** is one row per charm: clover symbol, tag, chance ("🍀 Heal 10%",
   `lookAbilityRows`). The shop row and pickup callout keep the name.
 - **Medium pays 1.5x, Hard 2x** (`DIFFICULTIES[].points`): every payout (kill, level clear, dialogue, objective, floor
-  end) passes `scoreMultNow()` (1 outside a game run). Never shown, except a one-second "1.5X Points" / "2X Points" in
-  the pickup banner's face over the box you step UP to on the character select (`diffPointsFlash`).
-- **Not fixed: the red box over the tyres "in the level with the ramp".** Not reproduced in Trailer Park M17/M23
-  playtests; no prop or vehicle in his library has an isHitbox piece. Waiting on which level / a screenshot.
+  end) passes `scoreMultNow()` (1 outside a game run). Never shown, except a one-second "1.5X Points" / "2X Points"
+  on the character select: small, white, see-through, rising off the TOP edge of the box (`.gDiffPts`). It flashes
+  on EVERY landing on Medium or Hard (`diffPointsFlash(id)`): entering the difficulty step, a step either way, a
+  click. It used to flash on a step UP only, so Medium (where the step opens) never showed it.
+- **The red box over the tyres** (Trailer Park M17, his screenshot) was the editor's SOLID marker, `.lobj.solid::after`
+  (red dashed), drawn in play on the School Buses and Hay Bales. The `solid` class is now given only while editing
+  (`o.solid && !play`, four sites). The first hunt missed it by scanning borders, not `::before`/`::after`.
 
 ## Working style
 

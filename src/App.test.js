@@ -779,6 +779,7 @@ import {
   scoreLevelClear,
   scoreDialogueChoice,
   SCORE_KILL,
+  gameKillableIds,
 } from "./App";
 import {
   playerWalkSpeed,
@@ -19302,5 +19303,35 @@ describe("🎯 Medium pays 1.5x and Hard 2x (the score's mult)", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src.split("scoreMultNow()").length - 1).toBe(5);
     expect(src.split("scoreRef.current.total += SCORE_KILL").length - 1).toBe(0);
+  });
+});
+
+describe("the Unlocks Enemies tab lists only who a run can deal (Blake, 2026-11-28)", () => {
+  const assets = [
+    { id: "vc1", type: "character", name: "VC One", category: "Vietkong" },
+    { id: "vc2", type: "character", name: "VC Two", category: "Vietkong" },
+    { id: "bob", type: "character", name: "Bob", category: "Starter" },
+    { id: "sq", type: "enemy", name: "Squirrel" },
+    { id: "keep", type: "character", name: "Shop Keeper", category: "NPC" },
+    { id: "rat", type: "enemy", name: "Rat" },
+    { id: "test", type: "character", name: "Test", category: "Tests" },
+  ];
+  const lv = (floor, enemies, more) => ({ id: floor + Object.keys(enemies).join(""), floor, enemies, conns: {}, ...more });
+  test("placed ids and tag rolls on game floors, rooms and sewers count; other floors do not", () => {
+    const ids = gameKillableIds(assets, [
+      lv("Trailor Park", { "1,1": { enemyTag: "Vietkong" } }),
+      lv("Vietnam", { "2,2": { enemyId: "keep" } }),
+      lv("", { "3,3": { enemyId: "rat" } }, { isRoom: true }),
+      lv("Sewer", { "4,4": { enemyTag: "Enemies" } }),
+      lv("Test", { "5,5": { enemyId: "test" } }),
+      lv("Vietnam", { "6,6": null, "7,7": { enemyTag: "Nobody Here" } }),
+    ]);
+    expect([...ids].sort()).toEqual(["keep", "rat", "sq", "vc1", "vc2"]);
+    expect(ids.has("bob")).toBe(false); // a starter look nobody placed
+    expect(ids.has("test")).toBe(false); // only on his Test floor
+  });
+  test("no levels, nobody", () => {
+    expect(gameKillableIds(assets, []).size).toBe(0);
+    expect(gameKillableIds(assets, null).size).toBe(0);
   });
 });

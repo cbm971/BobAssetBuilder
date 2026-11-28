@@ -279,14 +279,15 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
   const [at, setAt] = useState(0);
   const [step, setStep] = useState("fighter");
   const [diff, setDiff] = useState(() => difficultyOf(difficulty).id);
-  // Stepping UP a difficulty flashes what it pays ("1.5X Points") over the box landed on, once.
+  // Landing on a difficulty that pays more flashes it ("1.5X Points") off the top of that box, every
+  // time: on entering the difficulty step, on a step either way, on a click. `n` restarts the animation.
   const [ptsFlash, setPtsFlash] = useState(null); // { id, text, n } | null
-  const pickDiff = (id) => {
-    const text = diffPointsFlash(diff, id);
-    if (text) setPtsFlash((f) => ({ id, text, n: ((f && f.n) || 0) + 1 }));
-    else if (id !== diff) setPtsFlash(null);
-    setDiff(id);
+  const flashPts = (id) => {
+    const text = diffPointsFlash(id);
+    setPtsFlash((f) => (text ? { id, text, n: ((f && f.n) || 0) + 1 } : null));
   };
+  const pickDiff = (id) => { flashPts(id); setDiff(id); };
+  const toDiffStep = () => { setStep("diff"); flashPts(diff); };
   const cols = selectGridCols(roster.length);
   // One box size whatever the roster's length (selectBoxPx); past SELECT_GRID_ROWS_SHOWN rows the grid
   // scrolls inside that height instead, and the lit box is kept in view.
@@ -313,7 +314,7 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
   useMenuKeys(true, step === "fighter" ? {
     move: (d) => setAt((i) => gridStep(roster.length, cols, i, 0, d)),
     side: (d) => setAt((i) => gridStep(roster.length, cols, i, d, 0)),
-    pick: () => { if (!cur) return; if (curLock) { refuse(); return; } click(); setStep("diff"); },
+    pick: () => { if (!cur) return; if (curLock) { refuse(); return; } click(); toDiffStep(); },
     back: () => { click(); back(); },
   } : {
     side: (d) => { click(); pickDiff(DIFFICULTIES[(di + d + DIFFICULTIES.length) % DIFFICULTIES.length].id); },
@@ -338,7 +339,7 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
         {roster.map((a, i) => (
           <div key={a.id + (i === at && locks[i] ? ":" + shake : "")} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "") + (locks[i] ? " shut" : "") + (i === at && locks[i] && shake ? " no" : "")} style={{ width: box, height: boxH }}
             onMouseEnter={() => { if (step === "fighter") setAt(i); }}
-            onClick={() => { setAt(i); if (locks[i]) { refuse(); setStep("fighter"); return; } click(); setStep("diff"); }}>
+            onClick={() => { setAt(i); if (locks[i]) { refuse(); setStep("fighter"); return; } click(); toDiffStep(); }}>
             <div className="gFighterArt" style={{ width: artBox, height: artBox }}>{(locks[i] ? renderArt : renderDressed)(a, artBox, FIGHTER_PORTRAIT_FRAC)}</div>
             {locks[i] && <div className="gFighterLock"><Padlock size={Math.round(box * 0.34)} /></div>}
             <div className="gFighterName" style={{ fontSize: Math.max(11, Math.round(box * 0.12)) }}><span>{a.name}</span></div>
@@ -389,7 +390,7 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
           <div className="gDiffRow">
             {DIFFICULTIES.map((d) => (
               <div key={d.id} role="button" className={"gDiff" + (d.id === diff ? " on" : "")} onClick={() => { click(); pickDiff(d.id); setStep("diff"); }}>
-                {ptsFlash && ptsFlash.id === d.id && <span key={ptsFlash.n} className="gDiffPts" data-text={ptsFlash.text} onAnimationEnd={() => setPtsFlash(null)}><span>{ptsFlash.text}</span></span>}
+                {ptsFlash && ptsFlash.id === d.id && <span key={ptsFlash.n} className="gDiffPts" onAnimationEnd={() => setPtsFlash(null)}>{ptsFlash.text}</span>}
                 <span className="gDiffTxt">{d.label}</span>
                 <span className={"gDiffLives" + (curLock ? " shut" : "")}>{cur && Array.from({ length: d.lives }, (_, i) => <i key={i} style={{ width: headPx, height: headPx }}>{renderHead(cur, headPx)}</i>)}</span>
               </div>
@@ -533,10 +534,11 @@ const UnlockGrid = React.memo(function UnlockGrid({ pool, have, renderArt, setHo
     </div>
   );
 });
-function Unlocks({ assets, record, renderArt, back, click }) {
+function Unlocks({ assets, record, killable, renderArt, back, click }) {
   const [tab, setTab] = useState(0);
   const [hover, setHover] = useState("");
-  const pools = React.useMemo(() => UNLOCK_TABS.map((t) => unlockPool(assets, t.id)), [assets]);
+  // Enemies lists only who a run can put in front of you, and anyone already defeated (App.js gameKillableIds).
+  const pools = React.useMemo(() => UNLOCK_TABS.map((t) => unlockPool(assets, t.id, t.id === "enemies" && killable ? new Set([...killable, ...(record.defeated || [])]) : null)), [assets, killable, record]);
   const haves = React.useMemo(() => [new Set(record.found), new Set(record.defeated)], [record]);
   const count = (i) => pools[i].filter((a) => haves[i].has(a.id)).length;
   useMenuKeys(true, { side: (d) => { setTab((t) => (t + d + UNLOCK_TABS.length) % UNLOCK_TABS.length); click(); }, back, pick: () => { click(); back(); } });
@@ -760,7 +762,7 @@ export function GamePause({ onResume, onQuit, options, setOptions, click }) {
 }
 
 // ---------- the shell: whichever menu screen is up, over the scene ----------
-export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, gameOver, onRetry, onGameOverMenu, note, click, lb, lbMem, onLbPosted, runEnd }) {
+export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, killable, sceneFor, onStartGame, onLoad, onUpload, onDelete, gameOver, onRetry, onGameOverMenu, note, click, lb, lbMem, onLbPosted, runEnd }) {
   const toMenu = React.useCallback(() => setView("menu"), [setView]);
   const [menuAt, setMenuAt] = useState(0);
   const vp = useViewport();
@@ -777,7 +779,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} abilitiesOf={abilitiesOf} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} onUpload={onUpload} />}
-      {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
+      {view === "unlocks" && <Unlocks assets={assets} record={record} killable={killable} renderArt={renderArt} back={toMenu} click={click} />}
       {view === "quit" && <QuitScreen back={toMenu} />}
       {view === "nextFloor" && <div className="gScreen gBlack" />}
       {view === "toBeContinued" && <ToBeContinued onDone={toMenu} click={click} lb={lb} end={runEnd} lbMem={lbMem} onLbPosted={onLbPosted} />}
@@ -916,10 +918,10 @@ export const GAME_CSS = `
 .gDiff>*{transform:skewX(10deg)}
 .gDiffTxt{font-size:clamp(17px,1.6vw,28px);text-transform:uppercase;letter-spacing:.06em}
 .gDiff{position:relative}
-.gDiffPts{position:absolute;left:-40%;right:-40%;bottom:calc(100% + .25em);text-align:center;pointer-events:none;white-space:nowrap;font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-weight:400;font-size:clamp(18px,1.7vw,30px);line-height:1.05;letter-spacing:.03em;text-transform:uppercase;opacity:0;animation:gDiffPts 1.2s ease-out forwards}
-.gDiffPts span{position:relative;background:linear-gradient(180deg,#fffdf0 0%,#ffe680 32%,#f7b731 64%,#c68200 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
-.gDiffPts::before{content:attr(data-text);position:absolute;left:0;top:0;right:0;color:#2b1700;-webkit-text-stroke:.2em #2b1700;text-shadow:0 .12em 0 #2b1700,0 0 .6em rgba(255,225,100,.9)}
-@keyframes gDiffPts{0%{opacity:0;transform:skewX(10deg) translateY(.4em) scale(.85)}20%{opacity:1;transform:skewX(10deg) translateY(0) scale(1)}70%{opacity:1;transform:skewX(10deg) translateY(-.15em) scale(1)}100%{opacity:0;transform:skewX(10deg) translateY(-.5em) scale(1)}}
+/* The points flash: small, white, see-through, rising off the TOP EDGE of the box (Blake, 2026-11-28: "smaller
+   than that, in white semi transparent font, originate from the top of the difficulty"). */
+.gDiffPts{position:absolute;left:-40%;right:-40%;bottom:100%;text-align:center;pointer-events:none;white-space:nowrap;font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-weight:400;font-size:clamp(12px,.95vw,18px);line-height:1;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.7);text-shadow:0 1px 2px rgba(0,0,0,.3);opacity:0;animation:gDiffPts 1.1s ease-out forwards}
+@keyframes gDiffPts{0%{opacity:0;transform:skewX(10deg) translateY(.9em)}18%{opacity:1;transform:skewX(10deg) translateY(.15em)}70%{opacity:1;transform:skewX(10deg) translateY(-.55em)}100%{opacity:0;transform:skewX(10deg) translateY(-1.1em)}}
 .gDiffLives{display:flex;gap:3px;min-height:18px;align-items:center}
 .gDiffLives i{position:relative;overflow:hidden;flex:none;display:inline-block;font-style:normal}
 .gDiffLives i>div{filter:drop-shadow(0 2px 0 rgba(0,0,0,.35))}

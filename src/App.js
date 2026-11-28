@@ -14716,6 +14716,26 @@ export const vertSeamLinesUp = (top, bottom, side) => {
 // Levels after the first still join purely by gates, so a gate that names another floor still
 // leads there. No floor = the old pick among every Intro. `runFloors` is the list to choose from.
 const sameFloor = (a, b) => placeKey(a) === placeKey(b);
+// Who the game can put in front of you to kill (Blake, 2026-11-28: "make sure on the main game when it says
+// "Enemies" it only lists people that are possible to kill in game"): every look or animal a unit placement
+// names, or a tag placement can roll (enemyTagPool), on a level a run can deal -- a room, a level on a game
+// floor (GAME_FLOORS), or a sewer / tree top hanging off one. A level on any other floor (his "Test" floor)
+// is never dealt, so its units do not count. The Unlocks screen's Enemies tab lists these, plus every id
+// already in the record's `defeated` (gameShell.js Unlocks); a starter look nobody placed is not on it.
+export const gameKillableIds = (assets, levels) => {
+  const ids = new Set();
+  const dealt = (l) => l && (l.isRoom || runRole(l) === "side" || GAME_FLOORS.some((f) => sameFloor(l.floor, f)));
+  for (const l of levels || []) {
+    if (!dealt(l)) continue;
+    for (const sp of Object.values(l.enemies || {})) {
+      if (!sp) continue;
+      const tag = spawnEnemyTagOf(sp);
+      if (tag) for (const a of enemyTagPool(assets, tag)) ids.add(a.id);
+      else if (sp.enemyId) ids.add(sp.enemyId);
+    }
+  }
+  return ids;
+};
 // The banner a floor's end flashes: the game goes on into the next floor in GAME_FLOORS (gameFront.js
 // gameNextFloor); only after the last one is there nothing built to go on to.
 const floorDoneFlash = (floor) => gameNextFloor(floor) ? "🏁 Floor complete!" : "🏁 Floor complete! The next floor is not built yet — this is where it would start.";
@@ -17557,7 +17577,7 @@ export default function AssetStudio({ game = false } = {}) {
     return out;
   }, [runNodeNow, lvDrawOrder]);
   // Not built in a run, where the one object pass draws these too (the same gate as the tile memos).
-  const lvFxLayer = useMemo(() => level && level.fx && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{lvDrawOrder.filter(({ o }) => !o.inFront && o.kind !== "prop").map(({ k, r, c, si, o, ord }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; })}</div> : null, [level, lvDrawOrder, play, lFxSel, lTool, runNodeNow]);
+  const lvFxLayer = useMemo(() => level && level.fx && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{lvDrawOrder.filter(({ o }) => !o.inFront && o.kind !== "prop").map(({ k, r, c, si, o, ord }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid && !play ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; })}</div> : null, [level, lvDrawOrder, play, lFxSel, lTool, runNodeNow]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
@@ -30474,6 +30494,8 @@ export default function AssetStudio({ game = false } = {}) {
     // the Trailer Park medal stays first whichever of the two was saved first.
     return withPlannedFloors(orderGameFloors(out));
   }, [game, gameLevelsIn, levelLib]);
+  // The Unlocks screen's Enemies tab: only who a run can put in front of you (gameKillableIds).
+  const gameKillable = useMemo(() => (game && gameLevelsIn ? gameKillableIds(allAssets, levelLib) : null), [game, gameLevelsIn, allAssets, levelLib]);
   const menuSceneCache = useRef(new Map());
   const menuSceneFor = (view) => {
     if (!menuLineup.length) return null;
@@ -30685,7 +30707,7 @@ export default function AssetStudio({ game = false } = {}) {
       <div className="bb gameMode"><style>{css}</style>
         <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
           saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px, frac) => gameArt(gameDressed(look), px, frac)} renderHead={gameHead}
-          statIcon={(k, px) => sym(k, null, px)} abilitiesOf={lookAbilityRows} floors={gameFloors} sceneFor={menuSceneFor}
+          statIcon={(k, px) => sym(k, null, px)} abilitiesOf={lookAbilityRows} floors={gameFloors} killable={gameKillable} sceneFor={menuSceneFor}
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
           gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick}
           lb={gameLb} lbMem={gameLbMem} onLbPosted={gameLbPosted} runEnd={gameEndInfo} />
@@ -32903,7 +32925,7 @@ export default function AssetStudio({ game = false } = {}) {
                 {!play && lTool === "move" && areaSel && areaSel.levelId === lv.id && (() => { const dr = (areaDragView && areaDragView.dr) || 0, dc = (areaDragView && areaDragView.dc) || 0; return <div className="areaSel" style={{ left: (areaSel.c0 + dc) * LV_CELL, top: (areaSel.r0 + dr) * LV_CELL, width: (areaSel.c1 - areaSel.c0 + 1) * LV_CELL, height: (areaSel.r1 - areaSel.r0 + 1) * LV_CELL }} />; })()}
                 {!play && areaDragView && areaDragView.band && <div className="areaSel band" style={{ left: areaDragView.band.c0 * LV_CELL, top: areaDragView.band.r0 * LV_CELL, width: (areaDragView.band.c1 - areaDragView.band.c0 + 1) * LV_CELL, height: (areaDragView.band.r1 - areaDragView.band.r0 + 1) * LV_CELL }} />}
                 {lvFxLayer}
-                {!runObjects && lvPropMeta.map(({ o, si, r, c, k, ord }) => { if (play && vehIsLive(vehNk(level), k, si)) return null; const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
+                {!runObjects && lvPropMeta.map(({ o, si, r, c, k, ord }) => { if (play && vehIsLive(vehNk(level), k, si)) return null; const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid && !play ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {/* RUN — ONE LIST OF OBJECTS (2026-09-26). A run used to draw its objects in four
                     passes: the live level's emoji, its props, its in-front objects, and a fourth
                     pass for every neighbour's objects near the seam. So at a handoff every object
@@ -32936,7 +32958,7 @@ export default function AssetStudio({ game = false } = {}) {
                       if (offScreen(left, top, layout.width, layout.height)) return null;
                       const key = "ro" + nk + "|" + k + "_" + si;
                       const behind = play && o.inFront && p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
-                      return <div key={key} data-object-key={live ? k : undefined} data-object-index={live ? si : undefined} className={"lobj " + (o.inFront ? "infront " : "") + objectLayerClass(o) + (o.solid ? " solid" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none", ...(o.inFront ? { opacity: behind ? 0.55 : 1, willChange: play ? "opacity" : undefined } : {}) }}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box)}</div>;
+                      return <div key={key} data-object-key={live ? k : undefined} data-object-index={live ? si : undefined} className={"lobj " + (o.inFront ? "infront " : "") + objectLayerClass(o) + (o.solid && !play ? " solid" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none", ...(o.inFront ? { opacity: behind ? 0.55 : 1, willChange: play ? "opacity" : undefined } : {}) }}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box)}</div>;
                     });
                   });
                 })()}
@@ -33670,7 +33692,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const eraseNow = !play && lTool === "erase";
                     const eraseObject = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined;
                     const prop = o.kind === "prop";
-                    return <div key={key} data-object-key={k} data-object-index={si} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow && !prop ? "auto" : "none", cursor: eraseNow && !prop ? "pointer" : undefined, opacity: behind ? 0.55 : 1, willChange: play ? "opacity" : undefined }} onPointerDown={eraseNow && !prop ? eraseObject : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box, prop ? eraseObject : undefined)}</div>;
+                    return <div key={key} data-object-key={k} data-object-index={si} className={"lobj infront " + objectLayerClass(o) + (o.solid && !play ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow && !prop ? "auto" : "none", cursor: eraseNow && !prop ? "pointer" : undefined, opacity: behind ? 0.55 : 1, willChange: play ? "opacity" : undefined }} onPointerDown={eraseNow && !prop ? eraseObject : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box, prop ? eraseObject : undefined)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via
@@ -37230,6 +37252,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .lmarker{position:absolute;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:7000;background:rgba(0,0,0,.3);border:1px dashed #c8a23c;border-radius:4px;box-sizing:border-box;cursor:default}
 .catinline{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:170px}
 .gearTagStack{display:flex;flex-direction:column;gap:3px}.gearTagRow{display:flex;align-items:center;gap:6px}.gearTagRow .catinline{padding:4px 9px}.gearTagRow .hint2{white-space:nowrap}
+/* The editor marks a SOLID object with a red dashed edge. Never in play (Blake, 2026-11-28: "There is a Red box over the tires in the level with the ramp" -- Trailer Park M17's School Buses and Hay Bales): the class is only given while editing. */
 .lobj.solid::after{content:"";position:absolute;inset:1px;border:1px dashed rgba(255,90,90,.6);border-radius:3px}
 .conn{position:absolute;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;cursor:pointer;background:rgba(0,0,0,.35);border:2px solid #6bd06b;color:#6bd06b;z-index:6000}
 .conn.blocked{border-color:#c0504f;color:#c0504f;opacity:.85}

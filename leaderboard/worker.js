@@ -16,10 +16,14 @@
 // admin calls always refuse. tools/leaderboard.js wraps them.
 //
 // ANYONE CAN POST. The game runs on the player's machine, so a determined player can send any score
-// they like; the service refuses only what is plainly not a run (a score past LB_SCORE_MAX, a bad
+// they like; the service refuses only what is plainly not a run (a score past LB_SCORE_MAX, an empty
 // name, a second post of the same run, more than one post per player per 10 s). A fake that gets on
 // the board is removed by hand.
-import { cleanBoard, cleanPost, nameAllowed, scoreBucket, LB_BUCKET, LB_TOP_N, LB_NEAR, LB_POST_GAP_MS } from "../src/leaderboard.js";
+//
+// A racial or hate slur in a name is posted as **** (src/leaderboard.js maskName; Blake, 2026-11-28).
+// It is masked when the post is stored AND every time a name is read back out, so growing the list in
+// src/leaderboard.js and deploying again scrubs the names already on the board too.
+import { cleanBoard, cleanPost, maskName, scoreBucket, LB_BUCKET, LB_TOP_N, LB_NEAR, LB_POST_GAP_MS } from "../src/leaderboard.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*", // the game is served from Pages, itch.io, StackBlitz, a local file — any page may read the board
@@ -32,7 +36,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
 });
 
 const ENTRY = "id, name, score";
-const withRank = (rows, rankOf) => rows.map((r, i) => ({ id: r.id, name: r.name, score: r.score, rank: rankOf(i) }));
+const withRank = (rows, rankOf) => rows.map((r, i) => ({ id: r.id, name: maskName(r.name), score: r.score, rank: rankOf(i) }));
 
 // Where `row` stands: 1 + every entry ahead of it (a higher score, or the same score posted earlier).
 // The buckets above its own are summed from the bucket table; inside its own bucket the few ahead
@@ -53,7 +57,7 @@ async function standing(db, board, row) {
   const behind = [...sameBehind.results, ...lower.results].slice(0, LB_NEAR);
   return {
     total: Number(a.total),
-    me: { id: row.id, name: row.name, score: row.score, rank },
+    me: { id: row.id, name: maskName(row.name), score: row.score, rank },
     above: withRank(ahead, (i) => rank - 1 - i).reverse(),
     below: withRank(behind, (i) => rank + 1 + i),
   };
@@ -83,7 +87,7 @@ async function postScore(req, env) {
   try { body = JSON.parse(text); } catch { return json({ error: "bad" }, 400); }
   const p = cleanPost(body);
   if (!p) return json({ error: "bad" }, 400);
-  if (!nameAllowed(p.name)) return json({ error: "name" }, 400);
+  p.name = maskName(p.name);
   const db = env.DB;
   const again = await db.prepare(`SELECT ${ENTRY} FROM scores WHERE board = ?1 AND run = ?2`).bind(p.board, p.run).first();
   if (again) return json({ ...(await boardView(db, p.board, again.id)), again: true });

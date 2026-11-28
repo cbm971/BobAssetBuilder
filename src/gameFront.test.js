@@ -185,6 +185,9 @@ describe("unlocks", () => {
     ];
     expect(unlockPool(assets, "items").map((a) => a.name)).toEqual(["Bat", "Beer", "Hat"]);
     expect(unlockPool(assets, "enemies").map((a) => a.name)).toEqual(["Bob", "Squirrel"]);
+    // The Enemies tab narrows to who a run can deal (App.js gameKillableIds), plus who was defeated.
+    expect(unlockPool(assets, "enemies", new Set(["6"])).map((a) => a.name)).toEqual(["Squirrel"]);
+    expect(unlockPool(assets, "enemies", null).map((a) => a.name)).toEqual(["Bob", "Squirrel"]);
   });
 });
 
@@ -240,12 +243,11 @@ describe("difficulty (Blake: Easy 3 lives, Medium 2, Hard 1)", () => {
   test("the lives", () => {
     expect(DIFFICULTIES.map((d) => [d.id, d.lives])).toEqual([["easy", 3], ["medium", 2], ["hard", 1]]);
     expect(DIFFICULTIES.map((d) => d.points)).toEqual([1, 1.5, 2]); // Blake, 2026-11-28
-    expect(diffPointsFlash("easy", "medium")).toBe("1.5X Points");
-    expect(diffPointsFlash("medium", "hard")).toBe("2X Points");
-    expect(diffPointsFlash("easy", "hard")).toBe("2X Points");
-    expect(diffPointsFlash("hard", "medium")).toBeNull(); // only a step UP flashes
-    expect(diffPointsFlash("hard", "easy")).toBeNull();
-    expect(diffPointsFlash("medium", "medium")).toBeNull();
+    // Every landing on a box that pays more flashes, a step down included ("the medium one never popped up").
+    expect(diffPointsFlash("medium")).toBe("1.5X Points");
+    expect(diffPointsFlash("hard")).toBe("2X Points");
+    expect(diffPointsFlash("easy")).toBeNull();
+    expect(diffPointsFlash("nope")).toBeNull();
     expect(difficultyOf("nope").id).toBe("medium");
   });
   test("Hard ends the run on the first death, Medium on the second, Easy on the third", () => {
