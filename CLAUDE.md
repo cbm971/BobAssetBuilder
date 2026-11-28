@@ -170,6 +170,12 @@ much more than 100MB".
   replacing a known id only with a strictly newer savedAt. Never splice into a part file by hand:
   its `set` must match the index. Then read both back and assert every other record is identical.
   `node tools/library.js size` lists every file.
+- **Dialogue and text corrections go through Excel** (`tools/dialogue-sheet.js`, 2026-11-28). `export LIB.json
+  OUT.xlsx` writes every conversation line and answer, level objective text, and cutscene prompts/text
+  into a sheet Blake edits in place (yellow column; Notes for anything else). `import LIB.json SHEET.xlsx
+  OUT.json` writes only the changed records (newer savedAt, `editedFrom`) for `tools/library.js add`, lists
+  his notes, and refuses any line changed in the game since the export (the sheet keeps a hidden `_orig`
+  tab). LIB.json = the `saves` branch read with `libraryParts.loadLibrary`. Then deliver as usual.
 - Stamp `savedAt = max(now, newest + 1)`. "Newest" means the newest copy across the repo, the
   `saves` branch / his folder, AND the live StackBlitz store he may be working in right now. He
   works while you work, and stamping over a stale base silently reverts his edits in every copy.
