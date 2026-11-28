@@ -1,5 +1,5 @@
 {
- "set": "32fc99a9c5ec6dc2",
+ "set": "680ea7b988939506",
  "part": 1,
  "assets": [
   {
@@ -808425,7 +808425,7 @@
     "speed": 0,
     "agility": 0,
     "intelligence": -1,
-    "strength": 0
+    "strength": 1
    },
    "defense": 10,
    "effects": [],
@@ -808434,10 +808434,11 @@
     "Football",
     "Hat"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1795887334697,
    "ignoreHideIfHat": false,
    "value": 9,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "fbpant1",
