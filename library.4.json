@@ -1,5 +1,5 @@
 {
- "set": "312e0074df9ea77d",
+ "set": "f727a54afe40db31",
  "part": 4,
  "levels": [
   {
@@ -1042678,8 +1042678,9 @@
      ]
     }
    },
-   "savedAt": 1795878647063,
-   "editedFrom": 1794312191456
+   "savedAt": 1795888331216,
+   "editedFrom": 1795888317645,
+   "sound": "1n2hcv0"
   },
   {
    "id": "dlgfbg2",
@@ -1042814,8 +1042815,9 @@
     }
    },
    "once": true,
-   "savedAt": 1795878647063,
-   "editedFrom": 1794765700346
+   "savedAt": 1795888339518,
+   "editedFrom": 1795878647063,
+   "sound": "1n2hcv0"
   },
   {
    "id": "dlgfbpx",
@@ -1042951,8 +1042953,9 @@
     }
    },
    "once": true,
-   "savedAt": 1795878647063,
-   "editedFrom": 1794660922324
+   "savedAt": 1795888323052,
+   "editedFrom": 1795878647063,
+   "sound": "1n2hcv0"
   },
   {
    "id": "dlgfsh1",
@@ -1043008,7 +1043011,9 @@
      ]
     }
    },
-   "savedAt": 1794650055250
+   "savedAt": 1795888335025,
+   "sound": "7heaaf2",
+   "editedFrom": 1794650055250
   },
   {
    "id": "dlgfsh3",
@@ -1044046,8 +1044051,9 @@
     }
    },
    "once": true,
-   "savedAt": 1795878647063,
-   "editedFrom": 1794765761699
+   "savedAt": 1795888344980,
+   "editedFrom": 1795878647063,
+   "sound": "7heaaf2"
   },
   {
    "id": "dlgrck2",
@@ -1045758,6 +1045764,16 @@
    "editedFrom": 1791715730386
   },
   {
+   "id": "1n2hcv0",
+   "type": "sound",
+   "name": "566323__colossalchrist97__madtrainconductorgibberishdialogue3",
+   "category": "",
+   "clip": "1d0a8414eb7bcd093cfed486b6d6.wav",
+   "bytes": 378420,
+   "dur": 2.14,
+   "savedAt": 1795888287893
+  },
+  {
    "id": "1xq83kq",
    "type": "sound",
    "name": "739474__sadiquecat__wd-40-quarter-full-flame-thrower-8",
@@ -1045963,6 +1045979,16 @@
    "dur": 5.43,
    "savedAt": 1791749095101,
    "editedFrom": 1791749074160
+  },
+  {
+   "id": "7heaaf2",
+   "type": "sound",
+   "name": "414074__inspectorj__dialogue-pained-yelp-loud-e",
+   "category": "",
+   "clip": "095e2b274ffc8f00ae0d14f6329d.wav",
+   "bytes": 199496,
+   "dur": 0.75,
+   "savedAt": 1795888291182
   },
   {
    "id": "7lutoni",
@@ -1046179,6 +1046205,16 @@
    "dur": 2.77,
    "savedAt": 1791802308617,
    "editedFrom": 1791802306146
+  },
+  {
+   "id": "hvjyhtu",
+   "type": "sound",
+   "name": "669913__snowfightstudios__creature-gibberish-languagedialogue-monsteralien",
+   "category": "",
+   "clip": "14b5d8569bb6850033271d9cf336.mp3",
+   "bytes": 675374,
+   "dur": 47.5,
+   "savedAt": 1795888296412
   },
   {
    "id": "ieg9jd6",
