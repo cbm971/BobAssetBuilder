@@ -2156,6 +2156,28 @@ export const AUTO_GUARD_SWING_DEG = 100;
 export const AUTO_GUARD_TILT_DEG = 65;
 export const AUTO_UNIT_HOLD_FRAMES = 18; // a unit keeps running it this long after its target leaves the reach
 export const AUTO_UNIT_GUARD_CELLS = 6;  // a shot this close in front of a unit, coming at it, raises its guard
+// 🪚 A UNIT'S GUARD IS ONLY AS QUICK AS ITS WITS (Blake 2026-11-28: "if they are gonna use the chainsaws Q
+// block they should only be as good as they are with 10 int and below that they should occaisolnally
+// fail"). Every incoming round (and your swing) gets ONE roll per unit, the first time that unit looks at
+// it, kept on the round itself (`sawRolls`, keyed by unit, as pierceFreshHit keeps `hits`). Seen: it
+// raises the guard for it and the guard holds it. Missed: it never raises for it, and the round lands even
+// through a guard that is already up for another one. Rolled every frame instead, a 75% chance comes up
+// "seen" on one of the frames a round spends in reach and the block is perfect again. Int 10 and up never
+// misses (the guard exactly as it was); each point below costs 5%: Int 5 holds 3 rounds in 4, Int 1 just
+// over half. The same shape as a unit getting clear of a car (vehicleDodgeChance). Your own Q never rolls.
+export const SAW_GUARD_SURE_INT = 10;
+export const sawGuardReactChance = (intelligence) => {
+  const n = Number(intelligence ?? 5);
+  if (!Number.isFinite(n)) return sawGuardReactChance(5);
+  return n >= SAW_GUARD_SURE_INT ? 1 : Math.max(0.5, 0.5 + 0.05 * n);
+};
+export const unitSawSees = (src, key, intelligence, rnd = Math.random) => {
+  const chance = sawGuardReactChance(intelligence);
+  if (chance >= 1 || !src || typeof src !== "object") return true;
+  if (!src.sawRolls) src.sawRolls = {};
+  if (src.sawRolls[key] === undefined) src.sawRolls[key] = rnd() < chance;
+  return src.sawRolls[key];
+};
 export const automaticOf = (w) => {
   if (!w || !w.automatic || isRanged(w.wtype) || isThrowable(w.wtype)) return null;
   const num = (v, d, lo, hi) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.max(lo, Math.min(hi, n)) : d; };
@@ -22509,7 +22531,8 @@ export default function AssetStudio({ game = false } = {}) {
           // 🪚 AUTOMATIC, ITS SIDE (see automaticOf). Carried out in front all the time. It RUNS while its
           // target is inside the saw's reach on its floor (and AUTO_UNIT_HOLD_FRAMES after, so a step back
           // does not stall it), and it RAISES it when something is coming at its front: an opposing round
-          // within AUTO_UNIT_GUARD_CELLS flying at it, or your swing within a cell of it. The bar is the
+          // within AUTO_UNIT_GUARD_CELLS flying at it, or your swing within a cell of it, if it saw that one
+          // coming (unitSawSees: one roll per round, sure at Int 10, missing more often below). The bar is the
           // player's (stepAutomatic), so it runs dry and cools down exactly as yours does. Its saw does its
           // damage in the pass above (it reads last frame's mode, as the swing test reads last frame's swing).
           const eAuto = (!rangedEnemy && meleeGeom) ? automaticOf(ew) : null;
@@ -22527,9 +22550,10 @@ export default function AssetStudio({ game = false } = {}) {
                 const dx = pr.x - eCenterXFinal;
                 if (Math.abs(dx) > AUTO_UNIT_GUARD_CELLS * CW || Math.abs(pr.y - eMidY) > newEph * 0.6) continue;
                 if (Math.sign(pr.vx || 0) !== -Math.sign(dx)) continue; // going away
+                if (!unitSawSees(pr, k, eIntel)) continue; // 🪚 too slow for this one (rolled once per round)
                 threatDir = Math.sign(dx) || ep.face; break;
               }
-              if (!threatDir && hostile && p.firing && !(p.firing.t >= p.firing.dur) && boxGap(p.x + pw / 2, pw, eCenterXFinal, epw) <= CW) threatDir = Math.sign(p.x + pw / 2 - eCenterXFinal) || ep.face;
+              if (!threatDir && hostile && p.firing && !(p.firing.t >= p.firing.dur) && boxGap(p.x + pw / 2, pw, eCenterXFinal, epw) <= CW && unitSawSees(p.firing, k, eIntel)) threatDir = Math.sign(p.x + pw / 2 - eCenterXFinal) || ep.face;
             }
             // Run dry, it LETS GO until the bar is full again: held, an empty bar stays empty (that is the
             // player's rule), and a unit that kept its finger on the trigger never got its saw back.
@@ -23152,7 +23176,7 @@ export default function AssetStudio({ game = false } = {}) {
             const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitHitImmune(ep)) continue;
             const ea = unitAssetAt(k, lv.enemies[k]); if (!ea || blastImmune(ea.effects)) continue; // 🪖
             const bx = enemyBlastBox(ea, ep);
-            if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, ix, bx.x + bx.w / 2, bx.w)) continue; // 🪚 in front of its raised saw
+            if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard") && unitSawSees(pr, k, ea.stats?.intelligence), ep.face, ix, bx.x + bx.w / 2, bx.w)) continue; // 🪚 in front of its raised saw, if it saw the round coming
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
               // Armour counts, as it does on you just above; the shooter's crit and the weapon's
               // stun land on your ally exactly as yours land on a hostile in the branch below.
@@ -23174,7 +23198,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] <= 0) continue;
             const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitHitImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive or in its i-frames
             const bx = enemyBlastBox(ea, ep);
-            if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, ix, bx.x + bx.w / 2, bx.w)) continue; // 🪚 in front of its raised saw
+            if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard") && unitSawSees(pr, k, ea.stats?.intelligence), ep.face, ix, bx.x + bx.w / 2, bx.w)) continue; // 🪚 in front of its raised saw, if it saw the round coming
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
               if (blastImmune(ea.effects)) { pushImmuneCallout(booms.current, k, ix, iy, bx); continue; } // 🪖 tell the player why the blast did 0
               // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
@@ -23372,7 +23396,7 @@ export default function AssetStudio({ game = false } = {}) {
                     if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
                     // 🪚 ITS RAISED SAW turns your blow aside the way your guard turns its blow aside — and
                     // staggers you for it, as your block staggers it (applyHitTo's block, the other way round).
-                    if (ep && sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, p.x + pw / 2, eHitLeft + epw / 2, epw)) {
+                    if (ep && sawGuardStops(!!(ep.auto && ep.auto.mode === "guard") && unitSawSees(p.firing, k, ea.stats?.intelligence), ep.face, p.x + pw / 2, eHitLeft + epw / 2, epw)) {
                       p.swingHits[k] = true;
                       if (!unarmedSwing) sndMoment(playtestWeapon, "hit", "punch", p.x + p.face * pw, p.y);
                       stunPlayer(p, BLOCK_STAGGER_SECS); flash("🛡️ " + (ea.name || "It") + " blocked you — 💫 staggered");
@@ -23999,7 +24023,7 @@ export default function AssetStudio({ game = false } = {}) {
               const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (shotHitsBox(eHitLeft, hitTop, epw, hitH) && pierceFreshHit(pr, k)) {
-                if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, pr.x, eHitLeft + epw / 2, epw)) { if (pr.explode) { detonate(pr, boxCx, boxCy); return false; } if (!pr.pierce) return false; continue; } // 🪚 off its raised saw (detonate asks it again)
+                if (sawGuardStops(!!(ep.auto && ep.auto.mode === "guard") && unitSawSees(pr, k, ea.stats?.intelligence), ep.face, pr.x, eHitLeft + epw / 2, epw)) { if (pr.explode) { detonate(pr, boxCx, boxCy); return false; } if (!pr.pierce) return false; continue; } // 🪚 off its raised saw (detonate asks it again)
                 if (!unitUntouchable(ep) && turnShot(pr, k, ea.effects, pr.shooterKey || null, eHitLeft + epw / 2, hitTop, hitTop + hitH)) return true; // 🐞 / 🪞
                 if (pr.explode) { pr.turnRolled = k; detonate(pr, boxCx, boxCy); return false; }
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing. A bullet ignores i-frames (see the shot at a hostile below)
@@ -24067,7 +24091,7 @@ export default function AssetStudio({ game = false } = {}) {
               // the explode branch: a rocket must not detonate on a body it cannot hurt.
               if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
               if (!pierceFreshHit(pr, k)) continue; // 🪡 already went through this one
-              if (ep && sawGuardStops(!!(ep.auto && ep.auto.mode === "guard"), ep.face, pr.x, eHitLeft + epw / 2, epw)) { if (pr.explode) { detonate(pr, boxCx, boxCy); return false; } if (!pr.pierce) return false; continue; } // 🪚 off its raised saw (detonate asks it again)
+              if (ep && sawGuardStops(!!(ep.auto && ep.auto.mode === "guard") && unitSawSees(pr, k, ea.stats?.intelligence), ep.face, pr.x, eHitLeft + epw / 2, epw)) { if (pr.explode) { detonate(pr, boxCx, boxCy); return false; } if (!pr.pierce) return false; continue; } // 🪚 off its raised saw (detonate asks it again)
               if (!unitUntouchable(ep) && turnShot(pr, k, ea.effects, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop, hitTop + hitH)) return true; // 🐞 / 🪞
               if (pr.explode) { pr.turnRolled = k; detonate(pr, boxCx, boxCy); return false; }
               // 🐱 Mid-revive, or inside the 40 i-frames after its last hit: the round is consumed

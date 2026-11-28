@@ -18905,6 +18905,78 @@ describe("🪚 Automatic", () => {
   });
 });
 
+import { sawGuardReactChance, unitSawSees, SAW_GUARD_SURE_INT } from "./App";
+
+/* 🪚 A unit's Q guard is only as quick as its Int (Blake, 2026-11-28: "if they are gonna use the chainsaws Q
+   block they should only be as good as they are with 10 int and below that they should occaisolnally
+   fail"). One roll per incoming round per unit, kept on the round. */
+describe("🪚 A unit's saw guard misses some rounds below Int 10", () => {
+  // A small seeded generator, so the share of rounds held is the same on every run.
+  const seeded = (seed) => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  test("the curve: sure from Int 10 up, 5% less per point below, never under half", () => {
+    expect(SAW_GUARD_SURE_INT).toBe(10);
+    expect(sawGuardReactChance(10)).toBe(1);
+    expect(sawGuardReactChance(14)).toBe(1); // gear past 10 is still sure, never past it
+    expect(sawGuardReactChance(9)).toBeCloseTo(0.95, 9);
+    expect(sawGuardReactChance(5)).toBeCloseTo(0.75, 9);
+    expect(sawGuardReactChance(1)).toBeCloseTo(0.55, 9);
+    expect(sawGuardReactChance(0)).toBeCloseTo(0.5, 9);
+    expect(sawGuardReactChance(-3)).toBeCloseTo(0.5, 9);
+    expect(sawGuardReactChance(undefined)).toBeCloseTo(0.75, 9); // no Int set = the default 5
+    expect(sawGuardReactChance("x")).toBeCloseTo(0.75, 9);
+    for (let i = 0; i < 10; i++) expect(sawGuardReactChance(i + 1)).toBeGreaterThan(sawGuardReactChance(i)); // smarter never worse
+  });
+  test("Int 10 holds every round exactly as before: no roll is ever made", () => {
+    const rnd = jest.fn(() => 0.999);
+    const pr = { x: 0, vx: 9 };
+    for (let f = 0; f < 30; f++) expect(unitSawSees(pr, "12,22", 10, rnd)).toBe(true);
+    expect(rnd).not.toHaveBeenCalled();
+    expect(pr.sawRolls).toBeUndefined();
+    expect(unitSawSees(null, "12,22", 3, rnd)).toBe(true); // nothing to key on (no swing): the guard as it was
+  });
+  test("ONE roll per round per unit: asked every frame, the answer never changes", () => {
+    let next = 0.9; // over Int 5's 0.75: this round is missed
+    const rnd = jest.fn(() => next);
+    const pr = { x: 0, vx: 9 };
+    expect(unitSawSees(pr, "12,22", 5, rnd)).toBe(false);
+    next = 0; // a later frame would have "seen" it — but it is never asked again
+    for (let f = 0; f < 30; f++) expect(unitSawSees(pr, "12,22", 5, rnd)).toBe(false);
+    expect(rnd).toHaveBeenCalledTimes(1);
+    expect(unitSawSees(pr, "12,30", 5, rnd)).toBe(true); // a second unit gets its own roll on the same round
+    expect(rnd).toHaveBeenCalledTimes(2);
+    expect(unitSawSees({ x: 0, vx: 9 }, "12,22", 5, rnd)).toBe(true); // a new round, a new roll
+    expect(rnd).toHaveBeenCalledTimes(3);
+  });
+  test("over a stream of rounds the share held IS the chance (asked on each of 10 frames in reach)", () => {
+    for (const [int, want] of [[5, 0.75], [1, 0.55], [8, 0.9]]) {
+      const rnd = seeded(int * 7919);
+      let held = 0;
+      const N = 4000;
+      for (let i = 0; i < N; i++) {
+        const pr = { x: i, vx: -9 };
+        let seen = false;
+        for (let f = 0; f < 10; f++) seen = unitSawSees(pr, "12,22", int, rnd);
+        if (seen) held++;
+      }
+      expect(Math.abs(held / N - want)).toBeLessThan(0.03);
+    }
+    // The trap this avoids: a fresh roll each frame comes up "seen" on SOME frame almost every time.
+    const rnd = seeded(5);
+    let perFrameHeld = 0;
+    for (let i = 0; i < 4000; i++) { let any = false; for (let f = 0; f < 10; f++) any = any || rnd() < sawGuardReactChance(5); if (any) perFrameHeld++; }
+    expect(perFrameHeld / 4000).toBeGreaterThan(0.99);
+  });
+  test("it is wired in: the unit raises for and holds only what it saw; the player's own Q never rolls", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("if (!unitSawSees(pr, k, eIntel)) continue;"); // the raise decision, per round
+    expect(src).toContain("<= CW && unitSawSees(p.firing, k, eIntel)) threatDir"); // and per swing of yours
+    const unitHolds = src.match(/ep\.auto && ep\.auto\.mode === "guard"\) && unitSawSees\((pr|p\.firing), k, ea\.stats\?\.intelligence\)/g) || [];
+    expect(unitHolds.length).toBe(5); // both shot lanes, both blast loops, your swing
+    expect(src).toContain('const sawStop = sawGuardStops(!!(p.auto && p.auto.mode === "guard"), p.face, pr.x, p.x + pw / 2, pw);'); // yours, untouched
+    expect(src).not.toMatch(/p\.auto && p\.auto\.mode === "guard"\) && unitSawSees/);
+  });
+});
+
 import {
   DEFAULT_BACKSTAB_MULT, backstabMultOf, backstabHitMult,
 } from "./App";
