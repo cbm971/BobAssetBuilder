@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // BOB'S SPOKEN TEXT AS AN EXCEL SHEET BLAKE CORRECTS, AND BACK AGAIN (2026-11-28).
 //
-//   node tools/dialogue-sheet.js export LIB.json OUT.xlsx
+//   node tools/dialogue-sheet.js export LIB.json OUT.xlsx [--carry OLD.xlsx]
 //   node tools/dialogue-sheet.js import LIB.json SHEET.xlsx OUT.json
+//
+// --carry brings his edits and notes from an older sheet (any layout) into the new one.
 //
 // LIB.json is the whole library as one object ({ assets, levels, dialogues, ... }): read the
 // `saves` branch (his newest online copy) with src/libraryParts.js loadLibrary and write it out.
@@ -77,8 +79,27 @@ const HEAD = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
 const colLetter = (i) => String.fromCharCode(65 + i);
 const colIndex = (ref) => ref.replace(/\d+/g, "").split("").reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 
-// styles: 0 plain, 1 header, 2 conversation bar, 3 who, 4 the line to edit, 5 small grey,
-// 6 notes, 7 legend, 8 "You", 9 the bar's level list
+// cell styles: [font, fill, border, alignment]. Fonts 0 plain, 1 bold, 2 small grey, 3 bold 11,
+// 4 italic grey, 5 blue-grey; fills 3 bar blue, 4 the yellow you edit; border 1 a thin rule under.
+const MAX_INDENT = 15;
+const XFS = [
+  [0, 0, 0, "vertical=\"bottom\""],               // 0 plain
+  [1, 2, 1, "vertical=\"center\""],               // 1 header
+  [3, 3, 1, "vertical=\"top\""],                  // 2 conversation bar: its name
+  [0, 0, 1, "vertical=\"top\" wrapText=\"1\""],   // 3 who
+  [0, 4, 1, "vertical=\"top\" wrapText=\"1\""],   // 4 the line to edit
+  [2, 0, 1, "vertical=\"top\""],                  // 5 small grey
+  [0, 0, 1, "vertical=\"top\" wrapText=\"1\""],   // 6 notes
+  [4, 0, 0, "vertical=\"center\""],               // 7 legend
+  [5, 0, 1, "vertical=\"top\" wrapText=\"1\""],   // 8 "You"
+  [2, 3, 1, "vertical=\"center\" wrapText=\"1\""], // 9 conversation bar: where it is
+  [1, 0, 1, "horizontal=\"center\" vertical=\"top\""], // 10 step number
+  [5, 0, 1, "vertical=\"top\""],                  // 11 goes to
+  [3, 3, 1, "horizontal=\"center\" vertical=\"top\""], // 12 conversation bar: blank cells
+];
+const LINE_INDENT0 = XFS.length;                   // the line to edit, indented 1..MAX_INDENT
+for (let i = 1; i <= MAX_INDENT; i++) XFS.push([0, 4, 1, `vertical="top" wrapText="1" indent="${i}"`]);
+const lineStyle = (indent) => (indent > 0 ? LINE_INDENT0 + Math.min(indent, MAX_INDENT) - 1 : 4);
 const STYLES = HEAD + `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="6">
 <font><sz val="10"/><name val="Arial"/><family val="2"/></font>
@@ -100,17 +121,8 @@ const STYLES = HEAD + `<styleSheet xmlns="http://schemas.openxmlformats.org/spre
 <border><left/><right/><top/><bottom style="thin"><color rgb="FFD0D0D0"/></bottom><diagonal/></border>
 </borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="10">
-<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
-<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
-<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
-<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf>
-<xf numFmtId="0" fontId="5" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<cellXfs count="${XFS.length}">
+${XFS.map(([font, fill, border, align]) => `<xf numFmtId="0" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment ${align}/></xf>`).join("\n")}
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
@@ -199,17 +211,42 @@ const collect = (lib) => {
     const ra = a.at.length ? FLOORS.indexOf(floorOf(a.at[0])) : 100, rb = b.at.length ? FLOORS.indexOf(floorOf(b.at[0])) : 100;
     return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb) || byName(a.at[0] ? a.at[0].name : "", b.at[0] ? b.at[0].name : "") || byName(a.d.name, b.d.name);
   });
+  // A conversation is laid out as a TREE (Blake, 2026-11-28: "I need better indication of what
+  // leads to what"): each speaker line is numbered, each answer says where it goes (→ 3, or End),
+  // and the line an answer leads to comes straight under that answer, one step further in. A line
+  // already shown above (a loop back, two answers to one line) is only pointed at, never repeated.
   for (const { d, at } of convs) {
-    const nodes = d.nodes || {}, seen = new Set(), order = [];
-    const visit = (id) => { if (!id || seen.has(id) || !nodes[id]) return; seen.add(id); order.push(id); for (const c of nodes[id].choices || []) visit(c.to); };
-    visit(d.start); Object.keys(nodes).forEach(visit);
-    const group = d.name || d.id, groupWhere = at.length ? at.map((lv) => lv.name).join(", ") : "Not placed in a level";
-    for (const nid of order) {
+    const nodes = d.nodes || {}, printed = new Set(), seq = [];
+    const answersOf = (n) => (n.choices || []).filter((c) => !isButton(c.text));
+    const buttonsOf = (n) => (n.choices || []).filter((c) => isButton(c.text));
+    const walk = (nid, depth) => {
+      if (!nodes[nid] || printed.has(nid)) return;
+      printed.add(nid);
       const n = nodes[nid];
-      lines.push({ sheet: "Dialogue", key: `dlg|${d.id}|${nid}`, group, groupWhere, who: n.speaker || "", whoEditable: true, text: n.text || "", does: "" });
-      for (const c of n.choices || []) {
-        if (isButton(c.text)) continue;
-        lines.push({ sheet: "Dialogue", key: `dlg|${d.id}|${nid}|${c.id}`, group, groupWhere, who: "You", text: c.text || "", does: ACT[c.act] || "" });
+      seq.push({ nid, n, depth });
+      for (const c of answersOf(n)) { seq.push({ nid, c, depth }); if (c.to && nodes[c.to] && !printed.has(c.to)) walk(c.to, depth + 1); }
+      for (const c of buttonsOf(n)) if (c.to && nodes[c.to] && !printed.has(c.to)) walk(c.to, depth + 1);
+    };
+    walk(d.start, 0);
+    Object.keys(nodes).forEach((nid) => walk(nid, 0));
+    const num = new Map();
+    seq.filter((s) => !s.c).forEach((s, i) => num.set(s.nid, i + 1));
+    const goes = (to) => (to && nodes[to] ? "→ " + num.get(to) : "End");
+    const group = d.name || d.id, groupWhere = at.length ? at.map((lv) => lv.name).join(", ") : "Not placed in a level";
+    for (const s of seq) {
+      if (!s.c) {
+        // a line whose only options are "..." or digits (left out of the sheet) still says where it goes
+        const answers = answersOf(s.n), buttons = buttonsOf(s.n);
+        const targets = [...new Set(buttons.map((c) => (c.to && nodes[c.to] ? String(num.get(c.to)) : "End")))];
+        const next = answers.length ? "" : !buttons.length ? "End" : targets.length === 1 && targets[0] === "End" ? "End" : "→ " + targets.join(", ");
+        const picks = !answers.length && buttons.some((c) => /\d/.test(c.text || ""));
+        const does = [s.n.once ? "One time only" : "", picks ? "Pick a number" : ""].filter(Boolean).join(", ");
+        lines.push({ sheet: "Dialogue", key: `dlg|${d.id}|${s.nid}`, group, groupWhere, step: num.get(s.nid), depth: s.depth,
+          who: s.n.speaker || "", whoEditable: true, text: s.n.text || "", does, goes: next });
+      } else {
+        const does = (ACT[s.c.act] || "") + (s.c.money > 0 ? " " + s.c.money : "");
+        lines.push({ sheet: "Dialogue", key: `dlg|${d.id}|${s.nid}|${s.c.id}`, group, groupWhere, step: "", depth: s.depth, answer: true,
+          who: "You", text: s.c.text || "", does, goes: goes(s.c.to) });
       }
     }
   }
@@ -235,12 +272,53 @@ const collect = (lib) => {
   return lines;
 };
 
-const exportSheet = (lib, outFile) => {
+// The edits in a sheet, by key: { text?, who?, note?, orig } where orig is that sheet's _orig entry.
+// Columns are found by their header names, so a sheet from any layout of this tool reads.
+const sheetEdits = (book) => {
+  if (!book._orig) throw new Error("this sheet has no _orig tab: it was not made by tools/dialogue-sheet.js export");
+  const orig = new Map();
+  for (const r of book._orig.slice(2)) if (r && r[0]) orig.set(r[0], { who: norm(r[1]), text: norm(r[2]) });
+  const edits = new Map();
+  for (const sheet of ["Dialogue", "Other text"]) {
+    const rows = book[sheet] || [];
+    const h = rows.findIndex((r, i) => i > 0 && i < 6 && r && r.includes("Key"));
+    if (h < 0) continue;
+    const col = (name) => rows[h].indexOf(name);
+    const cKey = col("Key"), cNote = col("Notes"), cText = col("Line") >= 0 ? col("Line") : col("Text"), cWho = sheet === "Dialogue" ? col("Who") : -1;
+    for (const r of rows.slice(h + 1)) {
+      if (!r || !r[cKey]) continue;
+      const key = r[cKey], o = orig.get(key), e = { orig: o, text: norm(r[cText]), note: norm(r[cNote]).trim() };
+      if (cWho >= 0 && key.split("|").length === 3 && key.startsWith("dlg|")) e.who = norm(r[cWho]);
+      edits.set(key, e);
+    }
+  }
+  return { orig, edits };
+};
+
+// carry: an older sheet whose edits and notes go into this one (its line text, names and notes,
+// and its _orig for those lines, so the import still sees them as his edits against the version
+// he started from).
+const exportSheet = (lib, outFile, carryFile) => {
   const lines = collect(lib);
+  let carried = 0;
+  if (carryFile) {
+    const { edits } = sheetEdits(readXlsx(carryFile));
+    for (const l of lines) {
+      const e = edits.get(l.key);
+      if (!e || !e.orig) continue;
+      const textEdited = e.text !== e.orig.text && e.text.trim(), whoEdited = e.who !== undefined && e.who !== e.orig.who;
+      if (!textEdited && !whoEdited && !e.note) continue;
+      l.origText = e.orig.text; l.origWho = e.orig.who;
+      if (textEdited) l.text = e.text;
+      if (whoEdited) l.who = e.who;
+      if (e.note) l.note = e.note;
+      carried++;
+    }
+  }
   const dlg = lines.filter((l) => l.sheet === "Dialogue"), other = lines.filter((l) => l.sheet === "Other text");
   const C = (v, s) => ({ v, s });
-  const dRows = [[C("Fix any line in the yellow column, or a name under Who. Notes are for anything else. Leave Key alone.", 7)],
-    [C("Who", 1), C("Line", 1), C("Does", 1), C("Notes", 1), C("Key", 1)]];
+  const dRows = [[C("Fix any line in the yellow column, or a name under Who. Each answer's \"Goes to\" is the numbered line it leads to; that line sits right under it. Notes are for anything else. Leave Key alone.", 7)],
+    [C("#", 1), C("Who", 1), C("Line", 1), C("Does", 1), C("Goes to", 1), C("Notes", 1), C("Key", 1)]];
   const dH = [24, 20];
   let last = null;
   for (const l of dlg) {
@@ -248,32 +326,32 @@ const exportSheet = (lib, outFile) => {
       last = l.group + "\u0000" + l.groupWhere;
       // Excel under-sizes a wrapped row on open, so the level list's height is set here
       // (about 95 characters of 9pt Arial a line in the 78-wide column)
-      dRows.push([C(l.group, 2), C(l.groupWhere, 9), C("", 2), C("", 2), C("", 2)]); dH.push(Math.max(20, Math.ceil(l.groupWhere.length / 95) * 12 + 6));
+      dRows.push([C("", 12), C(l.group, 2), C(l.groupWhere, 9), C("", 12), C("", 12), C("", 12), C("", 12)]);
+      dH.push(Math.max(20, Math.ceil(l.groupWhere.length / 95) * 12 + 6));
     }
-    dRows.push([C(l.who, l.who === "You" ? 8 : 3), C(l.text, 4), C(l.does, 5), C("", 6), C(l.key, 5)]); dH.push(null);
+    const indent = l.depth * 2 + (l.answer ? 1 : 0);
+    dRows.push([C(l.step === "" ? "" : String(l.step), 10), C(l.who, l.answer ? 8 : 3), C(l.text, lineStyle(indent)), C(l.does, 5), C(l.goes, 11), C(l.note || "", 6), C(l.key, 5)]);
+    dH.push(null);
   }
   const oRows = [[C("Fix any text in the yellow column. Notes are for anything else. Leave Key alone.", 7)],
     [C("Where", 1), C("What", 1), C("Text", 1), C("Notes", 1), C("Key", 1)]];
   const oH = [24, 20];
-  for (const l of other) { oRows.push([C(l.group, 3), C(l.who, 5), C(l.text, 4), C("", 6), C(l.key, 5)]); oH.push(null); }
+  for (const l of other) { oRows.push([C(l.group, 3), C(l.who, 5), C(l.text, 4), C(l.note || "", 6), C(l.key, 5)]); oH.push(null); }
   const orig = [[C("key"), C("who"), C("text")]];
-  for (const l of lines) orig.push([C(l.key), C(l.who), C(l.text)]);
+  for (const l of lines) orig.push([C(l.key), C(l.origWho !== undefined ? l.origWho : l.who), C(l.origText !== undefined ? l.origText : l.text)]);
   writeXlsx(outFile, [
-    { name: "Dialogue", widths: [24, 78, 9, 32, 26], rows: dRows, heights: dH, freeze: 2, selected: true },
+    { name: "Dialogue", widths: [5, 22, 78, 13, 9, 32, 26], rows: dRows, heights: dH, freeze: 2, selected: true },
     { name: "Other text", widths: [34, 14, 78, 32, 26], rows: oRows, heights: oH, freeze: 2 },
     { name: "_orig", widths: [30, 20, 80], rows: orig, hidden: true },
   ]);
   const convs = new Set(dlg.map((l) => l.group + "|" + l.groupWhere)).size;
-  console.log(`wrote ${outFile}: ${convs} conversations, ${dlg.filter((l) => l.who !== "You").length} lines, ${dlg.filter((l) => l.who === "You").length} answers; ${other.length} other texts`);
+  console.log(`wrote ${outFile}: ${convs} conversations, ${dlg.filter((l) => !l.answer).length} lines, ${dlg.filter((l) => l.answer).length} answers; ${other.length} other texts` + (carryFile ? `; carried ${carried} edited/noted row(s) from ${carryFile}` : ""));
 };
 
 // ---------- reading it back ----------
 const norm = (s) => String(s == null ? "" : s).replace(/\r\n?/g, "\n");
 const importSheet = (lib, sheetFile, outFile) => {
-  const book = readXlsx(sheetFile);
-  if (!book._orig) throw new Error("this sheet has no _orig tab: it was not made by tools/dialogue-sheet.js export");
-  const orig = new Map();
-  for (const r of book._orig.slice(2)) if (r && r[0]) orig.set(r[0], { who: norm(r[1]), text: norm(r[2]) });
+  const { edits } = sheetEdits(readXlsx(sheetFile));
   const changed = { dialogues: new Map(), levels: new Map(), assets: new Map() };
   const copyOf = (kind, list, id) => {
     if (!changed[kind].has(id)) {
@@ -284,14 +362,12 @@ const importSheet = (lib, sheetFile, outFile) => {
     return changed[kind].get(id).next;
   };
   const report = { changed: [], conflicts: [], emptied: [], notes: [], missing: [] };
-  const read = (sheet, cols) => {
-    for (const r of (book[sheet] || []).slice(3)) {
-      if (!r || !r[4]) continue;
-      const key = r[4], o = orig.get(key);
-      const text = norm(r[cols.text]), who = norm(r[cols.who]), note = norm(r[3]).trim();
-      if (note) report.notes.push({ key, who, text, note });
+  {
+    for (const [key, e] of edits) {
+      const o = e.orig, text = e.text, who = e.who !== undefined ? e.who : "", note = e.note;
+      if (note) report.notes.push({ key, who: e.who !== undefined ? e.who : (o ? o.who : ""), text, note });
       if (!o) { report.missing.push(key); continue; }
-      const textChanged = text !== o.text, whoChanged = cols.whoEditable && key.startsWith("dlg|") && key.split("|").length === 3 && who !== o.who;
+      const textChanged = text !== o.text, whoChanged = e.who !== undefined && who !== o.who;
       if (!textChanged && !whoChanged) continue;
       if (textChanged && !text.trim()) { report.emptied.push({ key, was: o.text }); if (!whoChanged) continue; }
       for (const k of key.split(";")) {
@@ -331,9 +407,7 @@ const importSheet = (lib, sheetFile, outFile) => {
         report.missing.push(k);
       }
     }
-  };
-  read("Dialogue", { who: 0, text: 1, whoEditable: true });
-  read("Other text", { who: 1, text: 2 });
+  }
   const now = Date.now(), out = { dialogues: [], levels: [], assets: [], notes: report.notes };
   for (const kind of ["dialogues", "levels", "assets"]) {
     for (const { cur, next } of changed[kind].values()) {
@@ -359,7 +433,7 @@ module.exports = { collect, exportSheet, importSheet, readXlsx, writeXlsx, zip, 
 if (require.main === module) {
   const [cmd, a, b, c] = process.argv.slice(2);
   const lib = a ? JSON.parse(fs.readFileSync(a, "utf8")) : null;
-  if (cmd === "export" && lib && b) exportSheet(lib, b);
+  if (cmd === "export" && lib && b) exportSheet(lib, b, c === "--carry" ? process.argv[6] : null);
   else if (cmd === "import" && lib && b && c) importSheet(lib, b, c);
-  else { console.log("node tools/dialogue-sheet.js export LIB.json OUT.xlsx\nnode tools/dialogue-sheet.js import LIB.json SHEET.xlsx OUT.json"); process.exit(1); }
+  else { console.log("node tools/dialogue-sheet.js export LIB.json OUT.xlsx [--carry OLD.xlsx]\nnode tools/dialogue-sheet.js import LIB.json SHEET.xlsx OUT.json"); process.exit(1); }
 }
