@@ -1,5 +1,5 @@
 {
- "set": "6b058fe2c7c646ef",
+ "set": "69f1008393b33adc",
  "part": 2,
  "assets": [
   {
@@ -760186,7 +760186,7 @@
     "oipvf3l"
    ],
    "statBoosts": {
-    "hp": 0,
+    "hp": 1,
     "speed": 1,
     "agility": 1,
     "intelligence": 0,
@@ -760207,9 +760207,9 @@
     "Hat",
     "Trailer"
    ],
-   "savedAt": 1795885812221,
+   "savedAt": 1795886840447,
    "value": 11,
-   "editedFrom": 1794267623419
+   "editedFrom": 1795885812221
   },
   {
    "id": "sppkjkt",
