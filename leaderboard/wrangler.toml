@@ -1,5 +1,5 @@
-# BOB's leaderboard service (see README.md). `database_id` is filled in by the first deploy
-# (`npx wrangler d1 create bob-leaderboard` prints it); local `wrangler dev` ignores it.
+# BOB's leaderboard service (see README.md). `database_id` is the live D1 database on Blake's Cloudflare
+# account (created 2026-11-28 by `npx wrangler d1 create bob-leaderboard`); local `wrangler dev` ignores it.
 name = "bob-leaderboard"
 main = "worker.js"
 compatibility_date = "2026-10-01"
@@ -8,4 +8,4 @@ workers_dev = true
 [[d1_databases]]
 binding = "DB"
 database_name = "bob-leaderboard"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "a1039800-14d3-4f65-af55-f45da82e13b6"

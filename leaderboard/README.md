@@ -6,6 +6,12 @@ Cloudflare Worker (`worker.js`) with a D1 SQLite database (`schema.sql`), on Clo
 The rules it shares with the game are `src/leaderboard.js`; the game's screens are in
 `src/gameShell.js` (PostScore, LeaderboardScreen).
 
+**Live since 2026-11-28** at https://bob-leaderboard.bob-leaderboard.workers.dev, on Blake's
+Cloudflare account (D1 database `bob-leaderboard`, id in `wrangler.toml`; secrets `ADMIN_KEY` and
+`SALT`; the admin key's copy is `%LOCALAPPDATA%\BobOkay\leaderboard-admin-key.txt` on his PC).
+Deploying a change is `npx wrangler deploy` from this folder after `npx wrangler login` (he clicks
+Allow in his browser).
+
 The game shows nothing of it (no name box, no menu row) while `LEADERBOARD_URL` in
 `src/leaderboard.js` is empty.
 

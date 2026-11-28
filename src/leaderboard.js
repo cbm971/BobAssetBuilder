@@ -18,9 +18,10 @@
 // Every run is kept — the board is all of history, not a top 100 — and a run posts ONCE (its token
 // is unique on the server, so a double Enter or a reload of the same screen returns the first post).
 
-// The address of the service. Empty = no leaderboard: the game shows no name box and no menu row,
-// and plays exactly as before. Set when the Worker is deployed (leaderboard/README.md).
-export const LEADERBOARD_URL = "";
+// The address of the service: the Worker on Blake's Cloudflare account (deployed 2026-11-28,
+// leaderboard/README.md). Empty = no leaderboard: the game shows no name box and no menu row, and
+// plays exactly as before.
+export const LEADERBOARD_URL = "https://bob-leaderboard.bob-leaderboard.workers.dev";
 // Which board a post goes to. The Beta (two floors) has its own; a full release with more floors
 // would score higher for the same play, so it gets a fresh board ("v1") and the Beta's stays as it was.
 export const LEADERBOARD_BOARD = "beta";

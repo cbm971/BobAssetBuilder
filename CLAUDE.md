@@ -674,8 +674,9 @@ plus traps it does not cover:
   ... as someone playing in a different state"), and you see your place. It is a Cloudflare Worker + D1
   (`leaderboard/`, deploy steps in its README). The rules are `src/leaderboard.js`, which the Worker imports
   too. The game only calls GET and POST `/scores`.
-- **It is off until `LEADERBOARD_URL` is set**: no name box, no menu row, and the menu is his list exactly
-  (`gameMenuRows`). `?lb=<url>` or localStorage `bobLeaderboard` points a test page at a local `wrangler dev`.
+- **Live since 2026-11-28** at https://bob-leaderboard.bob-leaderboard.workers.dev (his Cloudflare account; deploy
+  with `npx wrangler deploy` in leaderboard/ after `wrangler login`). With `LEADERBOARD_URL` empty there is no
+  name box and no menu row, and the menu is his list exactly (`gameMenuRows`). `?lb=<url>` or localStorage `bobLeaderboard` points a test page at a local `wrangler dev`.
 - A run posts only at its END: Game Over and "To be continued" (`PostScore`, gameShell.js). Its token is
   `runToken(saveId, seed)`, unique per board, so a run posts once. A run that scored 0 shows the board
   with no name box.
