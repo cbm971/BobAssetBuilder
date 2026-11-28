@@ -1,5 +1,5 @@
 {
- "set": "d362440f9026065a",
+ "set": "9ad3bec48304b913",
  "part": 4,
  "levels": [
   {
@@ -622564,24 +622564,6 @@
       "z": 152
      }
     ],
-    "32,6": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.42,
-      "z": 153
-     }
-    ],
     "22,29": [
      {
       "kind": "prop",
@@ -623965,8 +623947,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795367551702,
-   "editedFrom": 1795350766679
+   "savedAt": 1795896443892,
+   "editedFrom": 1795367551702
   },
   {
    "id": "vcfrm21",
