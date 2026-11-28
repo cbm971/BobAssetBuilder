@@ -1,5 +1,5 @@
 {
- "set": "9ad3bec48304b913",
+ "set": "bd37b1ebc2a560e6",
  "part": 4,
  "levels": [
   {
@@ -596109,24 +596109,6 @@
       "lay": "bg"
      }
     ],
-    "16,8": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 20,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "ox": 0,
-      "oy": 0,
-      "z": 41,
-      "lay": "bg"
-     }
-    ],
     "27,29": [
      {
       "kind": "prop",
@@ -596323,60 +596305,6 @@
       "oy": 0.38,
       "z": 52,
       "lay": "fg"
-     }
-    ],
-    "15,52": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 16,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "ox": 0,
-      "oy": 0.4,
-      "z": 53,
-      "lay": "bg"
-     }
-    ],
-    "19,92": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 12,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "ox": 0,
-      "oy": 0.4,
-      "z": 54,
-      "lay": "bg"
-     }
-    ],
-    "15,110": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 16,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "ox": 0,
-      "oy": 0.4,
-      "z": 55,
-      "lay": "bg"
      }
     ],
     "24,87": [
@@ -596648,6 +596576,78 @@
       "z": 70,
       "lay": "front"
      }
+    ],
+    "19,52": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 16,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "ox": 0,
+      "oy": 0.4,
+      "z": 53,
+      "lay": "bg"
+     }
+    ],
+    "17,8": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 20,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "ox": 0,
+      "oy": 0,
+      "z": 41,
+      "lay": "bg"
+     }
+    ],
+    "21,109": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 16,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "ox": 0,
+      "oy": 0.4,
+      "z": 55,
+      "lay": "bg"
+     }
+    ],
+    "23,92": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 12,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "ox": 0,
+      "oy": 0.4,
+      "z": 54,
+      "lay": "bg"
+     }
     ]
    },
    "climb": {},
@@ -596781,7 +596781,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795314285186
+   "savedAt": 1795896489647,
+   "editedFrom": 1795314285186
   },
   {
    "id": "vcfrm20",
