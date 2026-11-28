@@ -1,5 +1,5 @@
 {
- "set": "646109e164829cb4",
+ "set": "54a802b3779b072e",
  "part": 4,
  "levels": [
   {
@@ -715607,42 +715607,6 @@
       "z": 89
      }
     ],
-    "22,41": [
-     {
-      "kind": "prop",
-      "propId": "lt1i1vk",
-      "solid": false,
-      "size": 3,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.841,
-      "z": 90
-     }
-    ],
-    "13,53": [
-     {
-      "kind": "prop",
-      "propId": "lt1i1vk",
-      "solid": false,
-      "size": 3,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.841,
-      "z": 91
-     }
-    ],
     "37,69": [
      {
       "kind": "prop",
@@ -715677,24 +715641,6 @@
       "ox": 0,
       "oy": 0,
       "z": 94
-     }
-    ],
-    "15,91": [
-     {
-      "kind": "prop",
-      "propId": "lt1i1vk",
-      "solid": false,
-      "size": 3,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.841,
-      "z": 95
      }
     ],
     "27,108": [
@@ -715965,6 +715911,60 @@
       "ox": 0,
       "oy": 0.561,
       "z": 93
+     }
+    ],
+    "16,91": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "size": 3,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0,
+      "oy": 0.841,
+      "z": 95
+     }
+    ],
+    "23,41": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "size": 3,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0,
+      "oy": 0.841,
+      "z": 90
+     }
+    ],
+    "14,53": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "size": 3,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0,
+      "oy": 0.841,
+      "z": 91
      }
     ]
    },
@@ -716343,8 +716343,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795794334074,
-   "editedFrom": 1795792546259
+   "savedAt": 1795896193806,
+   "editedFrom": 1795794334074
   },
   {
    "id": "vcfrm25",
