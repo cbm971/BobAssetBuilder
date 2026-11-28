@@ -1,5 +1,5 @@
 {
- "set": "1887b6efe2f4079a",
+ "set": "646109e164829cb4",
  "part": 3,
  "assets": [
   {
@@ -674608,24 +674608,6 @@
       "z": 169
      }
     ],
-    "32,36": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.8,
-      "oy": 0.22,
-      "z": 170
-     }
-    ],
     "32,123": [
      {
       "kind": "prop",
@@ -674808,23 +674790,6 @@
       "z": 181
      }
     ],
-    "16,19": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 20,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.43,
-      "z": 182
-     }
-    ],
     "21,34": [
      {
       "kind": "prop",
@@ -674841,23 +674806,6 @@
       "ox": 0.81,
       "oy": 0.67,
       "z": 183
-     }
-    ],
-    "14,81": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 22,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.77,
-      "z": 184
      }
     ],
     "23,95": [
@@ -675366,6 +675314,40 @@
       "oy": 0.13,
       "z": 213
      }
+    ],
+    "17,19": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 20,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.43,
+      "z": 182
+     }
+    ],
+    "15,82": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 22,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.77,
+      "z": 184
+     }
     ]
    },
    "climb": {
@@ -675631,16 +675613,7 @@
      "kind": "ladder"
     }
    },
-   "markers": {
-    "35,69": {
-     "kind": "pedestal",
-     "cats": [
-      "Magic",
-      ""
-     ],
-     "logic": "or"
-    }
-   },
+   "markers": {},
    "enemies": {
     "35,33": {
      "enemyTag": "Vietkong",
@@ -675675,30 +675648,6 @@
      "ai": "guard",
      "gearTags": [
       "T1",
-      "Gun"
-     ]
-    },
-    "35,55": {
-     "enemyTag": "Math Magicians",
-     "facing": -1,
-     "ai": "guard",
-     "gearTags": [
-      "Gun"
-     ]
-    },
-    "35,63": {
-     "enemyTag": "Math Magicians",
-     "facing": -1,
-     "ai": "guard",
-     "gearTags": [
-      "Gun"
-     ]
-    },
-    "35,75": {
-     "enemyTag": "Math Magicians",
-     "facing": -1,
-     "ai": "guard",
-     "gearTags": [
       "Gun"
      ]
     },
@@ -675747,8 +675696,8 @@
    "floor": "Vietnam",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792970440703,
-   "editedFrom": 1792637269564
+   "savedAt": 1795896111575,
+   "editedFrom": 1795896072602
   },
   {
    "id": "ikupopa",
