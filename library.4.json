@@ -1,5 +1,5 @@
 {
- "set": "5f86fa6410ae7033",
+ "set": "d362440f9026065a",
  "part": 4,
  "levels": [
   {
@@ -644001,6 +644001,27 @@
      "slope": 1,
      "run": 2,
      "step": 1
+    },
+    "36,4": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 2,
+     "step": 0,
+     "upsideDown": true
+    },
+    "36,5": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 2,
+     "step": 1,
+     "upsideDown": true
+    },
+    "36,3": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
     }
    },
    "fx": {
@@ -644658,42 +644679,6 @@
       "z": 42
      }
     ],
-    "26,89": [
-     {
-      "kind": "prop",
-      "propId": "uvsnag1",
-      "solid": false,
-      "size": 10,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.2,
-      "oy": 0.3,
-      "z": 43
-     }
-    ],
-    "28,108": [
-     {
-      "kind": "prop",
-      "propId": "uvsnag1",
-      "solid": false,
-      "size": 8,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.5,
-      "oy": 0.6,
-      "z": 44
-     }
-    ],
     "28,100": [
      {
       "kind": "prop",
@@ -644980,24 +644965,6 @@
       "ox": 0.3,
       "oy": 0.2,
       "z": 60
-     }
-    ],
-    "32,112": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.2,
-      "oy": 0.57,
-      "z": 61
      }
     ],
     "32,133": [
@@ -647010,42 +646977,6 @@
       "ox": 0
      }
     ],
-    "32,-1": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.9,
-      "oy": 0.57,
-      "z": 207
-     }
-    ],
-    "32,3": [
-     {
-      "kind": "prop",
-      "propId": "trroot1",
-      "solid": false,
-      "size": 6,
-      "inFront": true,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.4,
-      "oy": 0.57,
-      "z": 208
-     }
-    ],
     "33,24": [
      {
       "kind": "prop",
@@ -647098,6 +647029,42 @@
       "ox": 0.84,
       "oy": 0.3,
       "z": 215
+     }
+    ],
+    "30,107": [
+     {
+      "kind": "prop",
+      "propId": "uvsnag1",
+      "solid": false,
+      "size": 8,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.5,
+      "oy": 0.6,
+      "z": 44
+     }
+    ],
+    "26,88": [
+     {
+      "kind": "prop",
+      "propId": "uvsnag1",
+      "solid": false,
+      "size": 10,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.2,
+      "oy": 0.3,
+      "z": 43
      }
     ]
    },
@@ -647632,8 +647599,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795433997545,
-   "editedFrom": 1795433938761
+   "savedAt": 1795896422132,
+   "editedFrom": 1795433997545
   },
   {
    "id": "vcfrm22",
