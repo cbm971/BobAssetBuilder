@@ -1,5 +1,5 @@
 {
- "set": "bd37b1ebc2a560e6",
+ "set": "355778b34c117f8e",
  "part": 4,
  "levels": [
   {
@@ -573953,84 +573953,6 @@
       "z": 11
      }
     ],
-    "13,135": [
-     {
-      "kind": "shape",
-      "shape": "ladder",
-      "tint": "#5a3d22",
-      "solid": false,
-      "size": 2,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 12
-     }
-    ],
-    "15,135": [
-     {
-      "kind": "shape",
-      "shape": "ladder",
-      "tint": "#5a3d22",
-      "solid": false,
-      "size": 2,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 13
-     }
-    ],
-    "17,135": [
-     {
-      "kind": "shape",
-      "shape": "ladder",
-      "tint": "#5a3d22",
-      "solid": false,
-      "size": 2,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 14
-     }
-    ],
-    "19,135": [
-     {
-      "kind": "shape",
-      "shape": "ladder",
-      "tint": "#5a3d22",
-      "solid": false,
-      "size": 2,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 15
-     }
-    ],
-    "21,135": [
-     {
-      "kind": "shape",
-      "shape": "ladder",
-      "tint": "#5a3d22",
-      "solid": false,
-      "size": 2,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 16
-     }
-    ],
-    "23,135": [
-     {
-      "kind": "shape",
-      "shape": "ladder",
-      "tint": "#5a3d22",
-      "solid": false,
-      "size": 2,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 17
-     }
-    ],
     "16,1": [
      {
       "kind": "prop",
@@ -574247,24 +574169,6 @@
       "z": 29
      }
     ],
-    "16,40": [
-     {
-      "kind": "prop",
-      "propId": "phwndw1",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "size": 6,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.02,
-      "z": 30
-     }
-    ],
     "24,38": [
      {
       "kind": "prop",
@@ -574353,24 +574257,6 @@
       "ox": 0.2,
       "oy": 0.5,
       "z": 37
-     }
-    ],
-    "26,70": [
-     {
-      "kind": "prop",
-      "propId": "phwndw1",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "size": 6,
-      "lay": "bg",
-      "ox": 0.5,
-      "oy": 0.02,
-      "z": 38
      }
     ],
     "24,108": [
@@ -574479,24 +574365,6 @@
       "ox": 0,
       "oy": 0,
       "z": 44
-     }
-    ],
-    "26,134": [
-     {
-      "kind": "prop",
-      "propId": "phwndw1",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "size": 6,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.02,
-      "z": 45
      }
     ],
     "18,82": [
@@ -574623,24 +574491,6 @@
       "ox": 0,
       "oy": 0,
       "z": 52
-     }
-    ],
-    "16,134": [
-     {
-      "kind": "prop",
-      "propId": "phwndw1",
-      "solid": false,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "size": 6,
-      "lay": "bg",
-      "ox": 0,
-      "oy": 0.02,
-      "z": 53
      }
     ],
     "15,121": [
@@ -575191,72 +575041,6 @@
     "23,94": {
      "kind": "ladder"
     },
-    "13,135": {
-     "kind": "ladder"
-    },
-    "13,136": {
-     "kind": "ladder"
-    },
-    "14,135": {
-     "kind": "ladder"
-    },
-    "14,136": {
-     "kind": "ladder"
-    },
-    "15,135": {
-     "kind": "ladder"
-    },
-    "15,136": {
-     "kind": "ladder"
-    },
-    "16,135": {
-     "kind": "ladder"
-    },
-    "16,136": {
-     "kind": "ladder"
-    },
-    "17,135": {
-     "kind": "ladder"
-    },
-    "17,136": {
-     "kind": "ladder"
-    },
-    "18,135": {
-     "kind": "ladder"
-    },
-    "18,136": {
-     "kind": "ladder"
-    },
-    "19,135": {
-     "kind": "ladder"
-    },
-    "19,136": {
-     "kind": "ladder"
-    },
-    "20,135": {
-     "kind": "ladder"
-    },
-    "20,136": {
-     "kind": "ladder"
-    },
-    "21,135": {
-     "kind": "ladder"
-    },
-    "21,136": {
-     "kind": "ladder"
-    },
-    "22,135": {
-     "kind": "ladder"
-    },
-    "22,136": {
-     "kind": "ladder"
-    },
-    "23,135": {
-     "kind": "ladder"
-    },
-    "23,136": {
-     "kind": "ladder"
-    },
     "34,59": {
      "kind": "stairs"
     },
@@ -575516,8 +575300,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1795818965365,
-   "editedFrom": 1795519458126
+   "savedAt": 1795896562266,
+   "editedFrom": 1795818965365
   },
   {
    "id": "vcfrm19",
