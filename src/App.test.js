@@ -768,6 +768,19 @@ import {
   topdownStepToward,
 } from "./App";
 import {
+  weaponArmOutOfBody,
+  burnSpreadFlame,
+  catchFireFrom,
+  FIRE_SPREAD_REACH_CELLS,
+  guardDefendStep,
+  GUARD_DEFEND_CELLS,
+  lookAbilityRows,
+  scorePoints,
+  scoreLevelClear,
+  scoreDialogueChoice,
+  SCORE_KILL,
+} from "./App";
+import {
   playerWalkSpeed,
   unitMoveSpeed,
   jumpVelocityScale,
@@ -13815,8 +13828,8 @@ describe("a unit's armour counts the way yours does", () => {
     // drain and the gold revive glow, and to nothing else.
     // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(12); // the two 🪚 saw drains (yours and a unit's: a steady drain like fire, so only the revive grace), the fire drain, the ❄️ ice drain, the 🧪 poison drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away), and the two bullets' 🐞/🪞 turnShot rolls (a body mid-revive turns a round away before it can deflect or reflect it)
-    for (const [, ln] of untouchable) expect(/eDps > 0|ePoisonDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)|!unitUntouchable\(ep\) && turnShot\(/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;") || ln.includes("// 🪚 the revive grace")).toBe(true); // ...or your swing's gate, or a saw's
+    expect(untouchable.length).toBe(13); // the 🔥 catch from a burning neighbour (catchFireFrom: a body mid-revive does not catch, as it does not burn), the two 🪚 saw drains (yours and a unit's: a steady drain like fire, so only the revive grace), the fire drain, the ❄️ ice drain, the 🧪 poison drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away), and the two bullets' 🐞/🪞 turnShot rolls (a body mid-revive turns a round away before it can deflect or reflect it)
+    for (const [, ln] of untouchable) expect(/catchFireFrom\(ep, |eDps > 0|ePoisonDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)|!unitUntouchable\(ep\) && turnShot\(/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;") || ln.includes("// 🪚 the revive grace")).toBe(true); // ...or your swing's gate, or a saw's
   });
 
   test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {
@@ -19182,5 +19195,112 @@ describe("the robbery dialogue pieces", () => {
     expect(mem.turned).toBe("feud");
     expect(mem.feud).toEqual(["13,26"]);
     expect(mem.talkOver).toBe(true);
+  });
+});
+
+// ── Blake's list of 2026-11-28 ───────────────────────────────────────────────────────────────────
+describe("🪜 aiming off a ladder, the gun is out from the body (weaponArmOutOfBody)", () => {
+  // His Tommy Gun's stock is a behindBody piece; on a climb that put it under Robbie's Cowboy Hat.
+  test("behindBody pieces move to behind the arm; the rest are untouched, nothing edited in place", () => {
+    const stock = { id: "s", behindBody: true }, grip = { id: "g", behindArm: true }, barrel = { id: "b" };
+    const out = weaponArmOutOfBody([stock, grip, barrel, null]);
+    expect(out[0]).toEqual({ id: "s", behindBody: false, behindArm: true });
+    expect(out[1]).toBe(grip);
+    expect(out[2]).toBe(barrel);
+    expect(out[3]).toBe(null);
+    expect(stock.behindBody).toBe(true);
+    expect(weaponArmOutOfBody(null)).toEqual([]);
+  });
+  test("the play render applies it only on a climb while aiming or swinging", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src.split("if (p.climbing && (aiming || meleeSwinging)) heldNow = weaponArmOutOfBody(heldNow);").length - 1).toBe(1);
+  });
+});
+
+describe("🔥 fire spreads to whoever is right next to a burning body", () => {
+  test("a source is a body that is burning, or standing in fire cells", () => {
+    expect(burnSpreadFlame({ ignite: 300, igniteDps: 3 })).toEqual({ frames: 300, dps: 3 });
+    expect(burnSpreadFlame({ ignite: 0 }, true)).toEqual({ frames: Math.round(FIRE_DAMAGE_SECS * 60), dps: FIRE_DAMAGE_DPS });
+    expect(burnSpreadFlame({ ignite: 0, onFire: 12 })).toBeNull(); // the 12-frame flame flag alone is not a source
+    expect(burnSpreadFlame(null)).toBeNull();
+  });
+  test("it catches within half a cell, keeps the longer clock, and never lights itself", () => {
+    const CW = 30, reach = FIRE_SPREAD_REACH_CELLS * CW;
+    const box = { x: 0, y: 0, w: 30, h: 60 };
+    const near = { self: "a", box: { x: 30 + reach, y: 0, w: 30, h: 60 }, frames: 300, dps: 3 };
+    const far = { self: "b", box: { x: 30 + reach + 2, y: 0, w: 30, h: 60 }, frames: 300, dps: 3 };
+    const b1 = catchFireFrom({}, box, [far], "me", CW);
+    expect(b1.ignite || 0).toBe(0);
+    const b2 = catchFireFrom({}, box, [near], "me", CW);
+    expect(b2.ignite).toBe(300);
+    expect(b2.igniteDps).toBe(3);
+    const b3 = catchFireFrom({ ignite: 500, igniteDps: 2 }, box, [near], "me", CW);
+    expect(b3.ignite).toBe(500); // the source's REMAINING clock: no fresh one, so a crowd's fire dies out
+    const b4 = catchFireFrom({}, box, [{ ...near, self: "me" }], "me", CW);
+    expect(b4.ignite || 0).toBe(0);
+  });
+  test("the play loop gathers sources and lights the player and the units from them", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src.split('catchFireFrom(p, { x: p.x, y: p.y, w: pw, h: ph }, fireSpreadSources, "player", CW)').length - 1).toBe(1);
+    expect(src.split("catchFireFrom(ep, unitBodyBox(ea, ep, CW), fireSpreadSources, k, CW)").length - 1).toBe(1);
+  });
+});
+
+describe("🛡 a unit set to Hold steps out up to 4 cells to defend itself (guardDefendStep)", () => {
+  const CW = 30, reach = GUARD_DEFEND_CELLS * CW, range = 100, speed = 3;
+  test("struck, it closes on the attacker until in range or 4 cells from home", () => {
+    expect(guardDefendStep(500, 500, 400, range, speed, true, reach)).toBe(3);
+    expect(guardDefendStep(500, 500, -400, range, speed, true, reach)).toBe(-3);
+    expect(guardDefendStep(500, 500 + reach, 400, range, speed, true, reach)).toBe(0);     // at its 4 cells
+    expect(guardDefendStep(500, 500 + reach - 1, 400, range, speed, true, reach)).toBe(1); // never past them
+    expect(guardDefendStep(500, 530, -400, range, speed, true, reach)).toBe(-3);           // back across home is fine
+    expect(guardDefendStep(500, 500, range * ENEMY_STANDOFF_FAR, range, speed, true, reach)).toBe(0); // in range: it fights
+  });
+  test("once the fight is over it walks back to where it held", () => {
+    expect(guardDefendStep(500, 560, 400, range, speed, false, reach)).toBe(-3);
+    expect(guardDefendStep(500, 501, 400, range, speed, false, reach)).toBe(0);
+    expect(guardDefendStep(500, 498, 400, range, speed, false, reach)).toBe(2);
+    expect(guardDefendStep(null, 498, 400, range, speed, true, reach)).toBe(0);
+    expect(guardDefendStep(500, 498, 400, range, 0, true, reach)).toBe(0);
+  });
+});
+
+describe("🍀 the character select names a Lucky Find by its tag and chance", () => {
+  test("one row per charm, the clover symbol, the tag and the chance; every other ability by name", () => {
+    const look = { type: "character", name: "Evil Shop Keeper", effects: [
+      { type: "tagLuck", slot: "shirt", chance: 0.25, tag: "Money" },
+      { type: "tagLuck", slot: "hat", chance: 0.1, tag: " Heal " },
+      { type: "rangeBoost", slot: "hat", mult: 1.5 },
+      { type: "tagLuck", slot: "pants", chance: 0.1, tag: "Heal" },
+    ] };
+    expect(lookAbilityRows(look)).toEqual([
+      { key: "🍀Money 25%", icon: "🍀", text: "Money 25%" },
+      { key: "🍀Heal 10%", icon: "🍀", text: "Heal 10%" },
+      { key: "Long Shot", text: "Long Shot" },
+    ]);
+    expect(lookAbilityRows({ type: "character", effects: [{ type: "tagLuck" }] })).toEqual([{ key: "🍀25%", icon: "🍀", text: "25%" }]);
+    expect(lookAbilityRows(null)).toEqual([]);
+  });
+});
+
+describe("🎯 Medium pays 1.5x and Hard 2x (the score's mult)", () => {
+  test("every payout is multiplied and rounded; 1 when no mult is given", () => {
+    expect(scorePoints(SCORE_KILL, 1.5)).toBe(150);
+    expect(scorePoints(SCORE_KILL, 2)).toBe(200);
+    expect(scorePoints(495, 1.5)).toBe(743);
+    expect(scorePoints(100)).toBe(100);
+    expect(scorePoints(100, 0)).toBe(100);
+    const sc = newScoreState();
+    expect(scoreLevelClear(sc, "run1", 2)).toBe(1000);
+    expect(scoreLevelClear(sc, "run1", 2)).toBe(0);
+    expect(scoreDialogueChoice(sc, "d|1", 30, 1.5)).toBe(45);
+    expect(scoreObjective(sc, "obj|o", 100, 1.5)).toBe(150);
+    expect(scoreLevelClear(sc, "run2")).toBe(500);
+    expect(sc.total).toBe(1000 + 45 + 150 + 500);
+  });
+  test("all five payouts in play pass the run's multiplier", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src.split("scoreMultNow()").length - 1).toBe(5);
+    expect(src.split("scoreRef.current.total += SCORE_KILL").length - 1).toBe(0);
   });
 });

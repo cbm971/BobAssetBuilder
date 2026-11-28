@@ -6500,3 +6500,24 @@ not move the menu), Enter and the Post click, the board coming back with the row
 **The CSS trap.** The first screenshot showed the name in tiny studio type in a blue box. The studio's
 `.bb input:not([type])` (0,2,1) and `.bb input {font:inherit}` beat `.gLbName` (0,1,0), and the game is
 rendered inside `.bb`. Now it is `.gRoot .gLb input.gLbName`.
+
+## 2026-11-28: his seven-item list (ladder gun, fire spread, Hold, weapon sounds, Lucky Find, points)
+
+**The ladder gun.** He saw a ranged weapon "phase under the hat" on a ladder with the Cowboy Hat, not with the Chap
+Cat Head. The first reproduction used the Ray Gun and looked fine; his follow-up ("guns without behind arm do not layer
+correct") pointed at the flag split: the Ray Gun's back is BA, eleven rifles' backs are BB. BB goes to the `under`
+bucket below the hat (hatsUnderArms puts hats just before the first arm). With the Tommy Gun aimed up-left on the M23
+ladder, only the barrel tip showed above the brim. `weaponArmOutOfBody` while climbing and aiming/swinging fixed it;
+standing poses keep BB, which is right for a rifle held across the chest.
+
+**Fire spread** passes the source's remaining clock, not a fresh 10 s, so a packed crowd cannot keep relighting itself
+forever. Checked live: two enemies placed 35 px apart, one lit by hand, the other caught at once; one 400 px off did not.
+
+**Guard defend**: tested with unit tests only (the step function and the struck detection); no Guard unit was driven
+in the running game.
+
+**Weapon sounds**: in the running studio, a sound-less ranged asset's Fire resolved to the house gunshot (heard, muted
+by ?mute), its Hit to the house impact, a throwable's Throw/Land to Swing/Land, a chainsaw's Fire to nothing.
+
+**The red box over the tyres** was not found: scans of Trailer Park M17 and M23 for red-styled elements during play
+found none, and no prop or vehicle in his library carries an isHitbox piece.

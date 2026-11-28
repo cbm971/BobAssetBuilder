@@ -153,11 +153,20 @@ export const gridStep = (n, cols, at, dx, dy) => {
 // full HP, not as if you have a multi lives ability" — and they are DRAWN as the player's own head
 // (HUD and the difficulty boxes), never the 🐱 Extra Life symbol. Sharing that symbol is what made
 // the run's lives read as the ability. An ability's lives keep the cat, on their own row above.
+// `points` multiplies every score payout of the run (Blake, 2026-11-28: "1.5x more points on medium
+// and 2x more points on hard"). Never written on a menu; stepping UP a difficulty on the character
+// select flashes it once over the box you landed on (gameShell.js DiffPointsFlash).
 export const DIFFICULTIES = [
-  { id: "easy", label: "Easy", lives: 3 },
-  { id: "medium", label: "Medium", lives: 2 },
-  { id: "hard", label: "Hard", lives: 1 },
+  { id: "easy", label: "Easy", lives: 3, points: 1 },
+  { id: "medium", label: "Medium", lives: 2, points: 1.5 },
+  { id: "hard", label: "Hard", lives: 1, points: 2 },
 ];
+// The flash's words: "1.5X Points", "2X Points"; null for a step that pays no more (down, or onto 1x).
+export const diffPointsFlash = (fromId, toId) => {
+  const a = DIFFICULTIES.findIndex((d) => d.id === fromId), b = DIFFICULTIES.findIndex((d) => d.id === toId);
+  if (b < 0 || !(b > a) || !(DIFFICULTIES[b].points > 1)) return null;
+  return DIFFICULTIES[b].points + "X Points";
+};
 export const DEFAULT_DIFFICULTY = "medium";
 export const difficultyOf = (id) => DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES.find((d) => d.id === DEFAULT_DIFFICULTY);
 // Lives still in hand, the one being played included (Hard starts on 1). `oneUps` is how many 🍄 One

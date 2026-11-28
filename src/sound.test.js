@@ -10,6 +10,7 @@ import {
   soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
   musicTrackFor, stretchChannels, PICKUP_LEGENDARY_STRETCH, testMuteOn, carEngineGain, CAR_ENGINE_IDLE_GAIN,
   momentMaxSecs, soundCutTimes, FIRE_SOUND_MAX_S, ENEMY_DEATH_SOUND_MAX_S, SOUND_CUT_FADE_S,
+  slotBasicOf, HOUSE_BASICS, houseBasics, withHouseBasics,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -101,7 +102,7 @@ describe("which sound plays: the asset's own, else the basic one, else silence",
   });
 
   test("the basic-sound registry: every moment he asked for, each one a row", () => {
-    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "playerHurt", "playerDeath", "enemyHurt", "enemyDeath", "pickup", "door", "menuClick", "car", "carCrash", "carTotaled", "carRadio"]);
+    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "shoot", "shotHit", "playerHurt", "playerDeath", "enemyHurt", "enemyDeath", "pickup", "door", "menuClick", "car", "carCrash", "carTotaled", "carRadio"]);
     for (const e of SOUND_EVENTS) { expect(typeof e.label).toBe("string"); expect(e.label.length).toBeGreaterThan(0); }
   });
 });
@@ -138,7 +139,7 @@ describe("a swing is the swing, the punch is the blow landing", () => {
   test("the contact sounds: a blade's Hit else the Punch, a body's Attack else the Punch", () => {
     expect(slot("melee", "hit").basic).toBe("punch");
     expect(slot("enemy", "attack").basic).toBe("punch");
-    expect(slot("ranged", "hit").basic).toBeNull(); // a bullet landing is not a punch
+    expect(slot("ranged", "hit").basic).toBe("shotHit"); // a bullet landing is not a punch: its own row
     const plain = { id: "p", type: "weapon", wtype: "melee" };
     expect(resolveSound({ asset: plain, slot: "hit", basic: "punch", board: b, has })).toBe("smack");
     const dog = { id: "d", type: "enemy", sounds: { attack: "chomp" } };
@@ -952,5 +953,60 @@ describe("a gunshot is cut at a tenth of a second and an enemy's death at one se
     expect(e.stopAssetSlot(gun, "fire")).toBe(true);
     expect(src.stopAt).toBeCloseTo(5.035, 9);
     expect(e.stopAssetSlot(gun, "fire")).toBe(false);
+  });
+});
+
+// A WEAPON WITH NO SOUND OF ITS OWN STILL MAKES ONE (2026-11-28, Blake: "Ensure basic weapon audio
+// defaults to something so if nothing is set it still makes a swing sound etc.").
+describe("an unset weapon slot falls back to a basic sound", () => {
+  const gun = (id, fire, hit) => ({ id, type: "weapon", wtype: "ranged", sounds: { ...(fire ? { fire } : {}), ...(hit ? { hit } : {}) } });
+  test("every weapon slot but a running chainsaw's Fire has a basic behind it", () => {
+    expect(slotBasicOf({ type: "weapon", wtype: "ranged" }, "fire")).toBe("shoot");
+    expect(slotBasicOf({ type: "weapon", wtype: "ranged" }, "hit")).toBe("shotHit");
+    expect(slotBasicOf({ type: "weapon", wtype: "throw" }, "throw")).toBe("swing");
+    expect(slotBasicOf({ type: "weapon", wtype: "throw" }, "land")).toBe("land");
+    expect(slotBasicOf({ type: "weapon", wtype: "melee" }, "swing")).toBe("swing");
+    expect(slotBasicOf({ type: "weapon", wtype: "melee", automatic: true }, "fire")).toBeNull(); // a loop, not a moment
+    expect(slotBasicOf({ type: "prop" }, "fire")).toBeNull();
+    expect(slotBasicOf(null, "fire")).toBeNull();
+  });
+  test("the house gunshot is the Fire most guns share (ties by id), counting only sounds that exist", () => {
+    const lib = [gun("a", "bang", "thud"), gun("b", "bang", "splat"), gun("c", "pew", "splat"), gun("d", "gone"), gun("e", "gone"), gun("f", "gone"),
+      { id: "m", type: "weapon", wtype: "melee", sounds: { hit: "thud" } }, { id: "t", type: "weapon", wtype: "throw", sounds: {} }, null];
+    const has = (id) => id !== "gone";
+    expect(houseBasics(lib, has)).toEqual({ shoot: "bang", shotHit: "splat" });
+    expect(houseBasics([gun("a", "zz"), gun("b", "aa")], () => true)).toEqual({ shoot: "aa" });   // a tie goes to the lower id, stable
+    expect(houseBasics([], () => true)).toEqual({});
+    expect(Object.keys(HOUSE_BASICS).every((k) => SOUND_EVENT_KEYS.includes(k))).toBe(true);
+  });
+  test("his pick on the board always wins; the house only fills an empty row", () => {
+    const b = board({ shoot: "mine", jump: "boing" });
+    const out = withHouseBasics(b, { shoot: "bang", shotHit: "splat" });
+    expect(out.basic).toEqual({ shoot: "mine", jump: "boing", shotHit: "splat" });
+    expect(b.basic).toEqual({ shoot: "mine", jump: "boing" });                    // never edited in place
+    expect(withHouseBasics(b, { shoot: "bang" })).toBe(b);                         // nothing to fill: same object
+    expect(withHouseBasics(b, null)).toBe(b);
+    expect(withHouseBasics(null, { shoot: "bang" }).basic).toEqual({ shoot: "bang" }); // no board saved yet
+  });
+  test("the engine: a silent gun goes bang, a throwable whooshes, a pick wins, a chainsaw stays a loop", () => {
+    const e = createAudioEngine({});
+    e.setLibrary([snd("bang", "Bang", "W"), snd("whoosh", "Whoosh", "B"), snd("mine", "Mine", "W"), snd("thump", "Thump", "B"), board({ swing: "whoosh", land: "thump" })]);
+    const plain = gun("g"), plainThrow = { id: "t", type: "weapon", wtype: "throw" };
+    const lastId = () => e.trace().slice(-1)[0];
+    e.moment({ asset: plain, slot: "fire", basic: null });
+    expect(e.trace().length).toBe(0);                                              // no Gunshot yet, no house: silence
+    e.setHouse({ shoot: "bang" });
+    e.moment({ asset: plain, slot: "fire", basic: null });
+    expect(lastId()).toMatchObject({ id: "bang", slot: "fire", basic: "shoot" });
+    e.moment({ asset: plainThrow, slot: "throw", basic: null });
+    expect(lastId()).toMatchObject({ id: "whoosh", basic: "swing" });
+    e.moment({ asset: plainThrow, slot: "land", basic: null });
+    expect(lastId()).toMatchObject({ id: "thump", basic: "land" });
+    e.setLibrary([snd("bang", "Bang", "W"), snd("mine", "Mine", "W"), board({ shoot: "mine" })]);
+    e.moment({ asset: plain, slot: "fire", basic: null, x: 1, y: 1 });
+    expect(lastId()).toMatchObject({ id: "mine" });                                // the house survives setLibrary, and his pick beats it
+    const n = e.trace().length;
+    e.moment({ asset: { id: "c", type: "weapon", wtype: "melee", automatic: true }, slot: "fire" });
+    expect(e.trace().length).toBe(n);
   });
 });

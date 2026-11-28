@@ -4,7 +4,7 @@ import {
   isGameAddress, gameAddressFor, introRemainingMs, INTRO_MIN_MS, INTRO_BOB_AT_MS, GAME_MENU, menuStep, pickStartLook,
   makeGameSave, sortGameSaves, upsertGameSave, dropGameSave, GAME_SAVES_MAX, resumeNodeKey, formatPlayTime, scorePlaySecs,
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
-  unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
+  unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, diffPointsFlash, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS, menuSceneLevels, MENU_SCENE_PINNED,
   enemiesDefeatedCount,
   starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, selectBoxPx, keepsSavedOutfit, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, freshRunSeed,
@@ -239,6 +239,13 @@ describe("the character select (2026-10-18)", () => {
 describe("difficulty (Blake: Easy 3 lives, Medium 2, Hard 1)", () => {
   test("the lives", () => {
     expect(DIFFICULTIES.map((d) => [d.id, d.lives])).toEqual([["easy", 3], ["medium", 2], ["hard", 1]]);
+    expect(DIFFICULTIES.map((d) => d.points)).toEqual([1, 1.5, 2]); // Blake, 2026-11-28
+    expect(diffPointsFlash("easy", "medium")).toBe("1.5X Points");
+    expect(diffPointsFlash("medium", "hard")).toBe("2X Points");
+    expect(diffPointsFlash("easy", "hard")).toBe("2X Points");
+    expect(diffPointsFlash("hard", "medium")).toBeNull(); // only a step UP flashes
+    expect(diffPointsFlash("hard", "easy")).toBeNull();
+    expect(diffPointsFlash("medium", "medium")).toBeNull();
     expect(difficultyOf("nope").id).toBe("medium");
   });
   test("Hard ends the run on the first death, Medium on the second, Easy on the third", () => {

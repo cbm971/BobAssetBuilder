@@ -1360,6 +1360,31 @@ plus traps it does not cover:
   `runWorldToSave`/`applyRunWorld`, or a load forgets it. Prove a memory fix with Quit to Main Menu → Load Game, not
   only by walking back.
 
+### His bug list of 2026-11-28 (seven items, one push)
+
+- **Off a ladder the gun is out from the body.** A rifle's back pieces are `behindBody` (BB: AK-47, M16, Tommy Gun,
+  Mosin, M40...) and `mergeWeaponBlocks` puts BB under everything, so aiming or swinging on a climb sank the Tommy Gun
+  under Robbie's Cowboy Hat (`hatsUnderArms` keeps hats under the arms). While `p.climbing && (aiming ||
+  meleeSwinging)` the play render runs `weaponArmOutOfBody` (BB becomes behindArm). Guns with BA (Ray Gun) never did it.
+- **Fire spreads to whoever is right next to it** (`burnSpreadFlame`, `catchFireFrom`): a body that is burning
+  (`ignite`) or standing in fire cells lights every body within `FIRE_SPREAD_REACH_CELLS` (0.5) of its box, the player
+  included, with the source's REMAINING clock (never a fresh one, so a crowd's fire dies out). Immunity, talk and the
+  revive grace stop it, as they stop the burn.
+- **🛡 Guard (Hold) units defend themselves** (`guardDefendStep`): struck by YOU or a unit (not fire), a guard steps
+  toward the attacker for `GUARD_DEFEND_FRAMES` while it is detected and out of range, never more than
+  `GUARD_DEFEND_CELLS` (4) from `ep.guardHomeX`, then walks back.
+- **No weapon slot is silent.** `moment()` fills a missing basic from `ASSET_SOUND_SLOTS`: a gun's Fire/Hit fall back to
+  the new basic rows Gunshot (`shoot`) / Shot hit (`shotHit`), a throwable's Throw to Swing and Land to Land. An empty
+  Gunshot / Shot hit plays the HOUSE pick (`houseBasics`: the Fire / Hit most of his guns share, worked out from the
+  library, never written into the board; his pick always wins). A running chainsaw's Fire stays a loop with no basic.
+- **Lucky Find on the character select** is one row per charm: clover symbol, tag, chance ("🍀 Heal 10%",
+  `lookAbilityRows`). The shop row and pickup callout keep the name.
+- **Medium pays 1.5x, Hard 2x** (`DIFFICULTIES[].points`): every payout (kill, level clear, dialogue, objective, floor
+  end) passes `scoreMultNow()` (1 outside a game run). Never shown, except a one-second "1.5X Points" / "2X Points" in
+  the pickup banner's face over the box you step UP to on the character select (`diffPointsFlash`).
+- **Not fixed: the red box over the tyres "in the level with the ramp".** Not reproduced in Trailer Park M17/M23
+  playtests; no prop or vehicle in his library has an isHitbox piece. Waiting on which level / a screenshot.
+
 ## Working style
 
 - Ship it. Push fixes directly, with no option menus. Try things before calling them impossible.

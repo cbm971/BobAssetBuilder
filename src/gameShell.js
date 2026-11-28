@@ -18,7 +18,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   GAME_MENU, menuStep, introRemainingMs, INTRO_OUT_MS, formatPlayTime, UNLOCK_TABS, unlockPool,
-  starterRoster, pickStartLook, selectGridCols, selectGridFill, selectBoxPx, SELECT_GRID_ROWS_SHOWN, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
+  starterRoster, pickStartLook, selectGridCols, selectGridFill, selectBoxPx, SELECT_GRID_ROWS_SHOWN, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, gridStep, DIFFICULTIES, difficultyOf, diffPointsFlash, stepMenuWalker, starterLock,
   starterStats, lookFloorMedals, gameMenuRows,
 } from "./gameFront";
 import { boardRows, cleanName, LB_NAME_MAX } from "./leaderboard";
@@ -279,6 +279,14 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
   const [at, setAt] = useState(0);
   const [step, setStep] = useState("fighter");
   const [diff, setDiff] = useState(() => difficultyOf(difficulty).id);
+  // Stepping UP a difficulty flashes what it pays ("1.5X Points") over the box landed on, once.
+  const [ptsFlash, setPtsFlash] = useState(null); // { id, text, n } | null
+  const pickDiff = (id) => {
+    const text = diffPointsFlash(diff, id);
+    if (text) setPtsFlash((f) => ({ id, text, n: ((f && f.n) || 0) + 1 }));
+    else if (id !== diff) setPtsFlash(null);
+    setDiff(id);
+  };
   const cols = selectGridCols(roster.length);
   // One box size whatever the roster's length (selectBoxPx); past SELECT_GRID_ROWS_SHOWN rows the grid
   // scrolls inside that height instead, and the lit box is kept in view.
@@ -308,7 +316,7 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
     pick: () => { if (!cur) return; if (curLock) { refuse(); return; } click(); setStep("diff"); },
     back: () => { click(); back(); },
   } : {
-    side: (d) => { click(); setDiff(DIFFICULTIES[(di + d + DIFFICULTIES.length) % DIFFICULTIES.length].id); },
+    side: (d) => { click(); pickDiff(DIFFICULTIES[(di + d + DIFFICULTIES.length) % DIFFICULTIES.length].id); },
     move: (d) => { if (d < 0) { click(); setStep("fighter"); } },
     pick: start,
     back: () => { click(); setStep("fighter"); },
@@ -374,13 +382,14 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
         {abilities.length > 0 && (
           <div className="gPCard gAbil" style={{ height: p1, fontSize: statPx }}>
             <div className="gAbilHead">Abilities</div>
-            <div className="gAbilList">{abilities.map((n) => <div key={n} className="gAbilRow">{n}</div>)}</div>
+            <div className="gAbilList">{abilities.map((r) => (typeof r === "string" ? { key: r, text: r } : r)).map((r) => <div key={r.key} className="gAbilRow">{r.icon && statIcon && <span className="gAbilIcon">{statIcon(r.icon, statPx)}</span>}{r.text}</div>)}</div>
           </div>
         )}
         <div className={"gDiffBox" + (step === "diff" ? " live" : "")}>
           <div className="gDiffRow">
             {DIFFICULTIES.map((d) => (
-              <div key={d.id} role="button" className={"gDiff" + (d.id === diff ? " on" : "")} onClick={() => { click(); setDiff(d.id); setStep("diff"); }}>
+              <div key={d.id} role="button" className={"gDiff" + (d.id === diff ? " on" : "")} onClick={() => { click(); pickDiff(d.id); setStep("diff"); }}>
+                {ptsFlash && ptsFlash.id === d.id && <span key={ptsFlash.n} className="gDiffPts" data-text={ptsFlash.text} onAnimationEnd={() => setPtsFlash(null)}><span>{ptsFlash.text}</span></span>}
                 <span className="gDiffTxt">{d.label}</span>
                 <span className={"gDiffLives" + (curLock ? " shut" : "")}>{cur && Array.from({ length: d.lives }, (_, i) => <i key={i} style={{ width: headPx, height: headPx }}>{renderHead(cur, headPx)}</i>)}</span>
               </div>
@@ -906,6 +915,11 @@ export const GAME_CSS = `
 .gDiff{display:flex;flex-direction:column;align-items:center;gap:.3em;min-width:clamp(110px,10vw,170px);box-sizing:border-box;padding:.5em .9em .55em;cursor:pointer;background:var(--gG2);border:3px solid rgba(241,239,228,.75);color:var(--gDim);transform:skewX(-10deg);box-shadow:0 6px 0 rgba(0,0,0,.35);transition:transform .1s,background .1s}
 .gDiff>*{transform:skewX(10deg)}
 .gDiffTxt{font-size:clamp(17px,1.6vw,28px);text-transform:uppercase;letter-spacing:.06em}
+.gDiff{position:relative}
+.gDiffPts{position:absolute;left:-40%;right:-40%;bottom:calc(100% + .25em);text-align:center;pointer-events:none;white-space:nowrap;font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-weight:400;font-size:clamp(18px,1.7vw,30px);line-height:1.05;letter-spacing:.03em;text-transform:uppercase;opacity:0;animation:gDiffPts 1.2s ease-out forwards}
+.gDiffPts span{position:relative;background:linear-gradient(180deg,#fffdf0 0%,#ffe680 32%,#f7b731 64%,#c68200 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.gDiffPts::before{content:attr(data-text);position:absolute;left:0;top:0;right:0;color:#2b1700;-webkit-text-stroke:.2em #2b1700;text-shadow:0 .12em 0 #2b1700,0 0 .6em rgba(255,225,100,.9)}
+@keyframes gDiffPts{0%{opacity:0;transform:skewX(10deg) translateY(.4em) scale(.85)}20%{opacity:1;transform:skewX(10deg) translateY(0) scale(1)}70%{opacity:1;transform:skewX(10deg) translateY(-.15em) scale(1)}100%{opacity:0;transform:skewX(10deg) translateY(-.5em) scale(1)}}
 .gDiffLives{display:flex;gap:3px;min-height:18px;align-items:center}
 .gDiffLives i{position:relative;overflow:hidden;flex:none;display:inline-block;font-style:normal}
 .gDiffLives i>div{filter:drop-shadow(0 2px 0 rgba(0,0,0,.35))}
@@ -915,7 +929,8 @@ export const GAME_CSS = `
 .gAbil{min-width:clamp(150px,11vw,220px);max-width:22vw;overflow:hidden}
 .gAbilHead{color:var(--gDim);text-transform:uppercase;letter-spacing:.1em;border-bottom:2px solid rgba(241,239,228,.2);padding-bottom:.5em}
 .gAbilList{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:.3em;overflow:hidden}
-.gAbilRow{text-transform:uppercase;letter-spacing:.06em;color:#fff;font-size:1.05em;line-height:1.1}
+.gAbilRow{text-transform:uppercase;letter-spacing:.06em;color:#fff;font-size:1.05em;line-height:1.1;display:flex;align-items:center;gap:.4em}
+.gAbilIcon{display:inline-flex;flex:none}
 @media (max-width:1279px){.gAbil{display:none}}
 .gPStats{flex:1;display:flex;flex-direction:column;justify-content:space-around}
 .gPStat{display:flex;align-items:center;gap:.5em;line-height:1;text-transform:uppercase;letter-spacing:.06em;color:var(--gDim)}

@@ -30,6 +30,12 @@ export const SOUND_EVENTS = [
   // Punch only if it connects with something.
   { key: "swing", label: "Swing", icon: "💨" },
   { key: "punch", label: "Punch", icon: "👊" },
+  // A GUN WITH NO SOUND OF ITS OWN STILL GOES BANG (2026-11-28, Blake: "Ensure basic weapon audio
+  // defaults to something so if nothing is set it still makes a swing sound etc."). A gun's Fire and
+  // Hit had no basic behind them, so a new gun, or one whose sound was deleted, fired in silence. Left
+  // unpicked, these two play the gunshot and the impact most of his guns already use (houseBasics).
+  { key: "shoot", label: "Gunshot", icon: "🔫" },
+  { key: "shotHit", label: "Shot hit", icon: "🎯" },
   // Hurt and Death are one row per SIDE (Blake, 2026-10-17: "a seperate enemy hurt and death sound
   // and player hurt and death sound"). They were one pair for everybody.
   { key: "playerHurt", label: "Player hurt", icon: "🤕" },
@@ -67,8 +73,11 @@ export const ASSET_SOUND_SLOTS = {
   melee: [{ key: "swing", label: "Swing", basic: "swing" }, { key: "hit", label: "Hit", basic: "punch" }],
   // 🪚 A melee weapon with Automatic never swings: it runs, and its Fire loops while it does.
   automatic: [{ key: "fire", label: "Fire", basic: null }, { key: "hit", label: "Hit", basic: "punch" }],
-  ranged: [{ key: "fire", label: "Fire", basic: null }, { key: "hit", label: "Hit", basic: null }],
-  throw: [{ key: "throw", label: "Throw", basic: null }, { key: "land", label: "Land", basic: null }],
+  // A gun falls back to the basic Gunshot and Shot hit; a throwable's Throw is an arm going round, so
+  // the basic Swing (every one of his throwables already picks his Swing for it), and its Land the
+  // basic Land, something coming down on the floor (2026-11-28; they were silent).
+  ranged: [{ key: "fire", label: "Fire", basic: "shoot" }, { key: "hit", label: "Hit", basic: "shotHit" }],
+  throw: [{ key: "throw", label: "Throw", basic: "swing" }, { key: "land", label: "Land", basic: "land" }],
   enemy: [{ key: "attack", label: "Attack", basic: "punch" }, { key: "hurt", label: "Hurt", basic: "enemyHurt" }, { key: "death", label: "Death", basic: "enemyDeath" }],
 };
 // A board saved before Hurt and Death were split has ONE `hurt` and ONE `death` (and a volume for
@@ -106,6 +115,41 @@ export const withAssetSound = (sounds, slot, soundId) => {
   const out = { ...(sounds && typeof sounds === "object" ? sounds : {}) };
   if (soundId) out[slot] = soundId; else delete out[slot];
   return out;
+};
+
+// The basic sound a weapon slot falls back to, from the table above (null where nothing does).
+export const slotBasicOf = (asset, slot) => {
+  const sl = assetSoundSlots(asset).find((s) => s.key === slot);
+  return sl ? sl.basic : null;
+};
+// THE HOUSE GUNSHOT. A basic row left empty that has a house pick plays the sound the most weapons
+// of that kind use for that slot: an unpicked Gunshot is the Fire most of his guns share, Shot hit
+// their most common Hit. Worked out from the library, never written into the board, so it follows
+// his guns as he changes them, and a pick on the Sounds screen always wins.
+export const HOUSE_BASICS = { shoot: { kind: "ranged", slot: "fire" }, shotHit: { kind: "ranged", slot: "hit" } };
+export const houseBasics = (assets, has) => {
+  const out = {};
+  for (const [basic, { kind, slot }] of Object.entries(HOUSE_BASICS)) {
+    const n = new Map();
+    for (const a of assets || []) {
+      if (!a || a.type !== "weapon" || (a.wtype === "ranged" ? "ranged" : a.wtype) !== kind) continue;
+      const id = a.sounds && a.sounds[slot];
+      if (id && (typeof has !== "function" || has(id))) n.set(id, (n.get(id) || 0) + 1);
+    }
+    let best = null, bestN = 0;
+    for (const [id, c] of n) if (c > bestN || (c === bestN && String(id) < String(best))) { best = id; bestN = c; }
+    if (best) out[basic] = best;
+  }
+  return out;
+};
+// The board the PLAYING engine uses: his picks, with a house pick behind each empty one.
+export const withHouseBasics = (board, house) => {
+  if (!house || !Object.keys(house).length) return board;
+  const b = board && typeof board === "object" ? board : newSoundBoard();
+  const basic = { ...(b.basic || {}) };
+  let changed = false;
+  for (const [k, id] of Object.entries(house)) if (!basic[k] && id) { basic[k] = id; changed = true; }
+  return changed ? { ...b, basic } : b;
 };
 
 export const SOUND_BOARD_ID = "soundboard";
@@ -497,7 +541,8 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   const W = typeof window !== "undefined" ? window : null;
   let ctx = null, master = null, gate = null;    // gate: between master and the speakers, 0 under testMuteOn
   const sounds = new Map();      // id -> sound record
-  let board = null;
+  let board = null;              // the board as played: his picks, the house gunshot behind an empty Gunshot / Shot hit
+  let rawBoard = null, house = null; // his board as saved, and houseBasics (setHouse)
   const buffers = new Map();     // clip -> AudioBuffer, decoded once
   const starts = new Map();      // clip -> seconds of quiet to skip (leadingSilence), measured once at decode
   const pending = new Map();     // clip -> Promise<AudioBuffer|null>
@@ -807,9 +852,12 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     setLibrary: (records, boardRec) => {
       sounds.clear();
       for (const r of records || []) if (isSoundRecord(r)) sounds.set(r.id, r);
-      board = splitHurtDeath(boardRec || (records || []).find(isSoundBoard) || null);
+      rawBoard = splitHurtDeath(boardRec || (records || []).find(isSoundBoard) || null);
+      board = withHouseBasics(rawBoard, house);
       engine.syncMusic();
     },
+    // The house picks behind an empty basic row (houseBasics, worked out from the weapons by the app).
+    setHouse: (h) => { house = h && typeof h === "object" ? h : null; board = withHouseBasics(rawBoard, house); },
     has: (id) => sounds.has(id),
     board: () => board,
     // Decode ahead of need, so the first jump of a run is heard. Takes sound ids.
@@ -822,7 +870,10 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // happens (an explosion, see EXPLOSION_MIN_GAIN).
     // `scale` turns one call down (the game's menu click, which on its own over a quiet menu was
     // "too loud"); 1 everywhere else.
-    moment: ({ asset, slot, basic, x, y, minGain = 0, scale = 1, stretch = 1, maxSecs } = {}) => {
+    // A call that names no basic gets the slot's own from ASSET_SOUND_SLOTS (a gun's Fire → Gunshot,
+    // a throwable's Throw → Swing), so no weapon slot is silent just because a caller passed null.
+    moment: ({ asset, slot, basic: basicIn, x, y, minGain = 0, scale = 1, stretch = 1, maxSecs } = {}) => {
+      const basic = basicIn != null ? basicIn : (asset && slot ? slotBasicOf(asset, slot) : null);
       const id = resolveSound({ asset, slot, basic, board, has: engine.has });
       if (!id) return false;
       const gain = Math.max(soundGainAt(x, y, view), Math.min(1, minGain));

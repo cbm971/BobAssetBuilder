@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
 import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animShotsBetween, animMirrorValues, animPropTransform, animStateDur, animStep, animCanSkip, ANIM_SKIP_LEAVE_MS, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, clothLook, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animWalkedIn, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR, animTalkOpen, ANIM_LOOK_SIZE, ANIM_LOOK_SIZE_MAX } from "./anim";
-import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN, houseBasics } from "./audio";
 // THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
@@ -1741,6 +1741,35 @@ export const igniteBody = (body, secs, dps) => {
 };
 export const igniteDpsOf = (body) => (body && (body.ignite || 0) > 0 ? body.igniteDps || 0 : 0);
 export const tickIgnite = (body, dtMul) => { if (body && (body.ignite || 0) > 0) body.ignite = Math.max(0, body.ignite - dtMul); return body; };
+// 🔥 FIRE SPREADS TO WHOEVER IS RIGHT NEXT TO IT (2026-11-28, Blake: "If an enemy is on fire and another
+// enemy is right next to that enemy that other enemy should also catch on fire"). Fire is universal in
+// this game and does not care whose side anyone is on, and his standing rule is that the player and the
+// units play by one set of rules, so a burning body sets alight any body within FIRE_SPREAD_REACH_CELLS
+// of it: unit to unit, unit to you, you to a unit.
+// What it hands on is ITS OWN flame (burnSpreadFlame): an Ignite burn passes its dps and only the time it
+// has LEFT, never a fresh clock, so two bodies standing together cannot keep relighting each other for
+// ever: both clocks only run down and the pair burns out together. A body standing in fire cells (the
+// level's fire, a Molotov's patch) has no clock of its own; it hands on the game's "on fire" burn,
+// FIRE_DAMAGE_SECS at FIRE_DAMAGE_DPS (his numbers for being on fire). The 12-frame onFire flash and a
+// Flame Aura's proximity are not sources: the flash outlives the burn by a few frames and would relight
+// a neighbour with a fresh clock, and an aura already reaches everyone near its wearer.
+export const FIRE_SPREAD_REACH_CELLS = 0.5;
+export const burnSpreadFlame = (body, inFireCells = false) => {
+  if (!body) return null;
+  if ((body.ignite || 0) > 0) return { frames: body.ignite, dps: body.igniteDps || DEFAULT_IGNITE_DPS };
+  if (inFireCells) return { frames: Math.round(FIRE_DAMAGE_SECS * 60), dps: FIRE_DAMAGE_DPS };
+  return null;
+};
+// Light `body` (whose box is `box`) from every source within reach that is not itself (`self`, the same
+// value the source was listed with). Returns the body; igniteBody keeps the longer clock and hotter flame.
+export const catchFireFrom = (body, box, sources, self, cellPx = LV_CELL) => {
+  if (!body || !box || !sources || !sources.length) return body;
+  for (const s of sources) {
+    if (!s || s.self === self || !s.box) continue;
+    if (boxDistance(box, s.box) <= FIRE_SPREAD_REACH_CELLS * cellPx + 1e-6) igniteBody(body, s.frames / 60, s.dps);
+  }
+  return body;
+};
 // 🔥 FIRE DAMAGE / ❄️ ICE DAMAGE (weapon abilities, 2026-10-21). Blake: "A Ability I can apply to
 // weapons that adds Fire damage. And an ability that adds Ice damage", and "When on fire a character
 // should have a reddish orange fire glow and sort of sparks coming off of them and they should take 2
@@ -2617,6 +2646,20 @@ export const mergeWeaponBlocks = (bodyBlocks, weaponBlocks) => {
   if (armIdx === -1 || !behind.length) { const rest = (weaponBlocks || []).filter((p) => !under.includes(p)); return under.concat(body, rest); }
   return under.concat(body.slice(0, armIdx), behind, body.slice(armIdx), front);
 };
+// A GUN HELD OUT OFF A LADDER IS NOT BEHIND THE BODY ANY MORE (2026-11-28, Blake: "When going up a
+// ladder with a hat and aiming left the layering is off and the ranged weapon can phase under the
+// hat"; then "maybe guns without behind arm do not layer correct"). Most of his rifles (AK-47, Tommy
+// Gun, M40, Mosin, the launchers) draw their BACK pose ticked "Behind the WHOLE body": seen from
+// behind, a gun held at your side is in front of you, so the torso hides it. That is right at rest. But
+// on a ladder, bars or a ledge the gun arm comes off the grip to aim (climbFreesGunArm) or swing, out
+// to the side and up past the head, and a behindBody piece still went under EVERYTHING the body wears
+// (mergeWeaponBlocks' `under` bucket), the hat included: aimed up and left, his Tommy Gun vanished
+// under Robbie's Cowboy Hat with only the muzzle poking out over the brim. The Ray Gun never did it,
+// because its Back pieces are ticked "Behind the arm", which sits over the head and the hat (see
+// hatsUnderArms) and under the arm holding it. So while the arm is out, the whole-body pieces ride
+// with the arm the way "Behind the arm" pieces do. At rest on the ladder they stay behind the body.
+export const weaponArmOutOfBody = (weaponBlocks) =>
+  (weaponBlocks || []).map((p) => (p && p.behindBody ? { ...p, behindBody: false, behindArm: true } : p));
 // "BEHIND LEGS" MEANS BEHIND THE LEGS — NOT BEHIND THE WHOLE BODY (2026-10-03, Blake: "Behind legs
 // should just put it behind legs. it shouldn't put it behind body.") The compositor used to put a
 // behindLegs piece at the very bottom of the stack, under the torso too, so a pair of Jean Shorts
@@ -7282,6 +7325,30 @@ export const enemyMoveIntent = (ai, dist, range, speed, detected) => {
   if (ad < range * ENEMY_STANDOFF_NEAR) return -s * speed;
   return 0;
 };
+// 🛡 GUARD DEFENDS ITSELF (2026-11-28, Blake: "Enemies set to hold should be willing to move 4 cells to
+// defend themself if attacked"). Guard used to never leave its spot whatever was done to it, so a
+// melee guard stood and took shots from a cell outside its reach. Struck by a blow (yours, or your
+// ally's), it now has GUARD_DEFEND_FRAMES in which it closes on its attacker like Seek does, to its
+// weapon's reach, but never past GUARD_DEFEND_CELLS from where it stands guard (homeX, its body's
+// centre). It never backs off (that is Avoid, and a gunman too close keeps its ground as before).
+// Once the window runs out it walks back to the spot, so a guard that defended itself twice is still
+// guarding the same door. A guard nobody touches is exactly what it was: at home it returns 0.
+// `dist` is the signed gap to the target (gapSigned), `range` the engage range, `reachPx` the leash.
+export const GUARD_DEFEND_CELLS = 4;
+export const GUARD_DEFEND_FRAMES = 5 * 60;
+export const guardDefendStep = (homeX, cx, dist, range, speed, defending, reachPx) => {
+  if (homeX == null || !isFinite(homeX) || !(speed > 0)) return 0;
+  const off = cx - homeX;
+  if (defending) {
+    const s = Math.sign(dist) || 1;
+    if (Math.abs(dist) <= range * ENEMY_STANDOFF_FAR) return 0; // in reach: fight from here
+    const room = s * off >= 0 ? reachPx - Math.abs(off) : reachPx + Math.abs(off); // how far it may still go that way
+    return room > 0 ? s * Math.min(speed, room) : 0;
+  }
+  // Calm again: back to the spot, at its walk, stopping on it rather than stepping past it.
+  if (Math.abs(off) > 1) return -Math.sign(off) * Math.min(speed, Math.abs(off));
+  return 0;
+};
 // Same block-height jump math the player uses (h = v^2/2g, inverted), so an enemy's hop clears
 // the same obstacles a player of that Agility could.
 export const enemyJumpVelocity = (agility, cellH) => Math.sqrt(2 * 0.175 * (0.5 * Math.min(10, Math.max(1, agility ?? 5)) + 0.5) * JUMP_HEIGHT_BOOST * cellH);
@@ -8047,6 +8114,23 @@ export const lookAbilityNames = (look) => {
   const out = [];
   for (const n of [...itemAbilityNames(look), ...(look && look.components && look.components.weapon ? itemAbilityNames(look.components.weapon) : [])]) if (!out.includes(n)) out.push(n);
   return out;
+};
+// 🍀 THE CARD SAYS WHAT A LUCKY FIND FINDS (Blake, 2026-11-28: "instead of saying "Lucky Find" under
+// abilities say "Clover symbol Xtag X %""). The character select's rows: every name as above, but
+// each worn Lucky Find is its own row of the clover symbol, its tag and its chance ("🍀 Heal 10%"),
+// so the Evil Shop Keeper's two charms read as two. `icon` is a symbol slot the card draws.
+export const lookAbilityRows = (look) => {
+  const rows = [];
+  for (const n of lookAbilityNames(look)) {
+    if (n !== EFFECT_TYPES.tagLuck.label) { rows.push({ key: n, text: n }); continue; }
+    for (const e of (look && look.effects) || []) {
+      if (!e || e.type !== "tagLuck") continue;
+      const tag = String(e.tag || "").trim();
+      const text = (tag ? tag + " " : "") + briefPct(Math.min(1, Math.max(0, e.chance ?? 0.25)));
+      if (!rows.some((r) => r.key === "🍀" + text)) rows.push({ key: "🍀" + text, icon: EFFECT_TYPES.tagLuck.icon, text });
+    }
+  }
+  return rows;
 };
 export const pickupChangeRows = (item, ctx) => {
   if (!item) return [];
@@ -16334,7 +16418,10 @@ export const THROWN_Z = 5050;
    - A LEVEL is cleared the first time you leave it through a gate in a run (seamHandoff), or when
      the floor ends (animLeaveRef). Its clock (`secs`) runs only while the world does: a conversation,
      a shop or a cutscene returns from the loop above the tick, so reading costs nothing.
-   The score lives in the studio's scoreRef for the whole session and is reset by ▶ Playtest / 🏁. */
+   The score lives in the studio's scoreRef for the whole session and is reset by ▶ Playtest / 🏁.
+   - THE DIFFICULTY MULTIPLIES IT (Blake, 2026-11-28: "You should earn 1.5x more points on medium and
+     2x more points on hard. It shouldn't display that anywhere"): every payout below takes the run's
+     `mult` (gameFront.js DIFFICULTIES `points`; 1 outside a game run), rounded to whole points. */
 // A message that says something was SAVED shows green and stays up longer: the one you need to see.
 export const toastIsSave = (t) => !!t && /saved/i.test(t) && !/not saved|nothing saved|⚠/i.test(t);
 export const SCORE_KILL = 100;
@@ -16345,23 +16432,24 @@ export const newScoreState = () => ({ total: 0, secs: {}, cleared: {}, spent: {}
 // Whole seconds past the par each cost SCORE_LOSS_PER_SEC, and a slow clear is worth nothing, never less.
 export const levelClearPoints = (secs) => Math.max(0, SCORE_LEVEL_CLEAR - SCORE_LOSS_PER_SEC * Math.max(0, Math.floor((Number(secs) || 0) - SCORE_PAR_SECS)));
 // Pays a level's clear into `sc` once; returns the points paid (0 when it was already cleared).
-export const scoreLevelClear = (sc, key) => {
+export const scorePoints = (pts, mult = 1) => Math.round((Number(pts) || 0) * (Number(mult) > 0 ? Number(mult) : 1));
+export const scoreLevelClear = (sc, key, mult = 1) => {
   if (!sc || key == null || sc.cleared[key]) return 0;
   sc.cleared[key] = true;
-  const pts = levelClearPoints(sc.secs[key]);
+  const pts = scorePoints(levelClearPoints(sc.secs[key]), mult);
   sc.total += pts;
   return pts;
 };
 // Pays a dialogue option's points once per run; `key` names the option (tree id + choice id).
-export const scoreDialogueChoice = (sc, key, points) => {
-  const pts = Math.max(0, Math.round(Number(points) || 0));
+export const scoreDialogueChoice = (sc, key, points, mult = 1) => {
+  const pts = scorePoints(Math.max(0, Math.round(Number(points) || 0)), mult);
   if (!sc || !pts || sc.spent[key]) return 0;
   sc.spent[key] = true;
   sc.total += pts;
   return pts;
 };
 // An objective's score, paid once per run; `key` is "obj|" + the objective's id.
-export const scoreObjective = (sc, key, points) => scoreDialogueChoice(sc, key, points);
+export const scoreObjective = (sc, key, points, mult = 1) => scoreDialogueChoice(sc, key, points, mult);
 // The HUD's number: seven digits, zero-padded, like the arcade score Blake's mock-up draws.
 // How many icons the Symbols screen's picker draws before "More" (each is an inline <svg>).
 export const SYMBOL_PAGE = 240;
@@ -18623,7 +18711,7 @@ export default function AssetStudio({ game = false } = {}) {
       // A One time only line is spent the moment you answer it (dialogueEntryNode) — before its act,
       // so the 💵 it pays and the line itself go together.
       if (t.dlg.nodes[t.nodeId] && t.dlg.nodes[t.nodeId].once) spendLine(t, t.nodeId);
-      if (opt && opt.points) scoreDialogueChoice(scoreRef.current, (t.dlg.id || "") + "|" + (opt.id || t.nodeId + ":" + i), opt.points);
+      if (opt && opt.points) scoreDialogueChoice(scoreRef.current, (t.dlg.id || "") + "|" + (opt.id || t.nodeId + ":" + i), opt.points, scoreMultNow());
       applyTalkAct(step.act, t, step);
       if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); talkSoundFor(next); }
       else {
@@ -18744,7 +18832,7 @@ export default function AssetStudio({ game = false } = {}) {
     const seamHandoff = (side, p, pw, ph, leavingGate, dtMul) => {
       const seam = (side === "S" && seamUnder(seams, p.x + pw / 2, LV_CELL)) || seamOnSide(seams, side), nb = runNow.nodes[seam.key];
       // SCORE: leaving a level through a gate for the first time clears it (scoreLevelClear).
-      scoreLevelClear(scoreRef.current, runNow.curKey);
+      scoreLevelClear(scoreRef.current, runNow.curKey, scoreMultNow());
       // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
       // on the neighbour's W1 (CONN_OPP; a staggered bottom gate lands on its partner, seam.gates), which is
       // where neighbourOffset lined the two levels up.
@@ -18998,7 +19086,7 @@ export default function AssetStudio({ game = false } = {}) {
       // Pay what the cleared ones are worth. Score is once-per-run by its key (scoreObjective);
       // money cannot repeat because a cleared objective is in `done` and never comes back.
       for (const o of nextObj.cleared) {
-        const got = scoreObjective(scoreRef.current, "obj|" + o.id, o.score);
+        const got = scoreObjective(scoreRef.current, "obj|" + o.id, o.score, scoreMultNow());
         if (o.money > 0) setWallet(wallet.current + o.money);
         if (got || o.money > 0) setObjReward((r) => ({ n: ((r && r.n) || 0) + 1, score: got, money: o.money }));
       }
@@ -20699,6 +20787,12 @@ export default function AssetStudio({ game = false } = {}) {
       // The ONE window it does honour is lifeGrace, the 🐱 Extra Life flash: you get back up in the
       // flames you died in, and without this the next life goes a sixth of a second later.
       const hostileAuraSources = [], friendlyAuraSources = [];
+      // 🔥 Everyone burning this frame, with the flame they hand on to whoever is right next to them
+      // (burnSpreadFlame / catchFireFrom). Standing in fire cells is last frame's answer (inFireCells,
+      // written where each body's burn is worked out), which is a frame late and costs no second scan.
+      const fireSpreadSources = [];
+      const pSpread = (playerHP.current > 0 && !vehDriven && !p.transitioning) ? burnSpreadFlame(p, !!p.inFireCells) : null;
+      if (pSpread) fireSpreadSources.push({ self: "player", box: { x: p.x, y: p.y, w: pw, h: ph }, ...pSpread });
       const pAuras = auraEffectsOf(playerAsset?.effects);
       if (pAuras.length && playerHP.current > 0 && !vehDriven) friendlyAuraSources.push({ box: { x: p.x, y: p.y, w: pw, h: ph }, auras: pAuras });
       if (lv.enemies) {
@@ -20706,6 +20800,8 @@ export default function AssetStudio({ game = false } = {}) {
           const ep0 = enemyPos.current[k0]; if (!ep0) continue;
           if (enemyHP.current[k0] !== undefined && enemyHP.current[k0] <= 0) continue;
           const ea0 = unitAssetAt(k0, lv.enemies[k0]); if (!ea0) continue;
+          const sp0 = burnSpreadFlame(ep0, !!ep0.inFireCells);
+          if (sp0) fireSpreadSources.push({ self: k0, box: unitBodyBox(ea0, ep0, CW), ...sp0 });
           const a0 = auraEffectsOf(ea0.effects); if (!a0.length) continue;
           const s0 = unitSide(ea0, ep0, pacified);
           if (s0 === "hostile") hostileAuraSources.push({ box: unitBodyBox(ea0, ep0, CW), auras: a0 });
@@ -20718,8 +20814,12 @@ export default function AssetStudio({ game = false } = {}) {
       p.inFlameAura = pAura.flame > 0 && !pFireImmune ? 1 : 0;
       p.inIceAura = pAura.ice > 0 ? 1 : 0;
 
+      // 🔥 A burning body right next to you sets you alight (catchFireFrom), by the windows the burn below honours.
+      if (!pFireImmune && !p.transitioning && !(p.lifeGrace > 0) && !vehDriven && playerHP.current > 0) catchFireFrom(p, { x: p.x, y: p.y, w: pw, h: ph }, fireSpreadSources, "player", CW);
       if (pFireImmune) p.ignite = 0; // 🧯 nothing sets you alight
-      const pDps = pFireImmune ? 0 : (hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p) + pAura.flame) * pFireMult; // 🔥 plus a hit that set you alight, or Flame Aura, less any 🚒 resistance
+      const pHazDps = hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive);
+      p.inFireCells = pHazDps > 0 && !pFireImmune ? 1 : 0; // next frame's fire-spread source (fireSpreadSources)
+      const pDps = pFireImmune ? 0 : (pHazDps + igniteDpsOf(p) + pAura.flame) * pFireMult; // 🔥 plus a hit that set you alight, or Flame Aura, less any 🚒 resistance
       tickIgnite(p, dtMul);
       if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && !vehDriven) { // 🚗 a fire under your car burns the car (the VEHICLES fire pass)
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
@@ -21304,6 +21404,10 @@ export default function AssetStudio({ game = false } = {}) {
           // PROVOKED: HP it has lost since the last frame to YOUR hit wakes its whole sense zone up for
           // good (ENEMY_PROVOKED_SENSE_MUL) — see unitProvokedByHit for why only yours.
           const hpSeen = enemyHP.current[k];
+          // 🛡 Struck by a blow this frame — yours, or a unit's (your ally's) — for the Guard's self-defence
+          // (guardDefendStep). Not a burn: fire drains HP every few frames with the last blow still recorded.
+          const guardStruck = hostile && (unitProvokedByHit(hpSeen, ep.provHp, ep.lastHitByFx)
+            || (hpSeen !== undefined && ep.provHp != null && hpSeen < ep.provHp && Array.isArray(ep.lastHitByFx) && !bodyBurning(ep)));
           if (hostile && unitProvokedByHit(hpSeen, ep.provHp, ep.lastHitByFx)) ep.provoked = true;
           ep.provHp = hpSeen === undefined ? null : hpSeen;
           const provoked = hostile && !!ep.provoked;
@@ -21453,6 +21557,22 @@ export default function AssetStudio({ game = false } = {}) {
             // trail you along the street under the storey you are walking on. Avoid is a retreat,
             // not a chase, and is untouched.
             : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected && (ai !== "seek" || targetOnLevel));
+          // 🛡 A GUARD STEPS OUT TO DEFEND ITSELF (guardDefendStep): struck by a blow, it may walk up to
+          // GUARD_DEFEND_CELLS from its own spot at whoever is on its level, for GUARD_DEFEND_FRAMES after
+          // the last blow, then walks back to the spot. `ep.guardHomeX` is where it stood when first seen.
+          if (ai === "guard" && hostile) {
+            if (ep.guardHomeX == null) ep.guardHomeX = eCenterXNow;
+            if (guardStruck) ep.guardDefendT = GUARD_DEFEND_FRAMES;
+            else if ((ep.guardDefendT || 0) > 0) ep.guardDefendT = Math.max(0, ep.guardDefendT - dtMul);
+            // Only a guard that has stepped out walks back (ep.guardAway): one knocked off its spot by a
+            // blast, or settled a little off it at spawn, stands where it is, as every guard always has.
+            const gDefending = (ep.guardDefendT || 0) > 0 && detected && targetOnLevel;
+            if (!stunned && acts && !ep.stomp && !(ep.tailT > 0) && !charging && (gDefending || ep.guardAway)) {
+              const gStep = guardDefendStep(ep.guardHomeX, eCenterXNow, gapSigned, engageRange, aiSpeed, gDefending, GUARD_DEFEND_CELLS * CW);
+              if (gStep) { dxMove = gStep; if (gDefending) ep.guardAway = true; }
+              else if (!gDefending) ep.guardAway = false; // home again
+            }
+          }
           // ...and the route's say over it. On a LADDER it holds the column while it climbs and walks
           // toward the target once it is within a cell of the target's line (stepping off onto the
           // ledge); HANGING it shimmies toward the target; pushing off the top of a climb it carries
@@ -21981,13 +22101,17 @@ export default function AssetStudio({ game = false } = {}) {
           // Enemies burn in fire the same way the player does — same per-second drain into a
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
           const eFireImmune = fireImmune(ea.effects); // 🧯 the player's rule, on it
+          // 🔥 ...and a burning body right next to it sets it alight (catchFireFrom), as it does you.
+          if (!eFireImmune && !unitTalkImmune(ep) && !unitUntouchable(ep)) catchFireFrom(ep, unitBodyBox(ea, ep, CW), fireSpreadSources, k, CW);
           if (eFireImmune) ep.ignite = 0;
           const eaSide = unitSide(ea, ep);
           const eAuraSrc = eaSide === "friendly" ? hostileAuraSources : eaSide === "hostile" ? friendlyAuraSources : null;
           const eAura = (!unitTalkImmune(ep) && !(ep.lifeGrace > 0) && eAuraSrc && eAuraSrc.length) ? auraDpsForTarget(unitBodyBox(ea, ep, CW), eAuraSrc, CW) : { poison: 0, flame: 0, ice: 0 };
           ep.inFlameAura = eAura.flame > 0 && !eFireImmune ? 1 : 0;
           ep.inIceAura = eAura.ice > 0 ? 1 : 0;
-          const eDps = eFireImmune ? 0 : (hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep) + eAura.flame) * fireDamageMult(ea.effects); // 🔥 plus a hit or Flame Aura, less any 🚒 resistance
+          const eHazDps = hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive);
+          ep.inFireCells = eHazDps > 0 && !eFireImmune ? 1 : 0; // next frame's fire-spread source (fireSpreadSources)
+          const eDps = eFireImmune ? 0 : (eHazDps + igniteDpsOf(ep) + eAura.flame) * fireDamageMult(ea.effects); // 🔥 plus a hit or Flame Aura, less any 🚒 resistance
           tickIgnite(ep, dtMul);
           // Fire is universal and does not care whose side you are on — with ONE exception, and it
           // is not a special case so much as closing the door the rest of the rule leaves open: a
@@ -24248,7 +24372,7 @@ export default function AssetStudio({ game = false } = {}) {
         // hostile body whose last blow was yours (null; a unit's blow stores its effects, at least []).
         // ...and noted for the game's Unlocks by the placement's own look or animal (spawnEnemyIdAt:
         // a 🎲 tag placement has no enemyId, its roll does; ea may be a re-composed copy).
-        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") { scoreRef.current.total += SCORE_KILL; gameNoteRef.current("defeated", spawnEnemyIdAt(k, lv.enemies[k], enemyGearRolls.current), !!ep.lastHitRanged, (!lv.isRoom && lv.floor) || (runRef.current && runRef.current.floor) || lv.floor || "", !!ep.lastHitMelee); }
+        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") { scoreRef.current.total += scorePoints(SCORE_KILL, scoreMultNow()); gameNoteRef.current("defeated", spawnEnemyIdAt(k, lv.enemies[k], enemyGearRolls.current), !!ep.lastHitRanged, (!lv.isRoom && lv.floor) || (runRef.current && runRef.current.floor) || lv.floor || "", !!ep.lastHitMelee); }
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
         // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
@@ -29093,6 +29217,10 @@ export default function AssetStudio({ game = false } = {}) {
   // The engine always holds the current library and board. The track and the toggle reach it the
   // same way; whether a run is going is set by the play effect below.
   useEffect(() => { bobAudio.setLibrary(soundRecs); }, [soundRecs]);
+  // An empty Gunshot / Shot hit plays what most of his guns already use (houseBasics), worked out
+  // from the weapons as they are now, so it follows him as he changes them.
+  const soundHouse = useMemo(() => houseBasics(library, (id) => soundIds.has(id)), [library, soundIds]);
+  useEffect(() => { bobAudio.setHouse(soundHouse); }, [soundHouse]);
   useEffect(() => { bobAudio.setMusicOn(musicOn); try { localStorage.setItem("bobMusic", musicOn ? "on" : "off"); } catch { /* per-copy preference only */ } }, [musicOn]);
   // Music plays while a level or a run is being played, and every sound play can need is decoded as
   // it starts — the board's basic sounds and every sound any asset names — so the first jump of a
@@ -29598,7 +29726,7 @@ export default function AssetStudio({ game = false } = {}) {
   // The floor ending clears the level it ends in (SCORE) before play stops; the total stays in
   // scoreRef for whatever shows it next.
   // In the GAME the floor ending runs straight on into the next floor, or "To be continued" after the last (gameFinishFloor).
-  animLeaveRef.current = () => { if (play) { scoreLevelClear(scoreRef.current, runRef.current ? runRef.current.curKey : (level && level.id) || "level"); if (game) gameFinishFloor(); else togglePlaytest(); } };
+  animLeaveRef.current = () => { if (play) { scoreLevelClear(scoreRef.current, runRef.current ? runRef.current.curKey : (level && level.id) || "level", scoreMultNow()); if (game) gameFinishFloor(); else togglePlaytest(); } };
   // Only the level screen PLAYS: ‹ Menu out of a running playtest leaves `play` on, and keyed on
   // `play` alone this silenced every editor's "Saved ✓" (Blake: "no indication that weapons are saved").
   playLive.current = play && screen === "level";
@@ -29777,6 +29905,8 @@ export default function AssetStudio({ game = false } = {}) {
   // difficulty with the lives it has lost so far (gameFront.js DIFFICULTIES).
   const GAME_CUR_NONE = { saveId: null, startedAt: 0, gates: {}, loc: null, difficulty: "medium", deaths: 0, oneUps: 0 };
   const gameCur = useRef(GAME_CUR_NONE);
+  // What every score payout is multiplied by (SCORE): the game run's difficulty, 1 anywhere else.
+  const scoreMultNow = () => (game && gameCur.current.saveId ? difficultyOf(gameCur.current.difficulty).points || 1 : 1);
   const gameNextSave = useRef(null); // the save a finished floor leaves for the next one (gameFinishFloor); loaded as soon as play has stopped (the effect under gameFinishFloor)
   const gameArtCache = useRef(new Map());
   const gameReady = game && !libraryLoading && gameLevelsIn;
@@ -30555,7 +30685,7 @@ export default function AssetStudio({ game = false } = {}) {
       <div className="bb gameMode"><style>{css}</style>
         <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
           saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px, frac) => gameArt(gameDressed(look), px, frac)} renderHead={gameHead}
-          statIcon={(k, px) => sym(k, null, px)} abilitiesOf={lookAbilityNames} floors={gameFloors} sceneFor={menuSceneFor}
+          statIcon={(k, px) => sym(k, null, px)} abilitiesOf={lookAbilityRows} floors={gameFloors} sceneFor={menuSceneFor}
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
           gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick}
           lb={gameLb} lbMem={gameLbMem} onLbPosted={gameLbPosted} runEnd={gameEndInfo} />
@@ -30958,12 +31088,14 @@ export default function AssetStudio({ game = false } = {}) {
             <div className="card">
               <div className="ct">Basic sounds</div>
               {SOUND_EVENTS.map((ev) => {
+                const hs = soundHouse[ev.key] && soundLib.find((x) => x.id === soundHouse[ev.key]);
+                const houseLabel = () => (hs ? "— " + (hs.name || hs.id) + " —" : "— none —"); // an empty row names the house pick it plays
                 const cur = soundVal((soundBoard.basic || {})[ev.key]);
                 const vol = slotVolume(soundBoard.basicVol, ev.key);
                 return (
                   <div key={ev.key} className="sndRow">
                     <span className="sndEvt">{ev.icon} {ev.label}</span>
-                    <select value={cur} onChange={(e) => saveSoundBoard({ basic: withAssetSound(soundBoard.basic, ev.key, e.target.value) })}>{soundOptions("— none —")}</select>
+                    <select value={cur} onChange={(e) => saveSoundBoard({ basic: withAssetSound(soundBoard.basic, ev.key, e.target.value) })}>{soundOptions(houseLabel(ev.key))}</select>
                     {playBtn(cur, vol)}
                     {volSlider("b" + ev.key, vol, (v) => saveSoundBoard({ basicVol: withSlotVolume(soundBoard.basicVol, ev.key, v) }))}
                   </div>
@@ -33335,6 +33467,8 @@ export default function AssetStudio({ game = false } = {}) {
                       let heldNow = attachHeldToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot);
                       // 🪚 ...and raised as a guard it stands up across the face: turned up about the hand.
                       if (renderAuto && !p.climbing && p.auto && p.auto.mode === "guard") heldNow = liftHeldAboutHand(heldNow, curArm, AUTO_GUARD_TILT_DEG, playerArtFacesRight(basePlayerAsset));
+                      // 🪜 Aiming or swinging off a climb, the arm is out from the body: no gun under the hat (weaponArmOutOfBody).
+                      if (p.climbing && (aiming || meleeSwinging)) heldNow = weaponArmOutOfBody(heldNow);
                       blocks = mergeWeaponBlocks(blocks, heldNow);
                     }
                   }
