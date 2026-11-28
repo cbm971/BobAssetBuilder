@@ -820,6 +820,8 @@ import {
   dialogueEntryNode,
   talkWaitsOnFight,
   AFTER_FIGHT_CELLS,
+  dialogueOthersHere,
+  feudTargetsAlive,
 } from "./App";
 import {
   HEAD_STOMP_MIN_VY,
@@ -19069,5 +19071,41 @@ describe("the robbery dialogue pieces", () => {
     expect(Object.keys(plain.nodes[0].units["1,1"]).sort()).toEqual(["peaceful", "talkSpent", "talked", "turned"]);
     const back = followerFromSave(followerToSave({ enemyTag: "Trailer" }, { friendly: true, saidOnce: ["nThanks"] }, 5, null), () => null);
     expect(back.ep.saidOnce).toEqual(["nThanks"]);
+  });
+
+  // Blake, 2026-11-28 (his dialogue sheet): the Liquor Store 1 stick-up pays AND turns the clerk; the
+  // Liquor Store 2 robber can join you (the owner turns on you) or go for the owner (nobody talks after).
+  test("a stick-up pays its amount and needs a person to turn", () => {
+    const d = migrateDialogue({ id: "x", start: "a", nodes: { a: { id: "a", text: "Hi", choices: [{ id: "c1", text: "This is a stick-up!", to: "b", act: "rob", money: 10 }] }, b: { id: "b", text: "Third one this week.", choices: [] } } });
+    expect(dialogueAdvance(d, "a", 0)).toEqual({ ok: true, act: "rob", nextId: "b", shopTag: "", money: 10 });
+    expect(DIALOGUE_ACTS.rob.moneyParam).toBe(true);
+    expect(dialogueActNeedsPerson("rob")).toBe(true);
+    expect(dialogueActNeedsPerson("joinTurn")).toBe(true);
+    expect(dialogueActNeedsPerson("feud")).toBe(true);
+  });
+
+  test("the others here are the talking people still calm in the same fight", () => {
+    const R = AFTER_FIGHT_CELLS * 30;
+    const u = (key, o) => ({ key, side: "neutral", talker: true, dead: false, dx: 60, ...o });
+    expect(dialogueOthersHere([u("owner")], R)).toEqual(["owner"]);
+    expect(dialogueOthersHere([u("owner"), u("far", { dx: R + 1 }), u("dead", { dead: true }), u("mob", { side: "hostile" }), u("ally", { side: "friendly" }), u("dog", { talker: false })], R)).toEqual(["owner"]);
+    expect(dialogueOthersHere([u("left", { dx: -R })], R)).toEqual(["left"]);
+    expect(dialogueOthersHere(null, R)).toEqual([]);
+  });
+
+  test("a feud is neutral to you, ends their talk-immunity, and fights only who is left of it", () => {
+    const ep = { peaceful: true, turned: "feud", feud: ["13,26"], talkOver: true };
+    expect(unitSide({ hostile: true }, ep)).toBe("neutral");
+    expect(unitTalkImmune(ep)).toBe(false);
+    expect(feudTargetsAlive(["13,26", "2,2"], (k) => k === "13,26")).toEqual(["13,26"]);
+    expect(feudTargetsAlive(["13,26"], () => false)).toEqual([]);
+    expect(feudTargetsAlive(undefined, () => true)).toEqual([]);
+    // ...and it is remembered through a Load, like a turned side.
+    const run = { nodes: { s1: { level: { id: "L1" } } } };
+    const world = runWorldToSave(run, { s1: { ePos: { "15,21": { home: "s1|15,21", talked: true, ...ep } }, eHP: {} } }, null, {});
+    const mem = applyRunWorld(run, JSON.parse(JSON.stringify(world))).units["s1|15,21"];
+    expect(mem.turned).toBe("feud");
+    expect(mem.feud).toEqual(["13,26"]);
+    expect(mem.talkOver).toBe(true);
   });
 });

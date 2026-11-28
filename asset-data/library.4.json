@@ -1,5 +1,5 @@
 {
- "set": "97dd0607e92721be",
+ "set": "d1a4f908c951e7b1",
  "part": 4,
  "levels": [
   {
@@ -724641,7 +724641,7 @@
     "nuc4g9ap": {
      "id": "nuc4g9ap",
      "speaker": "Bridge Troll",
-     "text": "Nine? Hmmm, I don't think any Jokes start with nine but i'll let you keep going.",
+     "text": "Nine? Hmmm, I don't think any Jokes start with nine but I'll let you keep going.",
      "choices": [
       {
        "id": "c4ayq431",
@@ -724735,7 +724735,7 @@
     "nu9xiqmg": {
      "id": "nu9xiqmg",
      "speaker": "Bridge Troll",
-     "text": "Nine, One? I don't understand. Why, i've never heard this one before....",
+     "text": "Nine, One? I don't understand. Why, I've never heard this one before....",
      "choices": [
       {
        "id": "cgxnfyw6",
@@ -724812,9 +724812,11 @@
      ]
     }
    },
-   "sound": "y7leppl",
-   "soundVol": 0.05,
-   "savedAt": 1791753316047
+   "once": true,
+   "sound": "avudn5p",
+   "soundVol": 0.35,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794660675145
   },
   {
    "id": "3kmh26v",
@@ -724824,7 +724826,7 @@
     "nw937n93": {
      "id": "nw937n93",
      "speaker": "Bob",
-     "text": "Hi, my name is Bob based and i'm an alcoholic",
+     "text": "Hi, my name is Bob based and I'm an alcoholic",
      "choices": [
       {
        "id": "cy3qy8r9",
@@ -724838,10 +724840,10 @@
     }
    },
    "once": true,
-   "sound": "b9qzwp7",
-   "soundVol": 0.1,
-   "savedAt": 1791753276733,
-   "editedFrom": 1791753275252
+   "sound": "kzxgvne",
+   "soundVol": 0.85,
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265713855
   },
   {
    "id": "3redso1",
@@ -724851,11 +724853,11 @@
     "nxk6qcg3": {
      "id": "nxk6qcg3",
      "speaker": "SUPERBOB",
-     "text": "HALT EVIL VILLIAN. YOUR DAYS OF VILLIANY ARE OVER",
+     "text": "HALT EVIL VILLAIN. YOUR DAYS OF VILLAINY ARE OVER",
      "choices": [
       {
        "id": "cq4pn9e0",
-       "text": "Wait i'm a good guy",
+       "text": "Wait, I'm a good guy",
        "to": "",
        "act": "hostile",
        "tone": "bad",
@@ -724895,7 +724897,9 @@
      ]
     }
    },
-   "savedAt": 1791071302309
+   "sound": "b5a8mj0",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265932439
   },
   {
    "id": "899use4",
@@ -724917,7 +724921,7 @@
       },
       {
        "id": "cuhxmd5f",
-       "text": "Delivering Bannanas",
+       "text": "Delivering Bananas",
        "to": "nrf3noz2",
        "act": "",
        "tone": "good",
@@ -724963,7 +724967,7 @@
       },
       {
        "id": "cve4fi33",
-       "text": "goodbye",
+       "text": "Goodbye",
        "to": "",
        "act": "",
        "tone": "",
@@ -724975,8 +724979,8 @@
    "once": true,
    "sound": "y7leppl",
    "soundVol": 0.05,
-   "savedAt": 1791753243991,
-   "editedFrom": 1791753238175
+   "savedAt": 1795878647063,
+   "editedFrom": 1791753243991
   },
   {
    "id": "95e2gzd",
@@ -725016,7 +725020,7 @@
    "nodes": {
     "n22my4j7": {
      "id": "n22my4j7",
-     "speaker": "Pika Squirell",
+     "speaker": "Pika Squirrel",
      "text": "Pika pika! NUT! Pika pika!",
      "choices": [
       {
@@ -725045,7 +725049,11 @@
       }
      ]
     }
-   }
+   },
+   "sound": "5542xx2",
+   "soundVol": 0.85,
+   "savedAt": 1795878647063,
+   "editedFrom": 1792267469276
   },
   {
    "id": "dlgphon",
@@ -725055,7 +725063,7 @@
     "ntlij31t": {
      "id": "ntlij31t",
      "speaker": "Little Green Man",
-     "text": "BOB... PHONE... HOME.",
+     "text": "... PHONE... HOME.",
      "choices": [
       {
        "id": "ck4pcpar",
@@ -725086,11 +725094,11 @@
     "nls6y8xm": {
      "id": "nls6y8xm",
      "speaker": "Little Green Man",
-     "text": "TAKE ME TO YOUR LEADER.",
+     "text": "YOUR LEADER.",
      "choices": [
       {
        "id": "cfjshld9",
-       "text": "Our leader is Nixon.",
+       "text": "Richard Nixon?",
        "to": "ng6bsvoa",
        "act": "",
        "tone": "bad",
@@ -725109,11 +725117,11 @@
     "ng6bsvoa": {
      "id": "ng6bsvoa",
      "speaker": "Little Green Man",
-     "text": "...PUT ME BACK IN THE CAGE.",
+     "text": "… I REQUIRE ASSISTANCE",
      "choices": [
       {
        "id": "cgcu9p7x",
-       "text": "Fair.",
+       "text": "Bet.",
        "to": "",
        "act": "",
        "tone": "",
@@ -725122,10 +725130,10 @@
      ]
     }
    },
-   "savedAt": 1792253773799,
    "once": true,
-   "editedFrom": 1792237516633,
-   "sound": "6f5xiih"
+   "sound": "6f5xiih",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792253773799
   },
   {
    "id": "dlgwthr",
@@ -725139,34 +725147,10 @@
      "choices": [
       {
        "id": "clbn5jv8",
-       "text": "That's a flying saucer.",
+       "text": "That flying Saucer is a weather balloon?",
        "to": "n6xw9n4l",
        "act": "",
        "tone": "bad",
-       "shopTag": ""
-      },
-      {
-       "id": "cp8ysqgx",
-       "text": "A weather balloon with headlights?",
-       "to": "n6xw9n4l",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      },
-      {
-       "id": "c3spmkgw",
-       "text": "Can I keep it?",
-       "to": "nhm9pxdg",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cmvim69b",
-       "text": "Okay.",
-       "to": "",
-       "act": "",
-       "tone": "good",
        "shopTag": ""
       }
      ]
@@ -725183,44 +725167,13 @@
        "act": "",
        "tone": "good",
        "shopTag": ""
-      },
-      {
-       "id": "c9otfsb2",
-       "text": "No.",
-       "to": "njqf2r5l",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      }
-     ]
-    },
-    "nhm9pxdg": {
-     "id": "nhm9pxdg",
-     "speaker": "Agent",
-     "text": "The United States Government thanks you for not asking questions.",
-     "choices": [
-      {
-       "id": "c8bsda18",
-       "text": "I wasn't asking a question. I was asking for it.",
-       "to": "njqf2r5l",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      },
-      {
-       "id": "c5zim51h",
-       "text": "You're welcome.",
-       "to": "",
-       "act": "",
-       "tone": "good",
-       "shopTag": ""
       }
      ]
     },
     "n87k9bfd": {
      "id": "n87k9bfd",
      "speaker": "Agent",
-     "text": "*FLASH* You saw a weather balloon. You are going to the draft office. Have a nice day, Bob.",
+     "text": "*FLASH* You saw a weather balloon.",
      "choices": [
       {
        "id": "cyeqgfvv",
@@ -725231,25 +725184,11 @@
        "shopTag": ""
       }
      ]
-    },
-    "njqf2r5l": {
-     "id": "njqf2r5l",
-     "speaker": "Agent",
-     "text": "I was afraid you'd say that.",
-     "choices": [
-      {
-       "id": "c97swhvo",
-       "text": "...",
-       "to": "",
-       "act": "hostile",
-       "tone": "bad",
-       "shopTag": ""
-      }
-     ]
     }
    },
-   "savedAt": 1791753360445,
-   "editedFrom": 1791753351147
+   "sound": "avudn5p",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792266030484
   },
   {
    "id": "eq3fx8f",
@@ -725293,7 +725232,7 @@
     "n93mn5n5": {
      "id": "n93mn5n5",
      "speaker": "Harembe",
-     "text": "Hi, Welcome to Zoobob, my name is Harembe I will be your tour guide today. ",
+     "text": "Hi, Welcome to Sunshine's Zoo, my name is Harembe I will be your tour guide today.",
      "choices": [
       {
        "id": "cxphix14",
@@ -725324,11 +725263,11 @@
     "nj4ws3ld": {
      "id": "nj4ws3ld",
      "speaker": "Harembe",
-     "text": "Hmm not likely. There making some \"Holy Bible 2\" book about me but it's not out yet. ",
+     "text": "Hmm not likely. They're making some \"Holy Bible 2\" book about me but it's not out yet.",
      "choices": [
       {
        "id": "c67fzd0l",
-       "text": "I see. I think i'm gonna tour on my own.",
+       "text": "I see. I think I'm gonna tour on my own.",
        "to": "",
        "act": "",
        "tone": "",
@@ -725385,7 +725324,10 @@
     }
    },
    "once": true,
-   "savedAt": 1791596485606
+   "sound": "y7leppl",
+   "soundVol": 0.75,
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265827060
   },
   {
    "id": "h4o3v93",
@@ -725440,7 +725382,7 @@
     "nvhwh6vy": {
      "id": "nvhwh6vy",
      "speaker": "Chaplin",
-     "text": "Greetings Mere Mortal, I am the Chaplin! Knower of all and bringer of destruction!",
+     "text": "Meow, I am the Chaplin!",
      "choices": [
       {
        "id": "cb4qtb08",
@@ -725454,7 +725396,7 @@
        "id": "cj4u5txd",
        "text": "Hello.",
        "to": "ns2pkxhf",
-       "act": "",
+       "act": "hostile",
        "tone": "bad",
        "shopTag": ""
       },
@@ -725462,13 +725404,13 @@
        "id": "cleljxcd",
        "text": "Hey.",
        "to": "ns2pkxhf",
-       "act": "",
+       "act": "hostile",
        "tone": "bad",
        "shopTag": ""
       },
       {
        "id": "c90svgeb",
-       "text": "I am honored to make your aquantance. ",
+       "text": "I am honored",
        "to": "nk0lv5ps",
        "act": "",
        "tone": "good",
@@ -725483,8 +725425,8 @@
      "choices": [
       {
        "id": "cla69qbr",
-       "text": "(Bow to your master)",
-       "to": "ntapp656",
+       "text": "(Bow)",
+       "to": "nzxao33m",
        "act": "",
        "tone": "good",
        "shopTag": ""
@@ -725502,7 +725444,7 @@
     "ns2pkxhf": {
      "id": "ns2pkxhf",
      "speaker": "Chaplin",
-     "text": "I am the Omega and the Alpha. Begining and end. I am the one blessed with Nine lives, do you know what that makes me? IMMORTAL! For as a cat chases a Mouse you are my prey stupid Human.",
+     "text": "I am the one blessed with Nine lives, do you know what that makes me? IMMORTAL! For as a cat chases a Mouse you are my prey stupid Human.",
      "choices": [
       {
        "id": "cihwv1cy",
@@ -725514,15 +725456,31 @@
       }
      ]
     },
-    "ntapp656": {
-     "id": "ntapp656",
+    "nzxao33m": {
+     "id": "nzxao33m",
      "speaker": "Chaplin",
-     "text": "I am the supreme being which the other supreme beings cower when they here the name! It is not of mice and men for the Mice have been devoured and the Men entranced and enslaved! Mwahahahahaha!",
+     "text": "What do you want from the Chaplin?",
      "choices": [
       {
-       "id": "cjeozn73",
-       "text": "There is no greater Idol, I worship thee and ask for nothing. ",
-       "to": "nzxao33m",
+       "id": "cmdlsmeh",
+       "text": "Okay can we please cut the crap you're clearly just a guy wearing a Cat hat.",
+       "to": "",
+       "act": "hostile",
+       "tone": "bad",
+       "shopTag": ""
+      },
+      {
+       "id": "coj5k9rd",
+       "text": "What can you offer?",
+       "to": "",
+       "act": "shop",
+       "tone": "good",
+       "shopTag": "Rare"
+      },
+      {
+       "id": "cc0dl28v",
+       "text": "It is your Grace that honors me.",
+       "to": "nci8yzvd",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -725537,41 +725495,10 @@
       },
       {
        "id": "c8ikv5vl",
-       "text": "I only believe in one Supreme being and he doesn't have Wiskers!",
+       "text": "I only believe in one Supreme being and he doesn't have Whiskers!",
        "to": "",
        "act": "hostile",
        "tone": "bad",
-       "shopTag": ""
-      }
-     ]
-    },
-    "nzxao33m": {
-     "id": "nzxao33m",
-     "speaker": "Chaplin",
-     "text": "Your flattery wins no favor among the gods! It is but a mere expectation!",
-     "choices": [
-      {
-       "id": "cmdlsmeh",
-       "text": "Okay can we please cut the crap you're clearly just a guy wearing a Cat hat.",
-       "to": "",
-       "act": "hostile",
-       "tone": "bad",
-       "shopTag": ""
-      },
-      {
-       "id": "coj5k9rd",
-       "text": "I merely wish to show how grateful I am to be in your presence. Perhaps an exchange of presents?",
-       "to": "",
-       "act": "shop",
-       "tone": "good",
-       "shopTag": "Rare"
-      },
-      {
-       "id": "cc0dl28v",
-       "text": "I do not require your favor as I am not worthy. It is your Grace that honors me. ",
-       "to": "nci8yzvd",
-       "act": "",
-       "tone": "",
        "shopTag": ""
       }
      ]
@@ -725579,7 +725506,7 @@
     "nci8yzvd": {
      "id": "nci8yzvd",
      "speaker": "Chaplin",
-     "text": "I see. There is great Glory and many Honorifics in your future. Perhaps I can accompany you in these trying times?",
+     "text": "Then perhaps I can accompany you in these trying times?",
      "choices": [
       {
        "id": "c8aw5ctt",
@@ -725603,7 +725530,8 @@
    "once": true,
    "sound": "n5wassx",
    "soundVol": 2,
-   "savedAt": 1791753376047
+   "savedAt": 1795878647063,
+   "editedFrom": 1791753376047
   },
   {
    "id": "j614cqb",
@@ -725681,7 +725609,7 @@
     "ntv0": {
      "id": "ntv0",
      "speaker": "TV",
-     "text": "This just in: \nWASD to move. \nSpace Bar to jump.\nClothes in the Closet, Guns in the Kitchen.\nIn other news: Bob has been drafted to Vietnam!",
+     "text": "This just in:\nWASD to move.\nSpace Bar to jump.\nHold R to reroll run (Tap it to reload)\nClothes in the Closet, Guns in the Kitchen.\nIn other news: Bob has been drafted to Vietnam!",
      "choices": [
       {
        "id": "ctv0",
@@ -725702,8 +725630,9 @@
      ]
     }
    },
-   "savedAt": 1792237207822,
-   "editedFrom": 1792235735419
+   "sound": "9skpe67",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795695416044
   },
   {
    "id": "swdtdlg",
@@ -725744,7 +725673,7 @@
     "nswd1": {
      "id": "nswd1",
      "speaker": "Sword Trainer",
-     "text": "Good question! Blocking with Q stops melee blows, and swinging your melee weapon with F right into an incoming projectile swats it out of the air! Time your Q blocks and F swings. want to try it on me?",
+     "text": "Good question! Blocking with Q stops melee blows, and swinging your melee weapon with F right into an incoming projectile swats it out of the air! Time your Q blocks and F swings. Want to try it on me?",
      "choices": [
       {
        "id": "cswd4",
@@ -725780,8 +725709,9 @@
      ]
     }
    },
-   "savedAt": 1792237493690,
-   "editedFrom": 1792235735420
+   "sound": "o7wdmhu",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265938577
   },
   {
    "id": "nerfdlg",
@@ -725791,7 +725721,7 @@
     "nnrf0": {
      "id": "nnrf0",
      "speaker": "Nerf Trainer",
-     "text": "Heard they called you to Nam! Hope you remember what I taught you bout shootin! use the Arrow Keys to aim, press F to shoot, and press R to reload. Just make sure your enemy is in range!.",
+     "text": "Heard they called you to Nam! Hope you remember what I taught you bout shootin! Use the Arrow Keys to aim, press F to shoot, and tap R to reload. Just make sure your enemy is in range!",
      "choices": [
       {
        "id": "cnrf1",
@@ -725858,8 +725788,9 @@
      ]
     }
    },
-   "savedAt": 1792237364813,
-   "editedFrom": 1792235735421
+   "sound": "o7wdmhu",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265883672
   },
   {
    "id": "dlgclk1",
@@ -725869,151 +725800,22 @@
     "ndlgclk1a": {
      "id": "ndlgclk1a",
      "speaker": "Clerk",
-     "text": "Next! Name?",
+     "text": "Next!",
      "choices": [
       {
        "id": "cdlgclk11",
-       "text": "Bob.",
-       "to": "ndlgclk1b",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgclk12",
-       "text": "Bob Okay.",
-       "to": "ndlgclk1b",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgclk13",
-       "text": "Didn't I see you at a weather balloon?",
-       "to": "ndlgclk1c",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgclk1c": {
-     "id": "ndlgclk1c",
-     "speaker": "Clerk",
-     "text": "You did not. Name?",
-     "choices": [
-      {
-       "id": "cdlgclk14",
-       "text": "...Bob.",
-       "to": "ndlgclk1b",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgclk1b": {
-     "id": "ndlgclk1b",
-     "speaker": "Clerk",
-     "text": "Okay... Okay... here you are. Classification 1-A. Congratulations, Mr. Okay. Uncle Sam wants you.",
-     "choices": [
-      {
-       "id": "cdlgclk15",
-       "text": "What does 1-A mean?",
-       "to": "ndlgclk1d",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgclk16",
-       "text": "Do I get a choice?",
-       "to": "ndlgclk1e",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgclk17",
-       "text": "Where do I sign?",
-       "to": "ndlgclk1f",
-       "act": "",
-       "tone": "good",
-       "shopTag": "",
-       "points": 100
-      }
-     ]
-    },
-    "ndlgclk1d": {
-     "id": "ndlgclk1d",
-     "speaker": "Clerk",
-     "text": "Available for military service. 4-F is unfit. You are not 4-F. I can tell from here.",
-     "choices": [
-      {
-       "id": "cdlgclk18",
-       "text": "I have flat feet!",
-       "to": "ndlgclk1g",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgclk19",
-       "text": "Fair enough.",
-       "to": "ndlgclk1f",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgclk1g": {
-     "id": "ndlgclk1g",
-     "speaker": "Clerk",
-     "text": "The Army has boots for that.",
-     "choices": [
-      {
-       "id": "cdlgclk110",
-       "text": "...",
-       "to": "ndlgclk1f",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgclk1e": {
-     "id": "ndlgclk1e",
-     "speaker": "Clerk",
-     "text": "You had a choice. It was a lottery. Your birthday came up.",
-     "choices": [
-      {
-       "id": "cdlgclk111",
-       "text": "Lucky me.",
-       "to": "ndlgclk1f",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgclk1f": {
-     "id": "ndlgclk1f",
-     "speaker": "Clerk",
-     "text": "Sign here, here and here. Then see the Sergeant in the back for your physical. Next!",
-     "choices": [
-      {
-       "id": "cdlgclk112",
-       "text": "Thanks.",
+       "text": "Uhhh present.",
        "to": "",
        "act": "",
-       "tone": "good",
+       "tone": "",
        "shopTag": ""
       }
      ]
     }
    },
-   "savedAt": 1792257446342
+   "sound": "o6l42yz",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265804287
   },
   {
    "id": "dlgsgt1",
@@ -726023,129 +725825,25 @@
     "ndlgsgt1a": {
      "id": "ndlgsgt1a",
      "speaker": "Sergeant",
-     "text": "You the new one? Read me the bottom line of that chart, recruit.",
+     "text": "Open your mouth and say \"Ahhhh\"",
      "choices": [
       {
        "id": "cdlgsgt113",
-       "text": "L... E... F... O... D... P... C... T.",
-       "to": "ndlgsgt1b",
-       "act": "",
-       "tone": "good",
-       "shopTag": "",
-       "points": 100
-      },
-      {
-       "id": "cdlgsgt114",
-       "text": "What chart?",
-       "to": "ndlgsgt1c",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgsgt115",
-       "text": "I'd like to see a doctor.",
-       "to": "ndlgsgt1d",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgsgt1b": {
-     "id": "ndlgsgt1b",
-     "speaker": "Sergeant",
-     "text": "Twenty-twenty. Step on the scale. Six foot two and breathing. You pass.",
-     "choices": [
-      {
-       "id": "cdlgsgt116",
-       "text": "Is that good?",
-       "to": "ndlgsgt1e",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgsgt117",
-       "text": "Yes, Sergeant!",
-       "to": "ndlgsgt1e",
-       "act": "",
-       "tone": "good",
-       "shopTag": "",
-       "points": 100
-      }
-     ]
-    },
-    "ndlgsgt1c": {
-     "id": "ndlgsgt1c",
-     "speaker": "Sergeant",
-     "text": "The big one with the letters on it. Never mind. You pass. The Army needs bodies, not eyes.",
-     "choices": [
-      {
-       "id": "cdlgsgt118",
-       "text": "Great.",
-       "to": "ndlgsgt1e",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgsgt1d": {
-     "id": "ndlgsgt1d",
-     "speaker": "Sergeant",
-     "text": "I am the doctor today. Say ahh.",
-     "choices": [
-      {
-       "id": "cdlgsgt119",
-       "text": "Ahh.",
-       "to": "ndlgsgt1e",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgsgt1e": {
-     "id": "ndlgsgt1e",
-     "speaker": "Sergeant",
-     "text": "Your ride is out back. When the bird comes down, grab the rope and hang on. Next stop, the jungle.",
-     "choices": [
-      {
-       "id": "cdlgsgt120",
-       "text": "Can I get a weapon first?",
-       "to": "ndlgsgt1f",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgsgt121",
-       "text": "Yes, Sergeant!",
+       "text": "Ahhhhh",
        "to": "",
        "act": "heal",
        "tone": "good",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgsgt1f": {
-     "id": "ndlgsgt1f",
-     "speaker": "Sergeant",
-     "text": "You'll get one when you land. Now move it, private!",
-     "choices": [
-      {
-       "id": "cdlgsgt122",
-       "text": "Moving!",
-       "to": "",
-       "act": "heal",
-       "tone": "good",
-       "shopTag": ""
+       "shopTag": "",
+       "points": 100
       }
      ]
     }
    },
-   "savedAt": 1792257446342
+   "once": true,
+   "sound": "y7leppl",
+   "soundVol": 0.05,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794765512032
   },
   {
    "id": "dlgbby1",
@@ -726190,7 +725888,7 @@
      "choices": [
       {
        "id": "cdlgbby126",
-       "text": "Hang in there.",
+       "text": "That's nuts.",
        "to": "",
        "act": "",
        "tone": "",
@@ -726201,11 +725899,11 @@
     "ndlgbby1c": {
      "id": "ndlgbby1c",
      "speaker": "Earl",
-     "text": "See you over there, then. Save me a spot in the foxhole.",
+     "text": "Heck yeah! You can be Sergeant Dan.",
      "choices": [
       {
        "id": "cdlgbby127",
-       "text": "Deal.",
+       "text": "What?",
        "to": "",
        "act": "",
        "tone": "good",
@@ -726216,7 +725914,7 @@
     "ndlgbby1d": {
      "id": "ndlgbby1d",
      "speaker": "Earl",
-     "text": "Thanks. Uncle Sam is getting me a helmet.",
+     "text": "Thanks. The government is getting me a helmet.",
      "choices": [
       {
        "id": "cdlgbby128",
@@ -726229,8 +725927,10 @@
      ]
     }
    },
-   "savedAt": 1792258951496,
-   "editedFrom": 1792257446342
+   "sound": "za5r08m",
+   "soundVol": 0.65,
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265880680
   },
   {
    "id": "dlgcnd1",
@@ -726240,82 +725940,30 @@
     "ndlgcnd1a": {
      "id": "ndlgcnd1a",
      "speaker": "Dale",
-     "text": "Psst. I'm not really waiting. My car's running out front. Canada is nice this time of year.",
+     "text": "I hope Vietnam is nice this time of year.",
      "choices": [
       {
        "id": "cdlgcnd129",
-       "text": "Take me with you.",
-       "to": "ndlgcnd1b",
+       "text": "I hear the weather is swell.",
+       "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
        "id": "cdlgcnd130",
-       "text": "Your secret's safe.",
-       "to": "ndlgcnd1c",
-       "act": "",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgcnd131",
-       "text": "SERGEANT!",
-       "to": "ndlgcnd1d",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgcnd1b": {
-     "id": "ndlgcnd1b",
-     "speaker": "Dale",
-     "text": "No room. The car is full of my mom's casseroles.",
-     "choices": [
-      {
-       "id": "cdlgcnd132",
-       "text": "Fair.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgcnd1c": {
-     "id": "ndlgcnd1c",
-     "speaker": "Dale",
-     "text": "You're alright, Bob. Here, take my lunch. I won't need it up north.",
-     "choices": [
-      {
-       "id": "cdlgcnd133",
-       "text": "Thanks.",
-       "to": "",
-       "act": "heal",
-       "tone": "good",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgcnd1d": {
-     "id": "ndlgcnd1d",
-     "speaker": "Dale",
-     "text": "You RAT!",
-     "choices": [
-      {
-       "id": "cdlgcnd134",
-       "text": "...",
+       "text": "I'm gonna beat you up for a small chance at some loot.",
        "to": "",
        "act": "hostile",
-       "tone": "bad",
+       "tone": "good",
        "shopTag": ""
       }
      ]
     }
    },
-   "savedAt": 1792258951496,
-   "editedFrom": 1792257446342
+   "sound": "o7wdmhu",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265758649
   },
   {
    "id": "dlgrob1",
@@ -726325,12 +725973,12 @@
     "ndlgrob1a": {
      "id": "ndlgrob1a",
      "speaker": "Rusty",
-     "text": "They told me to turn my head and cough. That was an hour ago. Nobody came back.",
+     "text": "Those Vietnams gonna be shaking in their boots when I get there!",
      "choices": [
       {
        "id": "cdlgrob135",
-       "text": "Keep coughing.",
-       "to": "ndlgrob1b",
+       "text": "Sure.",
+       "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -726339,21 +725987,6 @@
        "id": "cdlgrob136",
        "text": "Where are your pants?",
        "to": "ndlgrob1c",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgrob1b": {
-     "id": "ndlgrob1b",
-     "speaker": "Rusty",
-     "text": "*cough*",
-     "choices": [
-      {
-       "id": "cdlgrob137",
-       "text": "...",
-       "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -726376,8 +726009,9 @@
      ]
     }
    },
-   "savedAt": 1792258951496,
-   "editedFrom": 1792257446342
+   "sound": "kzxgvne",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792265947033
   },
   {
    "id": "dlgprt1",
@@ -726475,7 +726109,7 @@
      "choices": [
       {
        "id": "cdlgord145",
-       "text": "Greeting to you too.",
+       "text": "Cool.",
        "to": "",
        "act": "",
        "tone": "",
@@ -726484,7 +726118,10 @@
      ]
     }
    },
-   "savedAt": 1792257446342
+   "once": true,
+   "sound": "kzxgvne",
+   "savedAt": 1795878647063,
+   "editedFrom": 1794765583091
   },
   {
    "id": "omabn5b",
@@ -726506,7 +726143,7 @@
       },
       {
        "id": "ce27pho0",
-       "text": "\"Aliens\" is offensive they prefer extra terrestrials.",
+       "text": "\"Aliens\" is offensive, they prefer extraterrestrials.",
        "to": "",
        "act": "hostile",
        "tone": "bad",
@@ -726515,10 +726152,10 @@
      ]
     }
    },
-   "savedAt": 1792253781861,
    "sound": "6f5xiih",
-   "editedFrom": 1792253766319,
-   "soundVol": 0.5
+   "soundVol": 0.5,
+   "savedAt": 1795878647063,
+   "editedFrom": 1792253781861
   },
   {
    "id": "dlgvcsg",
@@ -726528,7 +726165,7 @@
     "ndlgvcsga": {
      "id": "ndlgvcsga",
      "speaker": "Sign",
-     "text": "PEOPLE'S SPACE PROGRAM. RESTRICTED AREA. The Americans have their NASA. We have bamboo, and the Moon is closer from the jungle.",
+     "text": "PEOPLE'S SPACE PROGRAM. RESTRICTED AREA.",
      "choices": [
       {
        "id": "cdlgvcsg1",
@@ -726541,7 +726178,9 @@
      ]
     }
    },
-   "savedAt": 1792349372508
+   "sound": "o6l42yz",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792372103774
   },
   {
    "id": "dlgvceg",
@@ -726551,7 +726190,7 @@
     "ndlgvcega": {
      "id": "ndlgvcega",
      "speaker": "Chief Engineer",
-     "text": "Do not touch anything. Especially the drum. Especially the OTHER drum. You are here about the launch?",
+     "text": "You are here for the launch?",
      "choices": [
       {
        "id": "cdlgvceg2",
@@ -726560,56 +726199,17 @@
        "act": "",
        "tone": "",
        "shopTag": ""
-      },
-      {
-       "id": "cdlgvceg3",
-       "text": "Where is it going?",
-       "to": "ndlgvcegc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgvceg4",
-       "text": "I'm here to stop it.",
-       "to": "ndlgvcegd",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
       }
      ]
     },
     "ndlgvcegb": {
      "id": "ndlgvcegb",
      "speaker": "Chief Engineer",
-     "text": "Bamboo is light, strong, and grows back by Tuesday. Steel does not grow back by Tuesday.",
+     "text": "Bamboo is light, strong, and grows back by Tuesday. Steel does not grow back by Tuesday. In fact. Steel does not grow back by Wednesday.",
      "choices": [
       {
        "id": "cdlgvceg5",
-       "text": "Fair point.",
-       "to": "ndlgvcegc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgvceg6",
-       "text": "What's the hat for?",
-       "to": "ndlgvcege",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgvcege": {
-     "id": "ndlgvcege",
-     "speaker": "Chief Engineer",
-     "text": "Heat shield. My grandmother wove it. If it can keep off the monsoon, it can keep off space.",
-     "choices": [
-      {
-       "id": "cdlgvceg7",
-       "text": "Where is it going?",
+       "text": "True.",
        "to": "ndlgvcegc",
        "act": "",
        "tone": "",
@@ -726620,75 +726220,23 @@
     "ndlgvcegc": {
      "id": "ndlgvcegc",
      "speaker": "Chief Engineer",
-     "text": "The Moon. VC-0 went into the hill, but VC-0 was a test. VC-1 has more fuel. Much, much more fuel.",
+     "text": "The last rocket blew up on the launch pad but it was only a test. This one has a Pilot and twice the fuel.",
      "choices": [
       {
        "id": "cdlgvceg8",
-       "text": "Who's flying it?",
-       "to": "ndlgvcegf",
+       "text": "Gotcha.",
+       "to": "",
        "act": "",
        "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgvceg9",
-       "text": "Good luck.",
-       "to": "ndlgvcegg",
-       "act": "",
-       "tone": "good",
-       "shopTag": "",
-       "points": 100
-      }
-     ]
-    },
-    "ndlgvcegf": {
-     "id": "ndlgvcegf",
-     "speaker": "Chief Engineer",
-     "text": "The monkey. The man by the monkey THINKS it is him. Do not tell him.",
-     "choices": [
-      {
-       "id": "cdlgvceg10",
-       "text": "My lips are sealed.",
-       "to": "ndlgvcegg",
-       "act": "",
-       "tone": "good",
-       "shopTag": "",
-       "points": 100
-      }
-     ]
-    },
-    "ndlgvcegg": {
-     "id": "ndlgvcegg",
-     "speaker": "Chief Engineer",
-     "text": "The plunger is out by the pad. When the countdown is done, someone must push it. Not me. I have a family.",
-     "choices": [
-      {
-       "id": "cdlgvceg11",
-       "text": "Got it.",
-       "to": "",
-       "act": "heal",
-       "tone": "good",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgvcegd": {
-     "id": "ndlgvcegd",
-     "speaker": "Chief Engineer",
-     "text": "Then you will have to get past the whole ministry of rockets. GUARDS!",
-     "choices": [
-      {
-       "id": "cdlgvceg12",
-       "text": "...",
-       "to": "",
-       "act": "hostile",
-       "tone": "bad",
        "shopTag": ""
       }
      ]
     }
    },
-   "savedAt": 1792349372508
+   "once": true,
+   "sound": "o7wdmhu",
+   "savedAt": 1795878647063,
+   "editedFrom": 1794765623662
   },
   {
    "id": "dlgvcqm",
@@ -726698,7 +726246,7 @@
     "ndlgvcqma": {
      "id": "ndlgvcqma",
      "speaker": "Quartermaster",
-     "text": "The program buys only the best. From the Americans, mostly. They leave it lying around.",
+     "text": "Here to buy or just browsing?",
      "choices": [
       {
        "id": "cdlgvcqm13",
@@ -726719,7 +726267,9 @@
      ]
     }
    },
-   "savedAt": 1792349372508
+   "sound": "o7wdmhu",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792372052174
   },
   {
    "id": "dlgvcpl",
@@ -726729,90 +726279,23 @@
     "ndlgvcpla": {
      "id": "ndlgvcpla",
      "speaker": "Pilot",
-     "text": "I was VOLUNTEERED. First human on the Moon! They are training me with the monkey. The monkey is doing very well.",
+     "text": "This is one small step for Man, one giant leap, for the monkey actually making the steps and leaps.",
      "choices": [
       {
        "id": "cdlgvcpl15",
-       "text": "Better than you?",
-       "to": "ndlgvcplb",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgvcpl16",
-       "text": "Congratulations, cosmonaut.",
-       "to": "ndlgvcplc",
-       "act": "",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgvcpl17",
-       "text": "Want to get out of here?",
-       "to": "ndlgvcpld",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgvcplb": {
-     "id": "ndlgvcplb",
-     "speaker": "Pilot",
-     "text": "He has done forty launches in the cage. I have done none. He is the senior pilot.",
-     "choices": [
-      {
-       "id": "cdlgvcpl18",
-       "text": "Good luck up there.",
+       "text": "Historic day for monkey kind.",
        "to": "",
        "act": "",
        "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgvcplc": {
-     "id": "ndlgvcplc",
-     "speaker": "Pilot",
-     "text": "Thank you! Take my rations. They give the monkey my rations anyway.",
-     "choices": [
-      {
-       "id": "cdlgvcpl19",
-       "text": "Thanks.",
-       "to": "",
-       "act": "heal",
-       "tone": "good",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgvcpld": {
-     "id": "ndlgvcpld",
-     "speaker": "Pilot",
-     "text": "...Yes. Yes I do. I will cover you. Let the monkey have the Moon.",
-     "choices": [
-      {
-       "id": "cdlgvcpl20",
-       "text": "Let's go.",
-       "to": "",
-       "act": "friendly",
-       "tone": "good",
        "shopTag": "",
        "points": 100
-      },
-      {
-       "id": "cdlgvcpl21",
-       "text": "Maybe later.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
       }
      ]
     }
    },
-   "savedAt": 1792349372508
+   "sound": "6f5xiih",
+   "savedAt": 1795878647063,
+   "editedFrom": 1792372252865
   },
   {
    "id": "dlgtree1",
@@ -726822,11 +726305,11 @@
     "ntl1a": {
      "id": "ntl1a",
      "speaker": "Tree Warden",
-     "text": "Welcome to the Speaking Trees HOA. Item one on the agenda: somebody on the third branch keeps dropping acorns on the patrol and blowing our cover.",
+     "text": "HOA Agenda Item #1. Who keeps dropping acorns on our head?",
      "choices": [
       {
        "id": "ctl1c1",
-       "text": "Blame the squirrel.",
+       "text": "The squirrel.",
        "to": "ntl1b",
        "act": "",
        "tone": "",
@@ -726853,7 +726336,7 @@
     "ntl1b": {
      "id": "ntl1b",
      "speaker": "Tree Warden",
-     "text": "That's what I said! The squirrels claim they had the lease first. Help yourself to coffee by the radio while we recount the ballots.",
+     "text": "What can be done about it?",
      "choices": [
       {
        "id": "ctl1c4",
@@ -726866,7 +726349,7 @@
       },
       {
        "id": "ctl1c5",
-       "text": "Forget the vote, come fight with me.",
+       "text": "Fight with me and we can get rid of the pest.",
        "to": "",
        "act": "friendly",
        "tone": "good",
@@ -726877,8 +726360,8 @@
     }
    },
    "sound": "o7wdmhu",
-   "soundVol": 1,
-   "savedAt": 1792751835167
+   "savedAt": 1795878647063,
+   "editedFrom": 1792751835167
   },
   {
    "id": "dlgtree2",
@@ -726888,7 +726371,7 @@
     "ntl2a": {
      "id": "ntl2a",
      "speaker": "Squirrel Rep",
-     "text": "Squeak squeak! *taps chart* (We lived in this hollow first! Then six guys in black pajamas moved in with a radio and drank all the coffee!)",
+     "text": "Squeak squeak!",
      "choices": [
       {
        "id": "ctl2c1",
@@ -726920,7 +726403,7 @@
     "ntl2b": {
      "id": "ntl2b",
      "speaker": "Squirrel Rep",
-     "text": "Squeak! (You're alright, tall squirrel. Take my emergency acorn stash.)",
+     "text": "Squeak!",
      "choices": [
       {
        "id": "ctl2c4",
@@ -726928,14 +726411,17 @@
        "to": "",
        "act": "heal",
        "tone": "good",
-       "shopTag": ""
+       "shopTag": "",
+       "points": 50
       }
      ]
     }
    },
+   "once": true,
    "sound": "5542xx2",
    "soundVol": 0.85,
-   "savedAt": 1792752830363
+   "savedAt": 1795878647063,
+   "editedFrom": 1793488925212
   },
   {
    "id": "dlghold",
@@ -726945,174 +726431,148 @@
     "ndlgholda": {
      "id": "ndlgholda",
      "speaker": "Sgt. Oakley",
-     "text": "HALT! Who goes there? Password!",
+     "text": "HALT! If you wish to persist in my tree you must answer the riddles three!",
      "choices": [
       {
        "id": "cdlghold1",
-       "text": "Uh... Bob?",
-       "to": "ndlgholdb",
+       "text": "Uhh no.",
+       "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
-       "id": "cdlghold2",
-       "text": "The war's over, pal. It ended in 1945.",
-       "to": "ndlgholdc",
+       "id": "c23toame",
+       "text": "That's some nice gear you got.",
+       "to": "",
+       "act": "",
+       "tone": "bad",
+       "shopTag": ""
+      },
+      {
+       "id": "ci2k5hxq",
+       "text": "I'm down.",
+       "to": "n4cxk9i5",
+       "act": "",
+       "tone": "good",
+       "shopTag": ""
+      }
+     ]
+    },
+    "n4cxk9i5": {
+     "id": "n4cxk9i5",
+     "speaker": "Sgt. Oakley",
+     "text": "What gets wetter, as it dries?",
+     "choices": [
+      {
+       "id": "c253i2pw",
+       "text": "Your mom?",
+       "to": "nu43vfd9",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
-       "id": "cdlghold3",
-       "text": "Got any supplies?",
-       "to": "ndlgholdd",
+       "id": "cg5hdi3l",
+       "text": "A towel?",
+       "to": "n0f1y5xp",
+       "act": "",
+       "tone": "good",
+       "shopTag": "",
+       "points": 100
+      },
+      {
+       "id": "cioj0ful",
+       "text": "Rain?",
+       "to": "nlogw9pq",
        "act": "",
        "tone": "",
        "shopTag": ""
+      }
+     ]
+    },
+    "nu43vfd9": {
+     "id": "nu43vfd9",
+     "speaker": "Sgt. Oakley",
+     "text": "I AM GOING TO KILL YOU!",
+     "choices": [
+      {
+       "id": "c8ckn22m",
+       "text": "That's what she said",
+       "to": "",
+       "act": "hostile",
+       "tone": "good",
+       "shopTag": ""
       },
       {
-       "id": "cdlghold4",
-       "text": "I'm taking this tree.",
-       "to": "ndlgholde",
+       "id": "cr0os8jx",
+       "text": "So.. that was wrong?",
+       "to": "",
        "act": "hostile",
        "tone": "",
        "shopTag": ""
       }
      ]
     },
-    "ndlgholdb": {
-     "id": "ndlgholdb",
+    "n0f1y5xp": {
+     "id": "n0f1y5xp",
      "speaker": "Sgt. Oakley",
-     "text": "Close enough. Sergeant Oakley. They told me to hold this tree in '44, and nobody ever came to relieve me.",
+     "text": "What do you need from me?",
      "choices": [
       {
-       "id": "cdlghold5",
-       "text": "'44? It's 1968.",
-       "to": "ndlgholdc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlghold6",
-       "text": "Need a hand holding it?",
-       "to": "ndlgholdf",
-       "act": "friendly",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlghold7",
-       "text": "Carry on, Sergeant.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdc": {
-     "id": "ndlgholdc",
-     "speaker": "Sgt. Oakley",
-     "text": "Over? That's exactly what the enemy would say. Count the marks on these walls. Not one of them says surrender.",
-     "choices": [
-      {
-       "id": "cdlghold8",
-       "text": "Fair enough.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlghold9",
-       "text": "Come with me and I'll prove it.",
-       "to": "ndlgholdf",
-       "act": "friendly",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdd": {
-     "id": "ndlgholdd",
-     "speaker": "Sgt. Oakley",
-     "text": "The supply drop came in '45. Never opened most of it. Take what you need, soldier. Leave a receipt.",
-     "choices": [
-      {
-       "id": "cdlghold10",
-       "text": "Let's see it.",
+       "id": "c1j2dngh",
+       "text": "Open shop",
        "to": "",
        "act": "shop",
-       "tone": "",
-       "shopTag": "Army"
+       "tone": "good",
+       "shopTag": "T1"
       },
       {
-       "id": "cdlghold11",
-       "text": "I'm a little banged up.",
-       "to": "ndlgholdg",
+       "id": "ctgwgcdd",
+       "text": "Heal me",
+       "to": "",
        "act": "heal",
-       "tone": "",
+       "tone": "good",
        "shopTag": ""
       },
       {
-       "id": "cdlghold12",
-       "text": "Never mind.",
+       "id": "cy5zyf70",
+       "text": "Nothing at all.",
        "to": "",
        "act": "",
-       "tone": "",
+       "tone": "good",
+       "shopTag": "",
+       "points": 1000
+      },
+      {
+       "id": "c3l3xvh8",
+       "text": "Follow me to glory!",
+       "to": "",
+       "act": "friendly",
+       "tone": "good",
        "shopTag": ""
       }
      ]
     },
-    "ndlgholde": {
-     "id": "ndlgholde",
+    "nlogw9pq": {
+     "id": "nlogw9pq",
      "speaker": "Sgt. Oakley",
-     "text": "I KNEW it. A spy! FOR THE TREE!",
+     "text": "WRONG!",
      "choices": [
       {
-       "id": "cdlghold13",
-       "text": "Uh oh.",
+       "id": "crcnwbsk",
+       "text": "I have brought great shame to my family",
        "to": "",
        "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdf": {
-     "id": "ndlgholdf",
-     "speaker": "Sgt. Oakley",
-     "text": "Reinforcements, finally. Lead the way. If this is a trick, I'm coming right back to my tree.",
-     "choices": [
-      {
-       "id": "cdlghold14",
-       "text": "Move out.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgholdg": {
-     "id": "ndlgholdg",
-     "speaker": "Sgt. Oakley",
-     "text": "Chew on this. Sap and acorn mash. Kept me going for twenty-four years.",
-     "choices": [
-      {
-       "id": "cdlghold15",
-       "text": "Thanks... I think.",
-       "to": "",
-       "act": "",
-       "tone": "",
+       "tone": "bad",
        "shopTag": ""
       }
      ]
     }
    },
-   "savedAt": 1792845804300
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696660310
   },
   {
    "id": "dlgchun",
@@ -727246,12 +726706,12 @@
     "nchunhi": {
      "id": "nchunhi",
      "speaker": "Bob Li",
-     "text": "Hai-yah! have you come to be taught the bestest Kung Fu Master by the one and only Bob Li?",
+     "text": "Hai-yah! I am Bob Li! By what reason do you approach me?",
      "choices": [
       {
        "id": "cchunwho",
-       "text": "Who is Bob Li?",
-       "to": "nchunwho",
+       "text": "Can you train me?",
+       "to": "nchunlrn",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -727282,29 +726742,6 @@
       }
      ]
     },
-    "nchunwho": {
-     "id": "nchunwho",
-     "speaker": "Bob Li",
-     "text": "Bob Li is the strongest kicker in the whole canopy. I am Bob Li",
-     "choices": [
-      {
-       "id": "cchuntrn",
-       "text": "Train me pretty please",
-       "to": "nchunlrn",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cchunluk",
-       "text": "Good luck with that",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
     "nchunlrn": {
      "id": "nchunlrn",
      "speaker": "Bob Li",
@@ -727324,7 +726761,7 @@
        "to": "",
        "act": "shop",
        "tone": "",
-       "shopTag": "Kung Fu"
+       "shopTag": "Ninja"
       },
       {
        "id": "cchunjin",
@@ -727360,7 +726797,10 @@
      ]
     }
    },
-   "savedAt": 1792889913019
+   "sound": "f1mhha9",
+   "soundVol": 0.75,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794880768654
   },
   {
    "id": "dlgwbob",
@@ -727370,7 +726810,7 @@
     "ndlgwboba": {
      "id": "ndlgwboba",
      "speaker": "DJ Ronnie Ray",
-     "text": "GOOOOD EVENING, JUNGLE! You're tuned to WBOB, the only station broadcasting from inside a grass hut!",
+     "text": "GOOOOD EVENING, VIETNAM!",
      "choices": [
       {
        "id": "cdlgwbob1",
@@ -727409,11 +726849,11 @@
     "ndlgwbobb": {
      "id": "ndlgwbobb",
      "speaker": "DJ Ronnie Ray",
-     "text": "Every GI with a transistor radio inside ten clicks. And Charlie. Charlie writes in every week, always the same request.",
+     "text": "Every GI with a transistor radio inside ten clicks.",
      "choices": [
       {
        "id": "cdlgwbob5",
-       "text": "What's the request?",
+       "text": "Any new requests?",
        "to": "ndlgwbobf",
        "act": "",
        "tone": "",
@@ -727432,7 +726872,7 @@
     "ndlgwbobf": {
      "id": "ndlgwbobf",
      "speaker": "DJ Ronnie Ray",
-     "text": "\"Get off my jungle.\" I don't think it's a song, man.",
+     "text": "Few guys want me to play \"Get off my jungle.\" To be honest, I don't even think that's a song.",
      "choices": [
       {
        "id": "cdlgwbob7",
@@ -727490,7 +726930,10 @@
      ]
     }
    },
-   "savedAt": 1792961925750
+   "once": true,
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696652446
   },
   {
    "id": "dlgmath",
@@ -727500,11 +726943,11 @@
     "nmathhi": {
      "id": "nmathhi",
      "speaker": "Math Magician",
-     "text": "Welcome to the laboratory of the Math Magicians! Today we prove that two plus two is five. For very large values of two.",
+     "text": "Hi. I'm a Math Magician. I am super duper smart.",
      "choices": [
       {
        "id": "cmathhow",
-       "text": "How is that magic?",
+       "text": "Woah. Show me math.",
        "to": "nmathhow",
        "act": "",
        "tone": "",
@@ -727512,15 +726955,15 @@
       },
       {
        "id": "cmathshp",
-       "text": "Show me your gear",
+       "text": "Do you have a calculator I can borrow?",
        "to": "",
        "act": "shop",
        "tone": "",
-       "shopTag": "Magic"
+       "shopTag": "Science"
       },
       {
        "id": "cmathfgt",
-       "text": "That's not how math works",
+       "text": "You're not smart.",
        "to": "nmathfgt",
        "act": "",
        "tone": "",
@@ -727539,11 +726982,11 @@
     "nmathhow": {
      "id": "nmathhow",
      "speaker": "Math Magician",
-     "text": "Magic is just math that does not show its work. Watch. I think of a number, I add your health to it...",
+     "text": "Yes sir! What Mathic trick would you like to see?",
      "choices": [
       {
        "id": "cmathhel",
-       "text": "Do the trick!",
+       "text": "Addition",
        "to": "",
        "act": "heal",
        "tone": "good",
@@ -727551,7 +726994,7 @@
       },
       {
        "id": "cmathjin",
-       "text": "Come count with me",
+       "text": "Multiplication",
        "to": "",
        "act": "friendly",
        "tone": "good",
@@ -727559,10 +727002,10 @@
       },
       {
        "id": "cmathend",
-       "text": "I'll pass",
+       "text": "Subtraction",
        "to": "",
-       "act": "",
-       "tone": "",
+       "act": "hostile",
+       "tone": "bad",
        "shopTag": ""
       }
      ]
@@ -727570,11 +727013,20 @@
     "nmathfgt": {
      "id": "nmathfgt",
      "speaker": "Math Magician",
-     "text": "A non-believer! Math Magicians, divide this one by zero!",
+     "text": "Yeah huh!",
      "choices": [
       {
        "id": "cmathhit",
-       "text": "...",
+       "text": "Okay fine you're probably smart.",
+       "to": "",
+       "act": "",
+       "tone": "good",
+       "shopTag": "",
+       "points": 100
+      },
+      {
+       "id": "cw125hu2",
+       "text": "Nuh uh",
        "to": "",
        "act": "hostile",
        "tone": "bad",
@@ -727583,7 +727035,9 @@
      ]
     }
    },
-   "savedAt": 1792970440703
+   "once": true,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794660940433
   },
   {
    "id": "dlgliq1",
@@ -727593,58 +727047,28 @@
     "nlqhi": {
      "id": "nlqhi",
      "speaker": "The Shop Keeper",
-     "text": "Evenin'. Cold beer's in the cooler, the hard stuff's behind me, and the draft board's down the road. What'll it be?",
+     "text": "Welcome to the Liquor store. Sorry about all the bent parking poles out front. Folks don't want to drink and drive so they send their wives.",
      "choices": [
       {
        "id": "clqshop",
-       "text": "Let me see the drinks",
+       "text": "Let's see what you got.",
        "to": "",
        "act": "shop",
        "tone": "",
        "shopTag": "Drink"
-      },
-      {
-       "id": "clqdrft",
-       "text": "Drafted, huh?",
-       "to": "nlqdrft",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
       },
       {
        "id": "clqrob",
        "text": "This is a stick-up!",
        "to": "nlqrob",
-       "act": "",
+       "act": "rob",
        "tone": "",
-       "shopTag": ""
+       "shopTag": "",
+       "money": 10
       },
       {
        "id": "clqbye",
        "text": "Just looking",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "nlqdrft": {
-     "id": "nlqdrft",
-     "speaker": "The Shop Keeper",
-     "text": "Half my regulars got their letters this month. Business is booming. Funerals are too.",
-     "choices": [
-      {
-       "id": "clqshp2",
-       "text": "I'll take something for the road",
-       "to": "",
-       "act": "shop",
-       "tone": "",
-       "shopTag": "Drink"
-      },
-      {
-       "id": "clqby2",
-       "text": "See you around",
        "to": "",
        "act": "",
        "tone": "",
@@ -727668,7 +727092,8 @@
      ]
     }
    },
-   "savedAt": 1792975205743
+   "savedAt": 1795878647063,
+   "editedFrom": 1792975205743
   },
   {
    "id": "dlgpho1",
@@ -727678,7 +727103,7 @@
     "ndlgphoa": {
      "id": "ndlgphoa",
      "speaker": "Mama Pho",
-     "text": "Sit, sit! You look terrible. Skinny, dirty, somebody shooting at you. Pho fixes everything.",
+     "text": "Sit, sit! You look terrible.",
      "choices": [
       {
        "id": "cdlgpho1",
@@ -727687,37 +727112,13 @@
        "act": "heal",
        "tone": "",
        "shopTag": ""
-      },
-      {
-       "id": "cdlgpho2",
-       "text": "What's in the pot?",
-       "to": "ndlgphoc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgpho3",
-       "text": "Can I put it on credit?",
-       "to": "ndlgphod",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgpho4",
-       "text": "Who else eats here?",
-       "to": "ndlgphoe",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
       }
      ]
     },
     "ndlgphob": {
      "id": "ndlgphob",
      "speaker": "Mama Pho",
-     "text": "Eat! Slurp loud, is polite. Now you look less terrible.",
+     "text": "Here you go.",
      "choices": [
       {
        "id": "cdlgpho5",
@@ -727728,77 +727129,12 @@
        "shopTag": ""
       }
      ]
-    },
-    "ndlgphoc": {
-     "id": "ndlgphoc",
-     "speaker": "Mama Pho",
-     "text": "Beef bone, star anise, ginger, cinnamon. Eighteen hours. Secret ingredient is I don't tell you.",
-     "choices": [
-      {
-       "id": "cdlgpho6",
-       "text": "Is it the fish sauce?",
-       "to": "ndlgphof",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgpho7",
-       "text": "Smells amazing.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgphof": {
-     "id": "ndlgphof",
-     "speaker": "Mama Pho",
-     "text": "Everything is the fish sauce.",
-     "choices": [
-      {
-       "id": "cdlgpho8",
-       "text": "Fair enough.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgphod": {
-     "id": "ndlgphod",
-     "speaker": "Mama Pho",
-     "text": "Sign says NO CREDIT. Sign is in English. For you.",
-     "choices": [
-      {
-       "id": "cdlgpho9",
-       "text": "Right. Sorry.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgphoe": {
-     "id": "ndlgphoe",
-     "speaker": "Mama Pho",
-     "text": "Your army. Their army. Monkeys. Everybody hungry, nobody shoots in my kitchen. That is the rule.",
-     "choices": [
-      {
-       "id": "cdlgpho10",
-       "text": "Good rule.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
     }
    },
-   "savedAt": 1793156916402
+   "once": true,
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795738655494
   },
   {
    "id": "dlgdir1",
@@ -727817,50 +727153,18 @@
        "act": "",
        "tone": "",
        "shopTag": ""
-      },
-      {
-       "id": "cdlgdir2",
-       "text": "What are you filming?",
-       "to": "ndlgdirc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgdir3",
-       "text": "Can I be in the movie?",
-       "to": "ndlgdirh",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgdir4",
-       "text": "This movie stinks.",
-       "to": "ndlgdird",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
       }
      ]
     },
     "ndlgdirb": {
      "id": "ndlgdirb",
      "speaker": "The Director",
-     "text": "Perfect. Big scene tonight. You run through the village, the huts blow up, you look heroic. The extras are method actors. They will try to kill you. Don't take it personally.",
+     "text": "Perfect. Just run through the village ahead and fight off the extras. They are committed method actors trying to murder you.",
      "choices": [
       {
        "id": "cdlgdir5",
        "text": "Wait, what?",
        "to": "ndlgdire",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgdir6",
-       "text": "Action!",
-       "to": "",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -727870,111 +727174,23 @@
     "ndlgdire": {
      "id": "ndlgdire",
      "speaker": "The Director",
-     "text": "Six weeks in this jungle. They stopped acting in week two. The union says it's fine. PLACES, EVERYONE!",
+     "text": "ACTION!",
      "choices": [
       {
        "id": "cdlgdir7",
-       "text": "...Right.",
+       "text": "…",
        "to": "",
        "act": "",
        "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgdirc": {
-     "id": "ndlgdirc",
-     "speaker": "The Director",
-     "text": "NAPALM SUNSET! One man. One jungle. Forty million dollars over budget. The studio thinks it's a comedy.",
-     "choices": [
-      {
-       "id": "cdlgdir8",
-       "text": "Is it?",
-       "to": "ndlgdirf",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgdir9",
-       "text": "Who's the star?",
-       "to": "ndlgdirg",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgdirf": {
-     "id": "ndlgdirf",
-     "speaker": "The Director",
-     "text": "It is now.",
-     "choices": [
-      {
-       "id": "cdlgdir10",
-       "text": "Good luck with that.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgdirg": {
-     "id": "ndlgdirg",
-     "speaker": "The Director",
-     "text": "He was. Then he walked into the jungle to find his character. That was a month ago. So... you're the star now. Hit your marks.",
-     "choices": [
-      {
-       "id": "cdlgdir11",
-       "text": "I'll do my best.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgdirh": {
-     "id": "ndlgdirh",
-     "speaker": "The Director",
-     "text": "Kid, everybody wants to be in pictures. Fine. I direct from the front. Lead the way and I'll yell when it looks good.",
-     "choices": [
-      {
-       "id": "cdlgdir12",
-       "text": "Let's make a movie.",
-       "to": "",
-       "act": "friendly",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgdir13",
-       "text": "Maybe later.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgdird": {
-     "id": "ndlgdird",
-     "speaker": "The Director",
-     "text": "Everybody's a critic. You know what I do with critics?",
-     "choices": [
-      {
-       "id": "cdlgdir14",
-       "text": "...",
-       "to": "",
-       "act": "hostile",
-       "tone": "bad",
-       "shopTag": ""
+       "shopTag": "",
+       "points": 100
       }
      ]
     }
    },
-   "savedAt": 1793264665254
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696664055
   },
   {
    "id": "dlgcrft",
@@ -728015,36 +727231,12 @@
     "ndlgzorpa": {
      "id": "ndlgzorpa",
      "speaker": "Zorp",
-     "text": "Zeeb! Zeeb gorp! ...Translator warming up. Ahem. Greetings, tall pink one. The angry men in black pyjamas put me in a box.",
+     "text": "Zeeb! Zeeb gorp! …I am Zorp!",
      "choices": [
       {
        "id": "cdlgzorp1",
-       "text": "Who are you?",
+       "text": "Uhhhh hi Zorp.",
        "to": "ndlgzorpb",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgzorp2",
-       "text": "What happened to your ship?",
-       "to": "ndlgzorpd",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgzorp3",
-       "text": "I'll get you out.",
-       "to": "ndlgzorpc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgzorp4",
-       "text": "Enjoy the box.",
-       "to": "ndlgzorpe",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -728054,20 +727246,12 @@
     "ndlgzorpb": {
      "id": "ndlgzorpb",
      "speaker": "Zorp",
-     "text": "Zorp. Junior navigator, Survey Saucer 9. I was mapping your jungles. It was going very well until it was not.",
+     "text": "Zorp would like your assistance.",
      "choices": [
       {
        "id": "cdlgzorp5",
        "text": "What happened?",
        "to": "ndlgzorpd",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgzorp6",
-       "text": "I'll get you out.",
-       "to": "ndlgzorpc",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -728077,43 +727261,12 @@
     "ndlgzorpd": {
      "id": "ndlgzorpd",
      "speaker": "Zorp",
-     "text": "A gun with two barrels said hello. We said hello back with our face, into the ground. The crew hit their heads. Now they shoot anyone who is not a lamp.",
+     "text": "Zorp is an Alien alcoholic, Zorp crashed his space ship. Zorp woke up in cage.",
      "choices": [
       {
        "id": "cdlgzorp7",
-       "text": "Your crew is shooting people?",
-       "to": "ndlgzorpf",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgzorp8",
-       "text": "I'll get you out.",
+       "text": "...",
        "to": "ndlgzorpc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgzorpf": {
-     "id": "ndlgzorpf",
-     "speaker": "Zorp",
-     "text": "They have Ray Guns and concussions. I would not stand near them. I would stand near ME. Outside of this box.",
-     "choices": [
-      {
-       "id": "cdlgzorp9",
-       "text": "Fine. I'll get you out.",
-       "to": "ndlgzorpc",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgzorp10",
-       "text": "No thanks.",
-       "to": "ndlgzorpe",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -728123,27 +727276,20 @@
     "ndlgzorpc": {
      "id": "ndlgzorpc",
      "speaker": "Zorp",
-     "text": "You saw through the lashing and Zorp squeezes out between the bars. \"Thank you! I will help you bonk the pyjama men. Then we find a telephone.\"",
+     "text": "Please get me out of here.",
      "choices": [
       {
        "id": "cdlgzorp11",
-       "text": "Let's go.",
+       "text": "Bet.",
        "to": "",
        "act": "friendly",
        "tone": "good",
        "shopTag": "",
        "points": 100
-      }
-     ]
-    },
-    "ndlgzorpe": {
-     "id": "ndlgzorpe",
-     "speaker": "Zorp",
-     "text": "I will wait. I am good at waiting. My people waited nine hundred years for your planet to invent the doughnut.",
-     "choices": [
+      },
       {
-       "id": "cdlgzorp12",
-       "text": "...",
+       "id": "cdlgzorp10",
+       "text": "No thanks.",
        "to": "",
        "act": "",
        "tone": "",
@@ -728152,7 +727298,9 @@
      ]
     }
    },
-   "savedAt": 1793186115596
+   "sound": "6f5xiih",
+   "savedAt": 1795878647063,
+   "editedFrom": 1793672000387
   },
   {
    "id": "dlgsqd1",
@@ -728162,28 +727310,12 @@
     "ndlgsqd1a": {
      "id": "ndlgsqd1a",
      "speaker": "Sarge",
-     "text": "That's Charlie's base camp past the wire. Two towers, a gun nest at the gate and a bunker with a rocket on the roof. Command wants it flattened tonight.",
+     "text": "CHAAAARRRRGGGGGEEE!!!!",
      "choices": [
       {
        "id": "cdlgsqd11",
        "text": "What's the plan?",
        "to": "ndlgsqd1b",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgsqd12",
-       "text": "Let's hit it.",
-       "to": "ndlgsqd1c",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgsqd13",
-       "text": "I'll go in alone.",
-       "to": "ndlgsqd1d",
        "act": "",
        "tone": "",
        "shopTag": ""
@@ -728193,49 +727325,19 @@
     "ndlgsqd1b": {
      "id": "ndlgsqd1b",
      "speaker": "Sarge",
-     "text": "Cut through the wire, take the west tower, then silence that gun before it chews us up. Bunker last. Stay off the stakes.",
+     "text": "CHAAAARRRRRRRGGGGEEEE!!!!!",
      "choices": [
       {
        "id": "cdlgsqd14",
-       "text": "Let's hit it.",
-       "to": "ndlgsqd1c",
-       "act": "",
+       "text": "Bet.",
+       "to": "",
+       "act": "friendly",
        "tone": "",
        "shopTag": ""
       },
       {
-       "id": "cdlgsqd15",
-       "text": "Give me a minute.",
-       "to": "ndlgsqd1d",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgsqd1c": {
-     "id": "ndlgsqd1c",
-     "speaker": "Sarge",
-     "text": "You heard it. Move out!",
-     "choices": [
-      {
-       "id": "cdlgsqd16",
-       "text": "Go!",
-       "to": "",
-       "act": "friendly",
-       "tone": "good",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgsqd1d": {
-     "id": "ndlgsqd1d",
-     "speaker": "Sarge",
-     "text": "Your call. We'll hold the tree line.",
-     "choices": [
-      {
-       "id": "cdlgsqd17",
-       "text": "...",
+       "id": "cdlgsqd13",
+       "text": "I'll go in alone.",
        "to": "",
        "act": "",
        "tone": "",
@@ -728244,7 +727346,10 @@
      ]
     }
    },
-   "savedAt": 1793324277071
+   "once": true,
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696681677
   },
   {
    "id": "dlgsqd2",
@@ -728258,7 +727363,7 @@
      "choices": [
       {
        "id": "cdlgsqd21",
-       "text": "Stick with me.",
+       "text": "If you can't spread your message to the masses via the radio waves why not spread it with me via adventures?",
        "to": "ndlgsqd2b",
        "act": "",
        "tone": "",
@@ -728277,7 +727382,7 @@
     "ndlgsqd2b": {
      "id": "ndlgsqd2b",
      "speaker": "Sparks",
-     "text": "Right behind you. Try not to stand in the flare light.",
+     "text": "I guess that could be fun.",
      "choices": [
       {
        "id": "cdlgsqd23",
@@ -728305,7 +727410,9 @@
      ]
     }
    },
-   "savedAt": 1793324277071
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696678303
   },
   {
    "id": "dlgrck1",
@@ -728327,17 +727434,9 @@
       },
       {
        "id": "cdlgrck12",
-       "text": "Charlie's coming.",
-       "to": "ndlgrck1c",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cdlgrck13",
-       "text": "You guys stink.",
-       "to": "ndlgrck1d",
-       "act": "",
+       "text": "I will kill you all.",
+       "to": "",
+       "act": "hostile",
        "tone": "",
        "shopTag": ""
       }
@@ -728346,51 +727445,23 @@
     "ndlgrck1b": {
      "id": "ndlgrck1b",
      "speaker": "Jet",
-     "text": "Far out. This next one goes out to you. Moose, count it in!",
+     "text": "Security!",
      "choices": [
       {
        "id": "cdlgrck14",
-       "text": "Rock on!",
+       "text": "This is a misunderstanding.",
        "to": "",
-       "act": "",
+       "act": "hostile",
        "tone": "good",
        "shopTag": "",
        "points": 100
       }
      ]
-    },
-    "ndlgrck1c": {
-     "id": "ndlgrck1c",
-     "speaker": "Jet",
-     "text": "Then we play louder. Nobody stops the show. Talk to Lola, she swings that axe harder than she plays it.",
-     "choices": [
-      {
-       "id": "cdlgrck15",
-       "text": "...",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "ndlgrck1d": {
-     "id": "ndlgrck1d",
-     "speaker": "Jet",
-     "text": "Nobody boos the Deltas.",
-     "choices": [
-      {
-       "id": "cdlgrck16",
-       "text": "Bring it.",
-       "to": "",
-       "act": "hostile",
-       "tone": "bad",
-       "shopTag": ""
-      }
-     ]
     }
    },
-   "savedAt": 1793442347590
+   "once": true,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794765761699
   },
   {
    "id": "dlgrck2",
@@ -728484,7 +727555,7 @@
     "ndlgrck3b": {
      "id": "ndlgrck3b",
      "speaker": "Moose",
-     "text": "Same as the last one. Faster.",
+     "text": "Same as the last one. But faster.",
      "choices": [
       {
        "id": "cdlgrck33",
@@ -728497,7 +727568,8 @@
      ]
     }
    },
-   "savedAt": 1793442347590
+   "savedAt": 1795878647063,
+   "editedFrom": 1793442347590
   },
   {
    "id": "dlgfan1",
@@ -728553,11 +727625,11 @@
     "ndlgmrcha": {
      "id": "ndlgmrcha",
      "speaker": "Merch",
-     "text": "THE MEKONG DELTAS. OFFICIAL TOUR MERCH. Cash only. No refunds. No, the drummer will not sign it.",
+     "text": "THE MEKONG DELTAS. OFFICIAL TOUR MERCH.",
      "choices": [
       {
        "id": "cdlgmrch1",
-       "text": "Let's see it.",
+       "text": "Do you have any MEKONG DELTAS. OFFICIAL TOUR MERCH?",
        "to": "",
        "act": "shop",
        "tone": "good",
@@ -728574,8 +727646,8 @@
      ]
     }
    },
-   "savedAt": 1793488800942,
-   "editedFrom": 1793442347590
+   "savedAt": 1795878647063,
+   "editedFrom": 1793488800942
   },
   {
    "id": "dlgbeer",
@@ -728693,89 +727765,44 @@
    "nodes": {
     "nkil0001": {
      "id": "nkil0001",
-     "speaker": "Kile",
-     "text": "Don't listen to Cartmen, mister! He's trying to charge us five bucks a head just to stand near the bus stop sign!",
+     "speaker": "Kyle",
+     "text": "For the last time fatass I was not on Epstein's Island!",
      "choices": [
       {
        "id": "ckil0001",
-       "text": "Why do you hang out with him then?",
-       "to": "nkil0002",
-       "act": "",
-       "tone": "",
+       "text": "Were you on the island?",
+       "to": "",
+       "act": "hostile",
+       "tone": "bad",
        "shopTag": ""
       },
       {
        "id": "ckil0002",
-       "text": "Got any supplies Cartmen hasn't found?",
-       "to": "nkil0003",
-       "act": "",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "ckil0003",
-       "text": "Sounds like smart business to me.",
-       "to": "nkil0004",
-       "act": "",
-       "tone": "bad",
-       "shopTag": ""
-      }
-     ]
-    },
-    "nkil0002": {
-     "id": "nkil0002",
-     "speaker": "Kile",
-     "text": "Because there are only four kids on this block and the driver left the bus in neutral! You know, I think I learned something today... wait, no, take this first-aid stash before Cartmen trades it.",
-     "choices": [
-      {
-       "id": "ckil0004",
-       "text": "(Patch up your scrapes)",
-       "to": "",
-       "act": "heal",
-       "tone": "good",
-       "shopTag": ""
-      },
-      {
-       "id": "ckil0005",
-       "text": "See ya around.",
-       "to": "",
+       "text": "Who are you talking to?",
+       "to": "n4p8q743",
        "act": "",
        "tone": "",
        "shopTag": ""
-      }
-     ]
-    },
-    "nkil0003": {
-     "id": "nkil0003",
-     "speaker": "Kile",
-     "text": "Yeah! I hid a stash of snacks and drinks behind the sign so he wouldn't eat it all.",
-     "choices": [
+      },
       {
-       "id": "ckil0006",
-       "text": "Let's see what you've got.",
+       "id": "cma5icei",
+       "text": "What do you have for sale?",
        "to": "",
        "act": "shop",
        "tone": "good",
-       "shopTag": "Heal"
-      },
-      {
-       "id": "ckil0007",
-       "text": "Maybe later.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
+       "shopTag": "T1",
+       "points": 50
       }
      ]
     },
-    "nkil0004": {
-     "id": "nkil0004",
-     "speaker": "Kile",
-     "text": "Ugh, not you too! Don't encourage him!",
+    "n4p8q743": {
+     "id": "n4p8q743",
+     "speaker": "Kyle",
+     "text": "Adolf Cartman over here!",
      "choices": [
       {
-       "id": "ckil0008",
-       "text": "Whatever.",
+       "id": "cp1v21w8",
+       "text": "...",
        "to": "",
        "act": "",
        "tone": "",
@@ -728784,8 +727811,8 @@
      ]
     }
    },
-   "once": false,
-   "savedAt": 1794182665603
+   "savedAt": 1795878647063,
+   "editedFrom": 1794765670633
   },
   {
    "id": "dlgcrt1",
@@ -728981,27 +728008,19 @@
     "nfbs1a": {
      "id": "nfbs1a",
      "speaker": "First Sergeant",
-     "text": "Welcome to Firebase Freedom, private. The General says you are here to stop 9/11 from happening in 50 years. I don't know what that means and I am not cleared to ask.",
+     "text": "Welcome to Vietnam!",
      "choices": [
       {
        "id": "cfbs11",
-       "text": "Where do I start?",
+       "text": "Happy to be here",
        "to": "nfbs1b",
        "act": "",
        "tone": "",
        "shopTag": ""
       },
       {
-       "id": "cfbs12",
-       "text": "What's 9/11?",
-       "to": "nfbs1c",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
        "id": "cfbs13",
-       "text": "When do I go home?",
+       "text": "I wanna go home",
        "to": "nfbs1d",
        "act": "",
        "tone": "",
@@ -729012,34 +728031,11 @@
     "nfbs1b": {
      "id": "nfbs1b",
      "speaker": "First Sergeant",
-     "text": "Supply tent has gear if you can find your size. The PX sells the rest. Then out the east gate and into Charlie's jungle.",
+     "text": "Check the supply tent for gear if you want to ditch the civvies.",
      "choices": [
       {
        "id": "cfbs14",
-       "text": "Yes, First Sergeant.",
-       "to": "",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      }
-     ]
-    },
-    "nfbs1c": {
-     "id": "nfbs1c",
-     "speaker": "First Sergeant",
-     "text": "Classified. Above my pay grade, and my pay grade is a sandwich.",
-     "choices": [
-      {
-       "id": "cfbs15",
-       "text": "Where do I start?",
-       "to": "nfbs1b",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
-       "id": "cfbs16",
-       "text": "Fair enough.",
+       "text": "Yes, Sir.",
        "to": "",
        "act": "",
        "tone": "",
@@ -729050,11 +728046,11 @@
     "nfbs1d": {
      "id": "nfbs1d",
      "speaker": "First Sergeant",
-     "text": "Your tour is twelve months or one mission, whichever is longer.",
+     "text": "You can go home when we win.",
      "choices": [
       {
        "id": "cfbs17",
-       "text": "Where do I start?",
+       "text": "How tho?",
        "to": "nfbs1b",
        "act": "",
        "tone": "",
@@ -729062,16 +728058,19 @@
       },
       {
        "id": "cfbs18",
-       "text": "...",
+       "text": "What if we lose?",
        "to": "",
        "act": "",
-       "tone": "",
-       "shopTag": ""
+       "tone": "good",
+       "shopTag": "",
+       "points": 50
       }
      ]
     }
    },
-   "savedAt": 1794300705135
+   "once": true,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794660922324
   },
   {
    "id": "dlgfbpx",
@@ -729081,7 +728080,7 @@
     "nfbpxa": {
      "id": "nfbpxa",
      "speaker": "PX Clerk",
-     "text": "Post Exchange is open! Army surplus, cold drinks, hot rations. No refunds, no credit, no questions about where the jeep went.",
+     "text": "Lookin to buy or just browsing?",
      "choices": [
       {
        "id": "cfbpx1",
@@ -729133,7 +728132,10 @@
      ]
     }
    },
-   "savedAt": 1794300705135
+   "sound": "lhxmbye",
+   "soundVol": 0.8,
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696714690
   },
   {
    "id": "dlgfbmp",
@@ -729143,7 +728145,7 @@
     "nfbmpa": {
      "id": "nfbmpa",
      "speaker": "MP",
-     "text": "Past this gate it's Charlie's jungle. Once you're out, you're out. Make sure you've got everything you need.",
+     "text": "Good luck out there!",
      "choices": [
       {
        "id": "cfbmp1",
@@ -729194,7 +728196,9 @@
      ]
     }
    },
-   "savedAt": 1794300705135
+   "once": true,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794765700346
   },
   {
    "id": "dlgfbg1",
@@ -729204,7 +728208,7 @@
     "ndlgfbg1": {
      "id": "ndlgfbg1",
      "speaker": "Gunner",
-     "text": "Quiet night. I hate quiet nights.",
+     "text": "Quiet night. Too quiet.",
      "choices": [
       {
        "id": "cdlgfbg1",
@@ -729217,7 +728221,8 @@
      ]
     }
    },
-   "savedAt": 1794312191456
+   "savedAt": 1795878647063,
+   "editedFrom": 1794312191456
   },
   {
    "id": "dlgfbg2",
@@ -729250,7 +728255,7 @@
     "ndlgfbg3": {
      "id": "ndlgfbg3",
      "speaker": "Mechanic",
-     "text": "Touch the jeep and you walk to Saigon.",
+     "text": "You seen my wrench around?",
      "choices": [
       {
        "id": "cdlgfbg3",
@@ -729263,7 +728268,9 @@
      ]
     }
    },
-   "savedAt": 1794312191456
+   "once": true,
+   "savedAt": 1795878647063,
+   "editedFrom": 1794765838140
   },
   {
    "id": "dlgfbg4",
@@ -729296,7 +728303,7 @@
     "ndlgfsh1": {
      "id": "ndlgfsh1",
      "speaker": "Fisherman",
-     "text": "Stay on the planks. The crocs haven't eaten.",
+     "text": "Looks pretty safe under the planks.",
      "choices": [
       {
        "id": "cdlgfsh11",
@@ -729309,7 +728316,9 @@
      ]
     }
    },
-   "savedAt": 1794650055250
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696693134
   },
   {
    "id": "dlgfsh2",
@@ -729373,7 +728382,7 @@
     "ndlgxlm1": {
      "id": "ndlgxlm1",
      "speaker": "Driver",
-     "text": "Take it. I'm not driving that road tonight.",
+     "text": "I sure hope nothing bad happens to my tuk tuk.",
      "choices": [
       {
        "id": "cdlgxlm11",
@@ -729386,7 +728395,10 @@
      ]
     }
    },
-   "savedAt": 1795314285187
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795696640602,
+   "once": true
   },
   {
    "id": "dlgbrb1",
@@ -729396,7 +728408,7 @@
     "ndlgbrba": {
      "id": "ndlgbrba",
      "speaker": "Barber",
-     "text": "Sit. I cut hair at the firebase too.",
+     "text": "Lookin for a trim?",
      "choices": [
       {
        "id": "cdlgbrb1",
@@ -729417,7 +728429,9 @@
      ]
     }
    },
-   "savedAt": 1795392372853
+   "savedAt": 1795878647063,
+   "editedFrom": 1795392372853,
+   "once": true
   },
   {
    "id": "dlgnix1",
@@ -729439,7 +728453,7 @@
       },
       {
        "id": "cdlgnix12",
-       "text": "Can't vote yet.",
+       "text": "Bet.",
        "to": "",
        "act": "",
        "tone": "",
@@ -729463,8 +728477,9 @@
      ]
     }
    },
-   "savedAt": 1795774740640,
-   "sound": "lhxmbye"
+   "sound": "lhxmbye",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795774740640
   },
   {
    "id": "dlgftb1",
@@ -729542,8 +728557,8 @@
      "choices": [
       {
        "id": "cdlgclk28",
-       "text": "Where do I sign?",
-       "to": "",
+       "text": "I don't know how to read.",
+       "to": "ndlgclk2c",
        "act": "",
        "tone": "good",
        "shopTag": "",
@@ -729573,11 +728588,27 @@
        "shopTag": ""
       }
      ]
+    },
+    "ndlgclk2c": {
+     "id": "ndlgclk2c",
+     "speaker": "Clerk",
+     "text": "Ahh, we got ourselves a Marine.",
+     "choices": [
+      {
+       "id": "cdlgclk2c1",
+       "text": "Sure.",
+       "to": "",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      }
+     ]
     }
    },
-   "savedAt": 1795774740640,
    "once": true,
-   "sound": "o6l42yz"
+   "sound": "o6l42yz",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795774740640
   },
   {
    "id": "dlgpnt1",
@@ -729587,7 +728618,7 @@
     "ndlgpnt1a": {
      "id": "ndlgpnt1a",
      "speaker": "Walt",
-     "text": "They took my pants. Said I'd get them back.",
+     "text": "I don't wanna go to war :(",
      "choices": [
       {
        "id": "cdlgpnt111",
@@ -729600,8 +728631,9 @@
      ]
     }
    },
-   "savedAt": 1795774740640,
-   "sound": "kzxgvne"
+   "sound": "kzxgvne",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795774740640
   },
   {
    "id": "dlgdsy1",
@@ -729643,11 +728675,11 @@
     "ndlgsck1a": {
      "id": "ndlgsck1a",
      "speaker": "Hank",
-     "text": "My brother's over there. Says bring socks.",
+     "text": "My brother's over there. He says it sucks.",
      "choices": [
       {
        "id": "cdlgsck114",
-       "text": "Noted.",
+       "text": "Bet.",
        "to": "",
        "act": "",
        "tone": "good",
@@ -729664,8 +728696,9 @@
      ]
     }
    },
-   "savedAt": 1795774740640,
-   "sound": "za5r08m"
+   "sound": "za5r08m",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795774740640
   },
   {
    "id": "dlgclk3",
@@ -729675,7 +728708,7 @@
     "ndlgclk3a": {
      "id": "ndlgclk3a",
      "speaker": "Clerk",
-     "text": "You're 1-A. Physical's in the back.",
+     "text": "You look healthy enough, next!",
      "choices": [
       {
        "id": "cdlgclk316",
@@ -729697,9 +728730,10 @@
      ]
     }
    },
-   "savedAt": 1795774740640,
    "once": true,
-   "sound": "o6l42yz"
+   "sound": "o6l42yz",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795774740640
   },
   {
    "id": "dlgsgt3",
@@ -729713,7 +728747,7 @@
      "choices": [
       {
        "id": "cdlgsgt318",
-       "text": "Yes, Sergeant!",
+       "text": "Yes, Sir!",
        "to": "",
        "act": "heal",
        "tone": "good",
@@ -729730,9 +728764,10 @@
      ]
     }
    },
-   "savedAt": 1795774740640,
    "once": true,
-   "sound": "y7leppl"
+   "sound": "y7leppl",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795774740640
   },
   {
    "id": "dlgcgh2",
@@ -729742,7 +728777,7 @@
     "ndlgcgh2a": {
      "id": "ndlgcgh2a",
      "speaker": "Gus",
-     "text": "Turned my head. Coughed. Still 1-A.",
+     "text": "Hoorah!",
      "choices": [
       {
        "id": "cdlgcgh220",
@@ -729755,8 +728790,9 @@
      ]
     }
    },
-   "savedAt": 1795774740640,
-   "sound": "kzxgvne"
+   "sound": "kzxgvne",
+   "savedAt": 1795878647063,
+   "editedFrom": 1795774740640
   },
   {
    "id": "dlgpow1",
@@ -729770,7 +728806,7 @@
      "choices": [
       {
        "id": "cdlgpow11",
-       "text": "Come on.",
+       "text": "You're unstuck, step-bro.",
        "to": "",
        "act": "friendly",
        "tone": "good",
@@ -729789,19 +728825,35 @@
     }
    },
    "once": true,
-   "savedAt": 1795795818773
+   "savedAt": 1795878647063,
+   "editedFrom": 1795795818773
   },
   {
    "id": "dlgliq2r",
    "name": "Liquor Store Robber",
    "start": "nrob1",
-   "talksFirst": true,
    "nodes": {
     "nrob1": {
      "id": "nrob1",
      "speaker": "Robber",
      "text": "Back off. This ain't your business.",
      "choices": [
+      {
+       "id": "crobjoin",
+       "text": "I've been looking for folks like you.",
+       "to": "",
+       "act": "joinTurn",
+       "tone": "",
+       "shopTag": ""
+      },
+      {
+       "id": "crobfeud",
+       "text": "You're right.",
+       "to": "",
+       "act": "feud",
+       "tone": "",
+       "shopTag": ""
+      },
       {
        "id": "crob1",
        "text": "It is now.",
@@ -729821,7 +728873,9 @@
      ]
     }
    },
-   "savedAt": 1795805970049
+   "talksFirst": true,
+   "savedAt": 1795878647063,
+   "editedFrom": 1795805970049
   },
   {
    "id": "dlgliq2o",
@@ -729911,11 +728965,11 @@
     "ndlgspk1": {
      "id": "ndlgspk1",
      "speaker": "Spike",
-     "text": "Nobody's made it round that loop yet.",
+     "text": "Bet you can't make it through the loop de loop.",
      "choices": [
       {
        "id": "cdlgspk11",
-       "text": "Watch me.",
+       "text": "Bet.",
        "to": "",
        "act": "",
        "tone": "",
@@ -729933,7 +728987,8 @@
     }
    },
    "sound": "lhxmbye",
-   "savedAt": 1795831344182
+   "savedAt": 1795878647063,
+   "editedFrom": 1795831344182
   }
  ],
  "sounds": [

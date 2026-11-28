@@ -192,7 +192,7 @@ const readXlsx = (file) => {
 };
 
 // ---------- what is in the sheet ----------
-const ACT = { shop: "Shop", heal: "Heal", hostile: "Hostile", friendly: "Friendly", money: "Money" };
+const ACT = { shop: "Shop", heal: "Heal", hostile: "Hostile", friendly: "Friendly", calm: "Calm", money: "Money", rob: "Hostile + Money", joinTurn: "Friendly, others Hostile", feud: "Attacks the others" };
 const isButton = (s) => /^[\s.…!?0-9]*$/.test(s || "");
 const FLOORS = ["Trailer Park", "Vietnam", "Tree Tops", "Sewer"];
 const floorOf = (lv) => lv.floor || (/^(Trailer|TCloset|Liquor)/i.test(lv.name || "") ? "Trailer Park" : /^(VShaq|Tree Int|Tent)/i.test(lv.name || "") ? "Vietnam" : "");
@@ -240,11 +240,11 @@ const collect = (lib) => {
         const targets = [...new Set(buttons.map((c) => (c.to && nodes[c.to] ? String(num.get(c.to)) : "End")))];
         const next = answers.length ? "" : !buttons.length ? "End" : targets.length === 1 && targets[0] === "End" ? "End" : "→ " + targets.join(", ");
         const picks = !answers.length && buttons.some((c) => /\d/.test(c.text || ""));
-        const does = [s.n.once ? "One time only" : "", picks ? "Pick a number" : ""].filter(Boolean).join(", ");
+        const does = [d.once && s.nid === d.start ? "Talks once" : "", s.n.once ? "One time only" : "", picks ? "Pick a number" : ""].filter(Boolean).join(", ");
         lines.push({ sheet: "Dialogue", key: `dlg|${d.id}|${s.nid}`, group, groupWhere, step: num.get(s.nid), depth: s.depth,
           who: s.n.speaker || "", whoEditable: true, text: s.n.text || "", does, goes: next });
       } else {
-        const does = (ACT[s.c.act] || "") + (s.c.money > 0 ? " " + s.c.money : "");
+        const does = [(ACT[s.c.act] || "") + (s.c.money > 0 ? " " + s.c.money : ""), s.c.points > 0 ? "Score " + s.c.points : ""].filter(Boolean).join(", ");
         lines.push({ sheet: "Dialogue", key: `dlg|${d.id}|${s.nid}|${s.c.id}`, group, groupWhere, step: "", depth: s.depth, answer: true,
           who: "You", text: s.c.text || "", does, goes: goes(s.c.to) });
       }

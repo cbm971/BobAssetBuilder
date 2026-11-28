@@ -5018,7 +5018,27 @@ export const DIALOGUE_ACTS = {
   // It pays EVERY time the option is picked — to pay only once, tick One time only on its LINE
   // (dialogueEntryNode), which is what his owner does. `anyone`: a sign can hand money out too.
   money: { label: "💵 Give you money", blurb: "They hand you the amount you type in the box that appears. Tick One time only on the line if it should only ever happen once.", flash: MONEY_CHAR + " {name} · +{n}", moneyParam: true, anyone: true },
+  // 💵😡 A STICK-UP (Blake, 2026-11-28, Liquor Store 1's "This is a stick-up!": it "should both give
+  // you money and turn them hostile"). The two halves in one act, money first, so the till is in
+  // your pocket before the bat comes out from under the counter.
+  rob: { label: "💵😡 Pay you, then turn hostile", blurb: "They hand you the amount you type in the box that appears, then start fighting you.", flash: MONEY_CHAR + " {name} hands over {n} — and turns on you!", moneyParam: true },
+  // 🟢😡 and ⚔️ ACT ON THE OTHERS HERE TOO (same day, the Liquor Store 2 robber: "I've been looking for
+  // folks like you" — "they join you and the liquor store owner becomes hostile"; "You're right" —
+  // "they attack the liquor store owner and you can no longer talk to any of them"). "The others
+  // here" is dialogueOthersHere: every other person with something to say, near enough to be in the
+  // same fight (AFTER_FIGHT_CELLS, the whole of a room) and not already fighting anybody.
+  joinTurn: { label: "🟢😡 Join you, the others here turn on you", blurb: "They fight FOR you from now on, and every other talking person near them turns on you.", flash: "🟢 {name} is fighting for you — and the others here turn on you!" },
+  feud: { label: "⚔️ Attack the others here", blurb: "They and every other talking person near them fight EACH OTHER, not you, and none of them will talk to you again.", flash: "⚔️ {name} attacks the others here!" },
 };
+// Who "the others here" are for 🟢😡 joinTurn and ⚔️ feud: the people (units carrying a dialogue)
+// still standing on the neutral side within `rangePx` of the speaker. A hostile is already fighting
+// you and an ally is already yours, so neither is anybody a conversation can turn. `units` =
+// [{ key, side, talker, dead, dx }] built where the live state is; the speaker is left out by the
+// caller. Pure, so a test can ask who a robber's answer would set on.
+export const dialogueOthersHere = (units, rangePx) => (units || []).filter((u) => u && !u.dead && u.talker && u.side === "neutral" && Math.abs(u.dx) <= rangePx).map((u) => u.key);
+// A ⚔️ feud's targets that are still standing, from ep.feud (keys) and an alive test. A feuding unit
+// fights exactly these and nobody else; when none are left it goes back to standing there.
+export const feudTargetsAlive = (feud, alive) => (Array.isArray(feud) ? feud : []).filter((k) => alive(k));
 // Which acts a SIGN can carry. Turning somebody hostile needs a person to turn; healing you and
 // opening a shop do not, so a market stall with a price list painted on it is a legal thing to
 // build. One flag on the registry entry rather than a list of exceptions at the call site.
@@ -5420,6 +5440,7 @@ export const unitSide = (ea, ep, pacified) => {
   if (pacified) return "neutral";
   if (ep && ep.turned === "hostile") return "hostile";
   if (ep && ep.turned === "neutral") return "neutral";
+  if (ep && ep.turned === "feud") return "neutral"; // ⚔️ fighting the others here, not you (ep.feud)
   if (ep && ep.peaceful) return "neutral";
   return enemyIsHostile(ea) ? "hostile" : "neutral";
 };
@@ -15643,7 +15664,7 @@ export const unitHomeAt = (parts, k) => {
 // `saidOnce`: the One time only LINES it has said to you (dialogueEntryNode) — the Liquor Store 2 owner
 // does not pay you for the robber a second time because you quit to the menu and loaded.
 const unitMemOf = (ep) => (ep && (ep.talkSpent || ep.talked || ep.turned || ep.friendly)
-  ? { talkSpent: !!ep.talkSpent, talked: !!ep.talked, turned: ep.turned || null, peaceful: !!ep.peaceful, ...(ep.friendly ? { friendly: true, allyKind: ep.allyKind || null } : {}), ...(Array.isArray(ep.saidOnce) && ep.saidOnce.length ? { saidOnce: [...ep.saidOnce] } : {}), ...(ep.talkDone ? { talkDone: true } : {}) }
+  ? { talkSpent: !!ep.talkSpent, talked: !!ep.talked, turned: ep.turned || null, peaceful: !!ep.peaceful, ...(ep.friendly ? { friendly: true, allyKind: ep.allyKind || null } : {}), ...(Array.isArray(ep.saidOnce) && ep.saidOnce.length ? { saidOnce: [...ep.saidOnce] } : {}), ...(ep.talkDone ? { talkDone: true } : {}), ...(ep.talkOver ? { talkOver: true } : {}), ...(Array.isArray(ep.feud) && ep.feud.length ? { feud: [...ep.feud] } : {}) }
   : null);
 // The save's memory of the run: what was "carried" in from the save it was loaded from (applyRunWorld),
 // with every level's books now laid over it. "buckets" is roomState; "anims" the scenes played, by
@@ -18211,12 +18232,11 @@ export default function AssetStudio({ game = false } = {}) {
     } else if (ep) {
       // A sign cannot turn anybody hostile — there is nobody there. Said out loud rather than
       // silently ignored, because a choice that visibly does nothing reads as a broken feature.
-      if (act === "hostile") { ep.turned = "hostile"; ep.peaceful = false; ep.friendly = false; }
-      else if (act === "calm") { ep.turned = "neutral"; ep.friendly = false; }
-      else if (act === "friendly") {
-        // Reuses the Resurrect staff's own flag and its whole ally pipeline — HP ceiling, glow,
-        // target selection, the follow behaviour. A recruit is not a second kind of ally; the only
-        // thing allyKind changes is what COLOUR it glows (🟢 green — nothing died to win it).
+      const turnHostile = (u) => { u.turned = "hostile"; u.peaceful = false; u.friendly = false; };
+      // Reuses the Resurrect staff's own flag and its whole ally pipeline — HP ceiling, glow,
+      // target selection, the follow behaviour. A recruit is not a second kind of ally; the only
+      // thing allyKind changes is what COLOUR it glows (🟢 green — nothing died to win it).
+      const recruit = () => {
         const base = findA(playerId);
         const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
         const bonus = allyMaxHPBonus(merged && merged.effects);
@@ -18226,6 +18246,40 @@ export default function AssetStudio({ game = false } = {}) {
         const res = payAllyHPSources(cur, ownBase, bonus, playerAllyHPSources(merged), ep.allyHpPaid);
         enemyHP.current[t.key] = res.hp; ep.allyHpPaid = res.paid;
         ep.friendly = true; ep.allyKind = "talked"; ep.turned = null; ep.peaceful = false; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
+      };
+      // "The others here" (dialogueOthersHere), read off the live units of the level you are in.
+      const othersHere = () => {
+        const lvE = (level && level.enemies) || {}, units = [];
+        for (const k3 of Object.keys(lvE)) {
+          if (k3 === t.key) continue;
+          const ep3 = enemyPos.current[k3]; if (!ep3) continue;
+          const ea3 = unitAssetAt(k3, lvE[k3]); if (!ea3) continue;
+          units.push({ key: k3, side: unitSide(ea3, ep3), talker: !!talkDialogueId(lvE[k3]), dead: enemyHP.current[k3] !== undefined && enemyHP.current[k3] <= 0, dx: ep3.x - ep.x });
+        }
+        return dialogueOthersHere(units, AFTER_FIGHT_CELLS * LV_CELL);
+      };
+      if (act === "hostile") turnHostile(ep);
+      else if (act === "calm") { ep.turned = "neutral"; ep.friendly = false; }
+      else if (act === "friendly") recruit();
+      else if (act === "rob") {
+        // 💵😡 The money half exactly as "Give you money" pays it, then the hostile half.
+        const n = (step && step.money) || 0;
+        if (n) setWallet(wallet.current + n);
+        turnHostile(ep);
+        flash(n ? DIALOGUE_ACTS.rob.flash.replace("{name}", name).replace("{n}", String(n)) + " (" + wallet.current + " total)" : DIALOGUE_ACTS.hostile.flash.replace("{name}", name));
+        return;
+      } else if (act === "joinTurn") {
+        recruit();
+        for (const k3 of othersHere()) { const ep3 = enemyPos.current[k3]; if (ep3) turnHostile(ep3); }
+      } else if (act === "feud") {
+        // ⚔️ Everybody in it fights everybody else in it (ep.feud, read by the unit loop's target
+        // pick and aliveOpposite), on the neutral side (unitSide's "feud"), so neither you nor your
+        // allies are in it. `turned` ends their talk-immunity — they are fighting now, and a shot
+        // between them has to land — and talkOver is "you can no longer talk to any of them".
+        const others = othersHere();
+        const join = (u, foes) => { u.turned = "feud"; u.friendly = false; u.talkOver = true; u.feud = [...new Set([...(Array.isArray(u.feud) ? u.feud : []), ...foes])]; };
+        join(ep, others);
+        for (const k3 of others) { const ep3 = enemyPos.current[k3]; if (ep3) join(ep3, [t.key]); }
       }
     } else if (dialogueActNeedsPerson(act)) {
       flash("💬 \"" + DIALOGUE_ACTS[act].label + "\" needs a person — a sign has nobody to turn.");
@@ -21099,7 +21153,15 @@ export default function AssetStudio({ game = false } = {}) {
           // Sides. A resurrected unit is friendly and fights FOR you; a normal enemy is hostile; a
           // "Not hostile" NPC is neutral (idles, never fights). Only friendly/hostile units act.
           const side = unitSide(ea, ep, pacified);
-          const hostile = side === "hostile", friendly = side === "friendly", acts = hostile || friendly;
+          // ⚔️ A FEUD (the "Attack the others here" act): neutral to you, but fighting the units in
+          // ep.feud that are still standing — and only them. Over when none are left.
+          const feudKeys = (side === "neutral" && !pacified && ep.turned === "feud") ? feudTargetsAlive(ep.feud, (k2) => {
+            if (k2 === k || !lv.enemies[k2]) return false;
+            const ep2 = enemyPos.current[k2];
+            return !!ep2 && !ep2.ride && !(enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) && !!unitAssetAt(k2, lv.enemies[k2]);
+          }) : [];
+          const feuding = feudKeys.length > 0;
+          const hostile = side === "hostile", friendly = side === "friendly", acts = hostile || friendly || feuding;
           if (!acts) { ep.reactT = 0; ep.aimHold = 0; ep.burstLeft = 0; ep.autoFire = false; ep.stomp = null; if (ep.swingT > 0) { ep.swingT = 0; ep.swingHit = null; } if (ep.waveGuard != null) { ep.waveGuard = null; ep.waveCd = 0; } }
           // Pick a target on the opposite side. Friendly → nearest hostile (else follow you, no attack).
           // Hostile → nearest of you and your friendlies (a real brawl). Neutral → nothing.
@@ -21111,6 +21173,9 @@ export default function AssetStudio({ game = false } = {}) {
               const ep2 = enemyPos.current[k2]; if (!ep2 || ep2.ride) continue; // 🧍 one riding in your car is in the car, not a target
               const ea2 = unitAssetAt(k2, lv.enemies[k2]); if (!ea2) continue;
               if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // corpse
+              // ⚔️ A feuding unit's other side is its feud, whoever is asking (every swing, stomp,
+              // tail and saw list comes through here), never you or your allies.
+              if (feuding) { if (feudKeys.includes(k2)) out.push({ key: k2, cx: unitCenter(ea2, ep2), ea: ea2, ep: ep2 }); continue; }
               const s2 = unitSide(ea2, ep2, pacified);
               if (wantFriendly ? (s2 === "friendly") : (s2 === "hostile")) out.push({ key: k2, cx: unitCenter(ea2, ep2), ea: ea2, ep: ep2 });
             }
@@ -21168,6 +21233,11 @@ export default function AssetStudio({ game = false } = {}) {
             const near = nearestUnitCX(eCenterXNow, onLevel.length ? onLevel : cands);
             if (near && near.key) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = vehDriven ? vehDriven.w : pw; } // 🚗 at the wheel you are as wide as your car
+          } else if (feuding) {
+            // ⚔️ The nearest of its feud, on its level first, the hostile's own rule without you in it.
+            const cands = aliveOpposite(false), onLevel = cands.filter(onMyLevel);
+            const near = nearestUnitCX(eCenterXNow, onLevel.length ? onLevel : cands);
+            if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
           }
           // Who this hostile is going for, kept on it for the allies' self-defence (allyDefendsItself):
           // an ally reads it next frame and knows the hostile is coming for IT.
@@ -21226,7 +21296,7 @@ export default function AssetStudio({ game = false } = {}) {
           // sprint: you tackle by walking into somebody, so it charges at its walk. (Only dressed
           // looks can wear Tackle; an animal's gear is loot only.)
           const chargeSpeed = aiSpeed * (isCreatureUnit(ea) ? TACKLE_CHARGE_SPEED_MUL : 1);
-          const ai = friendly ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies always chase their foe; hostiles keep their set behavior
+          const ai = (friendly || feuding) ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies (and a ⚔️ feud) always chase their foe; hostiles keep their set behavior
           // 🦎 ...AND A MELEE FIGHTER WITH A TAIL STEPS IN TO USE IT, every other attack (unitTailStepsIn;
           // Blake 2026-10-07: "I maybe saw it once but I feel they should use that ability more often
           // when carrying meelee"). Same narrowing as the stomp's just above, to the tail's own reach.
@@ -22392,7 +22462,7 @@ export default function AssetStudio({ game = false } = {}) {
               pieces: !eLaser && drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: eLaser ? null : hitboxPiece,
               alpha: assetAlpha(projAsset), // 👻 the Projectile asset's own Translucent
               rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
-              damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
+              damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile, ...(feuding ? { feud: feudKeys } : {}), // ⚔️ a feud's round meets only its feud
               // Its crit is rolled where it LANDS, off the shooter's Intelligence — your own shot's
               // rule, which rolls yours at the impact too. shooterFx names the effects it was fired
               // under, so a 🍀 Lucky Find the shooter wears counts the kill (the loot pass). Never null
@@ -23980,6 +24050,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] <= 0) continue; // already defeated
             const epK = enemyPos.current[k];
             if (epK && epK.friendly) continue; // your own resurrected minion — your shots pass through it
+            if (pr.feud && !pr.feud.includes(k)) continue; // ⚔️ a feuding unit's round passes everybody but its feud (the shooter too)
             const eShape = sideBodyShape(ea);
             const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
             const ep = epK;
@@ -24227,6 +24298,7 @@ export default function AssetStudio({ game = false } = {}) {
         const sp2 = lvT.enemies[k2]; const dId = talkDialogueId(sp2); if (!dId) return null;
         const ep2 = enemyPos.current[k2]; if (!ep2) return null;
         if (ep2.talkSpent) return null; // their "One time only" conversation has been had (closeTalk)
+        if (ep2.talkOver) return null; // ⚔️ in a feud: "you can no longer talk to any of them"
         if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) return null; // no chatting with a corpse
         const ea2 = unitAssetAt(k2, sp2); if (!ea2) return null;
         if (unitSide(ea2, ep2) === "hostile") return null;
