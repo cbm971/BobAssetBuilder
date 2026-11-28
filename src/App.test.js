@@ -15868,9 +15868,11 @@ describe("🐞 Lucky, 🪞 Reflect and 🚒 Fire Resistance", () => {
       for (const ang of ["front", "back", "side", "up", "crouch"]) {
         expect((eq.variants.oipvf3l[ang] || []).length).toBeGreaterThan(0);
       }
-      expect((eq.effects || []).some((e) => e.type === "coldResist")).toBe(true);
       expect(editorReachIssues(eq)).toEqual([]);
     }
+    // Blake re-themes these himself (11-28: his Orange Parka Hood carries 2 extra lives instead), so the
+    // pin is that Cold Resistance is still worn somewhere in the winter set, not on every piece of it.
+    expect(["spbeani", "sporjkt", "sprdcot", "sppkjkt"].some((id) => (lib.assets.find((a) => a && a.id === id).effects || []).some((e) => e.type === "coldResist"))).toBe(true);
   });
   test("every hit site asks shrugsHit before it takes HP off, on the player and on units", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
@@ -19049,12 +19051,13 @@ describe("🔪 Backstab (WEAPON_ABILITIES.backstab) + Hockey Stick & Iron Dagger
     expect(weaponAbilityOn(dagger, "backstab")).toBe(true);
     expect(backstabMultOf(dagger)).toBe(2);
 
-    // Front DPS lines up above Kitchen Knife and below most melee weapons (Crowbar, Hockey Stick, Machete, etc.)
+    // Front DPS lines up above Kitchen Knife and below the Common clubs (Hockey Stick, Machete). The Crowbar is a
+    // Poor weapon and the 11-28 balance pass took it to Poor damage (11 -> 9), so the Good dagger now out-hits it.
     const dpsAt5 = (w) => weaponDpsOver(w, playerMeleeDamage(w.damage, 5), 5, []);
     const knifeDps = dpsAt5(knife);
     const daggerDps = dpsAt5(dagger);
     expect(daggerDps).toBeGreaterThan(knifeDps);
-    expect(daggerDps).toBeLessThan(dpsAt5(crowbar));
+    expect(daggerDps).toBeGreaterThan(dpsAt5(crowbar));
     expect(daggerDps).toBeLessThan(dpsAt5(stick));
     expect(daggerDps).toBeLessThan(dpsAt5(machete));
   });

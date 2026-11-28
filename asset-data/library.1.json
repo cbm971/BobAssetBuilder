@@ -1,5 +1,5 @@
 {
- "set": "d1a4f908c951e7b1",
+ "set": "7c311b81f667cace",
  "part": 1,
  "assets": [
   {
@@ -4632,7 +4632,7 @@
      "type": "fly",
      "lift": 8,
      "control": 2,
-     "time": 28,
+     "time": 30,
      "animByBody": {},
      "lastFit": "default"
     }
@@ -4648,9 +4648,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1791587078549,
-   "value": 20,
-   "rank": "legendary"
+   "savedAt": 1795885812221,
+   "value": 30,
+   "rank": "mystic",
+   "editedFrom": 1794915849757
   },
   {
    "id": "17r21tq",
@@ -23386,10 +23387,11 @@
     "Speed",
     "Drink"
    ],
-   "savedAt": 1790512135800,
-   "value": 4,
+   "savedAt": 1795885812221,
+   "value": 12,
    "dropWeight": 2,
-   "rank": "common"
+   "rank": "rare",
+   "editedFrom": 1794915849761
   },
   {
    "id": "4rmch60",
@@ -53971,10 +53973,10 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1795885812221,
    "statBoosts": {
     "speed": 4,
-    "agility": 0,
+    "agility": 1,
     "intelligence": 0,
     "strength": -1
    },
@@ -53992,7 +53994,7 @@
    "categories": [
     "T1",
     "Shoes",
-    "Army"
+    "Slide"
    ],
    "groups": {
     "back": [],
@@ -54000,8 +54002,9 @@
     "up": [],
     "crouch": []
    },
-   "value": 8,
-   "rank": "rare"
+   "value": 10,
+   "rank": "rare",
+   "editedFrom": 1794915849763
   },
   {
    "id": "6mpkxji",
@@ -56763,11 +56766,11 @@
     "telfv37"
    ],
    "statBoosts": {
-    "speed": -1,
+    "speed": 0,
     "agility": 0,
     "intelligence": 2,
-    "strength": -1,
-    "hp": 1
+    "strength": 0,
+    "hp": 2
    },
    "effects": [
     {
@@ -56778,7 +56781,7 @@
      "lastFit": "default"
     }
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1795885812221,
    "defense": 0,
    "ignoreHideIfHat": false,
    "categories": [
@@ -56792,8 +56795,9 @@
     "up": [],
     "crouch": []
    },
-   "value": 10,
-   "rank": "rare"
+   "value": 14,
+   "rank": "rare",
+   "editedFrom": 1794915849766
   },
   {
    "id": "7w5tsod",
@@ -143589,11 +143593,11 @@
     "Agility",
     "Drink"
    ],
-   "savedAt": 1792114016575,
-   "value": 4,
+   "savedAt": 1795885812221,
+   "value": 10,
    "dropWeight": 2,
-   "rank": "common",
-   "editedFrom": 1790512135800
+   "rank": "rare",
+   "editedFrom": 1794915849770
   },
   {
    "id": "b6pic0r",
@@ -282345,10 +282349,10 @@
     "oipvf3l"
    ],
    "statBoosts": {
-    "hp": 0,
+    "hp": 2,
     "speed": 0,
-    "agility": -1,
-    "intelligence": 1,
+    "agility": 0,
+    "intelligence": 2,
     "strength": 0
    },
    "defense": 1,
@@ -282373,7 +282377,8 @@
    },
    "value": 12,
    "rank": "rare",
-   "savedAt": 1791642860438
+   "savedAt": 1795885812221,
+   "editedFrom": 1791642860438
   },
   {
    "id": "clsdr01",
@@ -307406,10 +307411,10 @@
     "hp": 0,
     "speed": 0,
     "agility": 0,
-    "intelligence": 1,
+    "intelligence": 4,
     "strength": 0
    },
-   "defense": 2,
+   "defense": 5,
    "effects": [
     {
      "id": "pvz4k2m",
@@ -307424,9 +307429,10 @@
     "Glasses"
    ],
    "ignoreHideIfHat": true,
-   "value": 30,
-   "savedAt": 1791191324724,
-   "rank": "legendary"
+   "value": 29,
+   "savedAt": 1795885812221,
+   "rank": "legendary",
+   "editedFrom": 1794915849777
   },
   {
    "id": "da16q6j",
@@ -350523,8 +350529,8 @@
    "slot": "jacket",
    "statBoosts": {
     "hp": 0,
-    "speed": 1,
-    "agility": 2,
+    "speed": 0,
+    "agility": 0,
     "intelligence": 0,
     "strength": 0
    },
@@ -352022,8 +352028,8 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1792120000000,
-   "editedFrom": 1791195463004
+   "savedAt": 1795885812221,
+   "editedFrom": 1792120000000
   },
   {
    "id": "fm2kfx9",
@@ -511122,10 +511128,10 @@
     "hp": 0,
     "speed": 0,
     "agility": -1,
-    "intelligence": -1,
+    "intelligence": 0,
     "strength": 2
    },
-   "defense": 0,
+   "defense": 5,
    "effects": [
     {
      "id": "l959my9",
@@ -511137,13 +511143,14 @@
     }
    ],
    "categories": [
-    "T1",
+    "T2",
     "Hat",
-    "T2"
+    "Rogue"
    ],
-   "savedAt": 1790512135800,
-   "value": 10,
-   "rank": "rare"
+   "savedAt": 1795885812221,
+   "value": 16,
+   "rank": "rare",
+   "editedFrom": 1794915849790
   },
   {
    "id": "hpstrhat",
@@ -535555,7 +535562,7 @@
    "statBoosts": {
     "hp": 0,
     "speed": 5,
-    "agility": 1,
+    "agility": 3,
     "intelligence": 0,
     "strength": 0
    },
@@ -535572,10 +535579,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793458364468,
-   "value": 13,
+   "savedAt": 1795885812221,
+   "value": 22,
    "rank": "legendary",
-   "editedFrom": 1792339037153
+   "editedFrom": 1794915849797
   },
   {
    "id": "jhlj7kt",
@@ -562345,10 +562352,10 @@
     "telfv37"
    ],
    "statBoosts": {
-    "hp": 1,
+    "hp": 2,
     "speed": 0,
     "agility": 0,
-    "intelligence": 1,
+    "intelligence": 2,
     "strength": 1
    },
    "defense": 5,
@@ -562374,10 +562381,10 @@
     "crouch": [],
     "front": []
    },
-   "savedAt": 1793454712895,
-   "value": 15,
+   "savedAt": 1795885812221,
+   "value": 22,
    "rank": "legendary",
-   "editedFrom": 1792371944912
+   "editedFrom": 1794915849801
   },
   {
    "id": "kgqpnss",
@@ -701175,7 +701182,7 @@
    "wtype": "throw",
    "projectileId": null,
    "projectileSpeed": 12,
-   "damage": 15,
+   "damage": 12,
    "fireRate": 3,
    "clipSize": 0,
    "reloadTime": 1.2,
@@ -701185,11 +701192,10 @@
    "landEffectLife": 20,
    "landRadius": 0,
    "categories": [
-    "throwable",
+    "T1",
     "Grenade",
-    "T1"
+    "Trailer"
    ],
-   "savedAt": 1790512135800,
    "projectileRange": 14,
    "landPropId": "r0ckrub",
    "explode": false,
@@ -701202,12 +701208,26 @@
    "explodePropId": null,
    "explodeSize": 3,
    "explodeLife": 0.5,
-   "stun": 0.25,
+   "stun": 0.75,
    "captureMax": 0,
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 1,
-   "rank": "poor"
+   "rank": "poor",
+   "savedAt": 1795885812221,
+   "sounds": {
+    "throw": "qd117xl",
+    "land": "ynj37i2"
+   },
+   "editedFrom": 1794880768646,
+   "boomerang": false,
+   "pickupCount": 3,
+   "throwBlast": false,
+   "chargeLaser": false,
+   "chargeTime": 0.65,
+   "beamTime": 0.55,
+   "backstab": 0,
+   "automatic": false
   },
   {
    "id": "ry71qh6",
@@ -804004,13 +804024,13 @@
     "oipvf3l"
    ],
    "statBoosts": {
-    "hp": 0,
-    "speed": -1,
+    "hp": 1,
+    "speed": 0,
     "agility": 0,
     "intelligence": 1,
     "strength": 0
    },
-   "defense": 5,
+   "defense": 10,
    "effects": [
     {
      "id": "1xlmslf",
@@ -804028,8 +804048,8 @@
    "ignoreHideIfHat": false,
    "value": 12,
    "rank": "rare",
-   "savedAt": 1792109095006,
-   "editedFrom": 1791055525150
+   "savedAt": 1795885812221,
+   "editedFrom": 1792109095006
   },
   {
    "id": "trtlshl",
@@ -809388,8 +809408,8 @@
    "statBoosts": {
     "hp": 0,
     "speed": 0,
-    "agility": 0,
-    "intelligence": 1,
+    "agility": 1,
+    "intelligence": 2,
     "strength": 0
    },
    "defense": 0,
@@ -809414,9 +809434,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1790512135800,
-   "value": 9,
-   "rank": "rare"
+   "savedAt": 1795885812221,
+   "value": 11,
+   "rank": "rare",
+   "editedFrom": 1794915849820
   },
   {
    "id": "ufoatps",
@@ -968849,10 +968870,11 @@
     "Alcohol",
     "Drink"
    ],
-   "savedAt": 1790725826088,
-   "value": 3,
+   "savedAt": 1795885812221,
+   "value": 6,
    "dropWeight": 2,
-   "rank": "poor"
+   "rank": "common",
+   "editedFrom": 1790725826088
   },
   {
    "id": "zoocage",
