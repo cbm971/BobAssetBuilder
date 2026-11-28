@@ -1,5 +1,5 @@
 {
- "set": "0bf1d83a757d81e1",
+ "set": "7f7723a4ec1adb7f",
  "part": 4,
  "levels": [
   {
@@ -717082,14 +717082,14 @@
    "name": "Black and White Flannel",
    "tex": "flannel",
    "colors": {
-    "base": "#f2f0ea",
-    "band": "#111111",
-    "over": "#f2f0ea"
+    "base": "#f4f4f4",
+    "band": "#000000",
+    "over": "#f4f4f4"
    },
    "params": {
     "sett": 1
    },
-   "savedAt": 1795833375515
+   "savedAt": 1795834175627
   }
  ],
  "backgrounds": [
